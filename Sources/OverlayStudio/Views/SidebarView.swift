@@ -3,6 +3,7 @@ import OverlayCore
 
 struct SidebarView: View {
     @ObservedObject var model: StudioModel
+    @State private var layoutPresetName = ""
 
     var body: some View {
         ScrollView {
@@ -10,6 +11,7 @@ struct SidebarView: View {
                 fileSection
                 syncSection
                 previewSection
+                layoutPresetSection
                 outputSection
                 exportSection
             }
@@ -139,6 +141,64 @@ struct SidebarView: View {
         }
     }
 
+    private var layoutPresetSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "Layout Presets", systemImage: "rectangle.3.group")
+
+            HStack(spacing: 8) {
+                TextField("Preset name", text: $layoutPresetName)
+                    .textFieldStyle(.roundedBorder)
+
+                Button {
+                    if model.saveLayoutPreset(named: layoutPresetName) {
+                        layoutPresetName = ""
+                    }
+                } label: {
+                    Label("Save", systemImage: "tray.and.arrow.down")
+                        .labelStyle(.iconOnly)
+                }
+                .help("Save current layout")
+                .disabled(layoutPresetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    model.importLayoutPresets()
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity)
+                }
+
+                Button {
+                    model.exportLayoutPresets()
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                }
+                .disabled(model.layoutPresets.isEmpty)
+            }
+            .buttonStyle(.bordered)
+
+            if model.layoutPresets.isEmpty {
+                Text("No saved presets.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(model.layoutPresets) { preset in
+                        LayoutPresetRow(
+                            preset: preset,
+                            isDefault: model.defaultLayoutPresetID == preset.id,
+                            apply: { model.applyLayoutPreset(id: preset.id) },
+                            makeDefault: { model.setDefaultLayoutPreset(id: preset.id) },
+                            delete: { model.deleteLayoutPreset(id: preset.id) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private var resolutionPresetSelection: Binding<String> {
         Binding(
             get: { model.selectedResolutionPresetID },
@@ -211,6 +271,58 @@ struct FilePickRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct LayoutPresetRow: View {
+    var preset: LayoutPreset
+    var isDefault: Bool
+    var apply: () -> Void
+    var makeDefault: () -> Void
+    var delete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(preset.name)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    if isDefault {
+                        Text("Default")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.tint)
+                    }
+                }
+                Text("\(preset.layout.elements.count) gauges")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button(action: apply) {
+                Label("Apply", systemImage: "arrow.down.left.and.arrow.up.right")
+                    .labelStyle(.iconOnly)
+            }
+            .help("Apply preset")
+
+            Button(action: makeDefault) {
+                Label("Set default", systemImage: isDefault ? "star.fill" : "star")
+                    .labelStyle(.iconOnly)
+            }
+            .help("Set as default")
+            .disabled(isDefault)
+
+            Button(role: .destructive, action: delete) {
+                Label("Delete", systemImage: "trash")
+                    .labelStyle(.iconOnly)
+            }
+            .help("Delete preset")
+        }
+        .buttonStyle(.borderless)
         .padding(10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
     }

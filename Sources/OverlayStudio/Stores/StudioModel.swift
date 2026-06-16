@@ -33,8 +33,10 @@ final class StudioModel: ObservableObject {
     @Published var overlayImage: NSImage?
     @Published var dragBaseOverlayImage: NSImage?
     @Published var dragOverlayImage: NSImage?
-    @Published var layout: OverlayLayout = .default
-    @Published var selectedElementID: String? = OverlayLayout.default.elements.first { $0.kind == .speed }?.id
+    @Published var layout: OverlayLayout
+    @Published var selectedElementID: String?
+    @Published var layoutPresets: [LayoutPreset]
+    @Published var defaultLayoutPresetID: String?
 
     @Published var showGrid = false
     @Published var gridColumns = 12
@@ -47,10 +49,21 @@ final class StudioModel: ObservableObject {
 
     private let videoFrameService = VideoFrameService()
     private let previewRenderer = OverlayPreviewRenderer()
+    private let layoutPresetStore: LayoutPresetStore
     private var timeObserverToken: Any?
     private var previewRenderGeneration = 0
     private var lastOverlayRefresh = Date.distantPast
     private var draggedElementID: String?
+
+    init(layoutPresetStore: LayoutPresetStore = LayoutPresetStore()) {
+        self.layoutPresetStore = layoutPresetStore
+        let presetState = layoutPresetStore.load()
+        let validDefaultPresetID = presetState.presets.contains { $0.id == presetState.defaultPresetID } ? presetState.defaultPresetID : nil
+        self.layoutPresets = presetState.presets
+        self.defaultLayoutPresetID = validDefaultPresetID
+        self.layout = presetState.presets.first { $0.id == validDefaultPresetID }?.layout ?? .default
+        self.selectedElementID = Self.firstSelectableElementID(in: layout)
+    }
 
     var canPreview: Bool {
         videoURL != nil && series != nil
@@ -167,6 +180,113 @@ final class StudioModel: ObservableObject {
 
         guard let preset = OutputFrameRatePreset.fixed.first(where: { $0.id == id }) else { return }
         outputFPS = preset.framesPerSecond
+    }
+
+    @discardableResult
+    func saveLayoutPreset(named rawName: String) -> Bool {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            status = "Preset name is required."
+            return false
+        }
+
+        let now = Date()
+        if let index = layoutPresets.firstIndex(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            layoutPresets[index].name = name
+            layoutPresets[index].layout = layout
+            layoutPresets[index].updatedAt = now
+            persistLayoutPresets()
+            status = "Updated layout preset: \(name)"
+            return true
+        }
+
+        let preset = LayoutPreset(
+            id: UUID().uuidString,
+            name: name,
+            layout: layout,
+            createdAt: now,
+            updatedAt: now
+        )
+        layoutPresets.append(preset)
+        persistLayoutPresets()
+        status = "Saved layout preset: \(name)"
+        return true
+    }
+
+    func applyLayoutPreset(id: String) {
+        guard let preset = layoutPresets.first(where: { $0.id == id }) else { return }
+        layout = preset.layout
+        selectedElementID = Self.firstSelectableElementID(in: layout)
+        status = "Applied layout preset: \(preset.name)"
+    }
+
+    func setDefaultLayoutPreset(id: String) {
+        guard let preset = layoutPresets.first(where: { $0.id == id }) else { return }
+        defaultLayoutPresetID = id
+        persistLayoutPresets()
+        status = "Default layout preset: \(preset.name)"
+    }
+
+    func deleteLayoutPreset(id: String) {
+        guard let preset = layoutPresets.first(where: { $0.id == id }) else { return }
+        layoutPresets.removeAll { $0.id == id }
+        if defaultLayoutPresetID == id {
+            defaultLayoutPresetID = nil
+        }
+        persistLayoutPresets()
+        status = "Deleted layout preset: \(preset.name)"
+    }
+
+    func exportLayoutPresets() {
+        guard !layoutPresets.isEmpty else {
+            status = "No layout presets to export."
+            return
+        }
+
+        let panel = NSSavePanel()
+        panel.title = "Export layout presets"
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "overlay-layout-presets.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let state = LayoutPresetState(presets: layoutPresets, defaultPresetID: defaultLayoutPresetID)
+            let data = try encoder.encode(state)
+            try data.write(to: url, options: .atomic)
+            status = "Exported \(layoutPresets.count) layout presets."
+        } catch {
+            status = "Preset export error: \(error.localizedDescription)"
+        }
+    }
+
+    func importLayoutPresets() {
+        let panel = NSOpenPanel()
+        panel.title = "Import layout presets"
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            let state: LayoutPresetState
+            if let decodedState = try? decoder.decode(LayoutPresetState.self, from: data) {
+                state = decodedState
+            } else {
+                let preset = try decoder.decode(LayoutPreset.self, from: data)
+                state = LayoutPresetState(presets: [preset], defaultPresetID: preset.id)
+            }
+
+            let importedCount = mergeImportedLayoutPresets(state)
+            status = importedCount == 0
+                ? "No layout presets imported."
+                : "Imported \(importedCount) layout presets."
+        } catch {
+            status = "Preset import error: \(error.localizedDescription)"
+        }
     }
 
     func setVideo(_ url: URL) {
@@ -551,6 +671,80 @@ final class StudioModel: ObservableObject {
 
     private func formatTime(_ time: TimeInterval) -> String {
         String(format: "%.3f", time)
+    }
+
+    private func persistLayoutPresets() {
+        let state = LayoutPresetState(presets: layoutPresets, defaultPresetID: defaultLayoutPresetID)
+        layoutPresetStore.save(state)
+    }
+
+    private func mergeImportedLayoutPresets(_ importedState: LayoutPresetState) -> Int {
+        var usedIDs = Set(layoutPresets.map(\.id))
+        var usedNames = Set(layoutPresets.map { Self.normalizedPresetName($0.name) })
+        var importedIDMap: [String: String] = [:]
+        var importedCount = 0
+
+        for preset in importedState.presets {
+            let baseName = preset.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !baseName.isEmpty else { continue }
+
+            var importedPreset = preset
+            importedPreset.id = uniquePresetID(preferredID: preset.id, usedIDs: &usedIDs)
+            importedPreset.name = uniquePresetName(baseName, usedNames: &usedNames)
+            importedIDMap[preset.id] = importedPreset.id
+            layoutPresets.append(importedPreset)
+            importedCount += 1
+        }
+
+        if defaultLayoutPresetID == nil,
+           let importedDefaultPresetID = importedState.defaultPresetID,
+           let mappedDefaultPresetID = importedIDMap[importedDefaultPresetID] {
+            defaultLayoutPresetID = mappedDefaultPresetID
+        }
+
+        if importedCount > 0 {
+            persistLayoutPresets()
+        }
+        return importedCount
+    }
+
+    private func uniquePresetID(preferredID: String, usedIDs: inout Set<String>) -> String {
+        if !preferredID.isEmpty, !usedIDs.contains(preferredID) {
+            usedIDs.insert(preferredID)
+            return preferredID
+        }
+
+        var id = UUID().uuidString
+        while usedIDs.contains(id) {
+            id = UUID().uuidString
+        }
+        usedIDs.insert(id)
+        return id
+    }
+
+    private func uniquePresetName(_ baseName: String, usedNames: inout Set<String>) -> String {
+        let normalizedBaseName = Self.normalizedPresetName(baseName)
+        if !usedNames.contains(normalizedBaseName) {
+            usedNames.insert(normalizedBaseName)
+            return baseName
+        }
+
+        var suffix = 2
+        var candidate = "\(baseName) \(suffix)"
+        while usedNames.contains(Self.normalizedPresetName(candidate)) {
+            suffix += 1
+            candidate = "\(baseName) \(suffix)"
+        }
+        usedNames.insert(Self.normalizedPresetName(candidate))
+        return candidate
+    }
+
+    private static func normalizedPresetName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func firstSelectableElementID(in layout: OverlayLayout) -> String? {
+        layout.elements.first { $0.kind == .speed }?.id ?? layout.elements.first?.id
     }
 
     private var sourceDimensions: (width: Int, height: Int)? {

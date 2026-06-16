@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-public enum OverlayComponentID: String, CaseIterable, Identifiable {
+public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
     case speed
     case pace
     case heartRate
@@ -35,7 +35,7 @@ public enum OverlayComponentID: String, CaseIterable, Identifiable {
     }
 }
 
-public struct OverlayComponentStyle: Equatable {
+public struct OverlayComponentStyle: Codable, Equatable {
     public var accentColor: OverlayAccentColor?
     public var panelOpacity: Double?
     public var textScale: Double
@@ -51,7 +51,7 @@ public struct OverlayComponentStyle: Equatable {
     }
 }
 
-public struct OverlayColor: Equatable {
+public struct OverlayColor: Codable, Equatable {
     public var red: Double
     public var green: Double
     public var blue: Double
@@ -78,7 +78,7 @@ public struct OverlayColor: Equatable {
     public static let track = OverlayColor(red: 1, green: 1, blue: 1, alpha: 0.14)
 }
 
-public enum OverlayFontFamily: String, CaseIterable, Identifiable {
+public enum OverlayFontFamily: String, CaseIterable, Codable, Identifiable {
     case helveticaNeue
     case helveticaNeueBold
     case menloBold
@@ -118,7 +118,7 @@ public enum OverlayFontFamily: String, CaseIterable, Identifiable {
     }
 }
 
-public struct OverlayElementCustomization: Equatable {
+public struct OverlayElementCustomization: Codable, Equatable {
     public var labelOverride: String?
     public var unitOverride: String?
     public var iconOverride: String?
@@ -224,7 +224,7 @@ public struct OverlayElementCustomization: Equatable {
     }
 }
 
-public struct OverlayElement: Identifiable, Equatable {
+public struct OverlayElement: Codable, Identifiable, Equatable {
     public var id: String
     public var kind: OverlayComponentID
     public var frame: OverlayComponentFrame
@@ -243,7 +243,7 @@ public struct OverlayElement: Identifiable, Equatable {
     }
 }
 
-public struct OverlayComponentFrame: Equatable {
+public struct OverlayComponentFrame: Codable, Equatable {
     public var x: Double
     public var y: Double
     public var scale: Double
@@ -265,7 +265,7 @@ public struct OverlayComponentFrame: Equatable {
     }
 }
 
-public enum OverlayAccentColor: String, CaseIterable, Identifiable {
+public enum OverlayAccentColor: String, CaseIterable, Codable, Identifiable {
     case telemetryGreen
     case electricBlue
     case amber
@@ -305,7 +305,7 @@ public enum OverlayAccentColor: String, CaseIterable, Identifiable {
     }
 }
 
-public struct OverlayStyle: Equatable {
+public struct OverlayStyle: Codable, Equatable {
     public var accentColor: OverlayAccentColor
     public var panelOpacity: Double
     public var metricScale: Double
@@ -324,7 +324,7 @@ public struct OverlayStyle: Equatable {
     }
 }
 
-public struct OverlayLayout: Equatable {
+public struct OverlayLayout: Codable, Equatable {
     public var elements: [OverlayElement]
     public var style: OverlayStyle
 

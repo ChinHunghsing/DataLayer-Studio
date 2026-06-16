@@ -100,4 +100,23 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(speed?.customization.lineWidth ?? -1, 18, accuracy: 0.0001)
         XCTAssertEqual(speed?.customization.lengthScale ?? -1, 1.4, accuracy: 0.0001)
     }
+
+    func testLayoutCodableRoundTrip() throws {
+        var layout = OverlayLayout.default
+        layout.updateElement(id: "route") { element in
+            element.frame.x = -0.2
+            element.frame.y = 1.14
+            element.customization.lineWidth = 9
+            element.customization.trackColor = OverlayColor(red: 0.2, green: 0.8, blue: 0.4, alpha: 0.9)
+        }
+        layout.updateElement(id: "pace") { element in
+            element.customization.valueFont = .futuraCondensedExtraBold
+            element.customization.valuePrecision = 2
+        }
+
+        let data = try JSONEncoder().encode(layout)
+        let decoded = try JSONDecoder().decode(OverlayLayout.self, from: data)
+
+        XCTAssertEqual(decoded, layout)
+    }
 }
