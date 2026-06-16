@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import OverlayCore
 
@@ -35,21 +36,30 @@ struct PreviewCanvasView: View {
                             .position(x: displayRect.midX, y: displayRect.midY)
                     }
 
-                    if let overlay = model.overlayImage {
-                        Image(nsImage: overlay)
-                            .resizable()
-                            .frame(width: displayRect.width, height: displayRect.height)
-                            .position(x: displayRect.midX, y: displayRect.midY)
-                            .allowsHitTesting(false)
+                    if activeDrag != nil {
+                        if let baseOverlay = model.dragBaseOverlayImage {
+                            overlayImage(baseOverlay, displayRect: displayRect)
+                        }
+                    } else if let overlay = model.overlayImage {
+                        overlayImage(overlay, displayRect: displayRect)
                     }
 
-                    if let dragOverlay = model.dragOverlayImage, let activeDrag {
-                        Image(nsImage: dragOverlay)
-                            .resizable()
-                            .frame(width: displayRect.width, height: displayRect.height)
-                            .position(x: displayRect.midX, y: displayRect.midY)
-                            .offset(activeDrag.translation)
-                            .allowsHitTesting(false)
+                    if let activeDrag {
+                        if let dragOverlay = model.dragOverlayImage {
+                            Image(nsImage: dragOverlay)
+                                .resizable()
+                                .frame(width: displayRect.width, height: displayRect.height)
+                                .position(x: displayRect.midX, y: displayRect.midY)
+                                .offset(activeDrag.translation)
+                                .allowsHitTesting(false)
+                        } else if let sourceOverlay = activeDrag.sourceOverlay {
+                            dragSnapshotOverlay(
+                                sourceOverlay,
+                                sourceRect: activeDrag.sourceRect,
+                                displayRect: displayRect,
+                                translation: activeDrag.translation
+                            )
+                        }
                     }
 
                     if model.showGrid {
@@ -174,7 +184,14 @@ struct PreviewCanvasView: View {
         selectElement(id)
 
         if activeDrag?.id != id, let element = model.layout.elements.first(where: { $0.id == id }) {
-            activeDrag = ComponentDragState(id: id, startX: element.frame.x, startY: element.frame.y, translation: .zero)
+            activeDrag = ComponentDragState(
+                id: id,
+                startX: element.frame.x,
+                startY: element.frame.y,
+                sourceRect: componentDisplayRect(element: element, displayRect: displayRect),
+                sourceOverlay: model.overlayImage,
+                translation: .zero
+            )
             model.beginElementDrag(id: id, previewSize: displayRect.size)
         }
         guard var activeDrag else { return }
@@ -225,6 +242,36 @@ struct PreviewCanvasView: View {
         )
     }
 
+    private func dragSnapshotOverlay(
+        _ image: NSImage,
+        sourceRect: CGRect,
+        displayRect: CGRect,
+        translation: CGSize
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            Image(nsImage: image)
+                .resizable()
+                .frame(width: displayRect.width, height: displayRect.height)
+                .offset(
+                    x: displayRect.minX - sourceRect.minX,
+                    y: displayRect.minY - sourceRect.minY
+                )
+        }
+        .frame(width: sourceRect.width, height: sourceRect.height, alignment: .topLeading)
+        .clipped()
+        .position(x: sourceRect.midX, y: sourceRect.midY)
+        .offset(translation)
+        .allowsHitTesting(false)
+    }
+
+    private func overlayImage(_ image: NSImage, displayRect: CGRect) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .frame(width: displayRect.width, height: displayRect.height)
+            .position(x: displayRect.midX, y: displayRect.midY)
+            .allowsHitTesting(false)
+    }
+
     private func rendererLayoutScale() -> CGFloat {
         max(0.28, min(CGFloat(model.outputWidth) / 1920, CGFloat(model.outputHeight) / 1080))
     }
@@ -249,6 +296,8 @@ private struct ComponentDragState {
     let id: String
     let startX: Double
     let startY: Double
+    let sourceRect: CGRect
+    let sourceOverlay: NSImage?
     var translation: CGSize
 }
 

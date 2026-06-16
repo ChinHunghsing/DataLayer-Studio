@@ -31,6 +31,7 @@ final class StudioModel: ObservableObject {
     @Published var isPlaying = false
     @Published var backgroundImage: NSImage?
     @Published var overlayImage: NSImage?
+    @Published var dragBaseOverlayImage: NSImage?
     @Published var dragOverlayImage: NSImage?
     @Published var layout: OverlayLayout = .default
     @Published var selectedElementID: String? = OverlayLayout.default.elements.first { $0.kind == .speed }?.id
@@ -49,6 +50,7 @@ final class StudioModel: ObservableObject {
     private var timeObserverToken: Any?
     private var previewRenderGeneration = 0
     private var lastOverlayRefresh = Date.distantPast
+    private var draggedElementID: String?
 
     var canPreview: Bool {
         videoURL != nil && series != nil
@@ -267,12 +269,16 @@ final class StudioModel: ObservableObject {
     }
 
     func refreshPreview() {
+        guard draggedElementID == nil else { return }
         guard let videoURL else {
             backgroundImage = nil
             overlayImage = nil
+            dragBaseOverlayImage = nil
             return
         }
 
+        dragBaseOverlayImage = nil
+        dragOverlayImage = nil
         previewRenderGeneration += 1
         let generation = previewRenderGeneration
         let time = previewTime
@@ -310,6 +316,8 @@ final class StudioModel: ObservableObject {
     }
 
     func refreshOverlayOnly(previewSize: CGSize? = nil, minimumInterval: TimeInterval = 0) {
+        guard draggedElementID == nil else { return }
+        dragBaseOverlayImage = nil
         dragOverlayImage = nil
         guard videoURL != nil else {
             overlayImage = nil
@@ -379,7 +387,25 @@ final class StudioModel: ObservableObject {
         let baseLayout = OverlayLayout(elements: layout.elements.filter { $0.id != id }, style: layout.style)
         let dragLayout = OverlayLayout(elements: [element], style: layout.style)
 
+        draggedElementID = id
+        dragBaseOverlayImage = nil
+        dragOverlayImage = nil
         Task.detached { [previewRenderer] in
+            let baseOverlay = try? Self.renderOverlayImage(
+                previewRenderer: previewRenderer,
+                series: currentSeries,
+                size: renderSize,
+                videoTime: time,
+                timeSync: currentSync,
+                layout: baseLayout,
+                distanceUnit: currentDistanceUnit
+            )
+
+            await MainActor.run {
+                guard self.previewRenderGeneration == generation else { return }
+                self.dragBaseOverlayImage = baseOverlay
+            }
+
             let dragOverlay = try? Self.renderOverlayImage(
                 previewRenderer: previewRenderer,
                 series: currentSeries,
@@ -394,25 +420,13 @@ final class StudioModel: ObservableObject {
                 guard self.previewRenderGeneration == generation else { return }
                 self.dragOverlayImage = dragOverlay
             }
-
-            let baseOverlay = try? Self.renderOverlayImage(
-                previewRenderer: previewRenderer,
-                series: currentSeries,
-                size: renderSize,
-                videoTime: time,
-                timeSync: currentSync,
-                layout: baseLayout,
-                distanceUnit: currentDistanceUnit
-            )
-
-            await MainActor.run {
-                guard self.previewRenderGeneration == generation else { return }
-                self.overlayImage = baseOverlay
-            }
         }
     }
 
     func endElementDrag() {
+        draggedElementID = nil
+        overlayImage = nil
+        dragBaseOverlayImage = nil
         dragOverlayImage = nil
         refreshOverlayOnly()
     }
