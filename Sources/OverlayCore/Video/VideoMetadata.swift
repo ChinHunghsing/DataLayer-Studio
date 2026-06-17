@@ -15,22 +15,25 @@ public struct VideoMetadata {
 
     public static func load(from url: URL) throws -> VideoMetadata {
         let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<VideoMetadata, Error>?
+        let resultBox = VideoMetadataResultBox()
 
-        Task {
+        Task.detached {
             do {
-                result = .success(try await loadAsync(from: url))
+                resultBox.set(.success(try await loadAsync(from: url)))
             } catch {
-                result = .failure(error)
+                resultBox.set(.failure(error))
             }
             semaphore.signal()
         }
 
         semaphore.wait()
-        return try result!.get()
+        guard let result = resultBox.result else {
+            throw OverlayVideoError.unreadableVideo("Could not load video metadata from \(url.path).")
+        }
+        return try result.get()
     }
 
-    private static func loadAsync(from url: URL) async throws -> VideoMetadata {
+    public static func loadAsync(from url: URL) async throws -> VideoMetadata {
         let asset = AVURLAsset(url: url)
         let durationTime = try await asset.load(.duration)
         let duration = CMTimeGetSeconds(durationTime)
@@ -53,13 +56,32 @@ public struct VideoMetadata {
     }
 }
 
-public enum OverlayVideoError: Error, CustomStringConvertible {
+private final class VideoMetadataResultBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedResult: Result<VideoMetadata, Error>?
+
+    var result: Result<VideoMetadata, Error>? {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedResult
+    }
+
+    func set(_ result: Result<VideoMetadata, Error>) {
+        lock.lock()
+        storedResult = result
+        lock.unlock()
+    }
+}
+
+public enum OverlayVideoError: Error, CustomStringConvertible, LocalizedError {
     case unreadableVideo(String)
     case cannotCreatePixelBuffer
     case cannotCreateBitmapContext
     case cannotStartWriter(String)
     case writerFailed(String)
     case unsupportedEncoder(String)
+    case invalidConfiguration(String)
+    case cancelled
 
     public var description: String {
         switch self {
@@ -75,6 +97,14 @@ public enum OverlayVideoError: Error, CustomStringConvertible {
             return "AVAssetWriter failed: \(message)"
         case let .unsupportedEncoder(message):
             return message
+        case let .invalidConfiguration(message):
+            return message
+        case .cancelled:
+            return "Video export was cancelled."
         }
+    }
+
+    public var errorDescription: String? {
+        description
     }
 }

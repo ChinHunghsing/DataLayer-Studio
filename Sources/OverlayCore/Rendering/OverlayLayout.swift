@@ -49,6 +49,14 @@ public struct OverlayComponentStyle: Codable, Equatable {
         self.panelOpacity = panelOpacity
         self.textScale = textScale
     }
+
+    public var sanitized: OverlayComponentStyle {
+        OverlayComponentStyle(
+            accentColor: accentColor,
+            panelOpacity: OverlayLayoutSanitizer.sanitize(panelOpacity, range: 0...1),
+            textScale: OverlayLayoutSanitizer.clamp(textScale, fallback: 1, range: 0.1...4)
+        )
+    }
 }
 
 public struct OverlayColor: Codable, Equatable {
@@ -76,6 +84,34 @@ public struct OverlayColor: Codable, Equatable {
     public static let muted = OverlayColor(red: 0.66, green: 0.72, blue: 0.78, alpha: 0.82)
     public static let label = OverlayColor(red: 0.74, green: 0.80, blue: 0.86, alpha: 0.92)
     public static let track = OverlayColor(red: 1, green: 1, blue: 1, alpha: 0.14)
+}
+
+private enum OverlayLayoutSanitizer {
+    static let positionRange: ClosedRange<Double> = -1.0...2.0
+
+    static func finite(_ value: Double, fallback: Double) -> Double {
+        value.isFinite ? value : fallback
+    }
+
+    static func clamp(_ value: Double, fallback: Double, range: ClosedRange<Double>) -> Double {
+        let finiteValue = finite(value, fallback: fallback)
+        return min(range.upperBound, max(range.lowerBound, finiteValue))
+    }
+
+    static func sanitize(_ value: Double?, range: ClosedRange<Double>) -> Double? {
+        guard let value, value.isFinite else { return nil }
+        return min(range.upperBound, max(range.lowerBound, value))
+    }
+
+    static func sanitizeColor(_ color: OverlayColor?) -> OverlayColor? {
+        guard let color else { return nil }
+        return OverlayColor(
+            red: clamp(color.red, fallback: 1, range: 0...1),
+            green: clamp(color.green, fallback: 1, range: 0...1),
+            blue: clamp(color.blue, fallback: 1, range: 0...1),
+            alpha: clamp(color.alpha, fallback: 1, range: 0...1)
+        )
+    }
 }
 
 public enum OverlayFontFamily: String, CaseIterable, Codable, Identifiable {
@@ -126,6 +162,7 @@ public struct OverlayElementCustomization: Codable, Equatable {
     public var showsUnit: Bool
     public var showsIcon: Bool
     public var showsPanel: Bool
+    public var showsPanelBorder: Bool?
     public var showGaugeTicks: Bool?
     public var valuePrecision: Int?
     public var gaugeMinimum: Double?
@@ -154,6 +191,7 @@ public struct OverlayElementCustomization: Codable, Equatable {
         showsUnit: Bool = true,
         showsIcon: Bool = false,
         showsPanel: Bool = true,
+        showsPanelBorder: Bool? = nil,
         showGaugeTicks: Bool? = nil,
         valuePrecision: Int? = nil,
         gaugeMinimum: Double? = nil,
@@ -181,6 +219,7 @@ public struct OverlayElementCustomization: Codable, Equatable {
         self.showsUnit = showsUnit
         self.showsIcon = showsIcon
         self.showsPanel = showsPanel
+        self.showsPanelBorder = showsPanelBorder
         self.showGaugeTicks = showGaugeTicks
         self.valuePrecision = valuePrecision
         self.gaugeMinimum = gaugeMinimum
@@ -222,6 +261,34 @@ public struct OverlayElementCustomization: Codable, Equatable {
         }
         return iconOverride
     }
+
+    public var sanitized: OverlayElementCustomization {
+        var copy = self
+        copy.valuePrecision = valuePrecision.map { min(3, max(0, $0)) }
+        copy.gaugeMinimum = OverlayLayoutSanitizer.sanitize(gaugeMinimum, range: 0...120)
+        copy.gaugeMaximum = OverlayLayoutSanitizer.sanitize(gaugeMaximum, range: 1...180)
+        if let minimum = copy.gaugeMinimum,
+           let maximum = copy.gaugeMaximum,
+           maximum <= minimum {
+            copy.gaugeMaximum = minimum + 1
+        }
+        copy.labelColor = OverlayLayoutSanitizer.sanitizeColor(labelColor)
+        copy.valueColor = OverlayLayoutSanitizer.sanitizeColor(valueColor)
+        copy.unitColor = OverlayLayoutSanitizer.sanitizeColor(unitColor)
+        copy.iconColor = OverlayLayoutSanitizer.sanitizeColor(iconColor)
+        copy.trackColor = OverlayLayoutSanitizer.sanitizeColor(trackColor)
+        copy.lineWidth = OverlayLayoutSanitizer.clamp(lineWidth, fallback: 1, range: 0.25...64)
+        copy.lengthScale = OverlayLayoutSanitizer.clamp(lengthScale, fallback: 1, range: 0.1...4)
+        copy.labelScale = OverlayLayoutSanitizer.clamp(labelScale, fallback: 1, range: 0.05...20)
+        copy.valueScale = OverlayLayoutSanitizer.clamp(valueScale, fallback: 1, range: 0.05...20)
+        copy.unitScale = OverlayLayoutSanitizer.clamp(unitScale, fallback: 1, range: 0.05...20)
+        copy.iconScale = OverlayLayoutSanitizer.clamp(iconScale, fallback: 1, range: 0.05...20)
+        return copy
+    }
+
+    public var panelBorderIsVisible: Bool {
+        showsPanelBorder ?? true
+    }
 }
 
 public struct OverlayElement: Codable, Identifiable, Equatable {
@@ -240,6 +307,15 @@ public struct OverlayElement: Codable, Identifiable, Equatable {
         self.kind = kind
         self.frame = frame
         self.customization = customization
+    }
+
+    public var sanitized: OverlayElement {
+        OverlayElement(
+            id: id,
+            kind: kind,
+            frame: frame.sanitized,
+            customization: customization.sanitized
+        )
     }
 }
 
@@ -262,6 +338,16 @@ public struct OverlayComponentFrame: Codable, Equatable {
         self.scale = scale
         self.isVisible = isVisible
         self.style = style
+    }
+
+    public var sanitized: OverlayComponentFrame {
+        OverlayComponentFrame(
+            x: OverlayLayoutSanitizer.clamp(x, fallback: 0, range: OverlayLayoutSanitizer.positionRange),
+            y: OverlayLayoutSanitizer.clamp(y, fallback: 0, range: OverlayLayoutSanitizer.positionRange),
+            scale: OverlayLayoutSanitizer.clamp(scale, fallback: 1, range: 0.1...4),
+            isVisible: isVisible,
+            style: style.sanitized
+        )
     }
 }
 
@@ -321,6 +407,15 @@ public struct OverlayStyle: Codable, Equatable {
         self.panelOpacity = panelOpacity
         self.metricScale = metricScale
         self.showGaugeTicks = showGaugeTicks
+    }
+
+    public var sanitized: OverlayStyle {
+        OverlayStyle(
+            accentColor: accentColor,
+            panelOpacity: OverlayLayoutSanitizer.clamp(panelOpacity, fallback: 0.64, range: 0...1),
+            metricScale: OverlayLayoutSanitizer.clamp(metricScale, fallback: 1, range: 0.1...4),
+            showGaugeTicks: showGaugeTicks
+        )
     }
 }
 
@@ -383,6 +478,30 @@ public struct OverlayLayout: Codable, Equatable {
 
     public static let `default` = OverlayLayout()
 
+    public var sanitized: OverlayLayout {
+        var usedIDs = Set<String>()
+        let sanitizedElements = elements.enumerated().map { index, element in
+            var sanitizedElement = element.sanitized
+            let trimmedID = sanitizedElement.id.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedID.isEmpty || usedIDs.contains(trimmedID) {
+                sanitizedElement.id = "\(sanitizedElement.kind.rawValue)-\(index)"
+            } else {
+                sanitizedElement.id = trimmedID
+            }
+
+            var suffix = 2
+            let baseID = sanitizedElement.id
+            while usedIDs.contains(sanitizedElement.id) {
+                sanitizedElement.id = "\(baseID)-\(suffix)"
+                suffix += 1
+            }
+            usedIDs.insert(sanitizedElement.id)
+            return sanitizedElement
+        }
+
+        return OverlayLayout(elements: sanitizedElements, style: style.sanitized)
+    }
+
     public func component(_ id: OverlayComponentID) -> OverlayComponentFrame {
         if let element = elements.first(where: { $0.kind == id }) {
             return element.frame
@@ -397,19 +516,34 @@ public struct OverlayLayout: Codable, Equatable {
     public mutating func updateElement(id: String, _ update: (inout OverlayElement) -> Void) {
         guard let index = elements.firstIndex(where: { $0.id == id }) else { return }
         update(&elements[index])
+        elements[index] = elements[index].sanitized
     }
 
     public mutating func removeElement(id: String) {
         elements.removeAll { $0.id == id }
     }
 
+    public mutating func moveElement(id: String, by offset: Int) {
+        guard offset != 0,
+              let index = elements.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        let targetIndex = min(elements.count - 1, max(0, index + offset))
+        guard targetIndex != index else { return }
+
+        let element = elements.remove(at: index)
+        elements.insert(element, at: targetIndex)
+    }
+
     public mutating func updateFirstElement(kind: OverlayComponentID, _ update: (inout OverlayElement) -> Void) {
         if let index = elements.firstIndex(where: { $0.kind == kind }) {
             update(&elements[index])
+            elements[index] = elements[index].sanitized
         } else {
             var element = OverlayElement.defaultElement(kind: kind)
             update(&element)
-            elements.append(element)
+            elements.append(element.sanitized)
         }
     }
 

@@ -14,4 +14,10 @@ final class OverlayDistanceUnitTests: XCTestCase {
         XCTAssertEqual(OverlayDistanceUnit.kilometers.format(meters: nil), "--")
         XCTAssertEqual(OverlayDistanceUnit.meters.format(meters: .infinity), "--")
     }
+
+    func testDistanceUnitCodableRoundTrip() throws {
+        let encoded = try JSONEncoder().encode(OverlayDistanceUnit.meters)
+        let decoded = try JSONDecoder().decode(OverlayDistanceUnit.self, from: encoded)
+        XCTAssertEqual(decoded, .meters)
+    }
 }

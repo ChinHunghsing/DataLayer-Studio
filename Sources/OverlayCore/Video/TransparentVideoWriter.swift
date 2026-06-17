@@ -40,6 +40,7 @@ public struct TransparentVideoWriterConfig {
     public var overlayLayout: OverlayLayout
     public var distanceUnit: OverlayDistanceUnit
     public var progressHandler: ((Int, Int) -> Void)?
+    public var cancellationHandler: (() -> Bool)?
 
     public init(
         width: Int,
@@ -51,7 +52,8 @@ public struct TransparentVideoWriterConfig {
         codec: OverlayVideoCodec = .hevcAlpha,
         overlayLayout: OverlayLayout = .default,
         distanceUnit: OverlayDistanceUnit = .kilometers,
-        progressHandler: ((Int, Int) -> Void)? = nil
+        progressHandler: ((Int, Int) -> Void)? = nil,
+        cancellationHandler: (() -> Bool)? = nil
     ) {
         self.width = width
         self.height = height
@@ -63,6 +65,43 @@ public struct TransparentVideoWriterConfig {
         self.overlayLayout = overlayLayout
         self.distanceUnit = distanceUnit
         self.progressHandler = progressHandler
+        self.cancellationHandler = cancellationHandler
+    }
+}
+
+public struct TransparentVideoFrameTiming {
+    public static let preferredTimescale: CMTimeScale = 600_000
+
+    public let framesPerSecond: Double
+    public let duration: TimeInterval
+    public let frameCount: Int
+    public let frameCountWasClamped: Bool
+
+    public init(framesPerSecond: Double, duration: TimeInterval) {
+        let fps = framesPerSecond.isFinite ? framesPerSecond : 1
+        let duration = duration.isFinite ? duration : 0
+        self.framesPerSecond = max(1, fps)
+        self.duration = max(0, duration)
+
+        let rawFrameCount = ceil(self.duration * self.framesPerSecond)
+        if rawFrameCount.isFinite, rawFrameCount < Double(Int.max) {
+            self.frameCount = max(1, Int(rawFrameCount))
+            self.frameCountWasClamped = false
+        } else if self.duration <= 0 {
+            self.frameCount = 1
+            self.frameCountWasClamped = false
+        } else {
+            self.frameCount = Int.max
+            self.frameCountWasClamped = true
+        }
+    }
+
+    public func presentationTime(for frameIndex: Int) -> CMTime {
+        let safeFrameIndex = max(0, frameIndex)
+        return CMTime(
+            seconds: Double(safeFrameIndex) / framesPerSecond,
+            preferredTimescale: Self.preferredTimescale
+        )
     }
 }
 
@@ -78,17 +117,41 @@ public final class TransparentVideoWriter {
     }
 
     public func write() throws {
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try FileManager.default.removeItem(at: outputURL)
+        if config.cancellationHandler?() == true {
+            throw OverlayVideoError.cancelled
         }
 
-        let width = makeEven(config.width)
-        let height = makeEven(config.height)
-        let fps = max(1, config.framesPerSecond)
-        let frameCount = max(1, Int(ceil(config.duration * fps)))
-        let frameDuration = CMTime(value: 1, timescale: CMTimeScale(fps.rounded()))
+        let temporaryOutputURL = makeTemporaryOutputURL()
+        removePartialOutput(at: temporaryOutputURL)
 
-        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
+        do {
+            try write(to: temporaryOutputURL)
+            try installCompletedOutput(from: temporaryOutputURL)
+        } catch {
+            removePartialOutput(at: temporaryOutputURL)
+            throw error
+        }
+    }
+
+    private func write(to temporaryOutputURL: URL) throws {
+        try validateConfiguration()
+
+        let width = config.width
+        let height = config.height
+        let timing = TransparentVideoFrameTiming(
+            framesPerSecond: config.framesPerSecond,
+            duration: config.duration
+        )
+        let fps = timing.framesPerSecond
+        let frameCount = timing.frameCount
+        guard !timing.frameCountWasClamped else {
+            throw OverlayVideoError.invalidConfiguration(
+                "Output duration and frame rate produce too many frames. Lower the duration or frame rate."
+            )
+        }
+        let encoderFrameRate = try encoderFrameRateValue(fps)
+
+        let writer = try AVAssetWriter(outputURL: temporaryOutputURL, fileType: .mov)
         var settings: [String: Any] = [
             AVVideoCodecKey: config.codec.avCodecType,
             AVVideoWidthKey: width,
@@ -97,8 +160,8 @@ public final class TransparentVideoWriter {
         if config.codec == .hevcAlpha {
             settings[AVVideoCompressionPropertiesKey] = [
                 AVVideoAverageBitRateKey: config.averageBitRate,
-                AVVideoExpectedSourceFrameRateKey: Int(fps.rounded()),
-                AVVideoMaxKeyFrameIntervalKey: Int(fps.rounded()),
+                AVVideoExpectedSourceFrameRateKey: encoderFrameRate,
+                AVVideoMaxKeyFrameIntervalKey: encoderFrameRate,
                 AVVideoAllowFrameReorderingKey: false
             ]
         }
@@ -140,35 +203,60 @@ public final class TransparentVideoWriter {
             )
         )
 
+        let renderQueue = DispatchQueue(label: "run.libo.overlay.video-writer")
+        let renderFinished = DispatchSemaphore(value: 0)
+        let codec = config.codec
+        let progressHandler = config.progressHandler
+        let cancellationHandler = config.cancellationHandler
         var frameIndex = 0
-        while frameIndex < frameCount {
-            if input.isReadyForMoreMediaData {
-                guard let pool = adaptor.pixelBufferPool else {
-                    throw OverlayVideoError.cannotCreatePixelBuffer
-                }
-                var pixelBuffer: CVPixelBuffer?
-                let status = CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
-                guard status == kCVReturnSuccess, let pixelBuffer else {
-                    throw OverlayVideoError.cannotCreatePixelBuffer
-                }
+        var renderError: Error?
+        var didFinishInput = false
 
-                let presentationTime = CMTimeMultiply(frameDuration, multiplier: Int32(frameIndex))
-                let videoTime = CMTimeGetSeconds(presentationTime)
-                try renderer.render(videoTime: videoTime, into: pixelBuffer)
-                guard adaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
-                    throw OverlayVideoError.writerFailed(describe(error: writer.error, codec: config.codec))
-                }
+        input.requestMediaDataWhenReady(on: renderQueue) {
+            while input.isReadyForMoreMediaData, frameIndex < frameCount, renderError == nil {
+                do {
+                    if cancellationHandler?() == true {
+                        throw OverlayVideoError.cancelled
+                    }
 
-                frameIndex += 1
-                if frameIndex == frameCount || frameIndex % Int(max(1, fps)) == 0 {
-                    config.progressHandler?(frameIndex, frameCount)
+                    guard let pool = adaptor.pixelBufferPool else {
+                        throw OverlayVideoError.cannotCreatePixelBuffer
+                    }
+                    var pixelBuffer: CVPixelBuffer?
+                    let status = CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
+                    guard status == kCVReturnSuccess, let pixelBuffer else {
+                        throw OverlayVideoError.cannotCreatePixelBuffer
+                    }
+
+                    let presentationTime = timing.presentationTime(for: frameIndex)
+                    let videoTime = CMTimeGetSeconds(presentationTime)
+                    try renderer.render(videoTime: videoTime, into: pixelBuffer)
+                    guard adaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
+                        throw OverlayVideoError.writerFailed(self.describe(error: writer.error, codec: codec))
+                    }
+
+                    frameIndex += 1
+                    if frameIndex == frameCount || frameIndex % Int(max(1, fps)) == 0 {
+                        progressHandler?(frameIndex, frameCount)
+                    }
+                } catch {
+                    renderError = error
                 }
-            } else {
-                Thread.sleep(forTimeInterval: 0.002)
+            }
+
+            if (frameIndex >= frameCount || renderError != nil), !didFinishInput {
+                didFinishInput = true
+                input.markAsFinished()
+                renderFinished.signal()
             }
         }
+        renderFinished.wait()
 
-        input.markAsFinished()
+        if let renderError {
+            writer.cancelWriting()
+            throw renderError
+        }
+
         let semaphore = DispatchSemaphore(value: 0)
         writer.finishWriting {
             semaphore.signal()
@@ -180,9 +268,83 @@ public final class TransparentVideoWriter {
         }
     }
 
-    private func makeEven(_ value: Int) -> Int {
-        let positive = max(2, value)
-        return positive % 2 == 0 ? positive : positive + 1
+    private func validateConfiguration() throws {
+        guard config.width > 0, config.height > 0 else {
+            throw OverlayVideoError.invalidConfiguration("Output width and height must be positive.")
+        }
+        guard config.width <= 16_384, config.height <= 16_384 else {
+            throw OverlayVideoError.invalidConfiguration("Output width and height must be 16,384 px or smaller.")
+        }
+        guard config.width % 2 == 0, config.height % 2 == 0 else {
+            throw OverlayVideoError.invalidConfiguration("Output width and height must be even pixel values.")
+        }
+        guard config.framesPerSecond.isFinite, config.framesPerSecond > 0 else {
+            throw OverlayVideoError.invalidConfiguration("Output frame rate must be a positive finite number.")
+        }
+        guard config.duration.isFinite, config.duration > 0 else {
+            throw OverlayVideoError.invalidConfiguration("Output duration must be a positive finite number.")
+        }
+        guard config.averageBitRate > 0 else {
+            throw OverlayVideoError.invalidConfiguration("Output bitrate must be positive.")
+        }
+        guard config.averageBitRate <= 1_000_000_000 else {
+            throw OverlayVideoError.invalidConfiguration("Output bitrate must be 1,000,000 kbps or lower.")
+        }
+        try validateOutputURL()
+    }
+
+    private func validateOutputURL() throws {
+        let fileManager = FileManager.default
+        let directory = outputURL.deletingLastPathComponent()
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            throw OverlayVideoError.invalidConfiguration("Output directory does not exist: \(directory.path)")
+        }
+
+        var outputIsDirectory: ObjCBool = false
+        if fileManager.fileExists(atPath: outputURL.path, isDirectory: &outputIsDirectory),
+           outputIsDirectory.boolValue {
+            throw OverlayVideoError.invalidConfiguration("Output path must be a file, not a directory: \(outputURL.path)")
+        }
+    }
+
+    private func encoderFrameRateValue(_ framesPerSecond: Double) throws -> Int {
+        let rounded = framesPerSecond.rounded()
+        guard rounded.isFinite,
+              rounded >= 1,
+              rounded <= Double(Int.max) else {
+            throw OverlayVideoError.invalidConfiguration("Output frame rate is too large for the encoder.")
+        }
+        return Int(rounded)
+    }
+
+    private func makeTemporaryOutputURL() -> URL {
+        let directory = outputURL.deletingLastPathComponent()
+        let baseName = outputURL.deletingPathExtension().lastPathComponent
+        let pathExtension = outputURL.pathExtension.isEmpty ? "mov" : outputURL.pathExtension
+        return directory
+            .appendingPathComponent(".\(baseName).\(UUID().uuidString).tmp")
+            .appendingPathExtension(pathExtension)
+    }
+
+    private func installCompletedOutput(from temporaryOutputURL: URL) throws {
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: outputURL.path) {
+            _ = try fileManager.replaceItemAt(
+                outputURL,
+                withItemAt: temporaryOutputURL,
+                backupItemName: nil,
+                options: []
+            )
+        } else {
+            try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
+        }
+    }
+
+    private func removePartialOutput(at url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     private func describe(error: Error?, codec: OverlayVideoCodec) -> String {

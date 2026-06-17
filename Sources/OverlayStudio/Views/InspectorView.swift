@@ -58,6 +58,7 @@ struct InspectorView: View {
             } label: {
                 Image(systemName: "plus")
             }
+            .disabled(model.isExporting)
             .help("Add element")
 
             Button {
@@ -65,15 +66,31 @@ struct InspectorView: View {
             } label: {
                 Image(systemName: "doc.on.doc")
             }
-            .disabled(model.selectedElement == nil)
+            .disabled(model.selectedElement == nil || model.isExporting)
             .help("Duplicate selected element")
+
+            Button {
+                model.moveSelectedElementBackward()
+            } label: {
+                Image(systemName: "arrow.down")
+            }
+            .disabled(!canMoveSelectedElementBackward || model.isExporting)
+            .help("Send selected element backward")
+
+            Button {
+                model.moveSelectedElementForward()
+            } label: {
+                Image(systemName: "arrow.up")
+            }
+            .disabled(!canMoveSelectedElementForward || model.isExporting)
+            .help("Bring selected element forward")
 
             Button(role: .destructive) {
                 model.deleteSelectedElement()
             } label: {
                 Image(systemName: "trash")
             }
-            .disabled(model.selectedElement == nil)
+            .disabled(model.selectedElement == nil || model.isExporting)
             .help("Delete selected element")
         }
         .buttonStyle(.borderless)
@@ -85,6 +102,8 @@ struct InspectorView: View {
     private var selectedElementSettings: some View {
         if let element = model.selectedElement {
             settings(for: element)
+                .id(element.id)
+                .disabled(model.isExporting)
         } else {
             Text("Click a visible gauge in the preview canvas, or add a new element.")
                 .font(.caption)
@@ -93,6 +112,21 @@ struct InspectorView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
+    }
+
+    private var selectedElementIndex: Int? {
+        guard let selectedElementID = model.selectedElementID else { return nil }
+        return model.layout.elements.firstIndex { $0.id == selectedElementID }
+    }
+
+    private var canMoveSelectedElementBackward: Bool {
+        guard let selectedElementIndex else { return false }
+        return selectedElementIndex > 0
+    }
+
+    private var canMoveSelectedElementForward: Bool {
+        guard let selectedElementIndex else { return false }
+        return selectedElementIndex < model.layout.elements.count - 1
     }
 
     @ViewBuilder
@@ -148,6 +182,12 @@ struct InspectorView: View {
             ))
 
             if currentElement(id)?.customization.showsPanel == true {
+                Toggle("Panel border", isOn: boolBinding(
+                    id: id,
+                    get: { $0.customization.panelBorderIsVisible },
+                    set: { $0.customization.showsPanelBorder = $1 }
+                ))
+
                 LabeledSlider(
                     title: "Panel opacity",
                     value: doubleBinding(
@@ -250,8 +290,8 @@ struct InspectorView: View {
                     title: "Label",
                     font: fontBinding(id: id, get: { $0.customization.labelFont }, set: { $0.customization.labelFont = $1 }),
                     color: colorBinding(id: id, fallback: .label, get: { $0.customization.labelColor }, set: { $0.customization.labelColor = $1 }),
-                    scale: doubleBinding(id: id, get: { $0.customization.labelScale }, set: { $0.customization.labelScale = $1 }),
-                    scaleLabel: "\(Int(((currentElement(id)?.customization.labelScale ?? 1) * 100).rounded()))%"
+                    size: fontSizeBinding(id: id, role: .label, kind: kind),
+                    sizeLabel: fontSizeLabel(id: id, role: .label, kind: kind)
                 )
             }
 
@@ -259,8 +299,8 @@ struct InspectorView: View {
                 title: "Value",
                 font: fontBinding(id: id, get: { $0.customization.valueFont }, set: { $0.customization.valueFont = $1 }),
                 color: colorBinding(id: id, fallback: defaultValueColor(for: element), get: { $0.customization.valueColor }, set: { $0.customization.valueColor = $1 }),
-                scale: doubleBinding(id: id, get: { $0.customization.valueScale }, set: { $0.customization.valueScale = $1 }),
-                scaleLabel: "\(Int(((currentElement(id)?.customization.valueScale ?? 1) * 100).rounded()))%"
+                size: fontSizeBinding(id: id, role: .value, kind: kind),
+                sizeLabel: fontSizeLabel(id: id, role: .value, kind: kind)
             )
 
             if currentElement(id)?.customization.showsUnit == true {
@@ -268,8 +308,8 @@ struct InspectorView: View {
                     title: "Unit",
                     font: fontBinding(id: id, get: { $0.customization.unitFont }, set: { $0.customization.unitFont = $1 }),
                     color: colorBinding(id: id, fallback: .muted, get: { $0.customization.unitColor }, set: { $0.customization.unitColor = $1 }),
-                    scale: doubleBinding(id: id, get: { $0.customization.unitScale }, set: { $0.customization.unitScale = $1 }),
-                    scaleLabel: "\(Int(((currentElement(id)?.customization.unitScale ?? 1) * 100).rounded()))%"
+                    size: fontSizeBinding(id: id, role: .unit, kind: kind),
+                    sizeLabel: fontSizeLabel(id: id, role: .unit, kind: kind)
                 )
             }
 
@@ -278,8 +318,8 @@ struct InspectorView: View {
                     title: "Icon",
                     font: fontBinding(id: id, get: { $0.customization.iconFont }, set: { $0.customization.iconFont = $1 }),
                     color: colorBinding(id: id, fallback: .label, get: { $0.customization.iconColor }, set: { $0.customization.iconColor = $1 }),
-                    scale: doubleBinding(id: id, get: { $0.customization.iconScale }, set: { $0.customization.iconScale = $1 }),
-                    scaleLabel: "\(Int(((currentElement(id)?.customization.iconScale ?? 1) * 100).rounded()))%"
+                    size: fontSizeBinding(id: id, role: .icon, kind: kind),
+                    sizeLabel: fontSizeLabel(id: id, role: .icon, kind: kind)
                 )
             }
         }
@@ -327,6 +367,73 @@ struct InspectorView: View {
         model.layout.elements.first { $0.id == id }
     }
 
+    private func fontSizeLabel(id: String, role: TypographyRole, kind: OverlayComponentID) -> String {
+        "\(Int(fontSizeValue(id: id, role: role, kind: kind).rounded())) pt"
+    }
+
+    private func fontSizeValue(id: String, role: TypographyRole, kind: OverlayComponentID) -> Double {
+        guard let element = currentElement(id) else { return typographyBaseSize(for: kind, role: role) }
+        return typographyBaseSize(for: kind, role: role) * scaleValue(for: element, role: role)
+    }
+
+    private func scaleValue(for element: OverlayElement, role: TypographyRole) -> Double {
+        switch role {
+        case .label:
+            return element.customization.labelScale
+        case .value:
+            return element.customization.valueScale
+        case .unit:
+            return element.customization.unitScale
+        case .icon:
+            return element.customization.iconScale
+        }
+    }
+
+    private func typographyBaseSize(for kind: OverlayComponentID, role: TypographyRole) -> Double {
+        switch (kind, role) {
+        case (.speed, .label):
+            return 15
+        case (.speed, .value):
+            return 76
+        case (.speed, .unit):
+            return 24
+        case (.speed, .icon):
+            return 13
+        case (.pace, .label), (.distance, .label), (.heartRate, .label), (.cadence, .label):
+            return 10
+        case (.pace, .value), (.distance, .value), (.heartRate, .value), (.cadence, .value):
+            return 23
+        case (.pace, .unit), (.distance, .unit), (.heartRate, .unit), (.cadence, .unit):
+            return 10
+        case (.pace, .icon), (.distance, .icon), (.heartRate, .icon), (.cadence, .icon):
+            return 10
+        case (.route, .label):
+            return 13
+        case (.route, .value):
+            return 18
+        case (.route, .unit):
+            return 10
+        case (.route, .icon):
+            return 12
+        case (.topProgress, .label):
+            return 15
+        case (.topProgress, .value):
+            return 12
+        case (.topProgress, .unit):
+            return 15
+        case (.topProgress, .icon):
+            return 12
+        case (.timeDate, .label):
+            return 11
+        case (.timeDate, .value):
+            return 24
+        case (.timeDate, .unit):
+            return 22
+        case (.timeDate, .icon):
+            return 12
+        }
+    }
+
     private func elementDisplayTitle(_ element: OverlayElement) -> String {
         element.customization.label(default: element.kind.title)
     }
@@ -357,6 +464,29 @@ struct InspectorView: View {
         Binding(
             get: { currentElement(id).map(get) ?? 0 },
             set: { newValue in model.updateElement(id) { set(&$0, newValue) } }
+        )
+    }
+
+    private func fontSizeBinding(id: String, role: TypographyRole, kind: OverlayComponentID) -> Binding<Double> {
+        let baseSize = typographyBaseSize(for: kind, role: role)
+        return Binding(
+            get: { fontSizeValue(id: id, role: role, kind: kind) },
+            set: { newValue in
+                let clampedSize = min(180, max(6, newValue))
+                model.updateElement(id) { element in
+                    let scale = clampedSize / baseSize
+                    switch role {
+                    case .label:
+                        element.customization.labelScale = scale
+                    case .value:
+                        element.customization.valueScale = scale
+                    case .unit:
+                        element.customization.unitScale = scale
+                    case .icon:
+                        element.customization.iconScale = scale
+                    }
+                }
+            }
         )
     }
 
@@ -404,6 +534,13 @@ struct InspectorView: View {
             set: { newValue in model.updateElement(id) { set(&$0, newValue) } }
         )
     }
+}
+
+private enum TypographyRole {
+    case label
+    case value
+    case unit
+    case icon
 }
 
 private enum InspectorSection: String, CaseIterable, Identifiable {
@@ -481,8 +618,8 @@ private struct TextStyleRow: View {
     var title: String
     @Binding var font: OverlayFontFamily
     @Binding var color: Color
-    @Binding var scale: Double
-    var scaleLabel: String
+    @Binding var size: Double
+    var sizeLabel: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -499,10 +636,12 @@ private struct TextStyleRow: View {
             ColorPicker("Color", selection: $color)
 
             LabeledSlider(
-                title: "Size",
-                value: $scale,
-                range: 0.45...2.4,
-                label: scaleLabel
+                title: "Font size",
+                value: $size,
+                range: 6...180,
+                label: sizeLabel,
+                showsTextField: true,
+                unitLabel: "pt"
             )
         }
         .padding(.vertical, 4)
@@ -515,6 +654,9 @@ struct LabeledSlider: View {
     var range: ClosedRange<Double>
     var label: String
     var showsTextField = false
+    var unitLabel: String?
+    @State private var draftText = ""
+    @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -522,17 +664,62 @@ struct LabeledSlider: View {
                 Text(title)
                 Spacer()
                 if showsTextField {
-                    TextField(title, value: $value, format: .number.precision(.fractionLength(0...3)))
-                        .multilineTextAlignment(.trailing)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 76)
+                    HStack(spacing: 5) {
+                        TextField(title, text: $draftText)
+                            .multilineTextAlignment(.trailing)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 76)
+                            .focused($isTextFieldFocused)
+                            .onSubmit(commitDraft)
+
+                        if let unitLabel {
+                            Text(unitLabel)
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                    }
                 } else {
                     Text(label)
                         .foregroundStyle(.secondary)
                         .font(.caption)
                 }
             }
-            Slider(value: $value, in: range)
+            Slider(value: clampedValue, in: range)
         }
+        .onAppear {
+            draftText = NumberTextFormatter.formatDouble(clamp(value))
+        }
+        .onChange(of: value) { _ in
+            guard !isTextFieldFocused else { return }
+            draftText = NumberTextFormatter.formatDouble(clamp(value))
+        }
+        .onChange(of: isTextFieldFocused) { focused in
+            if focused {
+                draftText = NumberTextFormatter.formatDouble(clamp(value))
+            } else {
+                commitDraft()
+            }
+        }
+    }
+
+    private var clampedValue: Binding<Double> {
+        Binding(
+            get: { clamp(value) },
+            set: { value = clamp($0) }
+        )
+    }
+
+    private func clamp(_ rawValue: Double) -> Double {
+        let finiteValue = rawValue.isFinite ? rawValue : range.lowerBound
+        return min(range.upperBound, max(range.lowerBound, finiteValue))
+    }
+
+    private func commitDraft() {
+        guard let parsed = NumberTextFormatter.parseDouble(draftText) else {
+            draftText = NumberTextFormatter.formatDouble(clamp(value))
+            return
+        }
+        value = clamp(parsed)
+        draftText = NumberTextFormatter.formatDouble(clamp(value))
     }
 }

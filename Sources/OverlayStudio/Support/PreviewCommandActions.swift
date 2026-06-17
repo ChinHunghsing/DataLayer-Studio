@@ -1,0 +1,48 @@
+import SwiftUI
+
+struct StudioCommandActions {
+    var isExporting: Bool
+    var canExport: Bool
+    var canPlayPreview: Bool
+    var isPlayingPreview: Bool
+    var canMarkSportStart: Bool
+    var canMoveSelectionForward: Bool
+    var canMoveSelectionBackward: Bool
+    var chooseVideo: () -> Void
+    var chooseFIT: () -> Void
+    var export: () -> Void
+    var cancelExport: () -> Void
+    var refreshPreview: () -> Void
+    var togglePlayback: () -> Void
+    var markSportStart: () -> Void
+    var moveSelectionForward: () -> Void
+    var moveSelectionBackward: () -> Void
+}
+
+struct PreviewCommandActions {
+    var isFullscreen: Bool
+    var zoomIn: () -> Void
+    var zoomOut: () -> Void
+    var resetZoom: () -> Void
+    var toggleFullscreen: () -> Void
+}
+
+private struct PreviewCommandActionsKey: FocusedValueKey {
+    typealias Value = PreviewCommandActions
+}
+
+extension FocusedValues {
+    var previewCommandActions: PreviewCommandActions? {
+        get { self[PreviewCommandActionsKey.self] }
+        set { self[PreviewCommandActionsKey.self] = newValue }
+    }
+
+    var studioCommandActions: StudioCommandActions? {
+        get { self[StudioCommandActionsKey.self] }
+        set { self[StudioCommandActionsKey.self] = newValue }
+    }
+}
+
+private struct StudioCommandActionsKey: FocusedValueKey {
+    typealias Value = StudioCommandActions
+}

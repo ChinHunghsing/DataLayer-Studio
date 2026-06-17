@@ -40,6 +40,86 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(sample.cadence, 180)
     }
 
+    func testUsesTimerStartEventBeforeFirstRecordToAvoidStartupDelay() throws {
+        var content = Data()
+        appendEventDefinition(localMessageType: 1, to: &content)
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendTimerStartEvent(timestamp: 1_000_000, localMessageType: 1, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_008, latitude: 35.0, longitude: 139.0, distanceMeters: 1200, speed: 3.0, heartRate: 151, cadence: 84),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_010, latitude: 35.0002, longitude: 139.0004, distanceMeters: 1206, speed: 3.4, heartRate: 154, cadence: 86),
+            localMessageType: 0,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+        let start = series.sample(at: 0)
+        let firstRecordTime = series.sample(at: 8)
+
+        XCTAssertEqual(series.samples.first?.elapsed, 0)
+        XCTAssertEqual(start.speedMetersPerSecond ?? -1, 3.0, accuracy: 0.001)
+        XCTAssertEqual(start.distanceMeters ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(firstRecordTime.heartRate, 151)
+        XCTAssertEqual(firstRecordTime.cadence, 168)
+    }
+
+    func testUsesSessionStartTimeWhenTimerStartEventIsMissing() throws {
+        var content = Data()
+        appendSessionDefinition(localMessageType: 2, to: &content)
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendSession(timestamp: 1_000_030, startTime: 1_000_000, localMessageType: 2, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_006, latitude: 35.0, longitude: 139.0, distanceMeters: 800, speed: 3.2, heartRate: 149, cadence: 82),
+            localMessageType: 0,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.samples.first?.elapsed, 0)
+        XCTAssertEqual(series.sample(at: 0).speedMetersPerSecond ?? -1, 3.2, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 6).heartRate, 149)
+    }
+
+    func testParsesFractionalCadenceAsFractionalRPMBeforeConvertingToSPM() throws {
+        var content = Data()
+        appendFractionalCadenceRecordDefinition(localMessageType: 0, to: &content)
+        appendFractionalCadenceRecord(timestamp: 1_000_000, cadence: 80, fractionalCadenceRaw: 64, localMessageType: 0, to: &content)
+
+        let sample = try FITParser().parse(data: makeFITFile(content: content)).sample(at: 0)
+
+        XCTAssertEqual(sample.cadence, 161)
+    }
+
+    func testParsesStandardCompressedSpeedDistanceRecords() throws {
+        var content = Data()
+        appendCompressedSpeedDistanceRecordDefinition(localMessageType: 0, to: &content)
+        appendCompressedSpeedDistanceRecord(
+            timestamp: 1_000_000,
+            speedMetersPerSecond: 3.25,
+            accumulatedDistanceMeters: 0,
+            localMessageType: 0,
+            to: &content
+        )
+        appendCompressedSpeedDistanceRecord(
+            timestamp: 1_000_002,
+            speedMetersPerSecond: 3.5,
+            accumulatedDistanceMeters: 4,
+            localMessageType: 0,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.sample(at: 0).speedMetersPerSecond ?? -1, 3.25, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 2).speedMetersPerSecond ?? -1, 3.5, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 2).distanceMeters ?? -1, 4, accuracy: 0.001)
+    }
+
     func testRejectsCRCByDefault() throws {
         var fit = makeFITFile(records: [
             TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 150, cadence: 80)
@@ -66,8 +146,29 @@ private struct TestRecord {
 
 private func makeFITFile(records: [TestRecord]) -> Data {
     var content = Data()
+    appendStandardRecordDefinition(localMessageType: 0, to: &content)
 
-    content.append(0x40)
+    for record in records {
+        appendRecord(record, localMessageType: 0, to: &content)
+    }
+
+    return makeFITFile(content: content)
+}
+
+private func makeFITFile(content: Data) -> Data {
+    var file = Data()
+    file.append(12)
+    file.append(0x10)
+    appendUInt16(0, to: &file)
+    appendUInt32(UInt32(content.count), to: &file)
+    file.append(contentsOf: [UInt8(ascii: "."), UInt8(ascii: "F"), UInt8(ascii: "I"), UInt8(ascii: "T")])
+    file.append(content)
+    appendUInt16(FITCRC.compute(file), to: &file)
+    return file
+}
+
+private func appendStandardRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
     content.append(0x00)
     content.append(0x00)
     appendUInt16(20, to: &content)
@@ -79,27 +180,111 @@ private func makeFITFile(records: [TestRecord]) -> Data {
     content.append(contentsOf: [6, 2, 0x84])
     content.append(contentsOf: [3, 1, 0x02])
     content.append(contentsOf: [4, 1, 0x02])
+}
 
-    for record in records {
-        content.append(0x00)
-        appendUInt32(record.timestamp, to: &content)
-        appendInt32(semicircles(record.latitude), to: &content)
-        appendInt32(semicircles(record.longitude), to: &content)
-        appendUInt32(UInt32((record.distanceMeters * 100).rounded()), to: &content)
-        appendUInt16(UInt16((record.speed * 1000).rounded()), to: &content)
-        content.append(record.heartRate)
-        content.append(record.cadence)
-    }
+private func appendCompressedSpeedDistanceRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(20, to: &content)
+    content.append(2)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [8, 3, 0x0D])
+}
 
-    var file = Data()
-    file.append(12)
-    file.append(0x10)
-    appendUInt16(0, to: &file)
-    appendUInt32(UInt32(content.count), to: &file)
-    file.append(contentsOf: [UInt8(ascii: "."), UInt8(ascii: "F"), UInt8(ascii: "I"), UInt8(ascii: "T")])
-    file.append(content)
-    appendUInt16(FITCRC.compute(file), to: &file)
-    return file
+private func appendEventDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(21, to: &content)
+    content.append(3)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [0, 1, 0x00])
+    content.append(contentsOf: [1, 1, 0x00])
+}
+
+private func appendSessionDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(18, to: &content)
+    content.append(2)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [2, 4, 0x86])
+}
+
+private func appendFractionalCadenceRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(20, to: &content)
+    content.append(3)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [4, 1, 0x02])
+    content.append(contentsOf: [53, 1, 0x02])
+}
+
+private func appendTimerStartEvent(timestamp: UInt32, localMessageType: UInt8, to content: inout Data) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    content.append(0)
+    content.append(0)
+}
+
+private func appendSession(timestamp: UInt32, startTime: UInt32, localMessageType: UInt8, to content: inout Data) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    appendUInt32(startTime, to: &content)
+}
+
+private func appendFractionalCadenceRecord(
+    timestamp: UInt32,
+    cadence: UInt8,
+    fractionalCadenceRaw: UInt8,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    content.append(cadence)
+    content.append(fractionalCadenceRaw)
+}
+
+private func appendRecord(_ record: TestRecord, localMessageType: UInt8, to content: inout Data) {
+    content.append(localMessageType)
+    appendUInt32(record.timestamp, to: &content)
+    appendInt32(semicircles(record.latitude), to: &content)
+    appendInt32(semicircles(record.longitude), to: &content)
+    appendUInt32(UInt32((record.distanceMeters * 100).rounded()), to: &content)
+    appendUInt16(UInt16((record.speed * 1000).rounded()), to: &content)
+    content.append(record.heartRate)
+    content.append(record.cadence)
+}
+
+private func appendCompressedSpeedDistanceRecord(
+    timestamp: UInt32,
+    speedMetersPerSecond: Double,
+    accumulatedDistanceMeters: Double,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    content.append(contentsOf: compressedSpeedDistance(
+        speedMetersPerSecond: speedMetersPerSecond,
+        accumulatedDistanceMeters: accumulatedDistanceMeters
+    ))
+}
+
+private func compressedSpeedDistance(speedMetersPerSecond: Double, accumulatedDistanceMeters: Double) -> [UInt8] {
+    let speedRaw = UInt32((speedMetersPerSecond * 100).rounded()) & 0x0FFF
+    let distanceRaw = (UInt32((accumulatedDistanceMeters * 16).rounded()) & 0x0FFF) << 12
+    let raw = speedRaw | distanceRaw
+    return [
+        UInt8(raw & 0xFF),
+        UInt8((raw >> 8) & 0xFF),
+        UInt8((raw >> 16) & 0xFF)
+    ]
 }
 
 private func semicircles(_ degrees: Double) -> Int32 {

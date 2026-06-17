@@ -46,6 +46,22 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(layout.elements.filter { $0.kind == .heartRate }.count, 1)
     }
 
+    func testCanMoveElementLayerOrder() {
+        var layout = OverlayLayout.default
+
+        layout.moveElement(id: "speed", by: 1)
+        XCTAssertEqual(layout.elements.map(\.id).prefix(3), ["topProgress", "pace", "speed"])
+
+        layout.moveElement(id: "speed", by: -2)
+        XCTAssertEqual(layout.elements.map(\.id).prefix(3), ["speed", "topProgress", "pace"])
+
+        layout.moveElement(id: "speed", by: -1)
+        XCTAssertEqual(layout.elements.first?.id, "speed")
+
+        layout.moveElement(id: "speed", by: 99)
+        XCTAssertEqual(layout.elements.last?.id, "speed")
+    }
+
     func testLegacyComponentSetterUpdatesFirstMatchingElement() {
         var layout = OverlayLayout.default
         layout.speed = OverlayComponentFrame(x: 0.12, y: 0.34, scale: 1.4)
@@ -70,6 +86,7 @@ final class OverlayLayoutTests: XCTestCase {
         var layout = OverlayLayout.default
         layout.updateElement(id: "speed") { element in
             element.customization.showsPanel = false
+            element.customization.showsPanelBorder = false
             element.customization.showsIcon = true
             element.customization.iconOverride = "FAST"
             element.customization.labelFont = .avenirNextCondensedHeavy
@@ -87,6 +104,7 @@ final class OverlayLayoutTests: XCTestCase {
 
         let speed = layout.elements.first { $0.id == "speed" }
         XCTAssertEqual(speed?.customization.showsPanel, false)
+        XCTAssertEqual(speed?.customization.panelBorderIsVisible, false)
         XCTAssertEqual(speed?.customization.icon(default: "SPD"), "FAST")
         XCTAssertEqual(speed?.customization.labelFont, .avenirNextCondensedHeavy)
         XCTAssertEqual(speed?.customization.valueFont, .futuraCondensedExtraBold)
@@ -118,5 +136,105 @@ final class OverlayLayoutTests: XCTestCase {
         let decoded = try JSONDecoder().decode(OverlayLayout.self, from: data)
 
         XCTAssertEqual(decoded, layout)
+    }
+
+    func testSanitizedLayoutClampsUnsafeImportedValues() {
+        let layout = OverlayLayout(
+            elements: [
+                OverlayElement(
+                    id: "duplicate",
+                    kind: .speed,
+                    frame: OverlayComponentFrame(
+                        x: .infinity,
+                        y: -.infinity,
+                        scale: .nan,
+                        style: OverlayComponentStyle(panelOpacity: .infinity, textScale: .nan)
+                    ),
+                    customization: OverlayElementCustomization(
+                        valuePrecision: 99,
+                        gaugeMinimum: 20,
+                        gaugeMaximum: 5,
+                        labelColor: OverlayColor(red: .nan, green: 2, blue: -4, alpha: .infinity),
+                        lineWidth: .infinity,
+                        lengthScale: -.infinity,
+                        labelScale: .nan
+                    )
+                ),
+                OverlayElement(
+                    id: "duplicate",
+                    kind: .route,
+                    frame: OverlayComponentFrame(x: 0.5, y: 0.5)
+                ),
+                OverlayElement(
+                    id: " ",
+                    kind: .timeDate,
+                    frame: OverlayComponentFrame(x: 0.2, y: 0.2)
+                )
+            ],
+            style: OverlayStyle(panelOpacity: .nan, metricScale: .infinity)
+        )
+
+        let sanitized = layout.sanitized
+        let speed = sanitized.elements[0]
+
+        XCTAssertEqual(speed.frame.x, 0, accuracy: 0.0001)
+        XCTAssertEqual(speed.frame.y, 0, accuracy: 0.0001)
+        XCTAssertEqual(speed.frame.scale, 1, accuracy: 0.0001)
+        XCTAssertNil(speed.frame.style.panelOpacity)
+        XCTAssertEqual(speed.frame.style.textScale, 1, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.valuePrecision, 3)
+        XCTAssertEqual(speed.customization.gaugeMinimum ?? -1, 20, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.gaugeMaximum ?? -1, 21, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.labelColor?.red ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.labelColor?.green ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.labelColor?.blue ?? -1, 0, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.labelColor?.alpha ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.lineWidth, 1, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.lengthScale, 1, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.labelScale, 1, accuracy: 0.0001)
+        XCTAssertEqual(sanitized.style.panelOpacity, 0.64, accuracy: 0.0001)
+        XCTAssertEqual(sanitized.style.metricScale, 1, accuracy: 0.0001)
+        XCTAssertEqual(Set(sanitized.elements.map(\.id)).count, sanitized.elements.count)
+        XCTAssertFalse(sanitized.elements.contains { $0.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+    }
+
+    func testUpdateElementSanitizesMutationResult() {
+        var layout = OverlayLayout.default
+
+        layout.updateElement(id: "pace") { element in
+            element.frame.x = .infinity
+            element.frame.y = -2
+            element.frame.scale = .nan
+            element.customization.valueScale = .infinity
+            element.customization.lineWidth = -.infinity
+        }
+
+        let pace = layout.elements.first { $0.id == "pace" }
+        XCTAssertEqual(pace?.frame.x ?? -1, 0, accuracy: 0.0001)
+        XCTAssertEqual(pace?.frame.y ?? 0, -1, accuracy: 0.0001)
+        XCTAssertEqual(pace?.frame.scale ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(pace?.customization.valueScale ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(pace?.customization.lineWidth ?? -1, 1, accuracy: 0.0001)
+    }
+
+    func testRenderConfigSanitizesLayout() {
+        let unsafeLayout = OverlayLayout(
+            elements: [
+                OverlayElement(
+                    id: "speed",
+                    kind: .speed,
+                    frame: OverlayComponentFrame(x: .infinity, y: .nan, scale: -.infinity)
+                )
+            ],
+            style: OverlayStyle(panelOpacity: .nan)
+        )
+
+        let config = OverlayRenderConfig(size: CGSize(width: 1920, height: 1080), layout: unsafeLayout)
+        let speed = config.layout.elements.first
+
+        XCTAssertEqual(speed?.frame.x ?? -1, 0, accuracy: 0.0001)
+        XCTAssertEqual(speed?.frame.y ?? -1, 0, accuracy: 0.0001)
+        XCTAssertEqual(speed?.frame.scale ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(config.layout.style.panelOpacity, 0.64, accuracy: 0.0001)
     }
 }

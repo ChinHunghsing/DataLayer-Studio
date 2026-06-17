@@ -3,14 +3,21 @@ import CoreImage
 import CoreVideo
 import Foundation
 
-public enum OverlayPreviewError: Error, CustomStringConvertible {
+public enum OverlayPreviewError: Error, Equatable, CustomStringConvertible, LocalizedError {
+    case invalidPreviewSize
     case cannotCreatePreviewImage
 
     public var description: String {
         switch self {
+        case .invalidPreviewSize:
+            return "Preview size must be finite, positive, and no larger than 16,384 px per side."
         case .cannotCreatePreviewImage:
             return "Could not create an overlay preview image."
         }
+    }
+
+    public var errorDescription: String? {
+        description
     }
 }
 
@@ -27,6 +34,14 @@ public final class OverlayPreviewRenderer {
         layout: OverlayLayout = .default,
         distanceUnit: OverlayDistanceUnit = .kilometers
     ) throws -> CGImage {
+        guard size.width.isFinite,
+              size.height.isFinite,
+              size.width > 0,
+              size.height > 0,
+              size.width <= 16_384,
+              size.height <= 16_384 else {
+            throw OverlayPreviewError.invalidPreviewSize
+        }
         let width = max(2, Int(size.width.rounded()))
         let height = max(2, Int(size.height.rounded()))
         let pixelBuffer = try makePixelBuffer(width: width, height: height)

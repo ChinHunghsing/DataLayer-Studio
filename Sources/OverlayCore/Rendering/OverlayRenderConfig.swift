@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-public enum OverlayDistanceUnit: String, CaseIterable, Identifiable {
+public enum OverlayDistanceUnit: String, CaseIterable, Codable, Identifiable {
     case meters = "m"
     case kilometers = "km"
 
@@ -46,7 +46,7 @@ public struct OverlayRenderConfig {
         self.size = size
         self.timeSync = timeSync
         self.routePointLimit = routePointLimit
-        self.layout = layout
+        self.layout = layout.sanitized
         self.distanceUnit = distanceUnit
     }
 

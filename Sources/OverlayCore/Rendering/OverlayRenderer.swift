@@ -6,13 +6,21 @@ import Foundation
 public final class OverlayRenderer {
     private let series: TelemetrySeries
     private let config: OverlayRenderConfig
-    private let routePoints: [TelemetrySample]
+    private let routePoints: [RoutePoint]
+    private let totalDistanceMeters: Double
+    private let fontCacheLock = NSLock()
+    private var fontCache: [TextFontKey: CTFont] = [:]
+    private static let textWidthCacheLock = NSLock()
+    private static let maximumCachedTextWidths = 16_384
+    private static var textWidthCache: [TextWidthKey: CGFloat] = [:]
 
     public init(series: TelemetrySeries, config: OverlayRenderConfig) {
         self.series = series
         self.config = config
-        self.routePoints = OverlayRenderer.downsample(
-            samples: series.samples.filter { $0.latitude != nil && $0.longitude != nil },
+        self.totalDistanceMeters = OverlayRenderer.lastFiniteDistance(samples: series.samples) ?? 0
+        self.routePoints = OverlayRenderer.makeRoutePoints(
+            samples: series.samples,
+            bounds: series.bounds,
             limit: config.routePointLimit
         )
     }
@@ -49,6 +57,7 @@ public final class OverlayRenderer {
 
         let telemetryTime = config.timeSync.fitElapsed(forVideoTime: videoTime)
         let sample = series.sample(at: telemetryTime)
+        let metricTileWidth = alignedMetricTileWidth(sample: sample, canvas: canvas)
 
         for element in config.layout.visibleElements {
             switch element.kind {
@@ -56,42 +65,18 @@ public final class OverlayRenderer {
                 drawTopProgress(context: context, sample: sample, canvas: canvas, element: element)
             case .speed:
                 drawSpeed(context: context, sample: sample, canvas: canvas, element: element)
-            case .pace:
-                drawMetricComponent(
-                    element,
-                    label: "PACE",
-                    value: formatPace(sample.speedMetersPerSecond),
-                    unit: "/KM",
-                    context: context,
-                    canvas: canvas
-                )
-            case .distance:
-                drawMetricComponent(
-                    element,
-                    label: "DIST",
-                    value: formatDistance(sample.distanceMeters, element: element),
-                    unit: config.distanceUnit.symbol,
-                    context: context,
-                    canvas: canvas
-                )
-            case .heartRate:
-                drawMetricComponent(
-                    element,
-                    label: "HR",
-                    value: sample.heartRate.map { "\($0)" } ?? "--",
-                    unit: "BPM",
-                    context: context,
-                    canvas: canvas
-                )
-            case .cadence:
-                drawMetricComponent(
-                    element,
-                    label: "CAD",
-                    value: sample.cadence.map { "\($0)" } ?? "--",
-                    unit: "SPM",
-                    context: context,
-                    canvas: canvas
-                )
+            case .pace, .distance, .heartRate, .cadence:
+                if let content = metricContent(for: element, sample: sample) {
+                    drawMetricComponent(
+                        element,
+                        label: content.label,
+                        value: content.value,
+                        unit: content.unit,
+                        alignedWidth: metricTileWidth,
+                        context: context,
+                        canvas: canvas
+                    )
+                }
             case .route:
                 drawRoute(context: context, sample: sample, canvas: canvas, element: element)
             case .timeDate:
@@ -199,7 +184,7 @@ public final class OverlayRenderer {
         context.addArc(center: center, radius: radius, startAngle: start, endAngle: progressAngle, clockwise: true)
         context.strokePath()
 
-        if element.customization.showsPanel {
+        if element.customization.showsPanel, element.customization.panelBorderIsVisible {
             context.setLineWidth(max(0.5, lineWidth(element, scale: scale) * 0.12))
             context.setStrokeColor(Colors.panelStroke)
             context.strokeEllipse(in: CGRect(
@@ -257,6 +242,7 @@ public final class OverlayRenderer {
         label: String,
         value: String,
         unit: String,
+        alignedWidth: CGFloat?,
         context: CGContext,
         canvas: CGRect
     ) {
@@ -271,9 +257,28 @@ public final class OverlayRenderer {
             rect: rect,
             scale: scale,
             textScale: textScale,
+            alignedWidth: alignedWidth,
             context: context,
             accent: componentAccent(element)
         )
+    }
+
+    private func metricContent(
+        for element: OverlayElement,
+        sample: TelemetrySample
+    ) -> (label: String, value: String, unit: String)? {
+        switch element.kind {
+        case .pace:
+            return ("PACE", formatPace(sample.speedMetersPerSecond), "/KM")
+        case .distance:
+            return ("DIST", formatDistance(sample.distanceMeters, element: element), config.distanceUnit.symbol)
+        case .heartRate:
+            return ("HR", sample.heartRate.map { "\($0)" } ?? "--", "BPM")
+        case .cadence:
+            return ("CAD", sample.cadence.map { "\($0)" } ?? "--", "SPM")
+        default:
+            return nil
+        }
     }
 
     private func drawMetricTile(
@@ -284,46 +289,138 @@ public final class OverlayRenderer {
         rect: CGRect,
         scale: CGFloat,
         textScale: CGFloat,
+        alignedWidth: CGFloat?,
         context: CGContext,
         accent: CGColor
     ) {
+        let labelFontSize = labelSize(10, scale: textScale, element: element)
+        let valueFontSize = valueSize(23, scale: textScale, element: element)
+        let unitFontSize = unitSize(10, scale: textScale, element: element)
+        let iconFontSize = iconSize(10 * textScale, scale: 1, element: element)
+        let hasTopRow = element.customization.showsLabel || element.customization.showsIcon
+        let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
+        let valueRowHeight = max(valueFontSize, element.customization.showsUnit ? unitFontSize : 0)
+        let topPadding = 8 * scale
+        let bottomPadding = 12 * scale
+        let rowGap = hasTopRow ? max(6 * scale, valueFontSize * 0.18) : 0
+        let desiredHeight = max(rect.height, topPadding + topRowHeight + rowGap + valueRowHeight + bottomPadding)
+
+        let unitWidth = element.customization.showsUnit ? textWidth(unit, size: unitFontSize, fontName: unitFontName(element)) : 0
+        let iconText = element.customization.icon(default: defaultIcon(for: element.kind))
+        let iconWidth = element.customization.showsIcon ? textWidth(iconText, size: iconFontSize, fontName: iconFontName(element)) : 0
+        let desiredWidth = max(
+            alignedWidth ?? 0,
+            metricTileWidth(
+                element: element,
+                label: label,
+                value: value,
+                unit: unit,
+                rectWidth: rect.width,
+                scale: scale,
+                valueFontSize: valueFontSize,
+                unitFontSize: unitFontSize,
+                labelFontSize: labelFontSize,
+                iconFontSize: iconFontSize
+            )
+        )
+        let tileRect = CGRect(x: rect.minX, y: rect.maxY - desiredHeight, width: desiredWidth, height: desiredHeight)
+
         if element.customization.showsPanel {
-            fillRoundedRect(context, rect, radius: 13 * scale, color: Colors.tile(opacity: componentPanelOpacity(element) * 0.88))
-            strokeRoundedRect(context, rect, radius: 13 * scale, color: Colors.tileStroke, lineWidth: 1 * scale)
+            fillRoundedRect(context, tileRect, radius: 13 * scale, color: Colors.tile(opacity: componentPanelOpacity(element) * 0.88))
+            if element.customization.panelBorderIsVisible {
+                strokeRoundedRect(context, tileRect, radius: 13 * scale, color: Colors.tileStroke, lineWidth: 1 * scale)
+            }
         }
 
+        let topBaselineY = tileRect.maxY - topPadding - topRowHeight * 0.78
         if element.customization.showsLabel {
             drawText(
                 label,
                 context: context,
-                baseline: CGPoint(x: rect.minX + 12 * scale, y: rect.maxY - 17 * scale),
-                size: labelSize(10, scale: textScale, element: element),
+                baseline: CGPoint(x: tileRect.minX + 12 * scale, y: topBaselineY),
+                size: labelFontSize,
                 color: labelColor(element),
                 fontName: labelFontName(element)
             )
         }
-        drawIconIfNeeded(element, defaultIcon: defaultIcon(for: element.kind), context: context, baseline: CGPoint(x: rect.maxX - 36 * scale, y: rect.maxY - 17 * scale), size: 10 * textScale)
+        if element.customization.showsIcon {
+            drawText(
+                iconText,
+                context: context,
+                baseline: CGPoint(x: tileRect.maxX - 12 * scale - iconWidth, y: topBaselineY),
+                size: iconFontSize,
+                color: iconColor(element),
+                fontName: iconFontName(element)
+            )
+        }
 
+        let valueBaselineY = tileRect.minY + bottomPadding + valueRowHeight * 0.24
         drawText(
             value,
             context: context,
-            baseline: CGPoint(x: rect.minX + 12 * scale, y: rect.minY + 18 * scale),
-            size: valueSize(23, scale: textScale, element: element),
+            baseline: CGPoint(x: tileRect.minX + 12 * scale, y: valueBaselineY),
+            size: valueFontSize,
             color: valueColor(element, fallback: accent),
             fontName: valueFontName(element)
         )
         if element.customization.showsUnit {
-            let size = unitSize(10, scale: textScale, element: element)
-            let unitWidth = textWidth(unit, size: size, fontName: unitFontName(element))
             drawText(
                 unit,
                 context: context,
-                baseline: CGPoint(x: rect.maxX - 12 * scale - unitWidth, y: rect.minY + 18 * scale),
-                size: size,
+                baseline: CGPoint(x: tileRect.maxX - 12 * scale - unitWidth, y: valueBaselineY),
+                size: unitFontSize,
                 color: unitColor(element),
                 fontName: unitFontName(element)
             )
         }
+    }
+
+    private func alignedMetricTileWidth(sample: TelemetrySample, canvas: CGRect) -> CGFloat? {
+        let widths = config.layout.visibleElements.compactMap { element -> CGFloat? in
+            guard let content = metricContent(for: element, sample: sample) else { return nil }
+            let scale = componentScale(element, canvas: canvas)
+            let textScale = scale * componentTextScale(element)
+            let rect = componentRect(element, baseSize: baseSize(for: element.kind), canvas: canvas)
+            return metricTileWidth(
+                element: element,
+                label: element.customization.label(default: content.label),
+                value: content.value,
+                unit: element.customization.unit(default: content.unit),
+                rectWidth: rect.width,
+                scale: scale,
+                valueFontSize: valueSize(23, scale: textScale, element: element),
+                unitFontSize: unitSize(10, scale: textScale, element: element),
+                labelFontSize: labelSize(10, scale: textScale, element: element),
+                iconFontSize: iconSize(10 * textScale, scale: 1, element: element)
+            )
+        }
+        return widths.max()
+    }
+
+    private func metricTileWidth(
+        element: OverlayElement,
+        label: String,
+        value: String,
+        unit: String,
+        rectWidth: CGFloat,
+        scale: CGFloat,
+        valueFontSize: CGFloat,
+        unitFontSize: CGFloat,
+        labelFontSize: CGFloat,
+        iconFontSize: CGFloat
+    ) -> CGFloat {
+        let valueWidth = textWidth(value, size: valueFontSize, fontName: valueFontName(element))
+        let unitWidth = element.customization.showsUnit ? textWidth(unit, size: unitFontSize, fontName: unitFontName(element)) : 0
+        let unitGap = element.customization.showsUnit ? 10 * scale : 0
+        let labelWidth = element.customization.showsLabel ? textWidth(label, size: labelFontSize, fontName: labelFontName(element)) : 0
+        let iconText = element.customization.icon(default: defaultIcon(for: element.kind))
+        let iconWidth = element.customization.showsIcon ? textWidth(iconText, size: iconFontSize, fontName: iconFontName(element)) : 0
+        let iconGap = element.customization.showsIcon ? 12 * scale : 0
+        return max(
+            rectWidth,
+            24 * scale + valueWidth + unitGap + unitWidth + 12 * scale,
+            24 * scale + labelWidth + iconGap + iconWidth + 12 * scale
+        )
     }
 
     private func drawRoute(context: CGContext, sample: TelemetrySample, canvas: CGRect, element: OverlayElement) {
@@ -350,28 +447,26 @@ public final class OverlayRenderer {
             drawRouteDistance(context: context, panel: panel, sample: sample, scale: scale, element: element)
         }
 
-        let points = routePoints.compactMap { point(for: $0, in: routeFitRect(mapRect, bounds: bounds), bounds: bounds) }
-        guard points.count > 1 else { return }
+        let fitRect = routeFitRect(mapRect, bounds: bounds)
 
         context.setStrokeColor(valueColor(element, fallback: accent).copy(alpha: 0.16) ?? Colors.routeGlow)
         context.setLineWidth(max(1, lineWidth(element, scale: scale) * 1.8))
         context.setLineCap(.round)
         context.setLineJoin(.round)
-        strokePolyline(points, context: context)
+        strokeRoute(routePoints, in: fitRect, context: context)
 
         context.setStrokeColor(trackColor(element).copy(alpha: 0.62) ?? Colors.routeBase)
         context.setLineWidth(max(0.5, lineWidth(element, scale: scale) * 0.82))
-        strokePolyline(points, context: context)
+        strokeRoute(routePoints, in: fitRect, context: context)
 
-        let elapsedPoints = routePoints.filter { $0.elapsed <= sample.elapsed }
-            .compactMap { point(for: $0, in: routeFitRect(mapRect, bounds: bounds), bounds: bounds) }
-        if elapsedPoints.count > 1 {
+        let elapsedCount = routePointCount(through: sample.elapsed)
+        if elapsedCount > 1 {
             context.setStrokeColor(valueColor(element, fallback: accent))
             context.setLineWidth(lineWidth(element, scale: scale))
-            strokePolyline(elapsedPoints, context: context)
+            strokeRoute(routePoints.prefix(elapsedCount), in: fitRect, context: context)
         }
 
-        if let current = point(for: sample, in: routeFitRect(mapRect, bounds: bounds), bounds: bounds) {
+        if let current = point(for: sample, in: fitRect, bounds: bounds) {
             context.setFillColor(valueColor(element, fallback: Colors.white))
             context.fillEllipse(in: CGRect(
                 x: current.x - 6 * scale,
@@ -393,59 +488,106 @@ public final class OverlayRenderer {
     private func drawTimeDate(context: CGContext, sample: TelemetrySample, canvas: CGRect, element: OverlayElement) {
         let scale = componentScale(element, canvas: canvas)
         let textScale = scale * componentTextScale(element)
-        let panel = componentRect(element, baseSize: baseSize(for: element.kind), canvas: canvas)
+        let basePanel = componentRect(element, baseSize: baseSize(for: element.kind), canvas: canvas)
+        let labelFontSize = labelSize(11, scale: textScale, element: element)
+        let valueFontSize = valueSize(24, scale: textScale, element: element)
+        let clockFontSize = unitSize(22, scale: textScale, element: element)
+        let dateFontSize = unitSize(18, scale: textScale, element: element)
+        let iconFontSize = iconSize(12 * textScale, scale: 1, element: element)
+        let topPadding = 15 * scale
+        let bottomPadding = 12 * scale
+        let valueGap = max(8 * scale, valueFontSize * 0.28)
+        let unitGap = max(8 * scale, clockFontSize * 0.28)
+        let topRowHeight = (element.customization.showsLabel || element.customization.showsIcon) ? max(labelFontSize, iconFontSize) : 0
+        let topRowGap = topRowHeight > 0 ? max(6 * scale, topRowHeight * 0.25) : 0
+        let requiredHeight = max(
+            basePanel.height,
+            topPadding + topRowHeight + topRowGap + valueFontSize
+                + (element.customization.showsUnit ? valueGap + clockFontSize + unitGap + dateFontSize : 0)
+                + bottomPadding
+        )
+        let elapsed = formatClockDuration(sample.elapsed)
+        let clockAndDate = formatClockAndCalendarDate(sample.date)
+        let clock = clockAndDate.clock
+        let date = clockAndDate.date
+        let label = element.customization.label(default: "TIME")
+        let icon = element.customization.icon(default: "TIME")
+        let requiredTextWidth = max(
+            textWidth(elapsed, size: valueFontSize, fontName: valueFontName(element)),
+            element.customization.showsUnit ? textWidth(clock, size: clockFontSize, fontName: unitFontName(element)) : 0,
+            element.customization.showsUnit ? textWidth(date, size: dateFontSize, fontName: unitFontName(element)) : 0,
+            element.customization.showsLabel ? textWidth(label, size: labelFontSize, fontName: labelFontName(element)) : 0
+        )
+        let iconWidth = element.customization.showsIcon ? textWidth(icon, size: iconFontSize, fontName: iconFontName(element)) : 0
+        let requiredWidth = max(basePanel.width, requiredTextWidth + iconWidth + 28 * scale)
+        let panel = CGRect(
+            x: basePanel.maxX - requiredWidth,
+            y: basePanel.maxY - requiredHeight,
+            width: requiredWidth,
+            height: requiredHeight
+        )
         let right = panel.maxX
 
         drawPanelBackground(context, panel, element: element, radius: 12 * scale)
 
+        var cursorTop = panel.maxY - topPadding
         if element.customization.showsIcon {
-            drawIconIfNeeded(
-                element,
-                defaultIcon: "TIME",
+            drawText(
+                icon,
                 context: context,
-                baseline: CGPoint(x: panel.minX, y: panel.maxY - 28 * scale),
-                size: 12 * textScale
+                baseline: CGPoint(x: panel.minX, y: cursorTop - topRowHeight * 0.78),
+                size: iconFontSize,
+                color: iconColor(element),
+                fontName: iconFontName(element)
             )
         }
 
         if element.customization.showsLabel {
             drawRightAlignedText(
-                element.customization.label(default: "TIME"),
+                label,
                 context: context,
                 rightX: right,
-                baselineY: panel.maxY - 10 * scale,
-                size: labelSize(11, scale: textScale, element: element),
+                baselineY: cursorTop - topRowHeight * 0.78,
+                size: labelFontSize,
                 color: labelColor(element),
                 fontName: labelFontName(element)
             )
         }
 
+        if topRowHeight > 0 {
+            cursorTop -= topRowHeight + topRowGap
+        }
+
+        let elapsedBaselineY = cursorTop - valueFontSize * 0.78
         drawRightAlignedText(
-            formatClockDuration(sample.elapsed),
+            elapsed,
             context: context,
             rightX: right,
-            baselineY: panel.maxY - 34 * scale,
-            size: valueSize(24, scale: textScale, element: element),
+            baselineY: elapsedBaselineY,
+            size: valueFontSize,
             color: valueColor(element),
             fontName: valueFontName(element)
         )
 
         guard element.customization.showsUnit else { return }
+        cursorTop -= valueFontSize + valueGap
+        let clockBaselineY = cursorTop - clockFontSize * 0.78
         drawRightAlignedText(
-            formatClockTime(sample.date),
+            clock,
             context: context,
             rightX: right,
-            baselineY: panel.maxY - 66 * scale,
-            size: unitSize(22, scale: textScale, element: element),
+            baselineY: clockBaselineY,
+            size: clockFontSize,
             color: unitColor(element),
             fontName: unitFontName(element)
         )
+        cursorTop -= clockFontSize + unitGap
         drawRightAlignedText(
-            formatCalendarDate(sample.date),
+            date,
             context: context,
             rightX: right,
-            baselineY: panel.maxY - 96 * scale,
-            size: unitSize(18, scale: textScale, element: element),
+            baselineY: cursorTop - dateFontSize * 0.78,
+            size: dateFontSize,
             color: unitColor(element),
             fontName: unitFontName(element)
         )
@@ -455,16 +597,34 @@ public final class OverlayRenderer {
         let scale = componentScale(element, canvas: canvas)
         let textScale = scale * componentTextScale(element)
         let rect = componentRect(element, baseSize: baseSize(for: element.kind), canvas: canvas)
-        let displayedTotalDistance = max(totalDistanceMeters(), sample.distanceMeters ?? 0)
+        let displayedTotalDistance = max(totalDistanceMeters, sample.distanceMeters ?? 0)
         let currentDistance = max(0, min(sample.distanceMeters ?? 0, displayedTotalDistance))
         let progress = displayedTotalDistance > 0 ? min(1, max(0, currentDistance / displayedTotalDistance)) : 0
         let accent = componentAccent(element)
 
         let trackHeight = lineWidth(element, scale: scale)
+        let startLabelSize = labelSize(15, scale: textScale, element: element)
+        let currentLabelSize = labelSize(12, scale: textScale, element: element)
+        let endLabelSize = unitSize(15, scale: textScale, element: element)
+        let iconFontSize = iconSize(12 * textScale, scale: 1, element: element)
+        let topRowHeight = max(
+            element.customization.showsLabel ? startLabelSize : 0,
+            element.customization.showsUnit ? endLabelSize : 0,
+            element.customization.showsIcon ? iconFontSize : 0
+        )
+        let bottomRowHeight = element.customization.showsLabel ? currentLabelSize : 0
+        let topPadding = 8 * scale
+        let topGap = topRowHeight > 0 ? max(5 * scale, topRowHeight * 0.18) : 0
+        let bottomGap = bottomRowHeight > 0 ? max(5 * scale, bottomRowHeight * 0.22) : 0
+        let bottomPadding = bottomRowHeight > 0 ? 7 * scale : 0
+        let desiredHeight = max(rect.height, topPadding + topRowHeight + topGap + trackHeight + bottomGap + bottomRowHeight + bottomPadding)
+        let progressRect = CGRect(x: rect.minX, y: rect.maxY - desiredHeight, width: rect.width, height: desiredHeight)
+        let hasTextRows = topRowHeight > 0 || bottomRowHeight > 0
+        let trackCenterY = hasTextRows ? progressRect.maxY - topPadding - topRowHeight - topGap - trackHeight / 2 : progressRect.midY
         let track = CGRect(
-            x: rect.minX + 72 * scale,
-            y: rect.midY - trackHeight / 2,
-            width: max(1, rect.width - 144 * scale),
+            x: progressRect.minX + 72 * scale,
+            y: trackCenterY - trackHeight / 2,
+            width: max(1, progressRect.width - 144 * scale),
             height: trackHeight
         )
 
@@ -497,41 +657,49 @@ public final class OverlayRenderer {
 
         if element.customization.showsLabel {
             let startLabel = distanceLabel(0, element: element)
+            let topBaselineY = progressRect.maxY - topPadding - topRowHeight * 0.78
             drawText(
                 startLabel,
                 context: context,
-                baseline: CGPoint(x: rect.minX, y: rect.midY + 4 * scale),
-                size: labelSize(15, scale: textScale, element: element),
+                baseline: CGPoint(x: progressRect.minX, y: topBaselineY),
+                size: startLabelSize,
                 color: labelColor(element),
                 fontName: labelFontName(element)
             )
 
             let currentLabel = distanceLabel(currentDistance, element: element)
-            let currentSize = labelSize(12, scale: textScale, element: element)
-            let currentWidth = textWidth(currentLabel, size: currentSize, fontName: labelFontName(element))
+            let currentWidth = textWidth(currentLabel, size: currentLabelSize, fontName: labelFontName(element))
             drawText(
                 currentLabel,
                 context: context,
-                baseline: CGPoint(x: min(track.maxX - currentWidth, max(track.minX, knobX - currentWidth / 2)), y: track.minY - 10 * scale),
-                size: currentSize,
+                baseline: CGPoint(
+                    x: min(track.maxX - currentWidth, max(track.minX, knobX - currentWidth / 2)),
+                    y: track.minY - bottomGap - currentLabelSize * 0.78
+                ),
+                size: currentLabelSize,
                 color: labelColor(element),
                 fontName: labelFontName(element)
             )
         }
         if element.customization.showsUnit {
             let endLabel = distanceLabel(displayedTotalDistance, element: element)
-            let size = unitSize(15, scale: textScale, element: element)
-            let endWidth = textWidth(endLabel, size: size, fontName: unitFontName(element))
+            let endWidth = textWidth(endLabel, size: endLabelSize, fontName: unitFontName(element))
             drawText(
                 endLabel,
                 context: context,
-                baseline: CGPoint(x: rect.maxX - endWidth, y: rect.midY + 4 * scale),
-                size: size,
+                baseline: CGPoint(x: progressRect.maxX - endWidth, y: progressRect.maxY - topPadding - topRowHeight * 0.78),
+                size: endLabelSize,
                 color: unitColor(element),
                 fontName: unitFontName(element)
             )
         }
-        drawIconIfNeeded(element, defaultIcon: "DIST", context: context, baseline: CGPoint(x: track.minX - 52 * scale, y: rect.midY + 4 * scale), size: 12 * textScale)
+        drawIconIfNeeded(
+            element,
+            defaultIcon: "DIST",
+            context: context,
+            baseline: CGPoint(x: track.minX - 52 * scale, y: progressRect.maxY - topPadding - topRowHeight * 0.78),
+            size: 12 * textScale
+        )
     }
 
     private func drawRouteDistance(context: CGContext, panel: CGRect, sample: TelemetrySample, scale: CGFloat, element: OverlayElement) {
@@ -585,12 +753,30 @@ public final class OverlayRenderer {
         return CGRect(x: rect.midX - width / 2, y: rect.minY, width: width, height: rect.height)
     }
 
-    private func strokePolyline(_ points: [CGPoint], context: CGContext) {
+    private func routePointCount(through elapsed: TimeInterval) -> Int {
+        var lowerBound = 0
+        var upperBound = routePoints.count
+        while lowerBound < upperBound {
+            let middle = (lowerBound + upperBound) / 2
+            if routePoints[middle].elapsed <= elapsed {
+                lowerBound = middle + 1
+            } else {
+                upperBound = middle
+            }
+        }
+        return lowerBound
+    }
+
+    private func strokeRoute<Points: Collection>(
+        _ points: Points,
+        in rect: CGRect,
+        context: CGContext
+    ) where Points.Element == RoutePoint {
         guard let first = points.first else { return }
         context.beginPath()
-        context.move(to: first)
+        context.move(to: first.point(in: rect))
         for point in points.dropFirst() {
-            context.addLine(to: point)
+            context.addLine(to: point.point(in: rect))
         }
         context.strokePath()
     }
@@ -759,7 +945,7 @@ public final class OverlayRenderer {
         color: CGColor,
         fontName: CFString
     ) {
-        let font = CTFontCreateWithName(fontName, size, nil)
+        let font = cachedFont(fontName, size: size)
         let attributes: [NSAttributedString.Key: Any] = [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color
@@ -791,13 +977,63 @@ public final class OverlayRenderer {
     }
 
     private func textWidth(_ text: String, size: CGFloat, fontName: CFString) -> CGFloat {
-        let font = CTFontCreateWithName(fontName, size, nil)
+        let fontKey = normalizedFontKey(fontName, size: size)
+        let textKey = TextWidthKey(fontKey: fontKey, text: text)
+
+        Self.textWidthCacheLock.lock()
+        if let width = Self.textWidthCache[textKey] {
+            Self.textWidthCacheLock.unlock()
+            return width
+        }
+        Self.textWidthCacheLock.unlock()
+
+        let font = cachedFont(fontName, size: size)
         let attributes: [NSAttributedString.Key: Any] = [
             NSAttributedString.Key(kCTFontAttributeName as String): font
         ]
         let attributed = NSAttributedString(string: text, attributes: attributes)
         let line = CTLineCreateWithAttributedString(attributed)
-        return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+        let width = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+
+        Self.textWidthCacheLock.lock()
+        if Self.textWidthCache.count >= Self.maximumCachedTextWidths {
+            Self.textWidthCache.removeAll(keepingCapacity: true)
+        }
+        Self.textWidthCache[textKey] = width
+        Self.textWidthCacheLock.unlock()
+        return width
+    }
+
+    private func cachedFont(_ fontName: CFString, size: CGFloat) -> CTFont {
+        let key = normalizedFontKey(fontName, size: size)
+
+        fontCacheLock.lock()
+        defer { fontCacheLock.unlock() }
+
+        if let font = fontCache[key] {
+            return font
+        }
+
+        let font = CTFontCreateWithName(fontName, CGFloat(key.sizeHundredths) / 100, nil)
+        fontCache[key] = font
+        return font
+    }
+
+    private func normalizedFontKey(_ fontName: CFString, size: CGFloat) -> TextFontKey {
+        let normalizedSize = max(0.1, size.isFinite ? size : 12)
+        return TextFontKey(fontName: fontName as String, sizeHundredths: Int((normalizedSize * 100).rounded()))
+    }
+
+    static func clearTextWidthCacheForTesting() {
+        textWidthCacheLock.lock()
+        textWidthCache.removeAll(keepingCapacity: true)
+        textWidthCacheLock.unlock()
+    }
+
+    static var textWidthCacheCountForTesting: Int {
+        textWidthCacheLock.lock()
+        defer { textWidthCacheLock.unlock() }
+        return textWidthCache.count
     }
 
     private func fillRoundedRect(_ context: CGContext, _ rect: CGRect, radius: CGFloat, color: CGColor) {
@@ -822,10 +1058,14 @@ public final class OverlayRenderer {
     private func drawPanelBackground(_ context: CGContext, _ rect: CGRect, element: OverlayElement, radius: CGFloat) {
         guard element.customization.showsPanel else { return }
         fillRoundedRect(context, rect, radius: radius, color: Colors.panel(opacity: componentPanelOpacity(element)))
-        strokeRoundedRect(context, rect, radius: radius, color: Colors.panelStroke, lineWidth: 1.4)
+        if element.customization.panelBorderIsVisible {
+            strokeRoundedRect(context, rect, radius: radius, color: Colors.panelStroke, lineWidth: 1.4)
+        }
 
-        let topLine = CGRect(x: rect.minX + 18, y: rect.maxY - 1.5, width: rect.width - 36, height: 1)
-        fillRoundedRect(context, topLine, radius: 0.5, color: Colors.panelHighlight)
+        if element.customization.panelBorderIsVisible {
+            let topLine = CGRect(x: rect.minX + 18, y: rect.maxY - 1.5, width: rect.width - 36, height: 1)
+            fillRoundedRect(context, topLine, radius: 0.5, color: Colors.panelHighlight)
+        }
     }
 
     private func roundedPath(rect: CGRect, radius: CGFloat) -> CGPath {
@@ -862,17 +1102,6 @@ public final class OverlayRenderer {
         "\(formatDistance(meters, element: element)) \(element.customization.unit(default: config.distanceUnit.symbol))"
     }
 
-    private func totalDistanceMeters() -> Double {
-        samplesLastDistance() ?? 0
-    }
-
-    private func samplesLastDistance() -> Double? {
-        series.samples.reversed().first { sample in
-            guard let distance = sample.distanceMeters else { return false }
-            return distance.isFinite
-        }?.distanceMeters
-    }
-
     private func formatPace(_ metersPerSecond: Double?) -> String {
         guard let metersPerSecond, metersPerSecond > 0.3 else { return "--:--" }
         let secondsPerKm = Int((1000 / metersPerSecond).rounded())
@@ -889,16 +1118,13 @@ public final class OverlayRenderer {
         return String(format: "%02d:%02d:%02d", seconds / 3600, (seconds / 60) % 60, seconds % 60)
     }
 
-    private func formatClockTime(_ date: Date?) -> String {
-        guard let date else { return "--:--:--" }
-        let components = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
-        return String(format: "%02d:%02d:%02d", components.hour ?? 0, components.minute ?? 0, components.second ?? 0)
-    }
-
-    private func formatCalendarDate(_ date: Date?) -> String {
-        guard let date else { return "----/--/--" }
-        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d/%02d/%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+    private func formatClockAndCalendarDate(_ date: Date?) -> (clock: String, date: String) {
+        guard let date else { return ("--:--:--", "----/--/--") }
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        return (
+            String(format: "%02d:%02d:%02d", components.hour ?? 0, components.minute ?? 0, components.second ?? 0),
+            String(format: "%04d/%02d/%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+        )
     }
 
     private func formatGaugeEdge(_ value: Double) -> String {
@@ -908,13 +1134,80 @@ public final class OverlayRenderer {
         return String(format: "%.1f", value)
     }
 
-    private static func downsample(samples: [TelemetrySample], limit: Int) -> [TelemetrySample] {
-        guard limit > 0, samples.count > limit else { return samples }
-        let stride = max(1, samples.count / limit)
-        return samples.enumerated().compactMap { index, sample in
-            index % stride == 0 || index == samples.count - 1 ? sample : nil
-        }
+    static func lastFiniteDistance(samples: [TelemetrySample]) -> Double? {
+        samples.reversed().first { sample in
+            guard let distance = sample.distanceMeters else { return false }
+            return distance.isFinite
+        }?.distanceMeters
     }
+
+    private static func makeRoutePoints(samples: [TelemetrySample], bounds: GeoBounds?, limit: Int) -> [RoutePoint] {
+        guard let bounds else { return [] }
+        let samples = downsample(
+            samples: samples.filter { $0.latitude != nil && $0.longitude != nil },
+            limit: limit
+        )
+        return samples.compactMap { RoutePoint(sample: $0, bounds: bounds) }
+    }
+
+    static func downsample(samples: [TelemetrySample], limit: Int) -> [TelemetrySample] {
+        guard limit > 0 else { return [] }
+        guard samples.count > limit else { return samples }
+        guard limit > 1 else { return [samples[0]] }
+
+        let step = Double(samples.count - 1) / Double(limit - 1)
+        var usedIndices = Set<Int>()
+        var result: [TelemetrySample] = []
+        result.reserveCapacity(limit)
+
+        for outputIndex in 0..<limit {
+            let index = min(samples.count - 1, Int((Double(outputIndex) * step).rounded()))
+            guard usedIndices.insert(index).inserted else { continue }
+            result.append(samples[index])
+        }
+
+        if result.last != samples.last {
+            if result.count == limit {
+                result[result.count - 1] = samples[samples.count - 1]
+            } else {
+                result.append(samples[samples.count - 1])
+            }
+        }
+
+        return result
+    }
+}
+
+private struct RoutePoint {
+    let elapsed: TimeInterval
+    let normalizedX: CGFloat
+    let normalizedY: CGFloat
+
+    init?(sample: TelemetrySample, bounds: GeoBounds) {
+        guard let latitude = sample.latitude, let longitude = sample.longitude else { return nil }
+        let latSpan = max(bounds.maxLatitude - bounds.minLatitude, 0.000_001)
+        let lonSpan = max(bounds.maxLongitude - bounds.minLongitude, 0.000_001)
+        self.elapsed = sample.elapsed
+        self.normalizedX = CGFloat((longitude - bounds.minLongitude) / lonSpan)
+        self.normalizedY = CGFloat((latitude - bounds.minLatitude) / latSpan)
+    }
+
+    func point(in rect: CGRect) -> CGPoint {
+        CGPoint(
+            x: rect.minX + normalizedX * rect.width,
+            y: rect.minY + normalizedY * rect.height
+        )
+    }
+}
+
+private struct TextFontKey: Hashable {
+    var fontName: String
+    var sizeHundredths: Int
+}
+
+private struct TextWidthKey: Hashable {
+    var fontKey: TextFontKey
+    var text: String
 }
 
 private enum Colors {

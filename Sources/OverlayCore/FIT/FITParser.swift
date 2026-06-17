@@ -19,10 +19,55 @@ struct RawFITRecord {
     var altitudeMeters: Double?
     var heartRate: Int?
     var cadence: Int?
+    var fractionalCadence: Double?
     var distanceMeters: Double?
     var speedMetersPerSecond: Double?
     var powerWatts: Int?
     var temperatureCelsius: Int?
+}
+
+struct RawFITEvent {
+    var timestamp: UInt32?
+    var event: Int?
+    var eventType: Int?
+
+    var isTimerStart: Bool {
+        event == 0 && eventType == 0
+    }
+}
+
+struct RawFITSession {
+    var timestamp: UInt32?
+    var startTime: UInt32?
+}
+
+struct ParsedFITMessage {
+    var timestamp: UInt32?
+    var record: RawFITRecord?
+    var event: RawFITEvent?
+    var session: RawFITSession?
+}
+
+private struct CompressedDistanceAccumulator {
+    private var previousRaw: UInt16?
+    private var accumulatedRaw: UInt64 = 0
+
+    mutating func meters(for raw: UInt16) -> Double {
+        let masked = raw & 0x0FFF
+        guard let previousRaw else {
+            previousRaw = masked
+            accumulatedRaw = UInt64(masked)
+            return Double(accumulatedRaw) / 16
+        }
+
+        let previousMasked = previousRaw & 0x0FFF
+        let delta = masked >= previousMasked
+            ? UInt64(masked - previousMasked)
+            : UInt64(masked) + 0x1000 - UInt64(previousMasked)
+        accumulatedRaw += delta
+        self.previousRaw = masked
+        return Double(accumulatedRaw) / 16
+    }
 }
 
 public final class FITParser {
@@ -74,6 +119,9 @@ public final class FITParser {
         var reader = ByteReader(data: data, offset: dataStart, endOffset: dataEnd)
         var definitions: [UInt8: FITLocalMessageDefinition] = [:]
         var records: [RawFITRecord] = []
+        var timerStartTimestamps: [UInt32] = []
+        var sessionStartTimestamps: [UInt32] = []
+        var compressedDistanceAccumulator = CompressedDistanceAccumulator()
         var lastTimestamp: UInt32?
 
         while !reader.isAtEnd {
@@ -90,14 +138,13 @@ public final class FITParser {
                 let parsed = try parseDataMessage(
                     definition: definition,
                     reader: &reader,
-                    compressedTimestamp: compressedTimestamp
+                    compressedTimestamp: compressedTimestamp,
+                    compressedDistanceAccumulator: &compressedDistanceAccumulator
                 )
                 if let timestamp = parsed.timestamp {
                     lastTimestamp = timestamp
                 }
-                if definition.globalMessageNumber == 20, parsed.hasTelemetryPayload {
-                    records.append(parsed)
-                }
+                append(parsed: parsed, definition: definition, records: &records, timerStartTimestamps: &timerStartTimestamps, sessionStartTimestamps: &sessionStartTimestamps)
             } else {
                 let localMessageType = header & 0x0F
                 let isDefinition = (header & 0x40) != 0
@@ -115,14 +162,13 @@ public final class FITParser {
                     let parsed = try parseDataMessage(
                         definition: definition,
                         reader: &reader,
-                        compressedTimestamp: nil
+                        compressedTimestamp: nil,
+                        compressedDistanceAccumulator: &compressedDistanceAccumulator
                     )
                     if let timestamp = parsed.timestamp {
                         lastTimestamp = timestamp
                     }
-                    if definition.globalMessageNumber == 20, parsed.hasTelemetryPayload {
-                        records.append(parsed)
-                    }
+                    append(parsed: parsed, definition: definition, records: &records, timerStartTimestamps: &timerStartTimestamps, sessionStartTimestamps: &sessionStartTimestamps)
                 }
             }
 
@@ -132,7 +178,39 @@ public final class FITParser {
         }
 
         guard !records.isEmpty else { throw FITError.noRecordMessages }
-        return TelemetrySeries(samples: samples(from: records))
+        return TelemetrySeries(samples: samples(
+            from: records,
+            activityStartTimestamp: activityStartTimestamp(
+                records: records,
+                timerStartTimestamps: timerStartTimestamps,
+                sessionStartTimestamps: sessionStartTimestamps
+            )
+        ))
+    }
+
+    private func append(
+        parsed: ParsedFITMessage,
+        definition: FITLocalMessageDefinition,
+        records: inout [RawFITRecord],
+        timerStartTimestamps: inout [UInt32],
+        sessionStartTimestamps: inout [UInt32]
+    ) {
+        switch definition.globalMessageNumber {
+        case 20:
+            if let record = parsed.record, record.hasTelemetryPayload {
+                records.append(record)
+            }
+        case 21:
+            if let event = parsed.event, event.isTimerStart, let timestamp = event.timestamp {
+                timerStartTimestamps.append(timestamp)
+            }
+        case 18:
+            if let startTime = parsed.session?.startTime {
+                sessionStartTimestamps.append(startTime)
+            }
+        default:
+            return
+        }
     }
 
     private func parseDefinition(
@@ -170,12 +248,28 @@ public final class FITParser {
     private func parseDataMessage(
         definition: FITLocalMessageDefinition,
         reader: inout ByteReader,
-        compressedTimestamp: UInt32?
-    ) throws -> RawFITRecord {
+        compressedTimestamp: UInt32?,
+        compressedDistanceAccumulator: inout CompressedDistanceAccumulator
+    ) throws -> ParsedFITMessage {
+        var timestamp = compressedTimestamp
         var record = RawFITRecord(timestamp: compressedTimestamp)
+        var event = RawFITEvent(timestamp: compressedTimestamp)
+        var session = RawFITSession(timestamp: compressedTimestamp)
 
         for field in definition.fields {
             let bytes = try reader.readBytes(count: Int(field.size))
+            if definition.globalMessageNumber == 20,
+               field.number == 8,
+               let compressed = compressedSpeedDistance(bytes: bytes, accumulator: &compressedDistanceAccumulator) {
+                if record.speedMetersPerSecond == nil {
+                    record.speedMetersPerSecond = compressed.speedMetersPerSecond
+                }
+                if record.distanceMeters == nil {
+                    record.distanceMeters = compressed.distanceMeters
+                }
+                continue
+            }
+
             guard let value = FITFieldDecoder.number(
                 bytes: bytes,
                 baseType: field.baseType,
@@ -185,57 +279,84 @@ public final class FITParser {
             }
 
             if field.number == 253 {
-                record.timestamp = UInt32(value)
+                timestamp = UInt32(value)
             }
 
-            guard definition.globalMessageNumber == 20 else { continue }
-
-            switch field.number {
-            case 0:
-                record.latitude = semicirclesToDegrees(value)
-            case 1:
-                record.longitude = semicirclesToDegrees(value)
-            case 2:
-                if record.altitudeMeters == nil {
-                    record.altitudeMeters = (value / 5) - 500
-                }
-            case 3:
-                record.heartRate = Int(value)
-            case 4:
-                record.cadence = Int(value)
-            case 5:
-                record.distanceMeters = value / 100
-            case 6:
-                if record.speedMetersPerSecond == nil {
+            switch definition.globalMessageNumber {
+            case 20:
+                switch field.number {
+                case 0:
+                    record.latitude = semicirclesToDegrees(value)
+                case 1:
+                    record.longitude = semicirclesToDegrees(value)
+                case 2:
+                    if record.altitudeMeters == nil {
+                        record.altitudeMeters = (value / 5) - 500
+                    }
+                case 3:
+                    record.heartRate = Int(value)
+                case 4:
+                    record.cadence = Int(value)
+                case 5:
+                    record.distanceMeters = value / 100
+                case 6:
+                    if record.speedMetersPerSecond == nil {
+                        record.speedMetersPerSecond = value / 1000
+                    }
+                case 7:
+                    record.powerWatts = Int(value)
+                case 13:
+                    record.temperatureCelsius = Int(value)
+                case 53:
+                    record.fractionalCadence = value / 128
+                case 73:
                     record.speedMetersPerSecond = value / 1000
+                case 78:
+                    record.altitudeMeters = (value / 5) - 500
+                default:
+                    continue
                 }
-            case 7:
-                record.powerWatts = Int(value)
-            case 13:
-                record.temperatureCelsius = Int(value)
-            case 73:
-                record.speedMetersPerSecond = value / 1000
-            case 78:
-                record.altitudeMeters = (value / 5) - 500
+            case 21:
+                switch field.number {
+                case 0:
+                    event.event = Int(value)
+                case 1:
+                    event.eventType = Int(value)
+                default:
+                    continue
+                }
+            case 18:
+                if field.number == 2 {
+                    session.startTime = UInt32(value)
+                }
             default:
                 continue
             }
         }
 
-        return record
+        record.timestamp = timestamp
+        event.timestamp = timestamp
+        session.timestamp = timestamp
+
+        return ParsedFITMessage(
+            timestamp: timestamp,
+            record: definition.globalMessageNumber == 20 ? record : nil,
+            event: definition.globalMessageNumber == 21 ? event : nil,
+            session: definition.globalMessageNumber == 18 ? session : nil
+        )
     }
 
-    private func samples(from records: [RawFITRecord]) -> [TelemetrySample] {
+    private func samples(from records: [RawFITRecord], activityStartTimestamp: UInt32?) -> [TelemetrySample] {
         let timestampedRecords = records.filter { $0.timestamp != nil }
         let sourceRecords = timestampedRecords.isEmpty ? records : timestampedRecords
-        let firstTimestamp = sourceRecords.compactMap(\.timestamp).first
+        let firstTimestamp = activityStartTimestamp ?? sourceRecords.compactMap(\.timestamp).first
         let fitEpoch = Date(timeIntervalSince1970: 631_065_600)
 
-        return sourceRecords.enumerated().map { index, record in
+        var samples = sourceRecords.enumerated().map { index, record in
             let elapsed: TimeInterval
             let date: Date?
             if let timestamp = record.timestamp, let firstTimestamp {
-                elapsed = TimeInterval(timestamp - firstTimestamp)
+                elapsed = max(0, TimeInterval(Int64(timestamp) - Int64(firstTimestamp)))
                 date = fitEpoch.addingTimeInterval(TimeInterval(timestamp))
             } else {
                 elapsed = TimeInterval(index)
@@ -249,13 +370,67 @@ public final class FITParser {
                 longitude: record.longitude,
                 altitudeMeters: record.altitudeMeters,
                 heartRate: record.heartRate,
-                cadence: record.cadence.map { $0 * 2 },
+                cadence: cadenceStepsPerMinute(record),
                 distanceMeters: record.distanceMeters,
                 speedMetersPerSecond: record.speedMetersPerSecond,
                 powerWatts: record.powerWatts,
                 temperatureCelsius: record.temperatureCelsius
             )
         }
+
+        if let activityStartTimestamp,
+           let firstRecord = sourceRecords.first,
+           let firstRecordTimestamp = firstRecord.timestamp,
+           firstRecordTimestamp > activityStartTimestamp,
+           let firstSample = samples.first,
+           firstSample.elapsed > 0 {
+            samples.insert(TelemetrySample(
+                elapsed: 0,
+                date: fitEpoch.addingTimeInterval(TimeInterval(activityStartTimestamp)),
+                latitude: firstRecord.latitude,
+                longitude: firstRecord.longitude,
+                altitudeMeters: firstRecord.altitudeMeters,
+                heartRate: firstRecord.heartRate,
+                cadence: cadenceStepsPerMinute(firstRecord),
+                distanceMeters: firstRecord.distanceMeters,
+                speedMetersPerSecond: firstRecord.speedMetersPerSecond,
+                powerWatts: firstRecord.powerWatts,
+                temperatureCelsius: firstRecord.temperatureCelsius
+            ), at: 0)
+        }
+
+        return samples
+    }
+
+    private func activityStartTimestamp(
+        records: [RawFITRecord],
+        timerStartTimestamps: [UInt32],
+        sessionStartTimestamps: [UInt32]
+    ) -> UInt32? {
+        guard let firstRecordTimestamp = records.compactMap(\.timestamp).min() else { return nil }
+        return (timerStartTimestamps + sessionStartTimestamps)
+            .filter { $0 <= firstRecordTimestamp }
+            .min()
+    }
+
+    private func cadenceStepsPerMinute(_ record: RawFITRecord) -> Int? {
+        guard let cadence = record.cadence else { return nil }
+        return Int(((Double(cadence) + (record.fractionalCadence ?? 0)) * 2).rounded())
+    }
+
+    private func compressedSpeedDistance(
+        bytes: [UInt8],
+        accumulator: inout CompressedDistanceAccumulator
+    ) -> (speedMetersPerSecond: Double, distanceMeters: Double)? {
+        guard bytes.count >= 3 else { return nil }
+        let raw = UInt32(bytes[0]) | (UInt32(bytes[1]) << 8) | (UInt32(bytes[2]) << 16)
+        let speedRaw = UInt16(raw & 0x0FFF)
+        let distanceRaw = UInt16((raw >> 12) & 0x0FFF)
+        guard speedRaw != 0x0FFF, distanceRaw != 0x0FFF else { return nil }
+        return (
+            speedMetersPerSecond: Double(speedRaw) / 100,
+            distanceMeters: accumulator.meters(for: distanceRaw)
+        )
     }
 
     private func semicirclesToDegrees(_ value: Double) -> Double {

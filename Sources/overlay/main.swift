@@ -10,7 +10,7 @@ struct CommandLineOptions {
     var framesPerSecond: Double?
     var duration: TimeInterval?
     var timeSync: TelemetryTimeSync
-    var bitRate: Int
+    var averageBitRate: Int
     var codec: OverlayVideoCodec
     var distanceUnit: OverlayDistanceUnit
     var validateFITCRC: Bool
@@ -29,7 +29,7 @@ struct CommandLineOptions {
             case "--skip-fit-crc", "--inspect":
                 flags.insert(argument)
                 index += 1
-            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--duration", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--codec", "--distance-unit":
+            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--duration", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--codec", "--distance-unit":
                 guard index + 1 < arguments.count else {
                     throw CLIError.missingValue(argument)
                 }
@@ -48,12 +48,12 @@ struct CommandLineOptions {
             videoURL: URL(fileURLWithPath: video),
             fitURL: URL(fileURLWithPath: fit),
             outputURL: URL(fileURLWithPath: output),
-            width: try optionalInt(values["--width"], name: "--width"),
-            height: try optionalInt(values["--height"], name: "--height"),
-            framesPerSecond: try optionalDouble(values["--fps"], name: "--fps"),
-            duration: try optionalDouble(values["--duration"], name: "--duration"),
+            width: try optionalInt(values["--width"], name: "--width", minimum: 2, maximum: 16_384, requireEven: true),
+            height: try optionalInt(values["--height"], name: "--height", minimum: 2, maximum: 16_384, requireEven: true),
+            framesPerSecond: try optionalDouble(values["--fps"], name: "--fps", minimum: 1),
+            duration: try optionalDouble(values["--duration"], name: "--duration", minimum: 0.1),
             timeSync: try parseTimeSync(values: values),
-            bitRate: try optionalInt(values["--bitrate"], name: "--bitrate") ?? 12_000_000,
+            averageBitRate: try parseAverageBitRate(values: values),
             codec: try parseCodec(values["--codec"]),
             distanceUnit: try parseDistanceUnit(values["--distance-unit"]),
             validateFITCRC: !flags.contains("--skip-fit-crc"),
@@ -61,8 +61,44 @@ struct CommandLineOptions {
         )
     }
 
-    private static func optionalInt(_ raw: String?, name: String) throws -> Int? {
+    private static func optionalInt(
+        _ raw: String?,
+        name: String,
+        minimum: Int,
+        maximum: Int? = nil,
+        requireEven: Bool = false
+    ) throws -> Int? {
         guard let raw else { return nil }
+        guard let value = Int(raw),
+              value >= minimum,
+              maximum.map({ value <= $0 }) ?? true,
+              !requireEven || value % 2 == 0 else {
+            throw CLIError.invalidValue(name, raw)
+        }
+        return value
+    }
+
+    private static func parseAverageBitRate(values: [String: String]) throws -> Int {
+        if values["--bitrate"] != nil, values["--bitrate-bps"] != nil {
+            throw CLIError.conflictingArguments("--bitrate cannot be combined with --bitrate-bps")
+        }
+
+        if let rawBPS = values["--bitrate-bps"] {
+            return try parsePositiveInt(rawBPS, name: "--bitrate-bps")
+        }
+
+        guard let rawKBPS = values["--bitrate"] else {
+            return 12_000_000
+        }
+
+        let value = try parsePositiveInt(rawKBPS, name: "--bitrate")
+        if value > 1_000_000 {
+            return value
+        }
+        return value * 1000
+    }
+
+    private static func parsePositiveInt(_ raw: String, name: String) throws -> Int {
         guard let value = Int(raw), value > 0 else { throw CLIError.invalidValue(name, raw) }
         return value
     }
@@ -103,9 +139,11 @@ struct CommandLineOptions {
         return .identity
     }
 
-    private static func optionalDouble(_ raw: String?, name: String) throws -> Double? {
+    private static func optionalDouble(_ raw: String?, name: String, minimum: Double) throws -> Double? {
         guard let raw else { return nil }
-        return try parseDouble(raw, name: name, allowNegative: false)
+        let value = try parseDouble(raw, name: name, allowNegative: false)
+        guard value >= minimum else { throw CLIError.invalidValue(name, raw) }
+        return value
     }
 
     private static func parseDouble(_ raw: String, name: String, allowNegative: Bool) throws -> Double {
@@ -137,6 +175,7 @@ enum CLIError: Error, CustomStringConvertible {
     case missingValue(String)
     case missingRequired(String)
     case invalidValue(String, String)
+    case invalidOutputDimensions(Int, Int)
     case conflictingArguments(String)
     case unknownArgument(String)
 
@@ -150,6 +189,8 @@ enum CLIError: Error, CustomStringConvertible {
             return "Missing required argument \(name).\n\n\(Self.help)"
         case let .invalidValue(name, value):
             return "Invalid value for \(name): \(value).\n\n\(Self.help)"
+        case let .invalidOutputDimensions(width, height):
+            return "Invalid output dimensions: \(width)x\(height). Width and height must be 2...16384 and even pixel values."
         case let .conflictingArguments(message):
             return "\(message).\n\n\(Self.help)"
         case let .unknownArgument(argument):
@@ -167,15 +208,17 @@ enum CLIError: Error, CustomStringConvertible {
       --output PATH      Output .mov file encoded as HEVC/H.265 with alpha.
 
     Options:
-      --width PX         Override output width. Defaults to source video width.
-      --height PX        Override output height. Defaults to source video height.
-      --fps N            Override output frame rate. Defaults to source video frame rate.
-      --duration SEC     Override output duration. Defaults to source video duration.
+      --width PX         Override output width, 2...16384 and even. Defaults to source video width.
+      --height PX        Override output height, 2...16384 and even. Defaults to source video height.
+      --fps N            Override output frame rate, minimum 1. Defaults to source video frame rate.
+      --duration SEC     Override output duration, minimum 0.1. Defaults to source video duration.
       --fit-start SEC    FIT elapsed time at video 0. Use when recording starts mid-activity.
       --sync-video SEC   Video timestamp for a sync point. Requires --sync-fit.
       --sync-fit SEC     FIT elapsed timestamp for the same sync point. Requires --sync-video.
       --offset SEC       Legacy shorthand: video starts SEC seconds before FIT. Negative starts mid-FIT.
-      --bitrate BPS      Average HEVC bitrate. Default: 12000000.
+      --bitrate KBPS     Average HEVC bitrate in kbps. Default: 12000.
+                         Existing values above 1000000 are accepted as legacy bps.
+      --bitrate-bps BPS  Legacy explicit bps bitrate.
       --codec NAME       hevc-alpha (default) or prores-4444.
       --distance-unit U  Distance unit for overlay labels: km (default) or m.
       --skip-fit-crc     Parse FIT even if CRC validation fails.
@@ -184,11 +227,11 @@ enum CLIError: Error, CustomStringConvertible {
     """
 }
 
-func run() throws {
+func run() async throws {
     let options = try CommandLineOptions.parse(arguments: CommandLine.arguments)
     let parser = FITParser(validateCRC: options.validateFITCRC)
     let series = try parser.parse(url: options.fitURL)
-    let metadata = try VideoMetadata.load(from: options.videoURL)
+    let metadata = try await VideoMetadata.loadAsync(from: options.videoURL)
 
     let width = options.width ?? Int(metadata.size.width.rounded())
     let height = options.height ?? Int(metadata.size.height.rounded())
@@ -198,12 +241,14 @@ func run() throws {
     print("Video: \(width)x\(height), \(String(format: "%.3f", fps)) fps, \(String(format: "%.2f", duration)) s")
     print("FIT: \(series.samples.count) samples, \(String(format: "%.2f", series.duration)) s telemetry")
     print("Codec: \(options.codec.rawValue)")
+    print("Bitrate: \(options.averageBitRate / 1000) kbps")
     print("Distance unit: \(options.distanceUnit.rawValue)")
     printSyncSummary(timeSync: options.timeSync, videoDuration: duration, fitDuration: series.duration)
 
     if options.inspectOnly {
         return
     }
+    try validateOutputDimensions(width: width, height: height)
 
     let writer = TransparentVideoWriter(
         outputURL: options.outputURL,
@@ -213,7 +258,7 @@ func run() throws {
             height: height,
             framesPerSecond: fps,
             duration: duration,
-            averageBitRate: options.bitRate,
+            averageBitRate: options.averageBitRate,
             timeSync: options.timeSync,
             codec: options.codec,
             distanceUnit: options.distanceUnit,
@@ -225,6 +270,14 @@ func run() throws {
     )
     try writer.write()
     print("Wrote \(options.outputURL.path)")
+}
+
+func validateOutputDimensions(width: Int, height: Int) throws {
+    guard width >= 2, width <= 16_384,
+          height >= 2, height <= 16_384,
+          width % 2 == 0, height % 2 == 0 else {
+        throw CLIError.invalidOutputDimensions(width, height)
+    }
 }
 
 func printSyncSummary(timeSync: TelemetryTimeSync, videoDuration: TimeInterval, fitDuration: TimeInterval) {
@@ -242,21 +295,26 @@ func printSyncSummary(timeSync: TelemetryTimeSync, videoDuration: TimeInterval, 
     }
 }
 
-do {
-    try run()
-} catch let error as CLIError {
-    print(error.description)
-    if case .helpRequested = error {
-        exit(0)
+@main
+struct OverlayCLI {
+    static func main() async {
+        do {
+            try await run()
+        } catch let error as CLIError {
+            print(error.description)
+            if case .helpRequested = error {
+                exit(0)
+            }
+            exit(2)
+        } catch let error as FITError {
+            fputs("FIT error: \(error.description)\n", stderr)
+            exit(1)
+        } catch let error as OverlayVideoError {
+            fputs("Video error: \(error.description)\n", stderr)
+            exit(1)
+        } catch {
+            fputs("Error: \(error.localizedDescription)\n", stderr)
+            exit(1)
+        }
     }
-    exit(2)
-} catch let error as FITError {
-    fputs("FIT error: \(error.description)\n", stderr)
-    exit(1)
-} catch let error as OverlayVideoError {
-    fputs("Video error: \(error.description)\n", stderr)
-    exit(1)
-} catch {
-    fputs("Error: \(error.localizedDescription)\n", stderr)
-    exit(1)
 }

@@ -31,6 +31,16 @@ let package = Package(
             name: "OverlayCoreTests",
             dependencies: ["OverlayCore"],
             path: "Tests/OverlayCoreTests"
+        ),
+        .testTarget(
+            name: "OverlayStudioTests",
+            dependencies: ["OverlayStudio"],
+            path: "Tests/OverlayStudioTests"
+        ),
+        .testTarget(
+            name: "OverlayCLITests",
+            dependencies: ["overlay"],
+            path: "Tests/OverlayCLITests"
         )
     ]
 )

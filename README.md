@@ -49,10 +49,12 @@ The GUI supports:
 - editing time sync through offset, FIT start, or sync-point mode
 - setting the current preview time as `运动开始`, which maps that video frame to FIT elapsed `0`
 - dragging overlay components on the preview canvas
+- changing the layer order for overlapping components
 - changing component visibility, position, and size
 - independently editing speed, pace, heart rate, cadence, distance value, route, distance progress, and time/date components
-- changing each component's tint, opacity, text scale, position, and size
-- changing default accent color, panel opacity, metric text scale, and gauge ticks
+- changing each component's tint, opacity, font, font size, position, and size
+- showing a configurable preview grid, with optional snapping while dragging
+- saving, importing, exporting, and setting default layout presets
 - setting output resolution and frame rate through presets or manual input
 - choosing whether distance labels render in `m` or `km`
 - setting output bitrate in kbps, plus duration, codec, and destination
@@ -69,15 +71,16 @@ swift run overlay \
 Useful options:
 
 ```bash
---width 1920        # override source width
---height 1080       # override source height
+--width 1920        # override source width; 2...16384 and even
+--height 1080       # override source height; 2...16384 and even
 --fps 30            # override source frame rate
 --duration 60       # render only 60 seconds
 --fit-start 300     # video starts at FIT elapsed 5:00
 --sync-video 12     # sync point in the video timeline
 --sync-fit 0        # FIT elapsed at the same sync point
 --offset 2.5        # legacy shorthand: video starts 2.5s before FIT
---bitrate 12000000  # HEVC average bitrate
+--bitrate 12000     # HEVC average bitrate in kbps
+--bitrate-bps 12000000 # legacy explicit bitrate in bps
 --codec hevc-alpha  # default; use prores-4444 as an alpha-capable intermediate
 --distance-unit km  # distance labels: km (default) or m
 --inspect           # parse metadata without rendering
@@ -117,4 +120,4 @@ The parser handles standard FIT local message definitions, little and big endian
 
 Parsed telemetry is normalized to activity-relative distance, enriched with distance-derived speed when FIT speed is missing or stuck at zero, and resampled to 1-second intervals so pace appears promptly at the start of a run.
 
-Developer fields and custom streams are skipped for now. The overlay layout is intentionally fixed in this first step; a configurable floating-layer format can be added next without changing the encoder or FIT parser.
+Developer fields and custom streams are skipped for now. Layouts are configurable in the GUI and can be saved, imported, exported, or reused as defaults.
