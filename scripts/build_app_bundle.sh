@@ -7,7 +7,7 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 
 cd "$ROOT_DIR"
-swift build -c release --product overlay-studio
+swift build -c release --arch arm64 --product overlay-studio
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR"
@@ -38,6 +38,10 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
     <string>public.app-category.video</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
+    <key>LSArchitecturePriority</key>
+    <array>
+        <string>arm64</string>
+    </array>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>

@@ -243,6 +243,7 @@ func run() async throws {
     print("Codec: \(options.codec.rawValue)")
     print("Bitrate: \(options.averageBitRate / 1000) kbps")
     print("Distance unit: \(options.distanceUnit.rawValue)")
+    print("Hardware: \(OverlayHardwareProfile.current.displaySummary)")
     printSyncSummary(timeSync: options.timeSync, videoDuration: duration, fitDuration: series.duration)
 
     if options.inspectOnly {

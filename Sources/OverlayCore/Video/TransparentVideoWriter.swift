@@ -3,8 +3,9 @@ import CoreGraphics
 import CoreMedia
 import CoreVideo
 import Foundation
+import VideoToolbox
 
-public enum OverlayVideoCodec: String, CaseIterable, Identifiable {
+public enum OverlayVideoCodec: String, CaseIterable, Hashable, Identifiable, Sendable {
     case hevcAlpha = "hevc-alpha"
     case proRes4444 = "prores-4444"
 
@@ -152,19 +153,14 @@ public final class TransparentVideoWriter {
         let encoderFrameRate = try encoderFrameRateValue(fps)
 
         let writer = try AVAssetWriter(outputURL: temporaryOutputURL, fileType: .mov)
-        var settings: [String: Any] = [
-            AVVideoCodecKey: config.codec.avCodecType,
-            AVVideoWidthKey: width,
-            AVVideoHeightKey: height
-        ]
-        if config.codec == .hevcAlpha {
-            settings[AVVideoCompressionPropertiesKey] = [
-                AVVideoAverageBitRateKey: config.averageBitRate,
-                AVVideoExpectedSourceFrameRateKey: encoderFrameRate,
-                AVVideoMaxKeyFrameIntervalKey: encoderFrameRate,
-                AVVideoAllowFrameReorderingKey: false
-            ]
-        }
+        let settings = Self.videoOutputSettings(
+            width: width,
+            height: height,
+            codec: config.codec,
+            averageBitRate: config.averageBitRate,
+            encoderFrameRate: encoderFrameRate,
+            hardwareProfile: .current
+        )
 
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         input.expectsMediaDataInRealTime = false
@@ -175,14 +171,7 @@ public final class TransparentVideoWriter {
         }
         writer.add(input)
 
-        let sourceAttributes: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferWidthKey as String: width,
-            kCVPixelBufferHeightKey as String: height,
-            kCVPixelBufferCGImageCompatibilityKey as String: true,
-            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
-            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
-        ]
+        let sourceAttributes = OverlayPixelBufferAttributes.canvas(width: width, height: height)
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: input,
             sourcePixelBufferAttributes: sourceAttributes
@@ -291,6 +280,65 @@ public final class TransparentVideoWriter {
             throw OverlayVideoError.invalidConfiguration("Output bitrate must be 1,000,000 kbps or lower.")
         }
         try validateOutputURL()
+    }
+
+    static func videoOutputSettings(
+        width: Int,
+        height: Int,
+        codec: OverlayVideoCodec,
+        averageBitRate: Int,
+        encoderFrameRate: Int,
+        hardwareProfile: OverlayHardwareProfile
+    ) -> [String: Any] {
+        var settings: [String: Any] = [
+            AVVideoCodecKey: codec.avCodecType,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height
+        ]
+
+        if let encoderSpecification = hardwareEncoderSpecification(
+            codec: codec,
+            hardwareProfile: hardwareProfile
+        ) {
+            settings[AVVideoEncoderSpecificationKey] = encoderSpecification
+        }
+
+        if codec == .hevcAlpha {
+            settings[AVVideoCompressionPropertiesKey] = [
+                AVVideoAverageBitRateKey: averageBitRate,
+                AVVideoExpectedSourceFrameRateKey: encoderFrameRate,
+                AVVideoMaxKeyFrameIntervalKey: encoderFrameRate,
+                AVVideoAllowFrameReorderingKey: false
+            ]
+        }
+
+        return settings
+    }
+
+    private static func hardwareEncoderSpecification(
+        codec: OverlayVideoCodec,
+        hardwareProfile: OverlayHardwareProfile
+    ) -> [String: Any]? {
+        if let encoder = hardwareProfile.hardwareEncoder(for: codec) {
+            var specification: [String: Any] = [
+                kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder as String: true
+            ]
+            if let encoderID = encoder.encoderID {
+                specification[kVTVideoEncoderSpecification_EncoderID as String] = encoderID
+            }
+            if let gpuRegistryID = encoder.gpuRegistryID {
+                specification[kVTVideoEncoderSpecification_PreferredEncoderGPURegistryID as String] = NSNumber(value: gpuRegistryID)
+            }
+            return specification
+        }
+
+        if hardwareProfile.isAppleSiliconProcess {
+            return [
+                kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder as String: true
+            ]
+        }
+
+        return nil
     }
 
     private func validateOutputURL() throws {

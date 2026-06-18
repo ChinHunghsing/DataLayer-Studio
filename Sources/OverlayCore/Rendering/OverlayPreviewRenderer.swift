@@ -22,12 +22,16 @@ public enum OverlayPreviewError: Error, Equatable, CustomStringConvertible, Loca
 }
 
 public final class OverlayPreviewRenderer {
-    private let context = CIContext(options: nil)
+    private let hardwareProfile: OverlayHardwareProfile
+    private let context: CIContext
     private let pixelBufferPoolLock = NSLock()
     private var pixelBufferPoolSize: PixelBufferPoolSize?
     private var pixelBufferPool: CVPixelBufferPool?
 
-    public init() {}
+    public init(hardwareProfile: OverlayHardwareProfile = .current) {
+        self.hardwareProfile = hardwareProfile
+        self.context = OverlayCIContextFactory.makeContext(profile: hardwareProfile)
+    }
 
     public func renderOverlayImage(
         series: TelemetrySeries,
@@ -88,16 +92,9 @@ public final class OverlayPreviewRenderer {
         }
 
         let poolAttributes: [String: Any] = [
-            kCVPixelBufferPoolMinimumBufferCountKey as String: 2
+            kCVPixelBufferPoolMinimumBufferCountKey as String: hardwareProfile.preferredPreviewBufferCount
         ]
-        let attributes: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferWidthKey as String: width,
-            kCVPixelBufferHeightKey as String: height,
-            kCVPixelBufferCGImageCompatibilityKey as String: true,
-            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
-            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
-        ]
+        let attributes = OverlayPixelBufferAttributes.canvas(width: width, height: height)
 
         var newPool: CVPixelBufferPool?
         let status = CVPixelBufferPoolCreate(nil, poolAttributes as CFDictionary, attributes as CFDictionary, &newPool)

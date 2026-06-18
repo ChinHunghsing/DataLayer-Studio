@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreMedia
 @testable import OverlayCore
 import XCTest
@@ -176,6 +177,38 @@ final class TransparentVideoWriterTests: XCTestCase {
             }
             XCTAssertTrue(message.contains("Output path must be a file"))
         }
+    }
+
+    func testWriterRendersTinyHEVCAlphaOutputWhenEncoderIsAvailable() async throws {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("overlay-tiny-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        let writer = TransparentVideoWriter(
+            outputURL: outputURL,
+            series: TelemetrySeries(samples: [
+                TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 3),
+                TelemetrySample(elapsed: 1, distanceMeters: 3, speedMetersPerSecond: 3)
+            ]),
+            config: TransparentVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: 1,
+                duration: 1
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.description.localizedCaseInsensitiveContains("encoder") {
+            throw XCTSkip("HEVC-with-alpha encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
+        let asset = AVURLAsset(url: outputURL)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        XCTAssertEqual(tracks.count, 1)
     }
 
     private func assertWriterRejectsInvalidConfiguration(
