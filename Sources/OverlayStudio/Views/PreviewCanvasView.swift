@@ -43,16 +43,16 @@ struct PreviewCanvasView: View {
                 controlRow
 
                 HStack {
-                    Text(localization.string("preview.time", formatTime(model.previewTime)))
+                    Text(formatTimecode(model.previewTime))
                     Spacer()
                     if model.syncMode == .syncPoint, model.syncFITSeconds == 0 {
-                        Text(localization.string("preview.sportStartAt", formatTime(model.syncVideoSeconds)))
+                        Text(localization.string("preview.sportStartAt", formatTimecode(model.syncVideoSeconds)))
                             .foregroundStyle(.tint)
                     }
                     Spacer()
                     Text("\(model.outputWidth)x\(model.outputHeight)")
                 }
-                .font(.caption)
+                .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
 
                 if let previewWarning = model.previewWarning {
@@ -104,15 +104,17 @@ struct PreviewCanvasView: View {
             }
             .disabled(model.player == nil || model.isExporting)
 
-            Slider(
+            PreviewTimelineSlider(
                 value: Binding(
                     get: { model.previewTime },
-                    set: { model.seekPreview(to: $0) }
+                    set: { model.scrubPreview(to: $0) }
                 ),
-                in: 0...max(model.outputDuration, 1)
+                range: 0...max(model.outputDuration, 1),
+                isEnabled: model.player != nil && !model.isExporting,
+                accessibilityLabel: localization.string("preview.time", formatTimecode(model.previewTime)),
+                onFrameStep: { model.stepPreviewFrame(by: $0) }
             )
             .frame(minWidth: 140)
-            .disabled(model.player == nil || model.isExporting)
 
             Button {
                 model.markSportStart()
@@ -810,9 +812,19 @@ struct PreviewCanvasView: View {
         zoom = clampedZoom(value)
     }
 
-    private func formatTime(_ time: TimeInterval) -> String {
-        let total = max(0, Int(time.rounded()))
-        return String(format: "%02d:%02d", total / 60, total % 60)
+    private func formatTimecode(_ time: TimeInterval) -> String {
+        let frameRate = max(1, Int(model.previewFrameRate.rounded()))
+        let safeTime = max(0, time.isFinite ? time : 0)
+        let wholeSeconds = Int(safeTime.rounded(.down))
+        let fractionalSecond = safeTime - Double(wholeSeconds)
+        let frame = min(frameRate - 1, max(0, Int((fractionalSecond * Double(frameRate)).rounded(.down))))
+        return String(
+            format: "%02d:%02d:%02d:%02d",
+            wholeSeconds / 3600,
+            (wholeSeconds / 60) % 60,
+            wholeSeconds % 60,
+            frame
+        )
     }
 
     private func formatDistance(_ meters: Double?, element: OverlayElement) -> String {

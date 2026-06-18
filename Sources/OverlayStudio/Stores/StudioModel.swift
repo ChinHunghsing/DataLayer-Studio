@@ -29,6 +29,7 @@ private final class PlayerTimeObserver {
 final class StudioModel: ObservableObject {
     static let playerTimeObserverInterval: TimeInterval = 0.20
     static let playbackOverlayRefreshInterval: TimeInterval = 0.50
+    static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 30.0
     static let dragOverlayRenderDelay: TimeInterval = 0.05
 
     @Published var videoURL: URL?
@@ -99,6 +100,7 @@ final class StudioModel: ObservableObject {
     private var previewRenderTask: Task<Void, Never>?
     private var dragRenderTask: Task<Void, Never>?
     private var pendingPreviewSizeRefreshTask: Task<Void, Never>?
+    private var pendingScrubOverlayRefreshTask: Task<Void, Never>?
     private var videoLoadTask: Task<Void, Never>?
     private var fitLoadTask: Task<Void, Never>?
     private var pendingOverlayRefreshAfterCurrentRender = false
@@ -132,6 +134,7 @@ final class StudioModel: ObservableObject {
         previewRenderTask?.cancel()
         dragRenderTask?.cancel()
         pendingPreviewSizeRefreshTask?.cancel()
+        pendingScrubOverlayRefreshTask?.cancel()
         exportCancellationToken?.cancel()
         exportTask?.cancel()
         videoFrameService.clearCache()
@@ -573,6 +576,27 @@ final class StudioModel: ObservableObject {
     }
 
     func seekPreview(to time: TimeInterval) {
+        seekPreview(to: time, coalesceOverlayRefresh: true)
+    }
+
+    func scrubPreview(to time: TimeInterval) {
+        seekPreview(to: time, coalesceOverlayRefresh: true, isScrubbing: true)
+    }
+
+    func stepPreviewFrame(by frameOffset: Int) {
+        guard frameOffset != 0 else { return }
+        scrubPreview(to: previewTime + Double(frameOffset) * previewFrameDuration)
+    }
+
+    var previewFrameDuration: TimeInterval {
+        1 / previewFrameRate
+    }
+
+    var previewFrameRate: Double {
+        Self.sanitizedOutputFrameRate(sourceFrameRate ?? outputFPS)
+    }
+
+    private func seekPreview(to time: TimeInterval, coalesceOverlayRefresh: Bool, isScrubbing: Bool = false) {
         guard !isExporting else { return }
         let clamped = min(max(0, time), max(outputDuration, 0))
         previewTime = clamped
@@ -582,7 +606,11 @@ final class StudioModel: ObservableObject {
                 toleranceBefore: .zero,
                 toleranceAfter: .zero
             )
-            refreshOverlayOnly(coalesceIfBusy: true)
+            if isScrubbing {
+                scheduleScrubOverlayRefresh()
+            } else {
+                refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
+            }
         } else {
             refreshPreview()
         }
@@ -973,6 +1001,35 @@ final class StudioModel: ObservableObject {
         }
     }
 
+    private func scheduleScrubOverlayRefresh() {
+        guard !isExporting else { return }
+        guard videoURL != nil, series != nil else {
+            refreshOverlayOnly(coalesceIfBusy: true)
+            return
+        }
+
+        let delay = max(0, Self.scrubOverlayRefreshInterval - Date().timeIntervalSince(lastOverlayRefresh))
+        if delay <= 0.001 {
+            pendingScrubOverlayRefreshTask?.cancel()
+            pendingScrubOverlayRefreshTask = nil
+            refreshOverlayOnly(coalesceIfBusy: true)
+            return
+        }
+
+        guard pendingScrubOverlayRefreshTask == nil else { return }
+        pendingScrubOverlayRefreshTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            } catch {
+                return
+            }
+
+            guard let self else { return }
+            self.pendingScrubOverlayRefreshTask = nil
+            self.scheduleScrubOverlayRefresh()
+        }
+    }
+
     nonisolated private static func renderOverlayImage(
         previewRenderer: OverlayPreviewRenderer,
         series: TelemetrySeries,
@@ -1199,9 +1256,11 @@ final class StudioModel: ObservableObject {
         previewRenderTask?.cancel()
         dragRenderTask?.cancel()
         pendingPreviewSizeRefreshTask?.cancel()
+        pendingScrubOverlayRefreshTask?.cancel()
         previewRenderTask = nil
         dragRenderTask = nil
         pendingPreviewSizeRefreshTask = nil
+        pendingScrubOverlayRefreshTask = nil
         draggedElementID = nil
         dragBaseOverlayImage = nil
         dragOverlayImage = nil

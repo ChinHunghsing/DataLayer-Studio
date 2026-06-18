@@ -78,6 +78,7 @@ final class StudioModelTests: XCTestCase {
 
     func testPlaybackOverlayRefreshIsThrottledBelowPlayerTimeUpdates() {
         XCTAssertGreaterThan(StudioModel.playbackOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
+        XCTAssertLessThan(StudioModel.scrubOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThanOrEqual(StudioModel.playerTimeObserverInterval, 0.20)
         XCTAssertLessThanOrEqual(StudioModel.playbackOverlayRefreshInterval, 0.60)
     }
@@ -158,5 +159,38 @@ final class StudioModelTests: XCTestCase {
 
         model.seekPreview(to: -5)
         XCTAssertEqual(model.previewTime, 0)
+    }
+
+    func testStepPreviewFrameUsesSourceFrameRateWhenAvailable() {
+        let model = StudioModel()
+        model.metadata = VideoMetadata(
+            size: CGSize(width: 1920, height: 1080),
+            duration: 10,
+            framesPerSecond: 60
+        )
+        model.setOutputFPS(30)
+        model.setOutputDuration(10)
+        model.seekPreview(to: 5)
+
+        XCTAssertEqual(model.previewFrameRate, 60, accuracy: 0.0001)
+        model.stepPreviewFrame(by: 1)
+        XCTAssertEqual(model.previewTime, 5 + 1.0 / 60.0, accuracy: 0.0001)
+
+        model.stepPreviewFrame(by: -2)
+        XCTAssertEqual(model.previewTime, 5 - 1.0 / 60.0, accuracy: 0.0001)
+    }
+
+    func testStepPreviewFrameClampsToPreviewBounds() {
+        let model = StudioModel()
+        model.setOutputFPS(25)
+        model.setOutputDuration(1)
+
+        model.seekPreview(to: 0)
+        model.stepPreviewFrame(by: -1)
+        XCTAssertEqual(model.previewTime, 0)
+
+        model.seekPreview(to: 1)
+        model.stepPreviewFrame(by: 1)
+        XCTAssertEqual(model.previewTime, 1)
     }
 }
