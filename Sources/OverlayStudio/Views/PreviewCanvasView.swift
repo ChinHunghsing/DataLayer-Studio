@@ -126,8 +126,13 @@ struct PreviewCanvasView: View {
     private var previewViewport: some View {
         GeometryReader { proxy in
             let viewportSize = proxy.size
+            let stageInsets = previewStageInsets(for: viewportSize)
+            let stageSize = CGSize(
+                width: max(1, viewportSize.width - stageInsets.leading - stageInsets.trailing),
+                height: max(1, viewportSize.height - stageInsets.top - stageInsets.bottom)
+            )
             let fitSize = aspectFitSize(
-                container: viewportSize,
+                container: stageSize,
                 aspectRatio: CGFloat(model.outputWidth) / CGFloat(max(1, model.outputHeight))
             )
             let zoomFactor = CGFloat(clampedZoom(zoom))
@@ -136,8 +141,8 @@ struct PreviewCanvasView: View {
             let visibleElements = model.layout.visibleElements
             let overflowInsets = layoutOverflowInsets(canvasSize: canvasSize, visibleElements: visibleElements)
             let minimumContentSize = CGSize(
-                width: canvasSize.width + overflowInsets.left + overflowInsets.right,
-                height: canvasSize.height + overflowInsets.top + overflowInsets.bottom
+                width: canvasSize.width + overflowInsets.left + overflowInsets.right + stageInsets.leading + stageInsets.trailing,
+                height: canvasSize.height + overflowInsets.top + overflowInsets.bottom + stageInsets.top + stageInsets.bottom
             )
             let contentSize = CGSize(
                 width: max(viewportSize.width, minimumContentSize.width),
@@ -146,8 +151,8 @@ struct PreviewCanvasView: View {
             let extraWidth = max(0, contentSize.width - minimumContentSize.width)
             let extraHeight = max(0, contentSize.height - minimumContentSize.height)
             let displayRect = CGRect(
-                x: overflowInsets.left + extraWidth / 2,
-                y: overflowInsets.top + extraHeight / 2,
+                x: stageInsets.leading + overflowInsets.left + extraWidth / 2,
+                y: stageInsets.top + overflowInsets.top + verticalPreviewSlackOffset(extraHeight),
                 width: canvasSize.width,
                 height: canvasSize.height
             )
@@ -775,6 +780,27 @@ struct PreviewCanvasView: View {
             return CGSize(width: container.height * aspectRatio, height: container.height)
         }
         return CGSize(width: container.width, height: container.width / max(0.1, aspectRatio))
+    }
+
+    private func previewStageInsets(for viewportSize: CGSize) -> EdgeInsets {
+        let horizontalPadding: CGFloat = viewportSize.width < 760 ? 16 : 24
+        return EdgeInsets(
+            top: isFullscreen ? 24 : 28,
+            leading: horizontalPadding,
+            bottom: isFullscreen ? 24 : 20,
+            trailing: horizontalPadding
+        )
+    }
+
+    private func verticalPreviewSlackOffset(_ slack: CGFloat) -> CGFloat {
+        guard slack > 0 else { return 0 }
+        if isFullscreen {
+            return slack / 2
+        }
+        guard slack > 96 else {
+            return slack / 2
+        }
+        return min(slack / 2, max(32, slack * 0.16))
     }
 
     private func clampedZoom(_ value: Double) -> Double {
