@@ -76,6 +76,17 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.gridRows, 64)
     }
 
+    func testPlaybackOverlayRefreshIsThrottledBelowPlayerTimeUpdates() {
+        XCTAssertGreaterThan(StudioModel.playbackOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
+        XCTAssertLessThanOrEqual(StudioModel.playerTimeObserverInterval, 0.20)
+        XCTAssertLessThanOrEqual(StudioModel.playbackOverlayRefreshInterval, 0.40)
+    }
+
+    func testDragOverlayRenderDelayStaysBelowPlaybackRefreshInterval() {
+        XCTAssertGreaterThan(StudioModel.dragOverlayRenderDelay, 0)
+        XCTAssertLessThan(StudioModel.dragOverlayRenderDelay, StudioModel.playbackOverlayRefreshInterval)
+    }
+
     func testSourceFrameRatePresetOnlyAppearsWhenExportable() {
         let model = StudioModel()
 

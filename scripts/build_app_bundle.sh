@@ -40,6 +40,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
     <string>13.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
 </dict>
 </plist>
 PLIST

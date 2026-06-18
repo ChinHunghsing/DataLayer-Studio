@@ -508,18 +508,17 @@ struct NumberField: View {
         HStack(spacing: 8) {
             Text(title)
                 .lineLimit(1)
-                .frame(width: 72, alignment: .leading)
-            Spacer(minLength: 6)
+                .frame(width: SidebarFormMetrics.labelWidth, alignment: .leading)
             TextField(title, text: $draftText)
                 .multilineTextAlignment(.trailing)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 96)
+                .frame(minWidth: 96, maxWidth: .infinity)
                 .focused($isFocused)
                 .onSubmit(commitDraft)
             Text(suffix)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .frame(width: 34, alignment: .leading)
+                .frame(width: SidebarFormMetrics.shortSuffixWidth, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
@@ -565,19 +564,18 @@ struct NumberIntField: View {
         HStack(spacing: 8) {
             Text(title)
                 .lineLimit(1)
-                .frame(width: 72, alignment: .leading)
-            Spacer(minLength: 6)
+                .frame(width: SidebarFormMetrics.labelWidth, alignment: .leading)
             TextField(title, text: $draftText)
                 .multilineTextAlignment(.trailing)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 88)
+                .frame(minWidth: 96, maxWidth: .infinity)
                 .focused($isFocused)
                 .onSubmit(commitDraft)
             if let suffix {
                 Text(suffix)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .frame(width: 40, alignment: .leading)
+                    .frame(width: SidebarFormMetrics.longSuffixWidth, alignment: .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -625,12 +623,14 @@ struct CompactNumberIntField: View {
                 TextField(title, text: $draftText)
                     .multilineTextAlignment(.trailing)
                     .textFieldStyle(.roundedBorder)
+                    .frame(minWidth: 92)
                     .focused($isFocused)
                     .onSubmit(commitDraft)
 
                 Text(suffix)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .frame(width: SidebarFormMetrics.shortSuffixWidth, alignment: .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -658,4 +658,10 @@ struct CompactNumberIntField: View {
         value = parsed
         draftText = NumberTextFormatter.formatInt(value)
     }
+}
+
+private enum SidebarFormMetrics {
+    static let labelWidth: CGFloat = 78
+    static let shortSuffixWidth: CGFloat = 34
+    static let longSuffixWidth: CGFloat = 48
 }

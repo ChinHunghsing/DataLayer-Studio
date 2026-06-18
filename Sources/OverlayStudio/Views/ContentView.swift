@@ -62,7 +62,7 @@ struct ContentView: View {
     private var editorLayout: some View {
         HStack(spacing: 0) {
             SidebarView(model: model)
-                .frame(width: 340)
+                .frame(width: 360)
                 .background(.bar)
 
             Divider()
@@ -78,7 +78,7 @@ struct ContentView: View {
             Divider()
 
             InspectorView(model: model)
-                .frame(width: 330)
+                .frame(width: 370)
                 .background(.bar)
         }
     }

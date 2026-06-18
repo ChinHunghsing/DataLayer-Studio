@@ -6,7 +6,7 @@ struct StudioWindowView: View {
 
     var body: some View {
         ContentView(model: model)
-            .frame(minWidth: 1240, minHeight: 760)
+            .frame(minWidth: 1320, minHeight: 760)
             .onAppear(perform: applyLaunchOptionsIfNeeded)
     }
 

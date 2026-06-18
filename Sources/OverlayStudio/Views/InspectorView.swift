@@ -732,7 +732,7 @@ struct LabeledSlider: View {
                         TextField(title, text: $draftText)
                             .multilineTextAlignment(.trailing)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 76)
+                            .frame(width: 88)
                             .focused($isTextFieldFocused)
                             .onSubmit(commitDraft)
 

@@ -23,6 +23,9 @@ public enum OverlayPreviewError: Error, Equatable, CustomStringConvertible, Loca
 
 public final class OverlayPreviewRenderer {
     private let context = CIContext(options: nil)
+    private let pixelBufferPoolLock = NSLock()
+    private var pixelBufferPoolSize: PixelBufferPoolSize?
+    private var pixelBufferPool: CVPixelBufferPool?
 
     public init() {}
 
@@ -65,6 +68,28 @@ public final class OverlayPreviewRenderer {
     }
 
     private func makePixelBuffer(width: Int, height: Int) throws -> CVPixelBuffer {
+        let pool = try reusablePixelBufferPool(width: width, height: height)
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
+        guard status == kCVReturnSuccess, let pixelBuffer else {
+            throw OverlayVideoError.cannotCreatePixelBuffer
+        }
+        return pixelBuffer
+    }
+
+    private func reusablePixelBufferPool(width: Int, height: Int) throws -> CVPixelBufferPool {
+        let size = PixelBufferPoolSize(width: width, height: height)
+
+        pixelBufferPoolLock.lock()
+        defer { pixelBufferPoolLock.unlock() }
+
+        if pixelBufferPoolSize == size, let pixelBufferPool {
+            return pixelBufferPool
+        }
+
+        let poolAttributes: [String: Any] = [
+            kCVPixelBufferPoolMinimumBufferCountKey as String: 2
+        ]
         let attributes: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
             kCVPixelBufferWidthKey as String: width,
@@ -74,11 +99,19 @@ public final class OverlayPreviewRenderer {
             kCVPixelBufferIOSurfacePropertiesKey as String: [:]
         ]
 
-        var pixelBuffer: CVPixelBuffer?
-        let status = CVPixelBufferCreate(nil, width, height, kCVPixelFormatType_32BGRA, attributes as CFDictionary, &pixelBuffer)
-        guard status == kCVReturnSuccess, let pixelBuffer else {
+        var newPool: CVPixelBufferPool?
+        let status = CVPixelBufferPoolCreate(nil, poolAttributes as CFDictionary, attributes as CFDictionary, &newPool)
+        guard status == kCVReturnSuccess, let newPool else {
             throw OverlayVideoError.cannotCreatePixelBuffer
         }
-        return pixelBuffer
+
+        pixelBufferPoolSize = size
+        pixelBufferPool = newPool
+        return newPool
     }
+}
+
+private struct PixelBufferPoolSize: Equatable {
+    var width: Int
+    var height: Int
 }

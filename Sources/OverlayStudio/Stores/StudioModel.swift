@@ -27,6 +27,10 @@ private final class PlayerTimeObserver {
 
 @MainActor
 final class StudioModel: ObservableObject {
+    static let playerTimeObserverInterval: TimeInterval = 0.20
+    static let playbackOverlayRefreshInterval: TimeInterval = 0.35
+    static let dragOverlayRenderDelay: TimeInterval = 0.05
+
     @Published var videoURL: URL?
     @Published var fitURL: URL?
     @Published var outputURL: URL?
@@ -525,7 +529,7 @@ final class StudioModel: ObservableObject {
         let player = AVPlayer(url: url)
         self.player = player
         let observerToken = player.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.10, preferredTimescale: 600),
+            forInterval: CMTime(seconds: Self.playerTimeObserverInterval, preferredTimescale: 600),
             queue: .main
         ) { [weak self] time in
             guard let self else { return }
@@ -533,7 +537,10 @@ final class StudioModel: ObservableObject {
                 let seconds = CMTimeGetSeconds(time)
                 guard seconds.isFinite else { return }
                 self.previewTime = min(max(0, seconds), max(0, self.outputDuration))
-                self.refreshOverlayOnly(coalesceIfBusy: true)
+                self.refreshOverlayOnly(
+                    minimumInterval: Self.playbackOverlayRefreshInterval,
+                    coalesceIfBusy: true
+                )
                 if self.outputDuration > 0, self.previewTime >= self.outputDuration {
                     self.pausePlayback()
                 }
@@ -854,6 +861,7 @@ final class StudioModel: ObservableObject {
         let currentDistanceUnit = distanceUnit
         let baseLayout = OverlayLayout(elements: layout.elements.filter { $0.id != id }, style: layout.style)
         let dragLayout = OverlayLayout(elements: [element], style: layout.style)
+        let delayNanoseconds = UInt64(max(0, Self.dragOverlayRenderDelay) * 1_000_000_000)
 
         previewRenderTask?.cancel()
         dragRenderTask?.cancel()
@@ -861,6 +869,11 @@ final class StudioModel: ObservableObject {
         dragBaseOverlayImage = nil
         dragOverlayImage = nil
         dragRenderTask = Task.detached { [previewRenderer] in
+            do {
+                try await Task.sleep(nanoseconds: delayNanoseconds)
+            } catch {
+                return
+            }
             guard !Task.isCancelled else { return }
             let baseOverlay = try? Self.renderOverlayImage(
                 previewRenderer: previewRenderer,

@@ -39,35 +39,7 @@ struct PreviewCanvasView: View {
     private var controlsPanel: some View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
-                HStack {
-                    Button {
-                        model.togglePlayback()
-                    } label: {
-                        Label(model.isPlaying ? "Pause" : "Play", systemImage: model.isPlaying ? "pause.fill" : "play.fill")
-                    }
-                    .disabled(model.player == nil || model.isExporting)
-
-                    Slider(
-                        value: Binding(
-                            get: { model.previewTime },
-                            set: { model.seekPreview(to: $0) }
-                        ),
-                        in: 0...max(model.outputDuration, 1)
-                    )
-                    .disabled(model.player == nil || model.isExporting)
-
-                    Button {
-                        model.markSportStart()
-                    } label: {
-                        Label("运动开始", systemImage: "figure.run.circle")
-                    }
-                    .disabled(model.player == nil || model.isExporting)
-
-                    Divider()
-                        .frame(height: 18)
-
-                    zoomControls
-                }
+                controlRow
 
                 HStack {
                     Text("Preview \(formatTime(model.previewTime))")
@@ -101,6 +73,54 @@ struct PreviewCanvasView: View {
             .frame(maxWidth: .infinity)
             .background(.bar)
         }
+    }
+
+    private var controlRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                transportControls
+
+                Divider()
+                    .frame(height: 18)
+
+                zoomControls
+            }
+
+            VStack(spacing: 8) {
+                transportControls
+                zoomControls
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+    }
+
+    private var transportControls: some View {
+        HStack(spacing: 8) {
+            Button {
+                model.togglePlayback()
+            } label: {
+                Label(model.isPlaying ? "Pause" : "Play", systemImage: model.isPlaying ? "pause.fill" : "play.fill")
+            }
+            .disabled(model.player == nil || model.isExporting)
+
+            Slider(
+                value: Binding(
+                    get: { model.previewTime },
+                    set: { model.seekPreview(to: $0) }
+                ),
+                in: 0...max(model.outputDuration, 1)
+            )
+            .frame(minWidth: 140)
+            .disabled(model.player == nil || model.isExporting)
+
+            Button {
+                model.markSportStart()
+            } label: {
+                Label("运动开始", systemImage: "figure.run.circle")
+            }
+            .disabled(model.player == nil || model.isExporting)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var previewViewport: some View {
@@ -246,7 +266,7 @@ struct PreviewCanvasView: View {
                 ),
                 in: PreviewZoomLimits.range
             )
-            .frame(width: 118)
+            .frame(minWidth: 92, idealWidth: 118, maxWidth: 160)
 
             Text("\(Int((clampedZoom(zoom) * 100).rounded()))%")
                 .font(.caption.monospacedDigit())
@@ -538,10 +558,10 @@ struct PreviewCanvasView: View {
     ) -> CGSize {
         let textScale = scale * CGFloat(element.frame.style.textScale)
         let startLabelSize = labelSize(15, scale: textScale, element: element)
-        let currentLabelSize = labelSize(12, scale: textScale, element: element)
+        let currentLabelSize = valueSize(12, scale: textScale, element: element)
         let endLabelSize = unitSize(15, scale: textScale, element: element)
         let iconFontSize = iconSize(12 * textScale, scale: 1, element: element)
-        let trackHeight = max(0.25, CGFloat(element.customization.lineWidth) * scale)
+        let trackHeight = lineWidth(element, scale: scale)
         let topRowHeight = max(
             element.customization.showsLabel ? startLabelSize : 0,
             element.customization.showsUnit ? endLabelSize : 0,
@@ -550,10 +570,32 @@ struct PreviewCanvasView: View {
         let bottomRowHeight = element.customization.showsLabel ? currentLabelSize : 0
         let topPadding = 8 * scale
         let topGap = topRowHeight > 0 ? max(5 * scale, topRowHeight * 0.18) : 0
-        let bottomGap = bottomRowHeight > 0 ? max(5 * scale, bottomRowHeight * 0.22) : 0
+        let knobRadius = max(4 * scale, trackHeight * 0.82 * progressKnobScale(element))
+        let outerRadius = knobRadius + max(2 * scale, knobRadius * 0.28)
+        let tickRadius = showsProgressTicks(element) ? trackHeight * 1.225 : trackHeight / 2
+        let trackExtent = max(trackHeight / 2, outerRadius, tickRadius)
+        let trackBlockHeight = trackExtent * 2
+        let bottomGap = bottomRowHeight > 0 ? progressValueMargin(element, scale: scale, trackHeight: trackHeight) : 0
         let bottomPadding = bottomRowHeight > 0 ? 7 * scale : 0
-        let desiredHeight = max(baseHeight, topPadding + topRowHeight + topGap + trackHeight + bottomGap + bottomRowHeight + bottomPadding)
+        let desiredHeight = max(baseHeight, topPadding + topRowHeight + topGap + trackBlockHeight + bottomGap + bottomRowHeight + bottomPadding)
         return CGSize(width: baseWidth, height: desiredHeight)
+    }
+
+    private func showsProgressTicks(_ element: OverlayElement) -> Bool {
+        element.customization.showGaugeTicks ?? model.layout.style.showGaugeTicks
+    }
+
+    private func progressKnobScale(_ element: OverlayElement) -> CGFloat {
+        CGFloat(element.customization.progressKnobScale ?? 1)
+    }
+
+    private func progressValueMargin(_ element: OverlayElement, scale: CGFloat, trackHeight: CGFloat) -> CGFloat {
+        let marginScale = CGFloat(element.customization.progressValueMarginScale ?? 1)
+        return max(5 * scale, trackHeight * 0.35) * marginScale
+    }
+
+    private func lineWidth(_ element: OverlayElement, scale: CGFloat) -> CGFloat {
+        max(0.25, CGFloat(element.customization.lineWidth) * scale)
     }
 
     private func timeDateOutputSize(
