@@ -3,6 +3,30 @@ import Foundation
 import XCTest
 
 final class TelemetrySeriesTests: XCTestCase {
+    func testDateAtElapsedExtrapolatesBeforeActivityStart() {
+        let startDate = Date(timeIntervalSince1970: 1_787_000_000)
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: startDate, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, date: startDate.addingTimeInterval(10), distanceMeters: 30)
+        ])
+
+        XCTAssertEqual(series.activityStartDate?.timeIntervalSince1970 ?? -1, startDate.timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(series.date(atElapsed: -7)?.timeIntervalSince1970 ?? -1, startDate.addingTimeInterval(-7).timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(series.date(atElapsed: 4)?.timeIntervalSince1970 ?? -1, startDate.addingTimeInterval(4).timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(series.date(atElapsed: 14)?.timeIntervalSince1970 ?? -1, startDate.addingTimeInterval(14).timeIntervalSince1970, accuracy: 0.001)
+    }
+
+    func testDateAtElapsedUsesFirstDatedSampleToRecoverActivityStartDate() {
+        let startDate = Date(timeIntervalSince1970: 1_787_000_000)
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 5, date: startDate.addingTimeInterval(5), distanceMeters: 15),
+            TelemetrySample(elapsed: 10, date: startDate.addingTimeInterval(10), distanceMeters: 30)
+        ])
+
+        XCTAssertEqual(series.activityStartDate?.timeIntervalSince1970 ?? -1, startDate.timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(series.date(atElapsed: -3)?.timeIntervalSince1970 ?? -1, startDate.addingTimeInterval(-3).timeIntervalSince1970, accuracy: 0.001)
+    }
+
     func testResamplesSparseRecordsAtOneSecondIntervals() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 3),

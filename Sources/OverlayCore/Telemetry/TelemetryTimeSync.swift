@@ -19,8 +19,12 @@ public struct TelemetryTimeSync: Equatable, CustomStringConvertible {
         fitSyncTime - videoSyncTime
     }
 
+    public func rawFitElapsed(forVideoTime videoTime: TimeInterval) -> TimeInterval {
+        videoTime + fitOffsetFromVideoStart
+    }
+
     public func fitElapsed(forVideoTime videoTime: TimeInterval) -> TimeInterval {
-        max(0, videoTime + fitOffsetFromVideoStart)
+        max(0, rawFitElapsed(forVideoTime: videoTime))
     }
 
     public var description: String {
@@ -31,4 +35,3 @@ public struct TelemetryTimeSync: Equatable, CustomStringConvertible {
         String(format: "%.3f", seconds)
     }
 }
-

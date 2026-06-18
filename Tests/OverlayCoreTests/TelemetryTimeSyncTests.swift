@@ -6,6 +6,8 @@ final class TelemetryTimeSyncTests: XCTestCase {
     func testLegacyPositiveOffsetDelaysFITStart() {
         let sync = TelemetryTimeSync.legacyOffset(12)
 
+        XCTAssertEqual(sync.rawFitElapsed(forVideoTime: 0), -12)
+        XCTAssertEqual(sync.rawFitElapsed(forVideoTime: 12), 0)
         XCTAssertEqual(sync.fitElapsed(forVideoTime: 0), 0)
         XCTAssertEqual(sync.fitElapsed(forVideoTime: 12), 0)
         XCTAssertEqual(sync.fitElapsed(forVideoTime: 14.5), 2.5, accuracy: 0.0001)
@@ -37,4 +39,3 @@ final class TelemetryTimeSyncTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 15).distanceMeters ?? -1, 100)
     }
 }
-

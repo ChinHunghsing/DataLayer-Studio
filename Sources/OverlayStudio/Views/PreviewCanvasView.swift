@@ -4,6 +4,7 @@ import OverlayCore
 
 struct PreviewCanvasView: View {
     @ObservedObject var model: StudioModel
+    @EnvironmentObject private var localization: LocalizationStore
     @Binding private var zoom: Double
     let isFullscreen: Bool
     let onToggleFullscreen: () -> Void
@@ -42,10 +43,10 @@ struct PreviewCanvasView: View {
                 controlRow
 
                 HStack {
-                    Text("Preview \(formatTime(model.previewTime))")
+                    Text(localization.string("preview.time", formatTime(model.previewTime)))
                     Spacer()
                     if model.syncMode == .syncPoint, model.syncFITSeconds == 0 {
-                        Text("运动开始: \(formatTime(model.syncVideoSeconds))")
+                        Text(localization.string("preview.sportStartAt", formatTime(model.syncVideoSeconds)))
                             .foregroundStyle(.tint)
                     }
                     Spacer()
@@ -64,7 +65,7 @@ struct PreviewCanvasView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Preview warning")
+                    .accessibilityLabel(localization.string("preview.warning"))
                     .accessibilityValue(previewWarning)
                 }
             }
@@ -99,7 +100,7 @@ struct PreviewCanvasView: View {
             Button {
                 model.togglePlayback()
             } label: {
-                Label(model.isPlaying ? "Pause" : "Play", systemImage: model.isPlaying ? "pause.fill" : "play.fill")
+                Label(model.isPlaying ? localization.string("preview.pause") : localization.string("preview.play"), systemImage: model.isPlaying ? "pause.fill" : "play.fill")
             }
             .disabled(model.player == nil || model.isExporting)
 
@@ -116,7 +117,7 @@ struct PreviewCanvasView: View {
             Button {
                 model.markSportStart()
             } label: {
-                Label("运动开始", systemImage: "figure.run.circle")
+                Label(localization.string("toolbar.sportStart"), systemImage: "figure.run.circle")
             }
             .disabled(model.player == nil || model.isExporting)
         }
@@ -255,10 +256,10 @@ struct PreviewCanvasView: View {
             Button {
                 setZoom(zoom / 1.2)
             } label: {
-                Label("Zoom Out", systemImage: "minus.magnifyingglass")
+                Label(localization.string("preview.zoomOut"), systemImage: "minus.magnifyingglass")
             }
             .labelStyle(.iconOnly)
-            .help("Zoom out")
+            .help(localization.string("preview.zoomOutHelp"))
 
             Slider(
                 value: Binding(
@@ -277,26 +278,26 @@ struct PreviewCanvasView: View {
             Button {
                 setZoom(zoom * 1.2)
             } label: {
-                Label("Zoom In", systemImage: "plus.magnifyingglass")
+                Label(localization.string("preview.zoomIn"), systemImage: "plus.magnifyingglass")
             }
             .labelStyle(.iconOnly)
-            .help("Zoom in")
+            .help(localization.string("preview.zoomInHelp"))
 
             Button {
                 setZoom(1)
             } label: {
-                Label("Fit", systemImage: "arrow.counterclockwise")
+                Label(localization.string("preview.fit"), systemImage: "arrow.counterclockwise")
             }
             .labelStyle(.iconOnly)
-            .help("Fit to preview")
+            .help(localization.string("preview.fitHelp"))
 
             Button {
                 onToggleFullscreen()
             } label: {
-                Label(isFullscreen ? "Exit Full Screen" : "Full Screen", systemImage: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                Label(isFullscreen ? localization.string("preview.exitFullscreen") : localization.string("preview.fullscreen"), systemImage: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
             }
             .labelStyle(.iconOnly)
-            .help(isFullscreen ? "Exit full screen" : "Full screen")
+            .help(isFullscreen ? localization.string("preview.exitFullscreenHelp") : localization.string("preview.fullscreenHelp"))
         }
     }
 
@@ -332,9 +333,9 @@ struct PreviewCanvasView: View {
             )
             .zIndex(isSelected ? 10 : 1)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(element.kind.title))
-            .accessibilityValue(Text(isSelected ? "Selected" : "Not selected"))
-            .accessibilityHint(Text("Click to select. Drag to move."))
+            .accessibilityLabel(Text(localization.string(element.kind.localizationKey)))
+            .accessibilityValue(Text(isSelected ? localization.string("preview.selected") : localization.string("preview.notSelected")))
+            .accessibilityHint(Text(localization.string("preview.elementHint")))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction {
                 selectElement(element.id)
@@ -691,11 +692,13 @@ struct PreviewCanvasView: View {
 
     private func timeDateText(for element: OverlayElement) -> (label: String, elapsed: String, clock: String, date: String, icon: String) {
         let sample = currentTelemetrySample()
+        let rawElapsed = model.timeSync.rawFitElapsed(forVideoTime: model.previewTime)
+        let absoluteDate = model.series?.date(atElapsed: rawElapsed) ?? sample.date
         return (
             element.customization.label(default: "TIME"),
             formatClockDuration(sample.elapsed),
-            formatClockTime(sample.date),
-            formatCalendarDate(sample.date),
+            formatClockTime(absoluteDate),
+            formatCalendarDate(absoluteDate),
             element.customization.icon(default: "TIME")
         )
     }
@@ -915,6 +918,8 @@ private struct PreviewGridOverlay: Shape {
 }
 
 struct PlaceholderView: View {
+    @EnvironmentObject private var localization: LocalizationStore
+
     var body: some View {
         ZStack {
             Rectangle()
@@ -922,9 +927,9 @@ struct PlaceholderView: View {
             VStack(spacing: 10) {
                 Image(systemName: "film")
                     .font(.system(size: 42))
-                Text("Choose a video and FIT file")
+                Text(localization.string("preview.placeholder.title"))
                     .font(.title3.weight(.semibold))
-                Text("The overlay can be dragged and resized after preview loads.")
+                Text(localization.string("preview.placeholder.subtitle"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

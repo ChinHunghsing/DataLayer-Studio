@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var model: StudioModel
+    @EnvironmentObject private var localization: LocalizationStore
     @SceneStorage("previewZoom") private var previewZoom = 1.0
     @State private var isPreviewFullscreen = false
 
@@ -19,21 +20,21 @@ struct ContentView: View {
                 Button {
                     model.refreshPreview()
                 } label: {
-                    Label("Refresh Preview", systemImage: "arrow.clockwise")
+                    Label(localization.string("toolbar.refreshPreview"), systemImage: "arrow.clockwise")
                 }
                 .disabled(model.isExporting)
 
                 Button {
                     model.markSportStart()
                 } label: {
-                    Label("运动开始", systemImage: "figure.run.circle")
+                    Label(localization.string("toolbar.sportStart"), systemImage: "figure.run.circle")
                 }
                 .disabled(model.player == nil || model.isExporting)
 
                 Button {
                     model.chooseOutput()
                 } label: {
-                    Label("Output", systemImage: "square.and.arrow.down")
+                    Label(localization.string("toolbar.output"), systemImage: "square.and.arrow.down")
                 }
                 .disabled(model.isExporting)
 
@@ -44,14 +45,15 @@ struct ContentView: View {
                         model.export()
                     }
                 } label: {
-                    Label(model.isExporting ? "Cancel Export" : "Export", systemImage: model.isExporting ? "xmark.circle.fill" : "play.fill")
+                    Label(model.isExporting ? localization.string("toolbar.cancelExport") : localization.string("toolbar.export"), systemImage: model.isExporting ? "xmark.circle.fill" : "play.fill")
                 }
                 .disabled(!model.isExporting && !model.canExport)
-                .help(model.isExporting ? "Cancel export" : (model.exportReadinessMessage ?? "Export transparent overlay video"))
+                .help(model.isExporting ? localization.string("help.cancelExport") : (model.exportReadinessMessage ?? localization.string("help.exportTransparentOverlay")))
             }
         }
         .toolbar(isPreviewFullscreen ? .hidden : .automatic, for: .windowToolbar)
         .onChange(of: previewInvalidationState) { _ in model.refreshOverlayOrPreview() }
+        .onChange(of: localization.selection) { _ in model.refreshLocalizedStatus() }
         .onDisappear {
             model.shutdown()
         }

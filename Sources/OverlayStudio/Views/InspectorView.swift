@@ -3,6 +3,7 @@ import OverlayCore
 
 struct InspectorView: View {
     @ObservedObject var model: StudioModel
+    @EnvironmentObject private var localization: LocalizationStore
     @State private var expandedSections = Set(InspectorSection.allCases)
 
     var body: some View {
@@ -28,7 +29,7 @@ struct InspectorView: View {
                     Text(elementDisplayTitle(element))
                         .font(.headline)
                         .lineLimit(1)
-                    Text(element.kind.title)
+                    Text(localization.string(element.kind.localizationKey))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -39,9 +40,9 @@ struct InspectorView: View {
                     .frame(width: 24)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("No element selected")
+                    Text(localization.string("inspector.noSelection.title"))
                         .font(.headline)
-                    Text("Click a gauge in preview")
+                    Text(localization.string("inspector.noSelection.subtitle"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -54,14 +55,14 @@ struct InspectorView: View {
                     Button {
                         model.addElement(kind: component)
                     } label: {
-                        Label(component.title, systemImage: component.systemImage)
+                        Label(localization.string(component.localizationKey), systemImage: component.systemImage)
                     }
                 }
             } label: {
                 Image(systemName: "plus")
             }
             .disabled(model.isExporting)
-            .help("Add element")
+            .help(localization.string("inspector.addElement"))
 
             Button {
                 model.duplicateSelectedElement()
@@ -69,7 +70,7 @@ struct InspectorView: View {
                 Image(systemName: "doc.on.doc")
             }
             .disabled(model.selectedElement == nil || model.isExporting)
-            .help("Duplicate selected element")
+            .help(localization.string("inspector.duplicate"))
 
             Button {
                 model.moveSelectedElementBackward()
@@ -77,7 +78,7 @@ struct InspectorView: View {
                 Image(systemName: "arrow.down")
             }
             .disabled(!canMoveSelectedElementBackward || model.isExporting)
-            .help("Send selected element backward")
+            .help(localization.string("inspector.sendBackward"))
 
             Button {
                 model.moveSelectedElementForward()
@@ -85,7 +86,7 @@ struct InspectorView: View {
                 Image(systemName: "arrow.up")
             }
             .disabled(!canMoveSelectedElementForward || model.isExporting)
-            .help("Bring selected element forward")
+            .help(localization.string("inspector.bringForward"))
 
             Button(role: .destructive) {
                 model.deleteSelectedElement()
@@ -93,7 +94,7 @@ struct InspectorView: View {
                 Image(systemName: "trash")
             }
             .disabled(model.selectedElement == nil || model.isExporting)
-            .help("Delete selected element")
+            .help(localization.string("inspector.delete"))
         }
         .buttonStyle(.borderless)
         .padding(.bottom, 2)
@@ -106,7 +107,7 @@ struct InspectorView: View {
                 .id(element.id)
                 .disabled(model.isExporting)
         } else {
-            Text("Click a visible gauge in the preview canvas, or add a new element.")
+            Text(localization.string("inspector.noSelection.message"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 8)
@@ -135,7 +136,7 @@ struct InspectorView: View {
         let kind = element.kind
 
         InspectorGroup(section: .layout, expandedSections: $expandedSections) {
-            Toggle("Visible", isOn: boolBinding(
+            Toggle(localization.string("inspector.visible"), isOn: boolBinding(
                 id: id,
                 get: { $0.frame.isVisible },
                 set: { $0.frame.isVisible = $1 }
@@ -158,7 +159,7 @@ struct InspectorView: View {
             )
 
             LabeledSlider(
-                title: "Size",
+                title: localization.string("inspector.size"),
                 value: doubleBinding(id: id, get: { $0.frame.scale }, set: { $0.frame.scale = $1 }),
                 range: 0.45...1.8,
                 label: "\(Int(((currentElement(id)?.frame.scale ?? 1) * 100).rounded()))%"
@@ -166,7 +167,7 @@ struct InspectorView: View {
 
             if kind.supportsLengthScale {
                 LabeledSlider(
-                    title: "Length",
+                    title: localization.string("inspector.length"),
                     value: doubleBinding(id: id, get: { $0.customization.lengthScale }, set: { $0.customization.lengthScale = $1 }),
                     range: 0.2...2.4,
                     label: "\(Int(((currentElement(id)?.customization.lengthScale ?? 1) * 100).rounded()))%",
@@ -176,14 +177,14 @@ struct InspectorView: View {
         }
 
         InspectorGroup(section: .content, expandedSections: $expandedSections) {
-            Toggle("Label", isOn: boolBinding(
+            Toggle(localization.string("inspector.label"), isOn: boolBinding(
                 id: id,
                 get: { $0.customization.showsLabel },
                 set: { $0.customization.showsLabel = $1 }
             ))
 
             if currentElement(id)?.customization.showsLabel == true {
-                TextField("Label text", text: stringBinding(
+                TextField(localization.string("inspector.labelText"), text: stringBinding(
                     id: id,
                     get: { $0.customization.labelOverride ?? "" },
                     set: { element, value in
@@ -196,11 +197,11 @@ struct InspectorView: View {
 
             let unitToggleTitle = switch kind {
             case .topProgress:
-                "End label"
+                localization.string("inspector.endLabel")
             case .timeDate:
-                "Clock & date"
+                localization.string("inspector.clockAndDate")
             default:
-                "Unit"
+                localization.string("inspector.unit")
             }
 
             Toggle(unitToggleTitle, isOn: boolBinding(
@@ -212,7 +213,7 @@ struct InspectorView: View {
             if currentElement(id)?.customization.showsUnit == true,
                kind != .topProgress,
                kind != .timeDate {
-                TextField("Unit text", text: stringBinding(
+                TextField(localization.string("inspector.unitText"), text: stringBinding(
                     id: id,
                     get: { $0.customization.unitOverride ?? "" },
                     set: { element, value in
@@ -223,14 +224,14 @@ struct InspectorView: View {
                 .textFieldStyle(.roundedBorder)
             }
 
-            Toggle("Icon", isOn: boolBinding(
+            Toggle(localization.string("inspector.icon"), isOn: boolBinding(
                 id: id,
                 get: { $0.customization.showsIcon },
                 set: { $0.customization.showsIcon = $1 }
             ))
 
             if currentElement(id)?.customization.showsIcon == true {
-                TextField("Icon text", text: stringBinding(
+                TextField(localization.string("inspector.iconText"), text: stringBinding(
                     id: id,
                     get: { $0.customization.iconOverride ?? "" },
                     set: { element, value in
@@ -243,21 +244,21 @@ struct InspectorView: View {
         }
 
         InspectorGroup(section: .appearance, expandedSections: $expandedSections) {
-            Toggle("Panel", isOn: boolBinding(
+            Toggle(localization.string("inspector.panel"), isOn: boolBinding(
                 id: id,
                 get: { $0.customization.showsPanel },
                 set: { $0.customization.showsPanel = $1 }
             ))
 
             if currentElement(id)?.customization.showsPanel == true {
-                Toggle("Panel border", isOn: boolBinding(
+                Toggle(localization.string("inspector.panelBorder"), isOn: boolBinding(
                     id: id,
                     get: { $0.customization.panelBorderIsVisible },
                     set: { $0.customization.showsPanelBorder = $1 }
                 ))
 
                 LabeledSlider(
-                    title: "Panel opacity",
+                    title: localization.string("inspector.panelOpacity"),
                     value: doubleBinding(
                         id: id,
                         get: { $0.frame.style.panelOpacity ?? model.layout.style.panelOpacity },
@@ -270,7 +271,7 @@ struct InspectorView: View {
 
             if kind.supportsLineWidth {
                 LabeledSlider(
-                    title: kind == .speed ? "Gauge width" : "Line width",
+                    title: kind == .speed ? localization.string("inspector.gaugeWidth") : localization.string("inspector.lineWidth"),
                     value: doubleBinding(id: id, get: { $0.customization.lineWidth }, set: { $0.customization.lineWidth = $1 }),
                     range: kind == .topProgress ? 1...36 : 1...24,
                     label: "\(Int((currentElement(id)?.customization.lineWidth ?? 1).rounded())) px",
@@ -278,7 +279,7 @@ struct InspectorView: View {
                     unitLabel: "px"
                 )
 
-                ColorPicker("Track color", selection: colorBinding(
+                ColorPicker(localization.string("inspector.trackColor"), selection: colorBinding(
                     id: id,
                     fallback: .track,
                     get: { $0.customization.trackColor },
@@ -287,7 +288,7 @@ struct InspectorView: View {
             }
 
             if kind == .topProgress {
-                ColorPicker("Progress color", selection: colorBinding(
+                ColorPicker(localization.string("inspector.progressColor"), selection: colorBinding(
                     id: id,
                     fallback: defaultValueColor(for: element),
                     get: { $0.customization.valueColor },
@@ -295,7 +296,7 @@ struct InspectorView: View {
                 ))
 
                 LabeledSlider(
-                    title: "Side padding",
+                    title: localization.string("inspector.sidePadding"),
                     value: doubleBinding(
                         id: id,
                         get: { $0.customization.progressInsetScale ?? 1 },
@@ -306,7 +307,7 @@ struct InspectorView: View {
                 )
 
                 LabeledSlider(
-                    title: "Knob size",
+                    title: localization.string("inspector.knobSize"),
                     value: doubleBinding(
                         id: id,
                         get: { $0.customization.progressKnobScale ?? 1 },
@@ -317,7 +318,7 @@ struct InspectorView: View {
                 )
 
                 LabeledSlider(
-                    title: "Value margin",
+                    title: localization.string("inspector.valueMargin"),
                     value: doubleBinding(
                         id: id,
                         get: { $0.customization.progressValueMarginScale ?? 1 },
@@ -327,7 +328,7 @@ struct InspectorView: View {
                     label: "\(Int(((currentElement(id)?.customization.progressValueMarginScale ?? 1) * 100).rounded()))%"
                 )
 
-                Toggle("Tick marks", isOn: boolBinding(
+                Toggle(localization.string("inspector.tickMarks"), isOn: boolBinding(
                     id: id,
                     get: { $0.customization.showGaugeTicks ?? false },
                     set: { $0.customization.showGaugeTicks = $1 }
@@ -335,7 +336,7 @@ struct InspectorView: View {
 
                 if currentElement(id)?.customization.showGaugeTicks == true {
                     LabeledSlider(
-                        title: "Tick count",
+                        title: localization.string("inspector.tickCount"),
                         value: doubleBinding(
                             id: id,
                             get: { Double($0.customization.progressTickCount ?? 48) },
@@ -351,7 +352,7 @@ struct InspectorView: View {
         InspectorGroup(section: .typography, expandedSections: $expandedSections) {
             if currentElement(id)?.customization.showsLabel == true {
                 TextStyleRow(
-                    title: "Label",
+                    title: localization.string("inspector.label"),
                     font: fontBinding(id: id, get: { $0.customization.labelFont }, set: { $0.customization.labelFont = $1 }),
                     color: colorBinding(id: id, fallback: .label, get: { $0.customization.labelColor }, set: { $0.customization.labelColor = $1 }),
                     size: fontSizeBinding(id: id, role: .label, kind: kind),
@@ -360,7 +361,7 @@ struct InspectorView: View {
             }
 
             TextStyleRow(
-                title: "Value",
+                title: localization.string("inspector.value"),
                 font: fontBinding(id: id, get: { $0.customization.valueFont }, set: { $0.customization.valueFont = $1 }),
                 color: colorBinding(id: id, fallback: defaultValueColor(for: element), get: { $0.customization.valueColor }, set: { $0.customization.valueColor = $1 }),
                 size: fontSizeBinding(id: id, role: .value, kind: kind),
@@ -369,7 +370,7 @@ struct InspectorView: View {
 
             if currentElement(id)?.customization.showsUnit == true {
                 TextStyleRow(
-                    title: "Unit",
+                    title: localization.string("inspector.unit"),
                     font: fontBinding(id: id, get: { $0.customization.unitFont }, set: { $0.customization.unitFont = $1 }),
                     color: colorBinding(id: id, fallback: .muted, get: { $0.customization.unitColor }, set: { $0.customization.unitColor = $1 }),
                     size: fontSizeBinding(id: id, role: .unit, kind: kind),
@@ -379,7 +380,7 @@ struct InspectorView: View {
 
             if currentElement(id)?.customization.showsIcon == true {
                 TextStyleRow(
-                    title: "Icon",
+                    title: localization.string("inspector.icon"),
                     font: fontBinding(id: id, get: { $0.customization.iconFont }, set: { $0.customization.iconFont = $1 }),
                     color: colorBinding(id: id, fallback: .label, get: { $0.customization.iconColor }, set: { $0.customization.iconColor = $1 }),
                     size: fontSizeBinding(id: id, role: .icon, kind: kind),
@@ -392,7 +393,7 @@ struct InspectorView: View {
             InspectorGroup(section: .data, expandedSections: $expandedSections) {
                 if kind.supportsValuePrecision {
                     Stepper(
-                        "Decimals: \(currentElement(id)?.customization.valuePrecision ?? kind.defaultPrecision)",
+                        localization.string("inspector.decimals", currentElement(id)?.customization.valuePrecision ?? kind.defaultPrecision),
                         value: intBinding(
                             id: id,
                             get: { $0.customization.valuePrecision ?? kind.defaultPrecision },
@@ -403,21 +404,21 @@ struct InspectorView: View {
                 }
 
                 if kind == .speed {
-                    Toggle("Gauge ticks", isOn: boolBinding(
+                    Toggle(localization.string("inspector.gaugeTicks"), isOn: boolBinding(
                         id: id,
                         get: { $0.customization.showGaugeTicks ?? model.layout.style.showGaugeTicks },
                         set: { $0.customization.showGaugeTicks = $1 }
                     ))
 
                     LabeledSlider(
-                        title: "Gauge min",
+                        title: localization.string("inspector.gaugeMin"),
                         value: doubleBinding(id: id, get: { $0.customization.gaugeMinimum ?? 0 }, set: { $0.customization.gaugeMinimum = $1 }),
                         range: 0...20,
                         label: "\(Int((currentElement(id)?.customization.gaugeMinimum ?? 0).rounded()))"
                     )
 
                     LabeledSlider(
-                        title: "Gauge max",
+                        title: localization.string("inspector.gaugeMax"),
                         value: doubleBinding(id: id, get: { $0.customization.gaugeMaximum ?? 24 }, set: { $0.customization.gaugeMaximum = $1 }),
                         range: 6...60,
                         label: "\(Int((currentElement(id)?.customization.gaugeMaximum ?? 24).rounded()))"
@@ -499,7 +500,7 @@ struct InspectorView: View {
     }
 
     private func elementDisplayTitle(_ element: OverlayElement) -> String {
-        element.customization.label(default: element.kind.title)
+        element.customization.label(default: localization.string(element.kind.localizationKey))
     }
 
     private func defaultValueColor(for element: OverlayElement) -> OverlayColor {
@@ -616,18 +617,18 @@ private enum InspectorSection: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    var localizationKey: String {
         switch self {
         case .layout:
-            return "Layout"
+            return "inspector.layout"
         case .appearance:
-            return "Appearance"
+            return "inspector.appearance"
         case .content:
-            return "Content"
+            return "inspector.content"
         case .typography:
-            return "Typography"
+            return "inspector.typography"
         case .data:
-            return "Data"
+            return "inspector.data"
         }
     }
 
@@ -651,6 +652,7 @@ private struct InspectorGroup<Content: View>: View {
     var section: InspectorSection
     @Binding var expandedSections: Set<InspectorSection>
     @ViewBuilder var content: () -> Content
+    @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -672,7 +674,7 @@ private struct InspectorGroup<Content: View>: View {
                 .padding(.top, 10)
                 .padding(.leading, 1)
             } label: {
-                Label(section.title, systemImage: section.systemImage)
+                Label(localization.string(section.localizationKey), systemImage: section.systemImage)
                     .font(.subheadline.weight(.semibold))
             }
             .padding(.vertical, 8)
@@ -688,6 +690,7 @@ private struct TextStyleRow: View {
     @Binding var color: Color
     @Binding var size: Double
     var sizeLabel: String
+    @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -695,16 +698,16 @@ private struct TextStyleRow: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            Picker("Font", selection: $font) {
+            Picker(localization.string("inspector.font"), selection: $font) {
                 ForEach(OverlayFontFamily.allCases) { font in
                     Text(font.displayName).tag(font)
                 }
             }
 
-            ColorPicker("Color", selection: $color)
+            ColorPicker(localization.string("inspector.color"), selection: $color)
 
             LabeledSlider(
-                title: "Font size",
+                title: localization.string("inspector.fontSize"),
                 value: $size,
                 range: 6...180,
                 label: sizeLabel,

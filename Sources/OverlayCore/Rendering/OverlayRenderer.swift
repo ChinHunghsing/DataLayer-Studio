@@ -55,8 +55,10 @@ public final class OverlayRenderer {
         context.setShouldAntialias(true)
         context.setAllowsAntialiasing(true)
 
+        let rawTelemetryTime = config.timeSync.rawFitElapsed(forVideoTime: videoTime)
         let telemetryTime = config.timeSync.fitElapsed(forVideoTime: videoTime)
         let sample = series.sample(at: telemetryTime)
+        let absoluteDate = series.date(atElapsed: rawTelemetryTime) ?? sample.date
         let metricTileWidth = alignedMetricTileWidth(sample: sample, canvas: canvas)
 
         for element in config.layout.visibleElements {
@@ -80,7 +82,7 @@ public final class OverlayRenderer {
             case .route:
                 drawRoute(context: context, sample: sample, canvas: canvas, element: element)
             case .timeDate:
-                drawTimeDate(context: context, sample: sample, canvas: canvas, element: element)
+                drawTimeDate(context: context, sample: sample, absoluteDate: absoluteDate, canvas: canvas, element: element)
             }
         }
     }
@@ -485,7 +487,13 @@ public final class OverlayRenderer {
         }
     }
 
-    private func drawTimeDate(context: CGContext, sample: TelemetrySample, canvas: CGRect, element: OverlayElement) {
+    private func drawTimeDate(
+        context: CGContext,
+        sample: TelemetrySample,
+        absoluteDate: Date?,
+        canvas: CGRect,
+        element: OverlayElement
+    ) {
         let scale = componentScale(element, canvas: canvas)
         let textScale = scale * componentTextScale(element)
         let basePanel = componentRect(element, baseSize: baseSize(for: element.kind), canvas: canvas)
@@ -507,7 +515,7 @@ public final class OverlayRenderer {
                 + bottomPadding
         )
         let elapsed = formatClockDuration(sample.elapsed)
-        let clockAndDate = formatClockAndCalendarDate(sample.date)
+        let clockAndDate = formatClockAndCalendarDate(absoluteDate)
         let clock = clockAndDate.clock
         let date = clockAndDate.date
         let label = element.customization.label(default: "TIME")

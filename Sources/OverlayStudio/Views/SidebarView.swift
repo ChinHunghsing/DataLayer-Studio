@@ -3,6 +3,7 @@ import OverlayCore
 
 struct SidebarView: View {
     @ObservedObject var model: StudioModel
+    @EnvironmentObject private var localization: LocalizationStore
     @State private var layoutPresetName = ""
 
     var body: some View {
@@ -10,8 +11,8 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 24) {
                 SidebarWorkflowSection(
                     step: "1",
-                    title: "Source",
-                    subtitle: "Video and FIT activity data",
+                    title: localization.string("sidebar.source.title"),
+                    subtitle: localization.string("sidebar.source.subtitle"),
                     systemImage: "film.stack"
                 ) {
                     fileSection
@@ -20,8 +21,8 @@ struct SidebarView: View {
 
                 SidebarWorkflowSection(
                     step: "2",
-                    title: "Sync",
-                    subtitle: "Align recording time with activity time",
+                    title: localization.string("sidebar.sync.title"),
+                    subtitle: localization.string("sidebar.sync.subtitle"),
                     systemImage: "timer"
                 ) {
                     syncSection
@@ -30,8 +31,8 @@ struct SidebarView: View {
 
                 SidebarWorkflowSection(
                     step: "3",
-                    title: "Canvas",
-                    subtitle: "Preview grid and reusable gauge layouts",
+                    title: localization.string("sidebar.canvas.title"),
+                    subtitle: localization.string("sidebar.canvas.subtitle"),
                     systemImage: "rectangle.dashed"
                 ) {
                     canvasSection
@@ -39,8 +40,8 @@ struct SidebarView: View {
 
                 SidebarWorkflowSection(
                     step: "4",
-                    title: "Export",
-                    subtitle: "Transparent overlay render settings",
+                    title: localization.string("sidebar.export.title"),
+                    subtitle: localization.string("sidebar.export.subtitle"),
                     systemImage: "paperplane"
                 ) {
                     exportWorkflowSection
@@ -56,16 +57,16 @@ struct SidebarView: View {
     private var fileSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             FilePickRow(
-                title: "Video",
-                subtitle: model.videoURL?.lastPathComponent ?? "Choose source video",
+                title: localization.string("sidebar.video.title"),
+                subtitle: model.videoURL?.lastPathComponent ?? localization.string("sidebar.video.placeholder"),
                 systemImage: "film",
                 isLoaded: model.videoURL != nil,
                 action: model.chooseVideo
             )
 
             FilePickRow(
-                title: "FIT",
-                subtitle: model.fitURL?.lastPathComponent ?? "Choose activity.fit",
+                title: localization.string("sidebar.fit.title"),
+                subtitle: model.fitURL?.lastPathComponent ?? localization.string("sidebar.fit.placeholder"),
                 systemImage: "figure.run",
                 isLoaded: model.fitURL != nil,
                 action: model.chooseFIT
@@ -75,10 +76,10 @@ struct SidebarView: View {
 
     private var syncSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SidebarControl(title: "Mode") {
-                Picker("Mode", selection: $model.syncMode) {
+            SidebarControl(title: localization.string("sidebar.mode")) {
+                Picker(localization.string("sidebar.mode"), selection: $model.syncMode) {
                     ForEach(SyncMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
+                        Text(localization.string(mode.localizationKey)).tag(mode)
                     }
                 }
                 .labelsHidden()
@@ -88,7 +89,7 @@ struct SidebarView: View {
             Button {
                 model.markSportStart()
             } label: {
-                Label("运动开始", systemImage: "figure.run.circle")
+                Label(localization.string("sidebar.sportStart"), systemImage: "figure.run.circle")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
@@ -96,28 +97,28 @@ struct SidebarView: View {
 
             switch model.syncMode {
             case .offset:
-                NumberField(title: "Offset", suffix: "s", value: doubleBinding(
+                NumberField(title: localization.string("sidebar.offset"), suffix: "s", value: doubleBinding(
                     get: { model.offsetSeconds },
                     set: { model.offsetSeconds = $0 },
                     range: -86_400...86_400
                 ))
-                Text("Positive means video starts before FIT. Negative means video starts mid-activity.")
+                Text(localization.string("sidebar.offset.description"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             case .fitStart:
-                NumberField(title: "Video 0 = FIT", suffix: "s", value: doubleBinding(
+                NumberField(title: localization.string("sidebar.videoZeroFit"), suffix: "s", value: doubleBinding(
                     get: { model.fitStartSeconds },
                     set: { model.fitStartSeconds = $0 },
                     range: 0...86_400
                 ))
             case .syncPoint:
-                NumberField(title: "Video point", suffix: "s", value: doubleBinding(
+                NumberField(title: localization.string("sidebar.videoPoint"), suffix: "s", value: doubleBinding(
                     get: { model.syncVideoSeconds },
                     set: { model.syncVideoSeconds = $0 },
                     range: 0...86_400
                 ))
-                NumberField(title: "FIT point", suffix: "s", value: doubleBinding(
+                NumberField(title: localization.string("sidebar.fitPoint"), suffix: "s", value: doubleBinding(
                     get: { model.syncFITSeconds },
                     set: { model.syncFITSeconds = $0 },
                     range: 0...86_400
@@ -128,90 +129,90 @@ struct SidebarView: View {
 
     private var outputSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SidebarSubsectionHeader(title: "Video", systemImage: "slider.horizontal.3")
+            SidebarSubsectionHeader(title: localization.string("sidebar.videoSettings"), systemImage: "slider.horizontal.3")
 
-            SidebarControl(title: "Resolution") {
-                Picker("Resolution", selection: resolutionPresetSelection) {
+            SidebarControl(title: localization.string("sidebar.resolution")) {
+                Picker(localization.string("sidebar.resolution"), selection: resolutionPresetSelection) {
                     if let sourceTitle = model.sourceResolutionPresetTitle {
                         Text(sourceTitle).tag(OutputResolutionPreset.sourceID)
                     }
                     ForEach(OutputResolutionPreset.fixed) { preset in
                         Text(preset.title).tag(preset.id)
                     }
-                    Text("Custom").tag(OutputResolutionPreset.customID)
+                    Text(localization.string("sidebar.custom")).tag(OutputResolutionPreset.customID)
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
 
             HStack(spacing: 10) {
-                CompactNumberIntField(title: "Width", suffix: "px", value: intBinding(
+                CompactNumberIntField(title: localization.string("sidebar.width"), suffix: "px", value: intBinding(
                     get: { model.outputWidth },
                     set: { model.setOutputWidth($0) },
                     range: 2...16_384
                 ))
-                CompactNumberIntField(title: "Height", suffix: "px", value: intBinding(
+                CompactNumberIntField(title: localization.string("sidebar.height"), suffix: "px", value: intBinding(
                     get: { model.outputHeight },
                     set: { model.setOutputHeight($0) },
                     range: 2...16_384
                 ))
             }
 
-            SidebarControl(title: "Frame rate") {
-                Picker("Frame rate", selection: frameRatePresetSelection) {
+            SidebarControl(title: localization.string("sidebar.frameRate")) {
+                Picker(localization.string("sidebar.frameRate"), selection: frameRatePresetSelection) {
                     if let sourceTitle = model.sourceFrameRatePresetTitle {
                         Text(sourceTitle).tag(OutputFrameRatePreset.sourceID)
                     }
                     ForEach(OutputFrameRatePreset.fixed) { preset in
                         Text(preset.title).tag(preset.id)
                     }
-                    Text("Custom").tag(OutputFrameRatePreset.customID)
+                    Text(localization.string("sidebar.custom")).tag(OutputFrameRatePreset.customID)
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
 
-            NumberField(title: "FPS", suffix: "fps", value: doubleBinding(
+            NumberField(title: localization.string("sidebar.fps"), suffix: "fps", value: doubleBinding(
                 get: { model.outputFPS },
                 set: { model.setOutputFPS($0) },
                 range: 1...240
             ))
-            NumberField(title: "Duration", suffix: "s", value: doubleBinding(
+            NumberField(title: localization.string("sidebar.duration"), suffix: "s", value: doubleBinding(
                 get: { model.outputDuration },
                 set: { model.setOutputDuration($0) },
                 range: 0.1...86_400
             ))
 
-            NumberIntField(title: "Bitrate", suffix: "kbps", value: intBinding(
+            NumberIntField(title: localization.string("sidebar.bitrate"), suffix: "kbps", value: intBinding(
                 get: { model.bitRateKbps },
                 set: { model.setBitRateKbps($0) },
                 range: 1...1_000_000
             ))
 
-            SidebarControl(title: "Distance unit") {
-                Picker("Distance unit", selection: $model.distanceUnit) {
+            SidebarControl(title: localization.string("sidebar.distanceUnit")) {
+                Picker(localization.string("sidebar.distanceUnit"), selection: $model.distanceUnit) {
                     ForEach(OverlayDistanceUnit.allCases) { unit in
-                        Text(unit.symbol).tag(unit)
+                        Text(localization.string(unit.localizationKey)).tag(unit)
                     }
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
             }
 
-            SidebarControl(title: "Codec") {
-                Picker("Codec", selection: $model.codec) {
+            SidebarControl(title: localization.string("sidebar.codec")) {
+                Picker(localization.string("sidebar.codec"), selection: $model.codec) {
                     ForEach(OverlayVideoCodec.allCases) { codec in
-                        Text(codec.displayName).tag(codec)
+                        Text(localization.string(codec.localizationKey)).tag(codec)
                     }
                 }
                 .labelsHidden()
             }
 
-            SidebarSubsectionHeader(title: "Destination", systemImage: "folder")
+            SidebarSubsectionHeader(title: localization.string("sidebar.destination"), systemImage: "folder")
 
             FilePickRow(
-                title: "Save as",
-                subtitle: model.outputURL?.lastPathComponent ?? "Ask when exporting",
+                title: localization.string("sidebar.saveAs"),
+                subtitle: model.outputURL?.lastPathComponent ?? localization.string("sidebar.askWhenExporting"),
                 systemImage: "square.and.arrow.down",
                 isLoaded: model.outputURL != nil,
                 action: model.chooseOutput
@@ -221,13 +222,13 @@ struct SidebarView: View {
 
     private var previewSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SidebarSubsectionHeader(title: "Grid", systemImage: "grid")
+            SidebarSubsectionHeader(title: localization.string("sidebar.grid"), systemImage: "grid")
 
-            Toggle("Show grid", isOn: $model.showGrid)
-            Toggle("Snap while dragging", isOn: $model.snapGaugeToGrid)
+            Toggle(localization.string("sidebar.showGrid"), isOn: $model.showGrid)
+            Toggle(localization.string("sidebar.snapWhileDragging"), isOn: $model.snapGaugeToGrid)
 
             SidebarStepperRow(
-                title: "Columns",
+                title: localization.string("sidebar.columns"),
                 value: Binding(
                     get: { model.gridColumns },
                     set: { model.setGridColumns($0) }
@@ -235,7 +236,7 @@ struct SidebarView: View {
                 range: 2...64
             )
             SidebarStepperRow(
-                title: "Rows",
+                title: localization.string("sidebar.rows"),
                 value: Binding(
                     get: { model.gridRows },
                     set: { model.setGridRows($0) }
@@ -247,10 +248,10 @@ struct SidebarView: View {
 
     private var layoutPresetSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SidebarSubsectionHeader(title: "Presets", systemImage: "rectangle.3.group")
+            SidebarSubsectionHeader(title: localization.string("sidebar.presets"), systemImage: "rectangle.3.group")
 
             HStack(spacing: 8) {
-                TextField("Preset name", text: $layoutPresetName)
+                TextField(localization.string("sidebar.presetName"), text: $layoutPresetName)
                     .textFieldStyle(.roundedBorder)
 
                 Button {
@@ -258,10 +259,10 @@ struct SidebarView: View {
                         layoutPresetName = ""
                     }
                 } label: {
-                    Label("Save", systemImage: "tray.and.arrow.down")
+                    Label(localization.string("sidebar.save"), systemImage: "tray.and.arrow.down")
                         .labelStyle(.iconOnly)
                 }
-                .help("Save current layout")
+                .help(localization.string("sidebar.saveCurrentLayout"))
                 .disabled(layoutPresetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
 
@@ -269,14 +270,14 @@ struct SidebarView: View {
                 Button {
                     model.importLayoutPresets()
                 } label: {
-                    Label("Import", systemImage: "square.and.arrow.down")
+                    Label(localization.string("sidebar.import"), systemImage: "square.and.arrow.down")
                         .frame(maxWidth: .infinity)
                 }
 
                 Button {
                     model.exportLayoutPresets()
                 } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label(localization.string("sidebar.export"), systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
                 }
                 .disabled(model.layoutPresets.isEmpty)
@@ -284,7 +285,7 @@ struct SidebarView: View {
             .buttonStyle(.bordered)
 
             if model.layoutPresets.isEmpty {
-                Text("No saved presets.")
+                Text(localization.string("sidebar.noSavedPresets"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -364,13 +365,13 @@ struct SidebarView: View {
 
     private var exportSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SidebarSubsectionHeader(title: "Render", systemImage: "paperplane")
+            SidebarSubsectionHeader(title: localization.string("sidebar.render"), systemImage: "paperplane")
 
             if model.isExporting {
                 VStack(alignment: .leading, spacing: 4) {
                     ProgressView(value: clampedExportProgress)
                     HStack {
-                        Text("Exporting overlay")
+                        Text(localization.string("sidebar.exportingOverlay"))
                         Spacer()
                         Text(clampedExportProgress.percentString)
                             .monospacedDigit()
@@ -379,7 +380,7 @@ struct SidebarView: View {
                     .foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Export progress")
+                .accessibilityLabel(localization.string("sidebar.exportProgress"))
                 .accessibilityValue(clampedExportProgress.percentString)
             }
             Text(model.status)
@@ -393,7 +394,7 @@ struct SidebarView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(3)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Export disabled")
+                    .accessibilityLabel(localization.string("sidebar.exportDisabled"))
                     .accessibilityValue(exportReadinessMessage)
             }
 
@@ -401,7 +402,7 @@ struct SidebarView: View {
                 Button(role: .destructive) {
                     model.cancelExport()
                 } label: {
-                    Label("Cancel Export", systemImage: "xmark.circle.fill")
+                    Label(localization.string("toolbar.cancelExport"), systemImage: "xmark.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
@@ -410,13 +411,13 @@ struct SidebarView: View {
                 Button {
                     model.export()
                 } label: {
-                    Label("Export Overlay", systemImage: "play.fill")
+                    Label(localization.string("sidebar.exportOverlay"), systemImage: "play.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
                 .disabled(!model.canExport)
-                .help(model.exportReadinessMessage ?? "Export transparent overlay video")
+                .help(model.exportReadinessMessage ?? localization.string("help.exportTransparentOverlay"))
             }
         }
     }
@@ -563,6 +564,7 @@ struct LayoutPresetRow: View {
     var apply: () -> Void
     var makeDefault: () -> Void
     var delete: () -> Void
+    @EnvironmentObject private var localization: LocalizationStore
     @State private var isConfirmingDelete = false
 
     var body: some View {
@@ -573,12 +575,12 @@ struct LayoutPresetRow: View {
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                     if isDefault {
-                        Text("Default")
+                        Text(localization.string("preset.default"))
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.tint)
                     }
                 }
-                Text("\(preset.layout.elements.count) gauges")
+                Text(localization.string("preset.gaugeCount", preset.layout.elements.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -586,38 +588,38 @@ struct LayoutPresetRow: View {
             Spacer()
 
             Button(action: apply) {
-                Label("Apply", systemImage: "arrow.down.left.and.arrow.up.right")
+                Label(localization.string("preset.apply"), systemImage: "arrow.down.left.and.arrow.up.right")
                     .labelStyle(.iconOnly)
             }
-            .help("Apply preset")
+            .help(localization.string("preset.applyHelp"))
 
             Button(action: makeDefault) {
-                Label("Set default", systemImage: isDefault ? "star.fill" : "star")
+                Label(localization.string("preset.setDefault"), systemImage: isDefault ? "star.fill" : "star")
                     .labelStyle(.iconOnly)
             }
-            .help("Set as default")
+            .help(localization.string("preset.setDefaultHelp"))
             .disabled(isDefault)
 
             Button(role: .destructive) {
                 isConfirmingDelete = true
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(localization.string("preset.delete"), systemImage: "trash")
                     .labelStyle(.iconOnly)
             }
-            .help("Delete preset")
+            .help(localization.string("preset.deleteHelp"))
         }
         .buttonStyle(.borderless)
         .padding(10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .confirmationDialog(
-            "Delete layout preset?",
+            localization.string("preset.deleteDialogTitle"),
             isPresented: $isConfirmingDelete,
             titleVisibility: .visible
         ) {
-            Button("Delete \(preset.name)", role: .destructive, action: delete)
-            Button("Cancel", role: .cancel) {}
+            Button(localization.string("preset.deleteNamed", preset.name), role: .destructive, action: delete)
+            Button(localization.string("common.cancel"), role: .cancel) {}
         } message: {
-            Text("This removes the saved preset. The current canvas layout is not changed.")
+            Text(localization.string("preset.deleteDialogMessage"))
         }
     }
 }

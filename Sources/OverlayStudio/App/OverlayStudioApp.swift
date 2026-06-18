@@ -2,30 +2,41 @@ import SwiftUI
 
 @main
 struct OverlayStudioApp: App {
+    @StateObject private var localization = LocalizationStore()
+
     var body: some Scene {
-        WindowGroup("Overlay Studio", id: "studio") {
+        WindowGroup(localization.string("app.name"), id: "studio") {
             StudioWindowView()
+                .environmentObject(localization)
+                .environment(\.locale, localization.locale)
+        }
+
+        Settings {
+            SettingsView()
+                .environmentObject(localization)
+                .environment(\.locale, localization.locale)
         }
         .commands {
-            StudioFileCommands()
-            PreviewCommands()
-            ArrangeCommands()
+            StudioFileCommands(localization: localization)
+            PreviewCommands(localization: localization)
+            ArrangeCommands(localization: localization)
         }
     }
 }
 
 private struct StudioFileCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
     @FocusedValue(\.studioCommandActions) private var actions
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
-            Button("Open Video...") {
+            Button(localization.string("menu.openVideo")) {
                 actions?.chooseVideo()
             }
             .keyboardShortcut("o", modifiers: [.command])
             .disabled(actions == nil || actions?.isExporting == true)
 
-            Button("Open FIT...") {
+            Button(localization.string("menu.openFit")) {
                 actions?.chooseFIT()
             }
             .keyboardShortcut("f", modifiers: [.command])
@@ -33,13 +44,13 @@ private struct StudioFileCommands: Commands {
 
             Divider()
 
-            Button("Export Overlay...") {
+            Button(localization.string("menu.exportOverlay")) {
                 actions?.export()
             }
             .keyboardShortcut("e", modifiers: [.command])
             .disabled(actions == nil || actions?.canExport != true || actions?.isExporting == true)
 
-            Button("Cancel Export") {
+            Button(localization.string("menu.cancelExport")) {
                 actions?.cancelExport()
             }
             .keyboardShortcut(".", modifiers: [.command])
@@ -49,17 +60,18 @@ private struct StudioFileCommands: Commands {
 }
 
 private struct ArrangeCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
     @FocusedValue(\.studioCommandActions) private var actions
 
     var body: some Commands {
-        CommandMenu("Arrange") {
-            Button("Bring Forward") {
+        CommandMenu(localization.string("menu.arrange")) {
+            Button(localization.string("menu.bringForward")) {
                 actions?.moveSelectionForward()
             }
             .keyboardShortcut(.upArrow, modifiers: [.command, .option])
             .disabled(actions?.canMoveSelectionForward != true)
 
-            Button("Send Backward") {
+            Button(localization.string("menu.sendBackward")) {
                 actions?.moveSelectionBackward()
             }
             .keyboardShortcut(.downArrow, modifiers: [.command, .option])
@@ -69,24 +81,25 @@ private struct ArrangeCommands: Commands {
 }
 
 private struct PreviewCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
     @FocusedValue(\.studioCommandActions) private var studioActions
     @FocusedValue(\.previewCommandActions) private var previewActions
 
     var body: some Commands {
-        CommandMenu("Preview") {
-            Button("Refresh Preview") {
+        CommandMenu(localization.string("menu.preview")) {
+            Button(localization.string("menu.refreshPreview")) {
                 studioActions?.refreshPreview()
             }
             .keyboardShortcut("r", modifiers: [.command])
             .disabled(studioActions == nil || studioActions?.isExporting == true)
 
-            Button(studioActions?.isPlayingPreview == true ? "Pause Preview" : "Play Preview") {
+            Button(studioActions?.isPlayingPreview == true ? localization.string("menu.pausePreview") : localization.string("menu.playPreview")) {
                 studioActions?.togglePlayback()
             }
             .keyboardShortcut(.return, modifiers: [.command])
             .disabled(studioActions?.canPlayPreview != true)
 
-            Button("Set Sport Start") {
+            Button(localization.string("menu.setSportStart")) {
                 studioActions?.markSportStart()
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
@@ -94,19 +107,19 @@ private struct PreviewCommands: Commands {
 
             Divider()
 
-            Button("Zoom In") {
+            Button(localization.string("menu.zoomIn")) {
                 previewActions?.zoomIn()
             }
             .keyboardShortcut("+", modifiers: [.command])
             .disabled(previewActions == nil)
 
-            Button("Zoom Out") {
+            Button(localization.string("menu.zoomOut")) {
                 previewActions?.zoomOut()
             }
             .keyboardShortcut("-", modifiers: [.command])
             .disabled(previewActions == nil)
 
-            Button("Reset Zoom") {
+            Button(localization.string("menu.resetZoom")) {
                 previewActions?.resetZoom()
             }
             .keyboardShortcut("0", modifiers: [.command])
@@ -114,7 +127,7 @@ private struct PreviewCommands: Commands {
 
             Divider()
 
-            Button(previewActions?.isFullscreen == true ? "Exit Preview Full Screen" : "Enter Preview Full Screen") {
+            Button(previewActions?.isFullscreen == true ? localization.string("menu.exitPreviewFullscreen") : localization.string("menu.enterPreviewFullscreen")) {
                 previewActions?.toggleFullscreen()
             }
             .keyboardShortcut("f", modifiers: [.command, .shift])
