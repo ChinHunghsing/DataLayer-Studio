@@ -4,7 +4,7 @@ import Foundation
 
 final class VideoFrameService {
     private let lock = NSLock()
-    private let frameQueue = DispatchQueue(label: "run.libo.overlay-studio.video-frame-service", qos: .userInitiated)
+    private let frameQueue = DispatchQueue(label: "run.libo.datalayer-studio.video-frame-service", qos: .userInitiated)
     private var cachedVideoURL: URL?
     private var cachedGenerator: AVAssetImageGenerator?
     private var latestFrameRequestID = 0

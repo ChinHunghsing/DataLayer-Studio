@@ -13,6 +13,7 @@ struct CommandLineOptions {
     var averageBitRate: Int
     var codec: OverlayVideoCodec
     var distanceUnit: OverlayDistanceUnit
+    var layoutPresetReference: String?
     var validateFITCRC: Bool
     var inspectOnly: Bool
 
@@ -29,7 +30,7 @@ struct CommandLineOptions {
             case "--skip-fit-crc", "--inspect":
                 flags.insert(argument)
                 index += 1
-            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--duration", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--codec", "--distance-unit":
+            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--duration", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--codec", "--distance-unit", "--layout-preset":
                 guard index + 1 < arguments.count else {
                     throw CLIError.missingValue(argument)
                 }
@@ -56,6 +57,7 @@ struct CommandLineOptions {
             averageBitRate: try parseAverageBitRate(values: values),
             codec: try parseCodec(values["--codec"]),
             distanceUnit: try parseDistanceUnit(values["--distance-unit"]),
+            layoutPresetReference: values["--layout-preset"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             validateFITCRC: !flags.contains("--skip-fit-crc"),
             inspectOnly: flags.contains("--inspect")
         )
@@ -176,6 +178,7 @@ enum CLIError: Error, CustomStringConvertible {
     case missingRequired(String)
     case invalidValue(String, String)
     case invalidOutputDimensions(Int, Int)
+    case layoutPresetNotFound(String)
     case conflictingArguments(String)
     case unknownArgument(String)
 
@@ -191,6 +194,8 @@ enum CLIError: Error, CustomStringConvertible {
             return "Invalid value for \(name): \(value).\n\n\(Self.help)"
         case let .invalidOutputDimensions(width, height):
             return "Invalid output dimensions: \(width)x\(height). Width and height must be 2...16384 and even pixel values."
+        case let .layoutPresetNotFound(reference):
+            return "Layout preset not found: \(reference).\n\n\(Self.help)"
         case let .conflictingArguments(message):
             return "\(message).\n\n\(Self.help)"
         case let .unknownArgument(argument):
@@ -221,10 +226,36 @@ enum CLIError: Error, CustomStringConvertible {
       --bitrate-bps BPS  Legacy explicit bps bitrate.
       --codec NAME       hevc-alpha (default) or prores-4444.
       --distance-unit U  Distance unit for overlay labels: km (default) or m.
+      --layout-preset P  Use a saved GUI layout preset by name or ID.
       --skip-fit-crc     Parse FIT even if CRC validation fails.
       --inspect          Parse video and FIT, print metadata, do not render.
       -h, --help         Show this help.
     """
+}
+
+struct ResolvedOverlayLayout {
+    var layout: OverlayLayout
+    var presetName: String?
+}
+
+func resolveOverlayLayout(
+    presetReference: String?,
+    loadPresetState: () -> LayoutPresetState = { LayoutPresetStore.loadSharedAppState() }
+) throws -> ResolvedOverlayLayout {
+    guard let presetReference else {
+        return ResolvedOverlayLayout(layout: .default, presetName: nil)
+    }
+    let trimmedReference = presetReference.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedReference.isEmpty else {
+        throw CLIError.invalidValue("--layout-preset", presetReference)
+    }
+
+    let state = loadPresetState()
+    guard let preset = state.preset(matching: trimmedReference) else {
+        throw CLIError.layoutPresetNotFound(trimmedReference)
+    }
+
+    return ResolvedOverlayLayout(layout: preset.layout.sanitized, presetName: preset.name)
 }
 
 func run() async throws {
@@ -232,6 +263,7 @@ func run() async throws {
     let parser = FITParser(validateCRC: options.validateFITCRC)
     let series = try parser.parse(url: options.fitURL)
     let metadata = try await VideoMetadata.loadAsync(from: options.videoURL)
+    let resolvedLayout = try resolveOverlayLayout(presetReference: options.layoutPresetReference)
 
     let width = options.width ?? Int(metadata.size.width.rounded())
     let height = options.height ?? Int(metadata.size.height.rounded())
@@ -243,6 +275,11 @@ func run() async throws {
     print("Codec: \(options.codec.rawValue)")
     print("Bitrate: \(options.averageBitRate / 1000) kbps")
     print("Distance unit: \(options.distanceUnit.rawValue)")
+    if let presetName = resolvedLayout.presetName {
+        print("Layout preset: \(presetName)")
+    } else {
+        print("Layout: built-in default")
+    }
     print("Hardware: \(OverlayHardwareProfile.current.displaySummary)")
     printSyncSummary(timeSync: options.timeSync, videoDuration: duration, fitDuration: series.duration)
 
@@ -262,6 +299,7 @@ func run() async throws {
             averageBitRate: options.averageBitRate,
             timeSync: options.timeSync,
             codec: options.codec,
+            overlayLayout: resolvedLayout.layout,
             distanceUnit: options.distanceUnit,
             progressHandler: { completed, total in
                 let percent = Double(completed) / Double(total) * 100

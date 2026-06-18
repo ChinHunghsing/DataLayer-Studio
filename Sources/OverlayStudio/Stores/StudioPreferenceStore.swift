@@ -28,23 +28,42 @@ struct StudioPreferenceState: Codable, Equatable {
 }
 
 struct StudioPreferenceStore {
-    private let defaults: UserDefaults
-    private let key = "run.libo.overlay-studio.preferences.v1"
+    static let storageKey = "run.libo.overlay-studio.preferences.v1"
 
-    init(defaults: UserDefaults = .standard) {
+    private let defaults: UserDefaults
+    private let key = Self.storageKey
+    private let appDomains: [String]
+
+    init(defaults: UserDefaults = .standard, appDomains: [String] = DataLayerStudioDefaults.appDomains) {
         self.defaults = defaults
+        self.appDomains = appDomains
     }
 
     func load() -> StudioPreferenceState {
-        guard let data = defaults.data(forKey: key),
-              let state = try? JSONDecoder().decode(StudioPreferenceState.self, from: data) else {
-            return .default
+        if let state = Self.decodeState(defaults.data(forKey: key)) {
+            return state
         }
-        return state.sanitized
+
+        for domain in appDomains {
+            let data = defaults.persistentDomain(forName: domain)?[key] as? Data
+            if let state = Self.decodeState(data) {
+                return state
+            }
+        }
+
+        return .default
     }
 
     func save(_ state: StudioPreferenceState) {
         guard let data = try? JSONEncoder().encode(state.sanitized) else { return }
         defaults.set(data, forKey: key)
+    }
+
+    private static func decodeState(_ data: Data?) -> StudioPreferenceState? {
+        guard let data,
+              let state = try? JSONDecoder().decode(StudioPreferenceState.self, from: data) else {
+            return nil
+        }
+        return state.sanitized
     }
 }

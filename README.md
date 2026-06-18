@@ -42,8 +42,11 @@ The executable will be at:
 The SwiftUI editor can be launched directly from SwiftPM:
 
 ```bash
-swift run overlay-studio
+swift run datalayer-studio
 ```
+
+`swift run overlay-studio` is kept as a compatibility alias for older local
+scripts.
 
 Or packaged as a local macOS app bundle:
 
@@ -93,9 +96,14 @@ Useful options:
 --bitrate-bps 12000000 # legacy explicit bitrate in bps
 --codec hevc-alpha  # default; use prores-4444 as an alpha-capable intermediate
 --distance-unit km  # distance labels: km (default) or m
+--layout-preset "Race Layout" # use a saved GUI layout preset by name or ID
 --inspect           # parse metadata without rendering
 --skip-fit-crc      # useful for malformed FIT exports
 ```
+
+If `--layout-preset` is not set, the command-line renderer uses the built-in
+default layout. Saved presets are looked up from the GUI's local DataLayer
+Studio preferences, first by preset ID and then by case-insensitive preset name.
 
 ## Time sync
 

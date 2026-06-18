@@ -78,12 +78,22 @@ final class LocalizationStore: ObservableObject {
 enum AppLocalizer {
     static let selectionDefaultsKey = "run.libo.overlay-studio.language.v1"
 
-    static func storedSelection(defaults: UserDefaults = .standard) -> AppLanguageSelection {
-        guard let rawValue = defaults.string(forKey: selectionDefaultsKey),
-              let selection = AppLanguageSelection(rawValue: rawValue) else {
-            return .system
+    static func storedSelection(
+        defaults: UserDefaults = .standard,
+        appDomains: [String] = DataLayerStudioDefaults.appDomains
+    ) -> AppLanguageSelection {
+        if let selection = selection(from: defaults.string(forKey: selectionDefaultsKey)) {
+            return selection
         }
-        return selection
+
+        for domain in appDomains {
+            let rawValue = defaults.persistentDomain(forName: domain)?[selectionDefaultsKey] as? String
+            if let selection = selection(from: rawValue) {
+                return selection
+            }
+        }
+
+        return .system
     }
 
     static func resolvedLanguage(for selection: AppLanguageSelection) -> AppResolvedLanguage {
@@ -127,6 +137,11 @@ enum AppLocalizer {
             }
         }
         return .english
+    }
+
+    private static func selection(from rawValue: String?) -> AppLanguageSelection? {
+        guard let rawValue else { return nil }
+        return AppLanguageSelection(rawValue: rawValue)
     }
 
     static func currentString(_ key: String, _ arguments: CVarArg...) -> String {

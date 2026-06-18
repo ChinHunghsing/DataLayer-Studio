@@ -113,7 +113,7 @@ final class StudioModel: ObservableObject {
     ) {
         self.layoutPresetStore = layoutPresetStore
         self.preferenceStore = preferenceStore
-        let presetState = layoutPresetStore.load()
+        let presetState = layoutPresetStore.loadIncludingSharedAppDomains()
         let preferenceState = preferenceStore.load()
         let validDefaultPresetID = presetState.presets.contains { $0.id == presetState.defaultPresetID } ? presetState.defaultPresetID : nil
         self.layoutPresets = presetState.presets
@@ -283,7 +283,7 @@ final class StudioModel: ObservableObject {
         let panel = NSSavePanel()
         panel.title = AppLocalizer.currentString("panel.saveOverlayVideo")
         panel.allowedContentTypes = [.quickTimeMovie]
-        panel.nameFieldStringValue = "overlay.mov"
+        panel.nameFieldStringValue = "datalayer-overlay.mov"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         outputURL = url
     }
@@ -422,7 +422,7 @@ final class StudioModel: ObservableObject {
         let panel = NSSavePanel()
         panel.title = AppLocalizer.currentString("panel.exportLayoutPresets")
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "overlay-layout-presets.json"
+        panel.nameFieldStringValue = "datalayer-studio-layout-presets.json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {

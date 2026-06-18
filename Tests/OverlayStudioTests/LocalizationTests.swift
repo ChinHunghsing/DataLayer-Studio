@@ -43,6 +43,25 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(reloaded.resolvedLanguage, .japanese)
     }
 
+    func testStoredSelectionFallsBackToLegacyAppDomain() {
+        let suiteName = "run.libo.datalayer-studio.localization-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let legacyDomain = "\(suiteName).legacy"
+        defaults.setPersistentDomain(
+            [AppLocalizer.selectionDefaultsKey: AppLanguageSelection.traditionalChinese.rawValue],
+            forName: legacyDomain
+        )
+        defer {
+            defaults.removePersistentDomain(forName: legacyDomain)
+        }
+
+        XCTAssertEqual(
+            AppLocalizer.storedSelection(defaults: defaults, appDomains: [legacyDomain]),
+            .traditionalChinese
+        )
+    }
+
     func testLocalizedStringsUseRequestedLanguage() {
         XCTAssertEqual(
             AppLocalizer.string("toolbar.sportStart", language: .simplifiedChinese),

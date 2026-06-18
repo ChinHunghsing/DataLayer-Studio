@@ -6,16 +6,17 @@ APP_NAME="${APP_NAME:-DataLayer Studio}"
 APP_VERSION="${APP_VERSION:-0.1.0}"
 APP_BUILD="${APP_BUILD:-1}"
 BUNDLE_IDENTIFIER="${BUNDLE_IDENTIFIER:-run.libo.datalayer-studio}"
+SWIFT_PRODUCT="${SWIFT_PRODUCT:-datalayer-studio}"
 APP_DIR="$ROOT_DIR/.build/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 
 cd "$ROOT_DIR"
-swift build -c release --arch arm64 --product overlay-studio
+swift build -c release --arch arm64 --product "$SWIFT_PRODUCT"
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR"
-cp "$ROOT_DIR/.build/release/overlay-studio" "$MACOS_DIR/$APP_NAME"
+cp "$ROOT_DIR/.build/release/$SWIFT_PRODUCT" "$MACOS_DIR/$APP_NAME"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

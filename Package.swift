@@ -3,12 +3,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "Overlay",
+    name: "DataLayerStudio",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         .executable(name: "overlay", targets: ["overlay"]),
+        .executable(name: "datalayer-studio", targets: ["OverlayStudio"]),
         .executable(name: "overlay-studio", targets: ["OverlayStudio"]),
         .library(name: "OverlayCore", targets: ["OverlayCore"])
     ],

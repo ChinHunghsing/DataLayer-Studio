@@ -6,7 +6,7 @@ import OverlayCore
 final class StudioModelTests: XCTestCase {
     func testLaunchOptionsParseVideoFITAndOffsetArguments() {
         let options = StudioLaunchOptions(arguments: [
-            "Overlay Studio",
+            "DataLayer Studio",
             "--video",
             "/tmp/source video.mp4",
             "--fit",
@@ -74,6 +74,33 @@ final class StudioModelTests: XCTestCase {
 
         XCTAssertEqual(model.gridColumns, 2)
         XCTAssertEqual(model.gridRows, 64)
+    }
+
+    func testPreferenceStoreFallsBackToLegacyAppDomain() throws {
+        let suiteName = "run.libo.datalayer-studio.preference-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let legacyDomain = "\(suiteName).legacy"
+
+        let legacyState = StudioPreferenceState(
+            showGrid: true,
+            gridColumns: 20,
+            gridRows: 18,
+            snapGaugeToGrid: true,
+            distanceUnit: .meters
+        )
+        let data = try JSONEncoder().encode(legacyState)
+        defaults.setPersistentDomain(
+            [StudioPreferenceStore.storageKey: data],
+            forName: legacyDomain
+        )
+        defer {
+            defaults.removePersistentDomain(forName: legacyDomain)
+        }
+
+        let loaded = StudioPreferenceStore(defaults: defaults, appDomains: [legacyDomain]).load()
+
+        XCTAssertEqual(loaded, legacyState)
     }
 
     func testPlaybackOverlayRefreshIsThrottledBelowPlayerTimeUpdates() {
