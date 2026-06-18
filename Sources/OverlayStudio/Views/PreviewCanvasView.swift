@@ -140,21 +140,17 @@ struct PreviewCanvasView: View {
             let overlayRenderSize = previewOverlayRenderSize(for: canvasSize)
             let visibleElements = model.layout.visibleElements
             let overflowInsets = layoutOverflowInsets(canvasSize: canvasSize, visibleElements: visibleElements)
-            let minimumContentSize = CGSize(
-                width: canvasSize.width + overflowInsets.left + overflowInsets.right + stageInsets.leading + stageInsets.trailing,
-                height: canvasSize.height + overflowInsets.top + overflowInsets.bottom + stageInsets.top + stageInsets.bottom
-            )
-            let contentSize = CGSize(
-                width: max(viewportSize.width, minimumContentSize.width),
-                height: max(viewportSize.height, minimumContentSize.height)
-            )
-            let extraWidth = max(0, contentSize.width - minimumContentSize.width)
-            let extraHeight = max(0, contentSize.height - minimumContentSize.height)
+            let horizontalSlack = max(0, stageSize.width - canvasSize.width)
+            let verticalSlack = max(0, stageSize.height - canvasSize.height)
             let displayRect = CGRect(
-                x: stageInsets.leading + overflowInsets.left + extraWidth / 2,
-                y: stageInsets.top + overflowInsets.top + verticalPreviewSlackOffset(extraHeight),
+                x: stageInsets.leading + horizontalSlack / 2,
+                y: stageInsets.top + verticalPreviewSlackOffset(verticalSlack),
                 width: canvasSize.width,
                 height: canvasSize.height
+            )
+            let contentSize = CGSize(
+                width: max(viewportSize.width, displayRect.maxX + overflowInsets.right + stageInsets.trailing),
+                height: max(viewportSize.height, displayRect.maxY + overflowInsets.bottom + stageInsets.bottom)
             )
 
             ScrollView([.horizontal, .vertical]) {
