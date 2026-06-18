@@ -28,7 +28,7 @@ private final class PlayerTimeObserver {
 @MainActor
 final class StudioModel: ObservableObject {
     static let playerTimeObserverInterval: TimeInterval = 0.20
-    static let playbackOverlayRefreshInterval: TimeInterval = 0.35
+    static let playbackOverlayRefreshInterval: TimeInterval = 0.50
     static let dragOverlayRenderDelay: TimeInterval = 0.05
 
     @Published var videoURL: URL?

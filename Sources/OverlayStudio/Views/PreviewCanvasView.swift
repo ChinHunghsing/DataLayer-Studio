@@ -330,7 +330,14 @@ struct PreviewCanvasView: View {
                     }
             )
             .zIndex(isSelected ? 10 : 1)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(element.kind.title))
+            .accessibilityValue(Text(isSelected ? "Selected" : "Not selected"))
+            .accessibilityHint(Text("Click to select. Drag to move."))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                selectElement(element.id)
+            }
     }
 
     private func selectElement(_ id: String) {
