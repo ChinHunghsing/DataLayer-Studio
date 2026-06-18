@@ -10,13 +10,37 @@ SWIFT_PRODUCT="${SWIFT_PRODUCT:-datalayer-studio}"
 APP_DIR="$ROOT_DIR/.build/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
+RESOURCES_DIR="$CONTENTS_DIR/Resources"
+APP_ICON_NAME="DataLayerStudio"
+APP_ICON_SOURCE="$ROOT_DIR/Resources/AppIcon.png"
 
 cd "$ROOT_DIR"
 swift build -c release --arch arm64 --product "$SWIFT_PRODUCT"
 
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$ROOT_DIR/.build/release/$SWIFT_PRODUCT" "$MACOS_DIR/$APP_NAME"
+
+if [[ ! -f "$APP_ICON_SOURCE" ]]; then
+    echo "Missing app icon source: $APP_ICON_SOURCE" >&2
+    exit 1
+fi
+
+APP_ICONSET_DIR="$RESOURCES_DIR/$APP_ICON_NAME.iconset"
+rm -rf "$APP_ICONSET_DIR"
+mkdir -p "$APP_ICONSET_DIR"
+sips -z 16 16 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_16x16.png" >/dev/null
+sips -z 32 32 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_16x16@2x.png" >/dev/null
+sips -z 32 32 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_32x32.png" >/dev/null
+sips -z 64 64 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_32x32@2x.png" >/dev/null
+sips -z 128 128 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_128x128.png" >/dev/null
+sips -z 256 256 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_128x128@2x.png" >/dev/null
+sips -z 256 256 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_256x256.png" >/dev/null
+sips -z 512 512 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_256x256@2x.png" >/dev/null
+sips -z 512 512 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_512x512.png" >/dev/null
+sips -z 1024 1024 "$APP_ICON_SOURCE" --out "$APP_ICONSET_DIR/icon_512x512@2x.png" >/dev/null
+iconutil -c icns "$APP_ICONSET_DIR" -o "$RESOURCES_DIR/$APP_ICON_NAME.icns"
+rm -rf "$APP_ICONSET_DIR"
 
 cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -27,6 +51,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <string>en</string>
     <key>CFBundleAllowMixedLocalizations</key>
     <true/>
+    <key>CFBundleIconFile</key>
+    <string>$APP_ICON_NAME</string>
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundleIdentifier</key>
