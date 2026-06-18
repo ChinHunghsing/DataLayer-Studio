@@ -4,6 +4,22 @@ import OverlayCore
 
 @MainActor
 final class StudioModelTests: XCTestCase {
+    func testLaunchOptionsParseVideoFITAndOffsetArguments() {
+        let options = StudioLaunchOptions(arguments: [
+            "Overlay Studio",
+            "--video",
+            "/tmp/source video.mp4",
+            "--fit",
+            "/tmp/activity.fit",
+            "--offset",
+            "120"
+        ])
+
+        XCTAssertEqual(options.videoURL?.path, "/tmp/source video.mp4")
+        XCTAssertEqual(options.fitURL?.path, "/tmp/activity.fit")
+        XCTAssertEqual(options.offsetSeconds, 120)
+    }
+
     func testSanitizedOutputDimensionClampsAndRoundsToEvenPixels() {
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(1), 2)
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(2), 2)

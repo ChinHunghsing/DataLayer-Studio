@@ -194,6 +194,19 @@ final class StudioModel: ObservableObject {
         }
     }
 
+    func applyLaunchOptions(_ options: StudioLaunchOptions) {
+        if let offsetSeconds = options.offsetSeconds {
+            syncMode = .offset
+            self.offsetSeconds = offsetSeconds
+        }
+        if let videoURL = options.videoURL {
+            setVideo(videoURL)
+        }
+        if let fitURL = options.fitURL {
+            setFIT(fitURL)
+        }
+    }
+
     var sourceResolutionPresetTitle: String? {
         guard let sourceDimensions else { return nil }
         return "Source \(sourceDimensions.width)x\(sourceDimensions.height)"
