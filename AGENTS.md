@@ -2,6 +2,10 @@
 # Always use Simplified Chinese as git commit message 
 <!-- END:git-rules -->
 
+## Product Naming
+
+- 这个 App 对外发布和讨论时统一使用英文名：`DataLayer Studio`。
+
 ## App Store Server Notifications
 
 - 未来涉及 App Store Connect（ASC）的提交、元数据、TestFlight、构建、IAP、审核信息等操作时，优先使用已安装的 `asc` 操作，并先查找/加载对应的 `app-store-connect` skill；除非用户明确要求其它方式，不要默认走网页手工流程。

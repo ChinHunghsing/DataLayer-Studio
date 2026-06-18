@@ -1,6 +1,6 @@
-# Overlay
+# DataLayer Studio
 
-`overlay` is a macOS command-line prototype for generating a transparent telemetry video layer from:
+DataLayer Studio is a macOS app and command-line tool for generating a transparent telemetry video layer from:
 
 - a source video file, used for resolution, frame rate, and duration
 - a standard `.fit` activity file, used for GPS and running metrics
@@ -8,6 +8,16 @@
 The output is a `.mov` encoded with Apple HEVC/H.265 with alpha, intended to sit on an upper track in Final Cut Pro, DaVinci Resolve, Premiere, or similar editors.
 
 This project does not read from or modify `/Applications/Telemetry Overlay.app`.
+
+## License
+
+DataLayer Studio is source-available for noncommercial use only. Modified
+versions and derivative distributions must share their corresponding source
+under the same terms.
+
+See [LICENSE.md](LICENSE.md). This is not an OSI open-source license because
+commercial use, resale, paid redistribution, and paid hosting are not permitted
+without a separate written commercial license.
 
 ## Build
 
@@ -39,7 +49,7 @@ Or packaged as a local macOS app bundle:
 
 ```bash
 scripts/build_app_bundle.sh
-open ".build/Overlay Studio.app"
+open ".build/DataLayer Studio.app"
 ```
 
 The GUI supports:
@@ -120,4 +130,28 @@ The parser handles standard FIT local message definitions, little and big endian
 
 Parsed telemetry is normalized to activity-relative distance, enriched with distance-derived speed when FIT speed is missing or stuck at zero, and resampled to 1-second intervals so pace appears promptly at the start of a run.
 
-Developer fields and custom streams are skipped for now. Layouts are configurable in the GUI and can be saved, imported, exported, or reused as defaults.
+Developer fields and custom streams are skipped when they are not part of the
+standard telemetry channels used by the overlay. Layouts are configurable in the
+GUI and can be saved, imported, exported, or reused as defaults.
+
+## Release
+
+GitHub Actions builds release zips only when a version tag is pushed. This keeps
+private-repository macOS runner usage low for free GitHub accounts.
+
+Use semantic version tags:
+
+```bash
+git tag v0.1.0
+git push origin main --tags
+```
+
+When a `v*` tag is pushed, `.github/workflows/release.yml` will:
+
+- run `swift test`
+- build `DataLayer Studio.app`
+- zip the app as `DataLayer-Studio-<tag>-macOS-arm64.zip`
+- generate a SHA-256 checksum
+- create or update the GitHub Release for that tag and upload both files
+
+The zip appears under the matching tag's GitHub Release assets.

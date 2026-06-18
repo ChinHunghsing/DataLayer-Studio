@@ -1,0 +1,73 @@
+name: Release macOS app
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and publish release zip
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build app bundle
+        env:
+          APP_VERSION: ${{ github.ref_name }}
+          APP_BUILD: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          export APP_VERSION="${APP_VERSION#v}"
+          scripts/build_app_bundle.sh
+
+      - name: Package app
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          app_path=".build/DataLayer Studio.app"
+          zip_name="DataLayer-Studio-${tag}-macOS-arm64.zip"
+
+          test -d "$app_path"
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "$zip_name"
+          shasum -a 256 "$zip_name" > "$zip_name.sha256"
+
+          {
+            echo "ZIP_NAME=$zip_name"
+            echo "SHA_NAME=$zip_name.sha256"
+          } >> "$GITHUB_ENV"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          title="DataLayer Studio ${tag}"
+          notes="Automated macOS arm64 build for ${tag}."
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$ZIP_NAME" "$SHA_NAME" --clobber
+          else
+            gh release create "$tag" "$ZIP_NAME" "$SHA_NAME" \
+              --title "$title" \
+              --notes "$notes"
+          fi

@@ -162,7 +162,7 @@ enum AppLocalizer {
     ]
 
     private static let english: [String: String] = [
-        "app.name": "Overlay Studio",
+        "app.name": "DataLayer Studio",
         "language.system": "Follow System",
         "settings.general": "General",
         "settings.language.title": "Language",
@@ -392,7 +392,7 @@ enum AppLocalizer {
     ]
 
     private static let simplifiedChinese: [String: String] = [
-        "app.name": "Overlay Studio",
+        "app.name": "DataLayer Studio",
         "language.system": "跟随系统",
         "settings.general": "通用",
         "settings.language.title": "语言",
@@ -622,7 +622,7 @@ enum AppLocalizer {
     ]
 
     private static let traditionalChinese: [String: String] = [
-        "app.name": "Overlay Studio",
+        "app.name": "DataLayer Studio",
         "language.system": "跟隨系統",
         "settings.general": "一般",
         "settings.language.title": "語言",
@@ -852,7 +852,7 @@ enum AppLocalizer {
     ]
 
     private static let japanese: [String: String] = [
-        "app.name": "Overlay Studio",
+        "app.name": "DataLayer Studio",
         "language.system": "システムに合わせる",
         "settings.general": "一般",
         "settings.language.title": "言語",
