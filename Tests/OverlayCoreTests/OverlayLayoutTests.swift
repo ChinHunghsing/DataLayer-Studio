@@ -20,7 +20,13 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(OverlayComponentID.topProgress.title, "Distance")
         XCTAssertEqual(OverlayComponentID.distance.title, "Distance value")
         XCTAssertEqual(OverlayComponentID.timeDate.title, "Time & Date")
-        XCTAssertEqual(layout.elements.first { $0.kind == .topProgress }?.customization.valuePrecision, 1)
+        let topProgress = layout.elements.first { $0.kind == .topProgress }
+        XCTAssertEqual(topProgress?.customization.valuePrecision, 1)
+        XCTAssertEqual(topProgress?.customization.showsPanel, false)
+        XCTAssertEqual(topProgress?.customization.progressInsetScale ?? -1, 0.82, accuracy: 0.0001)
+        XCTAssertEqual(topProgress?.customization.progressKnobScale ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(topProgress?.customization.progressValueMarginScale ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(topProgress?.customization.progressTickCount, 48)
     }
 
     func testCanAddUpdateAndRemoveIndependentElements() {
@@ -100,6 +106,10 @@ final class OverlayLayoutTests: XCTestCase {
             element.customization.iconScale = 0.8
             element.customization.lineWidth = 18
             element.customization.lengthScale = 1.4
+            element.customization.progressInsetScale = 1.2
+            element.customization.progressKnobScale = 1.6
+            element.customization.progressValueMarginScale = 2.2
+            element.customization.progressTickCount = 36
         }
 
         let speed = layout.elements.first { $0.id == "speed" }
@@ -117,6 +127,10 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(speed?.customization.iconScale ?? -1, 0.8, accuracy: 0.0001)
         XCTAssertEqual(speed?.customization.lineWidth ?? -1, 18, accuracy: 0.0001)
         XCTAssertEqual(speed?.customization.lengthScale ?? -1, 1.4, accuracy: 0.0001)
+        XCTAssertEqual(speed?.customization.progressInsetScale ?? -1, 1.2, accuracy: 0.0001)
+        XCTAssertEqual(speed?.customization.progressKnobScale ?? -1, 1.6, accuracy: 0.0001)
+        XCTAssertEqual(speed?.customization.progressValueMarginScale ?? -1, 2.2, accuracy: 0.0001)
+        XCTAssertEqual(speed?.customization.progressTickCount, 36)
     }
 
     func testLayoutCodableRoundTrip() throws {
@@ -130,6 +144,12 @@ final class OverlayLayoutTests: XCTestCase {
         layout.updateElement(id: "pace") { element in
             element.customization.valueFont = .futuraCondensedExtraBold
             element.customization.valuePrecision = 2
+        }
+        layout.updateElement(id: "topProgress") { element in
+            element.customization.progressInsetScale = 0.4
+            element.customization.progressKnobScale = 1.7
+            element.customization.progressValueMarginScale = 2.4
+            element.customization.progressTickCount = 72
         }
 
         let data = try JSONEncoder().encode(layout)
@@ -157,6 +177,10 @@ final class OverlayLayoutTests: XCTestCase {
                         labelColor: OverlayColor(red: .nan, green: 2, blue: -4, alpha: .infinity),
                         lineWidth: .infinity,
                         lengthScale: -.infinity,
+                        progressInsetScale: 9,
+                        progressKnobScale: -2,
+                        progressValueMarginScale: 99,
+                        progressTickCount: 999,
                         labelScale: .nan
                     )
                 ),
@@ -191,6 +215,10 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(speed.customization.labelColor?.alpha ?? -1, 1, accuracy: 0.0001)
         XCTAssertEqual(speed.customization.lineWidth, 1, accuracy: 0.0001)
         XCTAssertEqual(speed.customization.lengthScale, 1, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.progressInsetScale ?? -1, 2, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.progressKnobScale ?? -1, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.progressValueMarginScale ?? -1, 4, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.progressTickCount, 160)
         XCTAssertEqual(speed.customization.labelScale, 1, accuracy: 0.0001)
         XCTAssertEqual(sanitized.style.panelOpacity, 0.64, accuracy: 0.0001)
         XCTAssertEqual(sanitized.style.metricScale, 1, accuracy: 0.0001)

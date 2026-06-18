@@ -168,8 +168,9 @@ struct InspectorView: View {
                 LabeledSlider(
                     title: "Length",
                     value: doubleBinding(id: id, get: { $0.customization.lengthScale }, set: { $0.customization.lengthScale = $1 }),
-                    range: 0.2...1.8,
-                    label: "\(Int(((currentElement(id)?.customization.lengthScale ?? 1) * 100).rounded()))%"
+                    range: 0.2...2.4,
+                    label: "\(Int(((currentElement(id)?.customization.lengthScale ?? 1) * 100).rounded()))%",
+                    showsTextField: true
                 )
             }
         }
@@ -204,8 +205,10 @@ struct InspectorView: View {
                 LabeledSlider(
                     title: kind == .speed ? "Gauge width" : "Line width",
                     value: doubleBinding(id: id, get: { $0.customization.lineWidth }, set: { $0.customization.lineWidth = $1 }),
-                    range: 1...24,
-                    label: "\(Int((currentElement(id)?.customization.lineWidth ?? 1).rounded())) px"
+                    range: kind == .topProgress ? 1...36 : 1...24,
+                    label: "\(Int((currentElement(id)?.customization.lineWidth ?? 1).rounded())) px",
+                    showsTextField: kind == .topProgress,
+                    unitLabel: "px"
                 )
 
                 ColorPicker("Track color", selection: colorBinding(
@@ -214,6 +217,67 @@ struct InspectorView: View {
                     get: { $0.customization.trackColor },
                     set: { $0.customization.trackColor = $1 }
                 ))
+            }
+
+            if kind == .topProgress {
+                ColorPicker("Progress color", selection: colorBinding(
+                    id: id,
+                    fallback: defaultValueColor(for: element),
+                    get: { $0.customization.valueColor },
+                    set: { $0.customization.valueColor = $1 }
+                ))
+
+                LabeledSlider(
+                    title: "Side padding",
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.progressInsetScale ?? 1 },
+                        set: { $0.customization.progressInsetScale = $1 }
+                    ),
+                    range: 0...2,
+                    label: "\(Int(((currentElement(id)?.customization.progressInsetScale ?? 1) * 100).rounded()))%"
+                )
+
+                LabeledSlider(
+                    title: "Knob size",
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.progressKnobScale ?? 1 },
+                        set: { $0.customization.progressKnobScale = $1 }
+                    ),
+                    range: 0.4...2.4,
+                    label: "\(Int(((currentElement(id)?.customization.progressKnobScale ?? 1) * 100).rounded()))%"
+                )
+
+                LabeledSlider(
+                    title: "Value margin",
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.progressValueMarginScale ?? 1 },
+                        set: { $0.customization.progressValueMarginScale = $1 }
+                    ),
+                    range: 0...4,
+                    label: "\(Int(((currentElement(id)?.customization.progressValueMarginScale ?? 1) * 100).rounded()))%"
+                )
+
+                Toggle("Tick marks", isOn: boolBinding(
+                    id: id,
+                    get: { $0.customization.showGaugeTicks ?? false },
+                    set: { $0.customization.showGaugeTicks = $1 }
+                ))
+
+                if currentElement(id)?.customization.showGaugeTicks == true {
+                    LabeledSlider(
+                        title: "Tick count",
+                        value: doubleBinding(
+                            id: id,
+                            get: { Double($0.customization.progressTickCount ?? 48) },
+                            set: { $0.customization.progressTickCount = Int($1.rounded()) }
+                        ),
+                        range: 0...120,
+                        label: "\(currentElement(id)?.customization.progressTickCount ?? 48)"
+                    )
+                }
             }
         }
 

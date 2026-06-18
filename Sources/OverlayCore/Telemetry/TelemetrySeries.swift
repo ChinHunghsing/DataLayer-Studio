@@ -12,6 +12,9 @@ public struct TelemetrySeries {
     public let bounds: GeoBounds?
     private static let resampleInterval: TimeInterval = 1
     private static let minimumMovingSpeedMetersPerSecond = 0.3
+    private static let startupRampMinimumSpeedMetersPerSecond = 0.35
+    private static let startupRampSpeedRatio = 0.25
+    private static let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
 
     public init(samples: [TelemetrySample]) {
         let sorted = samples.sorted { lhs, rhs in
@@ -123,7 +126,7 @@ public struct TelemetrySeries {
     private static func normalized(samples: [TelemetrySample]) -> [TelemetrySample] {
         guard !samples.isEmpty else { return [] }
 
-        let firstDistance = samples.compactMap(\.distanceMeters).first ?? 0
+        let firstDistance = startupDistanceBaseline(samples: samples)
         var previousInput: TelemetrySample?
         var previousOutput: TelemetrySample?
         var accumulatedDistance = 0.0
@@ -169,6 +172,20 @@ public struct TelemetrySeries {
         return output
     }
 
+    private static func startupDistanceBaseline(samples: [TelemetrySample]) -> Double {
+        guard let first = samples.first else { return 0 }
+        guard let firstDistance = samples.compactMap(\.distanceMeters).first else { return 0 }
+        guard first.distanceMeters == nil,
+              let firstDistanceSample = samples.first(where: { $0.distanceMeters != nil }),
+              firstDistanceSample.elapsed > first.elapsed else {
+            return firstDistance
+        }
+
+        let elapsed = firstDistanceSample.elapsed - first.elapsed
+        let startupSpeed = firstDistance / elapsed
+        return startupSpeed <= maximumPlausibleStartupSpeedMetersPerSecond ? 0 : firstDistance
+    }
+
     private static func enrichedWithDistanceDerivedSpeed(samples: [TelemetrySample]) -> [TelemetrySample] {
         guard samples.count > 1 else { return samples }
 
@@ -189,7 +206,11 @@ public struct TelemetrySeries {
             guard segmentSpeed >= minimumMovingSpeedMetersPerSecond else { continue }
 
             if shouldReplaceSpeed(output[index].speedMetersPerSecond) {
-                output[index].speedMetersPerSecond = segmentSpeed
+                output[index].speedMetersPerSecond = speedForSegmentStart(
+                    index: index,
+                    current: current,
+                    segmentSpeed: segmentSpeed
+                )
             }
             if shouldReplaceSpeed(output[index + 1].speedMetersPerSecond) {
                 output[index + 1].speedMetersPerSecond = segmentSpeed
@@ -202,6 +223,21 @@ public struct TelemetrySeries {
     private static func shouldReplaceSpeed(_ speed: Double?) -> Bool {
         guard let speed, speed.isFinite else { return true }
         return speed < minimumMovingSpeedMetersPerSecond
+    }
+
+    private static func speedForSegmentStart(
+        index: Int,
+        current: TelemetrySample,
+        segmentSpeed: Double
+    ) -> Double {
+        guard index == 0, current.elapsed <= 0.000_001 else {
+            return segmentSpeed
+        }
+
+        return min(
+            segmentSpeed,
+            max(startupRampMinimumSpeedMetersPerSecond, segmentSpeed * startupRampSpeedRatio)
+        )
     }
 
     private static func resampled(samples: [TelemetrySample], interval: TimeInterval) -> [TelemetrySample] {

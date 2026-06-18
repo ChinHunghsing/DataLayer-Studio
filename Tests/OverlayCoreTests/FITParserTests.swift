@@ -67,6 +67,31 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(firstRecordTime.cadence, 168)
     }
 
+    func testDerivesPaceImmediatelyFromStartupDistanceBeforeFirstRecord() throws {
+        var content = Data()
+        appendEventDefinition(localMessageType: 1, to: &content)
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendTimerStartEvent(timestamp: 1_000_000, localMessageType: 1, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_008, latitude: 35.0, longitude: 139.0, distanceMeters: 40, speed: 0, heartRate: 151, cadence: 84),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_010, latitude: 35.0002, longitude: 139.0004, distanceMeters: 50, speed: 0, heartRate: 154, cadence: 86),
+            localMessageType: 0,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.sample(at: 1).distanceMeters ?? -1, 5, accuracy: 0.001)
+        XCTAssertGreaterThan(series.sample(at: 1).speedMetersPerSecond ?? -1, 0.3)
+        XCTAssertEqual(series.sample(at: 4).distanceMeters ?? -1, 20, accuracy: 0.001)
+        XCTAssertGreaterThan(series.sample(at: 4).speedMetersPerSecond ?? -1, series.sample(at: 1).speedMetersPerSecond ?? 0)
+        XCTAssertEqual(series.sample(at: 8).speedMetersPerSecond ?? -1, 5, accuracy: 0.001)
+    }
+
     func testUsesSessionStartTimeWhenTimerStartEventIsMissing() throws {
         var content = Data()
         appendSessionDefinition(localMessageType: 2, to: &content)

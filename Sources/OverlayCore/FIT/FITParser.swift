@@ -72,6 +72,7 @@ private struct CompressedDistanceAccumulator {
 
 public final class FITParser {
     private let validateCRC: Bool
+    private let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
 
     public init(validateCRC: Bool = true) {
         self.validateCRC = validateCRC
@@ -392,7 +393,7 @@ public final class FITParser {
                 altitudeMeters: firstRecord.altitudeMeters,
                 heartRate: firstRecord.heartRate,
                 cadence: cadenceStepsPerMinute(firstRecord),
-                distanceMeters: firstRecord.distanceMeters,
+                distanceMeters: syntheticStartDistance(firstRecord, elapsed: firstSample.elapsed),
                 speedMetersPerSecond: firstRecord.speedMetersPerSecond,
                 powerWatts: firstRecord.powerWatts,
                 temperatureCelsius: firstRecord.temperatureCelsius
@@ -416,6 +417,12 @@ public final class FITParser {
     private func cadenceStepsPerMinute(_ record: RawFITRecord) -> Int? {
         guard let cadence = record.cadence else { return nil }
         return Int(((Double(cadence) + (record.fractionalCadence ?? 0)) * 2).rounded())
+    }
+
+    private func syntheticStartDistance(_ record: RawFITRecord, elapsed: TimeInterval) -> Double? {
+        guard let distance = record.distanceMeters, elapsed > 0 else { return record.distanceMeters }
+        let startupSpeed = distance / elapsed
+        return startupSpeed <= maximumPlausibleStartupSpeedMetersPerSecond ? 0 : distance
     }
 
     private func compressedSpeedDistance(

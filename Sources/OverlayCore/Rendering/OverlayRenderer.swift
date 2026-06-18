@@ -604,7 +604,7 @@ public final class OverlayRenderer {
 
         let trackHeight = lineWidth(element, scale: scale)
         let startLabelSize = labelSize(15, scale: textScale, element: element)
-        let currentLabelSize = labelSize(12, scale: textScale, element: element)
+        let currentLabelSize = valueSize(12, scale: textScale, element: element)
         let endLabelSize = unitSize(15, scale: textScale, element: element)
         let iconFontSize = iconSize(12 * textScale, scale: 1, element: element)
         let topRowHeight = max(
@@ -615,30 +615,55 @@ public final class OverlayRenderer {
         let bottomRowHeight = element.customization.showsLabel ? currentLabelSize : 0
         let topPadding = 8 * scale
         let topGap = topRowHeight > 0 ? max(5 * scale, topRowHeight * 0.18) : 0
-        let bottomGap = bottomRowHeight > 0 ? max(5 * scale, bottomRowHeight * 0.22) : 0
+        let knobRadius = max(4 * scale, trackHeight * 0.82 * progressKnobScale(element))
+        let outerRadius = knobRadius + max(2 * scale, knobRadius * 0.28)
+        let tickRadius = showsGaugeTicks(element) ? trackHeight * 1.225 : trackHeight / 2
+        let trackUpExtent = max(trackHeight / 2, outerRadius, tickRadius)
+        let trackDownExtent = trackUpExtent
+        let bottomGap = bottomRowHeight > 0 ? progressValueMargin(element, scale: scale, trackHeight: trackHeight) : 0
         let bottomPadding = bottomRowHeight > 0 ? 7 * scale : 0
-        let desiredHeight = max(rect.height, topPadding + topRowHeight + topGap + trackHeight + bottomGap + bottomRowHeight + bottomPadding)
+        let trackBlockHeight = trackUpExtent + trackDownExtent
+        let desiredHeight = max(rect.height, topPadding + topRowHeight + topGap + trackBlockHeight + bottomGap + bottomRowHeight + bottomPadding)
         let progressRect = CGRect(x: rect.minX, y: rect.maxY - desiredHeight, width: rect.width, height: desiredHeight)
         let hasTextRows = topRowHeight > 0 || bottomRowHeight > 0
-        let trackCenterY = hasTextRows ? progressRect.maxY - topPadding - topRowHeight - topGap - trackHeight / 2 : progressRect.midY
+        let trackCenterY = hasTextRows ? progressRect.maxY - topPadding - topRowHeight - topGap - trackUpExtent : progressRect.midY
+        let sidePadding = min(
+            progressRect.width * 0.42,
+            max(0, 72 * scale * progressInsetScale(element))
+        )
         let track = CGRect(
-            x: progressRect.minX + 72 * scale,
+            x: progressRect.minX + sidePadding,
             y: trackCenterY - trackHeight / 2,
-            width: max(1, progressRect.width - 144 * scale),
+            width: max(1, progressRect.width - sidePadding * 2),
             height: trackHeight
         )
 
         if element.customization.showsPanel {
-            fillRoundedRect(context, track.insetBy(dx: -2 * scale, dy: -2 * scale), radius: 6 * scale, color: Colors.panel(opacity: componentPanelOpacity(element) * 0.55))
+            drawPanelBackground(
+                context,
+                progressRect.insetBy(dx: -10 * scale, dy: -5 * scale),
+                element: element,
+                radius: 12 * scale
+            )
         }
         fillRoundedRect(context, track, radius: trackHeight / 2, color: trackColor(element))
 
         var filled = track
         filled.size.width *= CGFloat(progress)
-        fillRoundedRect(context, filled, radius: trackHeight / 2, color: valueColor(element, fallback: accent))
+        if filled.width > 0 {
+            fillRoundedRect(context, filled, radius: trackHeight / 2, color: valueColor(element, fallback: accent))
+        }
+
+        drawTopProgressTicks(context: context, track: track, scale: scale, element: element)
 
         let knobX = track.minX + track.width * CGFloat(progress)
-        let knobRadius = max(4 * scale, trackHeight * 0.82)
+        context.setFillColor(Colors.panel(opacity: 0.30))
+        context.fillEllipse(in: CGRect(
+            x: knobX - outerRadius,
+            y: track.midY - outerRadius,
+            width: outerRadius * 2,
+            height: outerRadius * 2
+        ))
         context.setFillColor(valueColor(element, fallback: Colors.white))
         context.fillEllipse(in: CGRect(
             x: knobX - knobRadius,
@@ -647,12 +672,12 @@ public final class OverlayRenderer {
             height: knobRadius * 2
         ))
         context.setStrokeColor(valueColor(element, fallback: accent))
-        context.setLineWidth(max(1, trackHeight * 0.22))
+        context.setLineWidth(max(1, trackHeight * 0.18))
         context.strokeEllipse(in: CGRect(
-            x: knobX - knobRadius - 4 * scale,
-            y: track.midY - knobRadius - 4 * scale,
-            width: (knobRadius + 4 * scale) * 2,
-            height: (knobRadius + 4 * scale) * 2
+            x: knobX - outerRadius,
+            y: track.midY - outerRadius,
+            width: outerRadius * 2,
+            height: outerRadius * 2
         ))
 
         if element.customization.showsLabel {
@@ -661,24 +686,24 @@ public final class OverlayRenderer {
             drawText(
                 startLabel,
                 context: context,
-                baseline: CGPoint(x: progressRect.minX, y: topBaselineY),
+                baseline: CGPoint(x: track.minX, y: topBaselineY),
                 size: startLabelSize,
                 color: labelColor(element),
                 fontName: labelFontName(element)
             )
 
             let currentLabel = distanceLabel(currentDistance, element: element)
-            let currentWidth = textWidth(currentLabel, size: currentLabelSize, fontName: labelFontName(element))
+            let currentWidth = textWidth(currentLabel, size: currentLabelSize, fontName: valueFontName(element))
             drawText(
                 currentLabel,
                 context: context,
                 baseline: CGPoint(
                     x: min(track.maxX - currentWidth, max(track.minX, knobX - currentWidth / 2)),
-                    y: track.minY - bottomGap - currentLabelSize * 0.78
+                    y: trackCenterY - trackDownExtent - bottomGap - currentLabelSize * 0.78
                 ),
                 size: currentLabelSize,
-                color: labelColor(element),
-                fontName: labelFontName(element)
+                color: valueColor(element, fallback: accent),
+                fontName: valueFontName(element)
             )
         }
         if element.customization.showsUnit {
@@ -687,7 +712,7 @@ public final class OverlayRenderer {
             drawText(
                 endLabel,
                 context: context,
-                baseline: CGPoint(x: progressRect.maxX - endWidth, y: progressRect.maxY - topPadding - topRowHeight * 0.78),
+                baseline: CGPoint(x: track.maxX - endWidth, y: progressRect.maxY - topPadding - topRowHeight * 0.78),
                 size: endLabelSize,
                 color: unitColor(element),
                 fontName: unitFontName(element)
@@ -697,9 +722,31 @@ public final class OverlayRenderer {
             element,
             defaultIcon: "DIST",
             context: context,
-            baseline: CGPoint(x: track.minX - 52 * scale, y: progressRect.maxY - topPadding - topRowHeight * 0.78),
+            baseline: CGPoint(x: max(progressRect.minX, track.minX - 52 * scale), y: progressRect.maxY - topPadding - topRowHeight * 0.78),
             size: 12 * textScale
         )
+    }
+
+    private func drawTopProgressTicks(context: CGContext, track: CGRect, scale: CGFloat, element: OverlayElement) {
+        guard showsGaugeTicks(element) else { return }
+        let tickCount = progressTickCount(element, track: track, scale: scale)
+        guard tickCount > 0 else { return }
+
+        let majorStride = max(1, tickCount / 10)
+        context.saveGState()
+        context.setStrokeColor(unitColor(element))
+        context.setLineCap(.butt)
+        for index in 0...tickCount {
+            let x = track.minX + track.width * CGFloat(index) / CGFloat(tickCount)
+            let isMajor = index % majorStride == 0
+            let tickHeight = track.height * (isMajor ? 2.45 : 1.55)
+            context.setLineWidth(max(0.75 * scale, track.height * (isMajor ? 0.12 : 0.07)))
+            context.beginPath()
+            context.move(to: CGPoint(x: x, y: track.midY - tickHeight / 2))
+            context.addLine(to: CGPoint(x: x, y: track.midY + tickHeight / 2))
+            context.strokePath()
+        }
+        context.restoreGState()
     }
 
     private func drawRouteDistance(context: CGContext, panel: CGRect, sample: TelemetrySample, scale: CGFloat, element: OverlayElement) {
@@ -840,6 +887,27 @@ public final class OverlayRenderer {
 
     private func componentLengthScale(_ element: OverlayElement) -> CGFloat {
         CGFloat(max(0.1, element.customization.lengthScale))
+    }
+
+    private func progressInsetScale(_ element: OverlayElement) -> CGFloat {
+        CGFloat(element.customization.progressInsetScale ?? 1)
+    }
+
+    private func progressKnobScale(_ element: OverlayElement) -> CGFloat {
+        CGFloat(element.customization.progressKnobScale ?? 1)
+    }
+
+    private func progressValueMargin(_ element: OverlayElement, scale: CGFloat, trackHeight: CGFloat) -> CGFloat {
+        let marginScale = CGFloat(element.customization.progressValueMarginScale ?? 1)
+        let baseMargin = max(5 * scale, trackHeight * 0.35)
+        return baseMargin * marginScale
+    }
+
+    private func progressTickCount(_ element: OverlayElement, track: CGRect, scale: CGFloat) -> Int {
+        if let progressTickCount = element.customization.progressTickCount {
+            return max(0, progressTickCount)
+        }
+        return max(8, min(80, Int((track.width / max(1, 28 * scale)).rounded())))
     }
 
     private func lineWidth(_ element: OverlayElement, scale: CGFloat) -> CGFloat {

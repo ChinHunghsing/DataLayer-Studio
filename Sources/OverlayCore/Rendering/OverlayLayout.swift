@@ -178,6 +178,10 @@ public struct OverlayElementCustomization: Codable, Equatable {
     public var trackColor: OverlayColor?
     public var lineWidth: Double
     public var lengthScale: Double
+    public var progressInsetScale: Double?
+    public var progressKnobScale: Double?
+    public var progressValueMarginScale: Double?
+    public var progressTickCount: Int?
     public var labelScale: Double
     public var valueScale: Double
     public var unitScale: Double
@@ -207,6 +211,10 @@ public struct OverlayElementCustomization: Codable, Equatable {
         trackColor: OverlayColor? = nil,
         lineWidth: Double = 1,
         lengthScale: Double = 1,
+        progressInsetScale: Double? = nil,
+        progressKnobScale: Double? = nil,
+        progressValueMarginScale: Double? = nil,
+        progressTickCount: Int? = nil,
         labelScale: Double = 1,
         valueScale: Double = 1,
         unitScale: Double = 1,
@@ -235,6 +243,10 @@ public struct OverlayElementCustomization: Codable, Equatable {
         self.trackColor = trackColor
         self.lineWidth = lineWidth
         self.lengthScale = lengthScale
+        self.progressInsetScale = progressInsetScale
+        self.progressKnobScale = progressKnobScale
+        self.progressValueMarginScale = progressValueMarginScale
+        self.progressTickCount = progressTickCount
         self.labelScale = labelScale
         self.valueScale = valueScale
         self.unitScale = unitScale
@@ -279,6 +291,10 @@ public struct OverlayElementCustomization: Codable, Equatable {
         copy.trackColor = OverlayLayoutSanitizer.sanitizeColor(trackColor)
         copy.lineWidth = OverlayLayoutSanitizer.clamp(lineWidth, fallback: 1, range: 0.25...64)
         copy.lengthScale = OverlayLayoutSanitizer.clamp(lengthScale, fallback: 1, range: 0.1...4)
+        copy.progressInsetScale = OverlayLayoutSanitizer.sanitize(progressInsetScale, range: 0...2)
+        copy.progressKnobScale = OverlayLayoutSanitizer.sanitize(progressKnobScale, range: 0.25...3)
+        copy.progressValueMarginScale = OverlayLayoutSanitizer.sanitize(progressValueMarginScale, range: 0...4)
+        copy.progressTickCount = progressTickCount.map { min(160, max(0, $0)) }
         copy.labelScale = OverlayLayoutSanitizer.clamp(labelScale, fallback: 1, range: 0.05...20)
         copy.valueScale = OverlayLayoutSanitizer.clamp(valueScale, fallback: 1, range: 0.05...20)
         copy.unitScale = OverlayLayoutSanitizer.clamp(unitScale, fallback: 1, range: 0.05...20)
@@ -654,7 +670,16 @@ public extension OverlayElement {
         case .distance:
             return OverlayElementCustomization(valuePrecision: nil)
         case .topProgress:
-            return OverlayElementCustomization(showsPanel: true, showGaugeTicks: false, valuePrecision: 1, lineWidth: 8)
+            return OverlayElementCustomization(
+                showsPanel: false,
+                showGaugeTicks: false,
+                valuePrecision: 1,
+                lineWidth: 8,
+                progressInsetScale: 0.82,
+                progressKnobScale: 1,
+                progressValueMarginScale: 1,
+                progressTickCount: 48
+            )
         case .timeDate:
             return OverlayElementCustomization(showsLabel: false, showsPanel: false, showGaugeTicks: false, valueScale: 1.08, unitScale: 1.04)
         case .route:

@@ -87,6 +87,33 @@ final class OverlayRendererTests: XCTestCase {
         }
     }
 
+    func testTopProgressRendererAcceptsCustomBarStyle() throws {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, distanceMeters: 5_000)
+        ])
+        var element = OverlayElement.defaultElement(kind: .topProgress)
+        element.customization.showGaugeTicks = true
+        element.customization.progressInsetScale = 0.35
+        element.customization.progressKnobScale = 1.8
+        element.customization.progressValueMarginScale = 2.2
+        element.customization.progressTickCount = 64
+        element.customization.lineWidth = 24
+        element.customization.lengthScale = 0.8
+
+        let renderer = OverlayRenderer(
+            series: series,
+            config: OverlayRenderConfig(
+                size: CGSize(width: 1280, height: 720),
+                layout: OverlayLayout(elements: [element])
+            )
+        )
+        let pixelBuffer = try makePixelBuffer(width: 1280, height: 720)
+
+        try renderer.render(videoTime: 4, into: pixelBuffer)
+        XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
+    }
+
     func testRouteDownsampleHonorsLimitAndKeepsEndpoints() {
         let samples = makeSamples(count: 1_799)
 
@@ -197,6 +224,31 @@ final class OverlayRendererTests: XCTestCase {
                 (lhs.maxX - lhs.minX) < (rhs.maxX - rhs.minX)
             }!
         }.sorted { $0.minX < $1.minX }
+    }
+
+    private func drawnPixelCount(pixelBuffer: CVPixelBuffer) throws -> Int {
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+            throw OverlayVideoError.cannotCreatePixelBuffer
+        }
+
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let bytes = baseAddress.assumingMemoryBound(to: UInt8.self)
+        var count = 0
+        for row in 0..<height {
+            let rowStart = row * bytesPerRow
+            for x in 0..<width {
+                let offset = rowStart + x * 4
+                if bytes[offset] > 2 || bytes[offset + 1] > 2 || bytes[offset + 2] > 2 || bytes[offset + 3] > 2 {
+                    count += 1
+                }
+            }
+        }
+        return count
     }
 
     private func makePixelBuffer(width: Int, height: Int) throws -> CVPixelBuffer {
