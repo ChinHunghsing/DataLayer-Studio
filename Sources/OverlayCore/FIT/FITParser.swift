@@ -10,6 +10,7 @@ struct FITLocalMessageDefinition {
     var endian: FITEndian
     var globalMessageNumber: UInt16
     var fields: [FITFieldDefinition]
+    var developerFieldSizes: [UInt8]
 }
 
 struct RawFITRecord {
@@ -234,15 +235,22 @@ public final class FITParser {
             ))
         }
 
+        var developerFieldSizes: [UInt8] = []
         if hasDeveloperData {
             let developerFieldCount = Int(try reader.readUInt8())
-            try reader.skip(count: developerFieldCount * 3)
+            developerFieldSizes.reserveCapacity(developerFieldCount)
+            for _ in 0..<developerFieldCount {
+                _ = try reader.readUInt8()
+                developerFieldSizes.append(try reader.readUInt8())
+                _ = try reader.readUInt8()
+            }
         }
 
         return FITLocalMessageDefinition(
             endian: endian,
             globalMessageNumber: globalMessageNumber,
-            fields: fields
+            fields: fields,
+            developerFieldSizes: developerFieldSizes
         )
     }
 
@@ -333,6 +341,10 @@ public final class FITParser {
             default:
                 continue
             }
+        }
+
+        for size in definition.developerFieldSizes {
+            try reader.skip(count: Int(size))
         }
 
         record.timestamp = timestamp

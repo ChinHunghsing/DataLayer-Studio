@@ -145,6 +145,29 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 2).distanceMeters ?? -1, 4, accuracy: 0.001)
     }
 
+    func testSkipsDeveloperFieldValuesInRecordMessages() throws {
+        var content = Data()
+        appendDeveloperRecordDefinition(localMessageType: 0, to: &content)
+        appendRecordWithDeveloperByte(
+            TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 150, cadence: 80),
+            localMessageType: 0,
+            developerValue: 45,
+            to: &content
+        )
+        appendRecordWithDeveloperByte(
+            TestRecord(timestamp: 1_000_002, latitude: 35.0001, longitude: 139.0001, distanceMeters: 6, speed: 3.2, heartRate: 151, cadence: 81),
+            localMessageType: 0,
+            developerValue: 46,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.samples.count, 3)
+        XCTAssertEqual(series.sample(at: 2).distanceMeters ?? -1, 6, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 2).heartRate, 151)
+    }
+
     func testRejectsCRCByDefault() throws {
         var fit = makeFITFile(records: [
             TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 150, cadence: 80)
@@ -205,6 +228,23 @@ private func appendStandardRecordDefinition(localMessageType: UInt8, to content:
     content.append(contentsOf: [6, 2, 0x84])
     content.append(contentsOf: [3, 1, 0x02])
     content.append(contentsOf: [4, 1, 0x02])
+}
+
+private func appendDeveloperRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x60 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(20, to: &content)
+    content.append(7)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [0, 4, 0x85])
+    content.append(contentsOf: [1, 4, 0x85])
+    content.append(contentsOf: [5, 4, 0x86])
+    content.append(contentsOf: [6, 2, 0x84])
+    content.append(contentsOf: [3, 1, 0x02])
+    content.append(contentsOf: [4, 1, 0x02])
+    content.append(1)
+    content.append(contentsOf: [0, 1, 0])
 }
 
 private func appendCompressedSpeedDistanceRecordDefinition(localMessageType: UInt8, to content: inout Data) {
@@ -284,6 +324,16 @@ private func appendRecord(_ record: TestRecord, localMessageType: UInt8, to cont
     appendUInt16(UInt16((record.speed * 1000).rounded()), to: &content)
     content.append(record.heartRate)
     content.append(record.cadence)
+}
+
+private func appendRecordWithDeveloperByte(
+    _ record: TestRecord,
+    localMessageType: UInt8,
+    developerValue: UInt8,
+    to content: inout Data
+) {
+    appendRecord(record, localMessageType: localMessageType, to: &content)
+    content.append(developerValue)
 }
 
 private func appendCompressedSpeedDistanceRecord(

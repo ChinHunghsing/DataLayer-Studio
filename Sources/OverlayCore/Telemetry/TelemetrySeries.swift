@@ -30,7 +30,8 @@ public struct TelemetrySeries {
         let normalized = TelemetrySeries.normalized(samples: sorted)
         let speedEnriched = TelemetrySeries.enrichedWithDistanceDerivedSpeed(samples: normalized)
         let resampled = TelemetrySeries.resampled(samples: speedEnriched, interval: Self.resampleInterval)
-        self.samples = TelemetrySeries.smoothedStartupPace(samples: resampled)
+        let startupSmoothed = TelemetrySeries.smoothedStartupPace(samples: resampled)
+        self.samples = TelemetrySeries.trimmedIncompleteTail(samples: startupSmoothed)
         self.bounds = TelemetrySeries.computeBounds(samples: self.samples)
     }
 
@@ -319,6 +320,22 @@ public struct TelemetrySeries {
         return speed > targetSpeed * 1.75
     }
 
+    private static func trimmedIncompleteTail(samples: [TelemetrySample]) -> [TelemetrySample] {
+        guard samples.count > 1 else { return samples }
+
+        let expected = ExpectedTelemetryChannels(samples: samples)
+        guard expected.hasRequiredChannel else { return samples }
+
+        var lastCompleteIndex = samples.count - 1
+        while lastCompleteIndex > 0,
+              !expected.isComplete(samples[lastCompleteIndex]) {
+            lastCompleteIndex -= 1
+        }
+
+        guard lastCompleteIndex < samples.count - 1 else { return samples }
+        return Array(samples[...lastCompleteIndex])
+    }
+
     private static func resampled(samples: [TelemetrySample], interval: TimeInterval) -> [TelemetrySample] {
         guard samples.count > 1, interval > 0 else { return samples }
 
@@ -389,5 +406,35 @@ public struct TelemetrySeries {
         let a = sin(deltaPhi / 2) * sin(deltaPhi / 2)
             + cos(phi1) * cos(phi2) * sin(deltaLambda / 2) * sin(deltaLambda / 2)
         return radius * 2 * atan2(sqrt(a), sqrt(1 - a))
+    }
+}
+
+private struct ExpectedTelemetryChannels {
+    let needsPosition: Bool
+    let needsHeartRate: Bool
+    let needsCadence: Bool
+    let needsDistance: Bool
+    let needsSpeed: Bool
+
+    init(samples: [TelemetrySample]) {
+        let threshold = max(1, Int((Double(samples.count) * 0.5).rounded(.up)))
+        needsPosition = samples.filter { $0.latitude != nil && $0.longitude != nil }.count >= threshold
+        needsHeartRate = samples.filter { $0.heartRate != nil }.count >= threshold
+        needsCadence = samples.filter { $0.cadence != nil }.count >= threshold
+        needsDistance = samples.filter { $0.distanceMeters?.isFinite == true }.count >= threshold
+        needsSpeed = samples.filter { $0.speedMetersPerSecond?.isFinite == true }.count >= threshold
+    }
+
+    var hasRequiredChannel: Bool {
+        needsPosition || needsHeartRate || needsCadence || needsDistance || needsSpeed
+    }
+
+    func isComplete(_ sample: TelemetrySample) -> Bool {
+        if needsPosition, sample.latitude == nil || sample.longitude == nil { return false }
+        if needsHeartRate, sample.heartRate == nil { return false }
+        if needsCadence, sample.cadence == nil { return false }
+        if needsDistance, sample.distanceMeters?.isFinite != true { return false }
+        if needsSpeed, sample.speedMetersPerSecond?.isFinite != true { return false }
+        return true
     }
 }
