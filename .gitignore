@@ -2,6 +2,7 @@
 .DS_Store
 
 # >>> ColaMeta local state >>>
+.colameta/
 .colameta/state.json
 .colameta/runtime/**
 .colameta/logs/**

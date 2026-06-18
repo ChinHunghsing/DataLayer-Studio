@@ -91,6 +91,27 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertGreaterThan(1000 / oneSecondSpeed, 1000 / threeSecondSpeed)
     }
 
+    func testStartupPaceIgnoresSpeedSpikeBeforeDistanceMoves() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0),
+            TelemetrySample(elapsed: 1, distanceMeters: 120, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 2, distanceMeters: 120, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 3, distanceMeters: 120, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 4, distanceMeters: 120, speedMetersPerSecond: 12),
+            TelemetrySample(elapsed: 5, distanceMeters: 132, speedMetersPerSecond: 2)
+        ])
+
+        let threeSecondSpeed = series.sample(at: 3).speedMetersPerSecond ?? -1
+        let fourSecondSpeed = series.sample(at: 4).speedMetersPerSecond ?? -1
+        let fiveSecondSpeed = series.sample(at: 5).speedMetersPerSecond ?? -1
+
+        XCTAssertGreaterThan(threeSecondSpeed, 0.3)
+        XCTAssertGreaterThan(fourSecondSpeed, threeSecondSpeed)
+        XCTAssertGreaterThan(fiveSecondSpeed, fourSecondSpeed)
+        XCTAssertLessThan(fourSecondSpeed, 2)
+        XCTAssertEqual(series.sample(at: 4).distanceMeters ?? -1, 0, accuracy: 0.001)
+    }
+
     func testKeepsImplausibleStartupDistanceAsBaselineOffset() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0),

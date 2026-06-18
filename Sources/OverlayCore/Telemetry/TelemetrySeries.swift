@@ -15,6 +15,9 @@ public struct TelemetrySeries {
     private static let startupRampMinimumSpeedMetersPerSecond = 0.35
     private static let startupRampSpeedRatio = 0.25
     private static let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
+    private static let maximumStartupPaceSmoothingElapsed: TimeInterval = 10
+    private static let startupPaceSmoothingExponent = 1.7
+    private static let distanceEpsilon = 0.001
 
     public init(samples: [TelemetrySample]) {
         let sorted = samples.sorted { lhs, rhs in
@@ -26,7 +29,8 @@ public struct TelemetrySeries {
 
         let normalized = TelemetrySeries.normalized(samples: sorted)
         let speedEnriched = TelemetrySeries.enrichedWithDistanceDerivedSpeed(samples: normalized)
-        self.samples = TelemetrySeries.resampled(samples: speedEnriched, interval: Self.resampleInterval)
+        let resampled = TelemetrySeries.resampled(samples: speedEnriched, interval: Self.resampleInterval)
+        self.samples = TelemetrySeries.smoothedStartupPace(samples: resampled)
         self.bounds = TelemetrySeries.computeBounds(samples: self.samples)
     }
 
@@ -252,6 +256,67 @@ public struct TelemetrySeries {
             segmentSpeed,
             max(startupRampMinimumSpeedMetersPerSecond, segmentSpeed * startupRampSpeedRatio)
         )
+    }
+
+    private static func smoothedStartupPace(samples: [TelemetrySample]) -> [TelemetrySample] {
+        guard samples.count > 1,
+              let targetIndex = samples.firstIndex(where: { sample in
+                  guard let distance = sample.distanceMeters, distance > distanceEpsilon else { return false }
+                  let speed = sample.speedMetersPerSecond ?? (sample.elapsed > 0 ? distance / sample.elapsed : nil)
+                  guard let speed, speed.isFinite else { return false }
+                  return speed >= minimumMovingSpeedMetersPerSecond
+                      && speed <= maximumPlausibleStartupSpeedMetersPerSecond
+              }) else {
+            return samples
+        }
+
+        let target = samples[targetIndex]
+        guard targetIndex > 0,
+              target.elapsed > 0,
+              target.elapsed <= maximumStartupPaceSmoothingElapsed else {
+            return samples
+        }
+        guard samples[..<targetIndex].allSatisfy({ ($0.distanceMeters ?? 0) <= distanceEpsilon }) else {
+            return samples
+        }
+
+        let targetSpeed = target.speedMetersPerSecond ?? ((target.distanceMeters ?? 0) / target.elapsed)
+        guard targetSpeed.isFinite,
+              targetSpeed >= minimumMovingSpeedMetersPerSecond,
+              targetSpeed <= maximumPlausibleStartupSpeedMetersPerSecond else {
+            return samples
+        }
+        guard samples[..<targetIndex].contains(where: { sample in
+            shouldReplaceStartupSpeed(sample.speedMetersPerSecond, targetSpeed: targetSpeed)
+                && (sample.distanceMeters ?? 0) <= distanceEpsilon
+                && (sample.speedMetersPerSecond ?? 0) > targetSpeed
+        }) else {
+            return samples
+        }
+
+        let startSpeed = min(
+            targetSpeed,
+            max(startupRampMinimumSpeedMetersPerSecond, targetSpeed * startupRampSpeedRatio)
+        )
+
+        var output = samples
+        for index in 0..<targetIndex {
+            let sample = samples[index]
+            let progress = min(1, max(0, sample.elapsed / target.elapsed))
+            let easedProgress = pow(progress, startupPaceSmoothingExponent)
+            let rampSpeed = startSpeed + ((targetSpeed - startSpeed) * easedProgress)
+            if shouldReplaceStartupSpeed(sample.speedMetersPerSecond, targetSpeed: targetSpeed)
+                || (sample.distanceMeters ?? 0) <= distanceEpsilon {
+                output[index].speedMetersPerSecond = rampSpeed
+            }
+        }
+        return output
+    }
+
+    private static func shouldReplaceStartupSpeed(_ speed: Double?, targetSpeed: Double) -> Bool {
+        guard let speed, speed.isFinite else { return true }
+        guard speed >= minimumMovingSpeedMetersPerSecond else { return true }
+        return speed > targetSpeed * 1.75
     }
 
     private static func resampled(samples: [TelemetrySample], interval: TimeInterval) -> [TelemetrySample] {
