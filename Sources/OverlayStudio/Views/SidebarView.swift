@@ -7,38 +7,67 @@ struct SidebarView: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 18) {
-                fileSection
-                    .disabled(model.isExporting)
-                syncSection
-                    .disabled(model.isExporting)
-                previewSection
-                layoutPresetSection
-                    .disabled(model.isExporting)
-                outputSection
-                    .disabled(model.isExporting)
-                exportSection
+            VStack(alignment: .leading, spacing: 24) {
+                SidebarWorkflowSection(
+                    step: "1",
+                    title: "Source",
+                    subtitle: "Video and FIT activity data",
+                    systemImage: "film.stack"
+                ) {
+                    fileSection
+                }
+                .disabled(model.isExporting)
+
+                SidebarWorkflowSection(
+                    step: "2",
+                    title: "Sync",
+                    subtitle: "Align recording time with activity time",
+                    systemImage: "timer"
+                ) {
+                    syncSection
+                }
+                .disabled(model.isExporting)
+
+                SidebarWorkflowSection(
+                    step: "3",
+                    title: "Canvas",
+                    subtitle: "Preview grid and reusable gauge layouts",
+                    systemImage: "rectangle.dashed"
+                ) {
+                    canvasSection
+                }
+
+                SidebarWorkflowSection(
+                    step: "4",
+                    title: "Export",
+                    subtitle: "Transparent overlay render settings",
+                    systemImage: "paperplane"
+                ) {
+                    exportWorkflowSection
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
-            .padding(.vertical, 18)
+            .padding(.vertical, 20)
         }
         .controlSize(.small)
     }
 
     private var fileSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "Inputs", systemImage: "folder")
-
+        VStack(alignment: .leading, spacing: 8) {
             FilePickRow(
                 title: "Video",
                 subtitle: model.videoURL?.lastPathComponent ?? "Choose source video",
+                systemImage: "film",
+                isLoaded: model.videoURL != nil,
                 action: model.chooseVideo
             )
 
             FilePickRow(
                 title: "FIT",
                 subtitle: model.fitURL?.lastPathComponent ?? "Choose activity.fit",
+                systemImage: "figure.run",
+                isLoaded: model.fitURL != nil,
                 action: model.chooseFIT
             )
         }
@@ -46,8 +75,6 @@ struct SidebarView: View {
 
     private var syncSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Time Sync", systemImage: "timer")
-
             SidebarControl(title: "Mode") {
                 Picker("Mode", selection: $model.syncMode) {
                     ForEach(SyncMode.allCases) { mode in
@@ -77,6 +104,7 @@ struct SidebarView: View {
                 Text("Positive means video starts before FIT. Negative means video starts mid-activity.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             case .fitStart:
                 NumberField(title: "Video 0 = FIT", suffix: "s", value: doubleBinding(
                     get: { model.fitStartSeconds },
@@ -99,8 +127,8 @@ struct SidebarView: View {
     }
 
     private var outputSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Output", systemImage: "slider.horizontal.3")
+        VStack(alignment: .leading, spacing: 12) {
+            SidebarSubsectionHeader(title: "Video", systemImage: "slider.horizontal.3")
 
             SidebarControl(title: "Resolution") {
                 Picker("Resolution", selection: resolutionPresetSelection) {
@@ -179,9 +207,13 @@ struct SidebarView: View {
                 .labelsHidden()
             }
 
+            SidebarSubsectionHeader(title: "Destination", systemImage: "folder")
+
             FilePickRow(
                 title: "Save as",
                 subtitle: model.outputURL?.lastPathComponent ?? "Ask when exporting",
+                systemImage: "square.and.arrow.down",
+                isLoaded: model.outputURL != nil,
                 action: model.chooseOutput
             )
         }
@@ -189,33 +221,33 @@ struct SidebarView: View {
 
     private var previewSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Preview Grid", systemImage: "grid")
+            SidebarSubsectionHeader(title: "Grid", systemImage: "grid")
 
             Toggle("Show grid", isOn: $model.showGrid)
             Toggle("Snap while dragging", isOn: $model.snapGaugeToGrid)
 
-            Stepper(
-                "Columns: \(model.gridColumns)",
+            SidebarStepperRow(
+                title: "Columns",
                 value: Binding(
                     get: { model.gridColumns },
                     set: { model.setGridColumns($0) }
                 ),
-                in: 2...64
+                range: 2...64
             )
-            Stepper(
-                "Rows: \(model.gridRows)",
+            SidebarStepperRow(
+                title: "Rows",
                 value: Binding(
                     get: { model.gridRows },
                     set: { model.setGridRows($0) }
                 ),
-                in: 2...64
+                range: 2...64
             )
         }
     }
 
     private var layoutPresetSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Layout Presets", systemImage: "rectangle.3.group")
+            SidebarSubsectionHeader(title: "Presets", systemImage: "rectangle.3.group")
 
             HStack(spacing: 8) {
                 TextField("Preset name", text: $layoutPresetName)
@@ -271,6 +303,24 @@ struct SidebarView: View {
         }
     }
 
+    private var canvasSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            previewSection
+            SidebarDivider()
+            layoutPresetSection
+                .disabled(model.isExporting)
+        }
+    }
+
+    private var exportWorkflowSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            outputSection
+                .disabled(model.isExporting)
+            SidebarDivider()
+            exportSection
+        }
+    }
+
     private var resolutionPresetSelection: Binding<String> {
         Binding(
             get: { model.selectedResolutionPresetID },
@@ -314,7 +364,8 @@ struct SidebarView: View {
 
     private var exportSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Render", systemImage: "paperplane")
+            SidebarSubsectionHeader(title: "Render", systemImage: "paperplane")
+
             if model.isExporting {
                 VStack(alignment: .leading, spacing: 4) {
                     ProgressView(value: clampedExportProgress)
@@ -376,25 +427,74 @@ struct SidebarView: View {
     }
 }
 
-struct SectionHeader: View {
+struct SidebarWorkflowSection<Content: View>: View {
+    var step: String
+    var title: String
+    var subtitle: String
+    var systemImage: String
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                Text(step)
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 24)
+                    .background(Color.secondary.opacity(0.16), in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Label(title, systemImage: systemImage)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct SidebarSubsectionHeader: View {
     var title: String
     var systemImage: String
 
     var body: some View {
         Label(title, systemImage: systemImage)
-            .font(.headline)
-            .foregroundStyle(.primary)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+    }
+}
+
+struct SidebarDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.vertical, 2)
     }
 }
 
 struct FilePickRow: View {
     var title: String
     var subtitle: String
+    var systemImage: String
+    var isLoaded: Bool
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(isLoaded ? Color.accentColor : Color.secondary)
+                    .frame(width: 18)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
@@ -404,14 +504,39 @@ struct FilePickRow: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.tertiary)
+                Image(systemName: isLoaded ? "checkmark.circle.fill" : "chevron.right")
+                    .foregroundStyle(isLoaded ? Color.accentColor : Color.secondary.opacity(0.65))
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+struct SidebarStepperRow: View {
+    var title: String
+    @Binding var value: Int
+    var range: ClosedRange<Int>
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .lineLimit(1)
+                .frame(width: SidebarFormMetrics.labelWidth, alignment: .leading)
+
+            Text("\(value)")
+                .font(.body.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 32, alignment: .trailing)
+
+            Spacer(minLength: 8)
+
+            Stepper(title, value: $value, in: range)
+                .labelsHidden()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -661,7 +786,7 @@ struct CompactNumberIntField: View {
 }
 
 private enum SidebarFormMetrics {
-    static let labelWidth: CGFloat = 78
+    static let labelWidth: CGFloat = 94
     static let shortSuffixWidth: CGFloat = 34
-    static let longSuffixWidth: CGFloat = 48
+    static let longSuffixWidth: CGFloat = 54
 }

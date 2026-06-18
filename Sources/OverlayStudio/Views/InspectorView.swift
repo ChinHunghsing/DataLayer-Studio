@@ -7,11 +7,13 @@ struct InspectorView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 selectedElementHeader
+                Divider()
                 selectedElementSettings
             }
-            .padding(18)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
         }
     }
 
@@ -94,8 +96,7 @@ struct InspectorView: View {
             .help("Delete selected element")
         }
         .buttonStyle(.borderless)
-        .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.bottom, 2)
     }
 
     @ViewBuilder
@@ -108,9 +109,8 @@ struct InspectorView: View {
             Text("Click a visible gauge in the preview canvas, or add a new element.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(12)
+                .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
     }
 
@@ -172,6 +172,73 @@ struct InspectorView: View {
                     label: "\(Int(((currentElement(id)?.customization.lengthScale ?? 1) * 100).rounded()))%",
                     showsTextField: true
                 )
+            }
+        }
+
+        InspectorGroup(section: .content, expandedSections: $expandedSections) {
+            Toggle("Label", isOn: boolBinding(
+                id: id,
+                get: { $0.customization.showsLabel },
+                set: { $0.customization.showsLabel = $1 }
+            ))
+
+            if currentElement(id)?.customization.showsLabel == true {
+                TextField("Label text", text: stringBinding(
+                    id: id,
+                    get: { $0.customization.labelOverride ?? "" },
+                    set: { element, value in
+                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        element.customization.labelOverride = trimmed.isEmpty ? nil : trimmed
+                    }
+                ))
+                .textFieldStyle(.roundedBorder)
+            }
+
+            let unitToggleTitle = switch kind {
+            case .topProgress:
+                "End label"
+            case .timeDate:
+                "Clock & date"
+            default:
+                "Unit"
+            }
+
+            Toggle(unitToggleTitle, isOn: boolBinding(
+                id: id,
+                get: { $0.customization.showsUnit },
+                set: { $0.customization.showsUnit = $1 }
+            ))
+
+            if currentElement(id)?.customization.showsUnit == true,
+               kind != .topProgress,
+               kind != .timeDate {
+                TextField("Unit text", text: stringBinding(
+                    id: id,
+                    get: { $0.customization.unitOverride ?? "" },
+                    set: { element, value in
+                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        element.customization.unitOverride = trimmed.isEmpty ? nil : trimmed
+                    }
+                ))
+                .textFieldStyle(.roundedBorder)
+            }
+
+            Toggle("Icon", isOn: boolBinding(
+                id: id,
+                get: { $0.customization.showsIcon },
+                set: { $0.customization.showsIcon = $1 }
+            ))
+
+            if currentElement(id)?.customization.showsIcon == true {
+                TextField("Icon text", text: stringBinding(
+                    id: id,
+                    get: { $0.customization.iconOverride ?? "" },
+                    set: { element, value in
+                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        element.customization.iconOverride = trimmed.isEmpty ? nil : trimmed
+                    }
+                ))
+                .textFieldStyle(.roundedBorder)
             }
         }
 
@@ -278,73 +345,6 @@ struct InspectorView: View {
                         label: "\(currentElement(id)?.customization.progressTickCount ?? 48)"
                     )
                 }
-            }
-        }
-
-        InspectorGroup(section: .content, expandedSections: $expandedSections) {
-            Toggle("Label", isOn: boolBinding(
-                id: id,
-                get: { $0.customization.showsLabel },
-                set: { $0.customization.showsLabel = $1 }
-            ))
-
-            if currentElement(id)?.customization.showsLabel == true {
-                TextField("Label text", text: stringBinding(
-                    id: id,
-                    get: { $0.customization.labelOverride ?? "" },
-                    set: { element, value in
-                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        element.customization.labelOverride = trimmed.isEmpty ? nil : trimmed
-                    }
-                ))
-                .textFieldStyle(.roundedBorder)
-            }
-
-            let unitToggleTitle = switch kind {
-            case .topProgress:
-                "End label"
-            case .timeDate:
-                "Clock & date"
-            default:
-                "Unit"
-            }
-
-            Toggle(unitToggleTitle, isOn: boolBinding(
-                id: id,
-                get: { $0.customization.showsUnit },
-                set: { $0.customization.showsUnit = $1 }
-            ))
-
-            if currentElement(id)?.customization.showsUnit == true,
-               kind != .topProgress,
-               kind != .timeDate {
-                TextField("Unit text", text: stringBinding(
-                    id: id,
-                    get: { $0.customization.unitOverride ?? "" },
-                    set: { element, value in
-                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        element.customization.unitOverride = trimmed.isEmpty ? nil : trimmed
-                    }
-                ))
-                .textFieldStyle(.roundedBorder)
-            }
-
-            Toggle("Icon", isOn: boolBinding(
-                id: id,
-                get: { $0.customization.showsIcon },
-                set: { $0.customization.showsIcon = $1 }
-            ))
-
-            if currentElement(id)?.customization.showsIcon == true {
-                TextField("Icon text", text: stringBinding(
-                    id: id,
-                    get: { $0.customization.iconOverride ?? "" },
-                    set: { element, value in
-                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        element.customization.iconOverride = trimmed.isEmpty ? nil : trimmed
-                    }
-                ))
-                .textFieldStyle(.roundedBorder)
             }
         }
 
@@ -653,28 +653,32 @@ private struct InspectorGroup<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        DisclosureGroup(
-            isExpanded: Binding(
-                get: { expandedSections.contains(section) },
-                set: { isExpanded in
-                    if isExpanded {
-                        expandedSections.insert(section)
-                    } else {
-                        expandedSections.remove(section)
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { expandedSections.contains(section) },
+                    set: { isExpanded in
+                        if isExpanded {
+                            expandedSections.insert(section)
+                        } else {
+                            expandedSections.remove(section)
+                        }
                     }
+                )
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    content()
                 }
-            )
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                content()
+                .padding(.top, 10)
+                .padding(.leading, 1)
+            } label: {
+                Label(section.title, systemImage: section.systemImage)
+                    .font(.subheadline.weight(.semibold))
             }
-            .padding(.top, 8)
-        } label: {
-            Label(section.title, systemImage: section.systemImage)
-                .font(.subheadline.weight(.semibold))
+            .padding(.vertical, 8)
+
+            Divider()
         }
-        .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
