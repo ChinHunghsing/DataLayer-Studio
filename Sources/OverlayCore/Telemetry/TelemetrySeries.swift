@@ -29,7 +29,8 @@ public struct TelemetrySeries {
 
         let normalized = TelemetrySeries.normalized(samples: sorted)
         let speedEnriched = TelemetrySeries.enrichedWithDistanceDerivedSpeed(samples: normalized)
-        let resampled = TelemetrySeries.resampled(samples: speedEnriched, interval: Self.resampleInterval)
+        let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(samples: speedEnriched, interval: Self.resampleInterval)
+        let resampled = TelemetrySeries.resampled(samples: cadenceEnriched, interval: Self.resampleInterval)
         let startupSmoothed = TelemetrySeries.smoothedStartupPace(samples: resampled)
         self.samples = TelemetrySeries.trimmedIncompleteTail(samples: startupSmoothed)
         self.bounds = TelemetrySeries.computeBounds(samples: self.samples)
@@ -112,7 +113,7 @@ public struct TelemetrySeries {
             longitude: interpolate(a.longitude, b.longitude, fraction: fraction),
             altitudeMeters: interpolate(a.altitudeMeters, b.altitudeMeters, fraction: fraction),
             heartRate: nearest(a.heartRate, b.heartRate, fraction: fraction),
-            cadence: nearest(a.cadence, b.cadence, fraction: fraction),
+            cadence: interpolateCadence(a.cadence, b.cadence, fraction: fraction),
             distanceMeters: interpolate(a.distanceMeters, b.distanceMeters, fraction: fraction),
             speedMetersPerSecond: interpolate(a.speedMetersPerSecond, b.speedMetersPerSecond, fraction: fraction),
             powerWatts: nearest(a.powerWatts, b.powerWatts, fraction: fraction),
@@ -135,6 +136,17 @@ public struct TelemetrySeries {
 
     private static func nearest(_ a: Int?, _ b: Int?, fraction: Double) -> Int? {
         fraction < 0.5 ? (a ?? b) : (b ?? a)
+    }
+
+    private static func interpolateCadence(_ a: Int?, _ b: Int?, fraction: Double) -> Int? {
+        guard let lhs = a, let rhs = b else {
+            return nearest(a, b, fraction: fraction)
+        }
+        guard lhs == 0 || rhs == 0 else {
+            return nearest(a, b, fraction: fraction)
+        }
+        let value = Double(lhs) + (Double(rhs - lhs) * fraction)
+        return max(0, Int(value.rounded()))
     }
 
     private static func interpolatedDate(_ a: Date?, _ b: Date?, fraction: Double) -> Date? {
@@ -301,6 +313,96 @@ public struct TelemetrySeries {
             segmentSpeed,
             max(startupRampMinimumSpeedMetersPerSecond, segmentSpeed * startupRampSpeedRatio)
         )
+    }
+
+    private static func enrichedWithStartupCadence(
+        samples: [TelemetrySample],
+        interval: TimeInterval
+    ) -> [TelemetrySample] {
+        guard samples.count > 1,
+              interval > 0,
+              let first = samples.first,
+              let targetIndex = samples.firstIndex(where: { ($0.cadence ?? 0) > 0 }),
+              targetIndex > 0 else {
+            return samples
+        }
+
+        let target = samples[targetIndex]
+        guard let targetCadence = target.cadence,
+              targetCadence > 0,
+              target.elapsed > first.elapsed else {
+            return samples
+        }
+        guard samples[..<targetIndex].allSatisfy({ ($0.cadence ?? 0) <= 0 }) else {
+            return samples
+        }
+
+        var output = samples
+        for index in 0..<targetIndex {
+            output[index].cadence = startupCadence(
+                at: output[index].elapsed,
+                firstElapsed: first.elapsed,
+                targetElapsed: target.elapsed,
+                targetCadence: targetCadence
+            )
+        }
+
+        var elapsed = first.elapsed + interval
+        while elapsed < target.elapsed {
+            if !output.contains(where: { abs($0.elapsed - elapsed) < 0.000_001 }) {
+                var sample = interpolatedSample(samples: samples, elapsed: elapsed)
+                sample.cadence = startupCadence(
+                    at: elapsed,
+                    firstElapsed: first.elapsed,
+                    targetElapsed: target.elapsed,
+                    targetCadence: targetCadence
+                )
+                output.append(sample)
+            }
+            elapsed += interval
+        }
+
+        return output.sorted { lhs, rhs in
+            if lhs.elapsed == rhs.elapsed {
+                return (lhs.date ?? .distantPast) < (rhs.date ?? .distantPast)
+            }
+            return lhs.elapsed < rhs.elapsed
+        }
+    }
+
+    private static func startupCadence(
+        at elapsed: TimeInterval,
+        firstElapsed: TimeInterval,
+        targetElapsed: TimeInterval,
+        targetCadence: Int
+    ) -> Int {
+        let span = max(targetElapsed - firstElapsed, 0.000_001)
+        let progress = min(1, max(0, (elapsed - firstElapsed) / span))
+        return max(0, Int((Double(targetCadence) * progress).rounded()))
+    }
+
+    private static func interpolatedSample(samples: [TelemetrySample], elapsed: TimeInterval) -> TelemetrySample {
+        guard let first = samples.first else { return TelemetrySample(elapsed: elapsed) }
+        guard let last = samples.last else { return first }
+        guard elapsed > first.elapsed else { return first }
+        guard elapsed < last.elapsed else { return last }
+
+        var low = 0
+        var high = samples.count - 1
+        while low + 1 < high {
+            let mid = (low + high) / 2
+            if samples[mid].elapsed <= elapsed {
+                low = mid
+            } else {
+                high = mid
+            }
+        }
+
+        let a = samples[low]
+        let b = samples[high]
+        let span = max(b.elapsed - a.elapsed, 0.000_001)
+        let fraction = min(1, max(0, (elapsed - a.elapsed) / span))
+        return interpolate(a, b, fraction: fraction, elapsed: elapsed)
     }
 
     private static func smoothedStartupPace(samples: [TelemetrySample]) -> [TelemetrySample] {

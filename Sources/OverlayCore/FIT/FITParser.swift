@@ -404,7 +404,7 @@ public final class FITParser {
                 longitude: firstRecord.longitude,
                 altitudeMeters: firstRecord.altitudeMeters,
                 heartRate: firstRecord.heartRate,
-                cadence: cadenceStepsPerMinute(firstRecord),
+                cadence: cadenceStepsPerMinute(firstRecord).map { _ in 0 },
                 distanceMeters: syntheticStartDistance(firstRecord, elapsed: firstSample.elapsed),
                 speedMetersPerSecond: firstRecord.speedMetersPerSecond,
                 powerWatts: firstRecord.powerWatts,

@@ -86,6 +86,32 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 3).distanceMeters ?? -1, 15, accuracy: 0.001)
     }
 
+    func testBackfillsStartupCadenceFromZeroBeforeFirstCadenceRecord() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, cadence: 0),
+            TelemetrySample(elapsed: 6, cadence: 180)
+        ])
+
+        XCTAssertEqual(series.sample(at: 0).cadence, 0)
+        XCTAssertEqual(series.sample(at: 1).cadence, 30)
+        XCTAssertEqual(series.sample(at: 2).cadence, 60)
+        XCTAssertEqual(series.sample(at: 3).cadence, 90)
+        XCTAssertEqual(series.sample(at: 6).cadence, 180)
+    }
+
+    func testBackfillsStartupCadenceWhenFirstRecordsHaveNoCadence() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0),
+            TelemetrySample(elapsed: 2),
+            TelemetrySample(elapsed: 6, cadence: 180)
+        ])
+
+        XCTAssertEqual(series.sample(at: 0).cadence, 0)
+        XCTAssertEqual(series.sample(at: 1).cadence, 30)
+        XCTAssertEqual(series.sample(at: 2).cadence, 60)
+        XCTAssertEqual(series.sample(at: 3).cadence, 90)
+    }
+
     func testStartupPaceRampsFromSlowToFastWhenDistanceArrivesLate() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0),

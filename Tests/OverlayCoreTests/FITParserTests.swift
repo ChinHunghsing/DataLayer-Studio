@@ -58,11 +58,14 @@ final class FITParserTests: XCTestCase {
 
         let series = try FITParser().parse(data: makeFITFile(content: content))
         let start = series.sample(at: 0)
+        let halfway = series.sample(at: 4)
         let firstRecordTime = series.sample(at: 8)
 
         XCTAssertEqual(series.samples.first?.elapsed, 0)
         XCTAssertEqual(start.speedMetersPerSecond ?? -1, 3.0, accuracy: 0.001)
         XCTAssertEqual(start.distanceMeters ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(start.cadence, 0)
+        XCTAssertEqual(halfway.cadence, 84)
         XCTAssertEqual(firstRecordTime.heartRate, 151)
         XCTAssertEqual(firstRecordTime.cadence, 168)
     }
