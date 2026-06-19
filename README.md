@@ -12,6 +12,31 @@ endorsed by, or sponsored by Telemetry Overlay or its developers. This project
 does not read from or modify `/Applications/Telemetry Overlay.app`, and it does
 not include proprietary code or assets from Telemetry Overlay.
 
+## Support / 赞助
+
+DataLayer Studio is maintained as an independent source-available project. If it
+helps your running-video workflow, sponsorship helps fund testing, sample
+activities, and ongoing maintenance.
+
+DataLayer Studio 是一个独立维护的 source-available 项目。如果它对你的跑步视频制作有帮助，
+欢迎通过赞助支持后续测试、样本整理和持续维护。
+
+[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo)
+
+For WeChat Pay or Alipay, scan one of the QR codes below.
+
+如果你更方便使用微信或支付宝，可以扫描下面的二维码支持项目。
+
+| WeChat Pay / 微信 | Alipay / 支付宝 |
+| --- | --- |
+| <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsor QR code" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsor QR code" width="180"> |
+
+Sponsorship is optional and does not purchase a commercial license, priority
+support, or guaranteed feature work. Commercial use still requires a separate
+written license.
+
+赞助是自愿支持，不等同于购买商业授权、优先支持或功能承诺。商业使用仍需另行获得书面授权。
+
 ## License
 
 DataLayer Studio is source-available for noncommercial use only. Modified
