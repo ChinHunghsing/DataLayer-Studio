@@ -378,21 +378,37 @@ public final class TransparentVideoWriter {
 
     private func installCompletedOutput(from temporaryOutputURL: URL) throws {
         let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: outputURL.path) {
-            _ = try fileManager.replaceItemAt(
-                outputURL,
-                withItemAt: temporaryOutputURL,
-                backupItemName: nil,
-                options: []
-            )
-        } else {
-            try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
+        do {
+            try fileManager.removeItem(at: outputURL)
+        } catch {
+            if !isMissingFileError(error) {
+                throw error
+            }
         }
+
+        try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
     }
 
     private func removePartialOutput(at url: URL) {
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
         try? FileManager.default.removeItem(at: url)
+    }
+
+    private func isMissingFileError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain,
+           nsError.code == CocoaError.Code.fileNoSuchFile.rawValue {
+            return true
+        }
+        if nsError.domain == NSPOSIXErrorDomain,
+           nsError.code == Int(POSIXErrorCode.ENOENT.rawValue) {
+            return true
+        }
+        if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError,
+           underlyingError.domain == NSPOSIXErrorDomain,
+           underlyingError.code == Int(POSIXErrorCode.ENOENT.rawValue) {
+            return true
+        }
+        return false
     }
 
     private func describe(error: Error?, codec: OverlayVideoCodec) -> String {
