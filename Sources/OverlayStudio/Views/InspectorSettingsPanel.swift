@@ -90,15 +90,17 @@ struct InspectorSettingsPanel: View {
             ))
 
             if currentElement(id)?.customization.showsLabel == true {
-                TextField(localization.string("inspector.labelText"), text: stringBinding(
-                    id: id,
-                    get: { $0.customization.labelOverride ?? "" },
-                    set: { element, value in
-                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        element.customization.labelOverride = trimmed.isEmpty ? nil : trimmed
-                    }
-                ))
-                .textFieldStyle(.roundedBorder)
+                InspectorTextRow(
+                    title: localization.string("inspector.labelText"),
+                    text: stringBinding(
+                        id: id,
+                        get: { $0.customization.labelOverride ?? "" },
+                        set: { element, value in
+                            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                            element.customization.labelOverride = trimmed.isEmpty ? nil : trimmed
+                        }
+                    )
+                )
             }
 
             let unitToggleTitle = switch kind {
@@ -119,15 +121,17 @@ struct InspectorSettingsPanel: View {
             if currentElement(id)?.customization.showsUnit == true,
                kind != .topProgress,
                kind != .timeDate {
-                TextField(localization.string("inspector.unitText"), text: stringBinding(
-                    id: id,
-                    get: { $0.customization.unitOverride ?? "" },
-                    set: { element, value in
-                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        element.customization.unitOverride = trimmed.isEmpty ? nil : trimmed
-                    }
-                ))
-                .textFieldStyle(.roundedBorder)
+                InspectorTextRow(
+                    title: localization.string("inspector.unitText"),
+                    text: stringBinding(
+                        id: id,
+                        get: { $0.customization.unitOverride ?? "" },
+                        set: { element, value in
+                            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                            element.customization.unitOverride = trimmed.isEmpty ? nil : trimmed
+                        }
+                    )
+                )
             }
 
             Toggle(localization.string("inspector.icon"), isOn: boolBinding(
@@ -137,15 +141,17 @@ struct InspectorSettingsPanel: View {
             ))
 
             if currentElement(id)?.customization.showsIcon == true {
-                TextField(localization.string("inspector.iconText"), text: stringBinding(
-                    id: id,
-                    get: { $0.customization.iconOverride ?? "" },
-                    set: { element, value in
-                        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                        element.customization.iconOverride = trimmed.isEmpty ? nil : trimmed
-                    }
-                ))
-                .textFieldStyle(.roundedBorder)
+                InspectorTextRow(
+                    title: localization.string("inspector.iconText"),
+                    text: stringBinding(
+                        id: id,
+                        get: { $0.customization.iconOverride ?? "" },
+                        set: { element, value in
+                            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                            element.customization.iconOverride = trimmed.isEmpty ? nil : trimmed
+                        }
+                    )
+                )
             }
         }
     }
@@ -334,8 +340,8 @@ struct InspectorSettingsPanel: View {
         if kind.supportsValuePrecision || kind == .speed {
             InspectorGroup(section: .data, expandedSections: $expandedSections) {
                 if kind.supportsValuePrecision {
-                    Stepper(
-                        localization.string("inspector.decimals", currentElement(id)?.customization.valuePrecision ?? kind.defaultPrecision),
+                    InspectorStepperRow(
+                        title: localization.string("inspector.decimalsTitle"),
                         value: intBinding(
                             id: id,
                             get: { $0.customization.valuePrecision ?? kind.defaultPrecision },
@@ -621,11 +627,13 @@ private struct InspectorGroup<Content: View>: View {
             .padding(.vertical, 10)
 
             if isExpanded {
+                Divider()
+                    .overlay(Color.secondary.opacity(0.16))
+
                 VStack(alignment: .leading, spacing: 10) {
                     content()
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 12)
+                .padding(12)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -731,6 +739,59 @@ private struct InspectorColorRow: View {
             ColorPicker(title, selection: $selection)
                 .labelsHidden()
                 .controlSize(.small)
+        }
+    }
+}
+
+private struct InspectorTextRow: View {
+    var title: String
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            TextField(title, text: $text)
+                .textFieldStyle(.roundedBorder)
+                .font(.caption)
+                .frame(maxWidth: 180)
+        }
+    }
+}
+
+private struct InspectorStepperRow: View {
+    var title: String
+    @Binding var value: Int
+    var range: ClosedRange<Int>
+
+    init(title: String, value: Binding<Int>, in range: ClosedRange<Int>) {
+        self.title = title
+        self._value = value
+        self.range = range
+    }
+
+    var body: some View {
+        Stepper(value: $value, in: range) {
+            HStack(spacing: 10) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                Text("\(value)")
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.secondary.opacity(0.10), in: Capsule())
+            }
         }
     }
 }
