@@ -8,6 +8,7 @@ struct InspectorSelectionHeader: View {
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             titleContent
+                .layoutPriority(1)
             Spacer(minLength: 8)
             headerActions
         }
@@ -71,7 +72,7 @@ struct InspectorSelectionHeader: View {
     @ViewBuilder
     private var headerActions: some View {
         if model.selectedElement != nil {
-            HStack(spacing: 6) {
+            InspectorHeaderActionGroup {
                 addElementMenu(compact: true)
                 selectedElementActions
             }
@@ -103,46 +104,44 @@ struct InspectorSelectionHeader: View {
         .help(localization.string("inspector.addElement"))
     }
 
+    @ViewBuilder
     private var selectedElementActions: some View {
-        HStack(spacing: 6) {
-            Button {
-                model.duplicateSelectedElement()
-            } label: {
-                actionIcon("doc.on.doc")
-            }
-            .disabled(model.isExporting)
-            .help(localization.string("inspector.duplicate"))
-
-            Menu {
-                Button {
-                    model.moveSelectedElementForward()
-                } label: {
-                    Label(localization.string("inspector.bringForward"), systemImage: "arrow.up")
-                }
-                .disabled(!canMoveSelectedElementForward || model.isExporting)
-
-                Button {
-                    model.moveSelectedElementBackward()
-                } label: {
-                    Label(localization.string("inspector.sendBackward"), systemImage: "arrow.down")
-                }
-                .disabled(!canMoveSelectedElementBackward || model.isExporting)
-            } label: {
-                actionIcon("square.stack.3d.up")
-            }
-            .menuStyle(.borderlessButton)
-            .disabled(model.isExporting)
-            .help(localization.string("inspector.arrange"))
-
-            Button(role: .destructive) {
-                model.deleteSelectedElement()
-            } label: {
-                actionIcon("trash")
-            }
-            .disabled(model.isExporting)
-            .help(localization.string("inspector.delete"))
+        Button {
+            model.duplicateSelectedElement()
+        } label: {
+            actionIcon("doc.on.doc")
         }
-        .controlSize(.small)
+        .disabled(model.isExporting)
+        .help(localization.string("inspector.duplicate"))
+
+        Menu {
+            Button {
+                model.moveSelectedElementForward()
+            } label: {
+                Label(localization.string("inspector.bringForward"), systemImage: "arrow.up")
+            }
+            .disabled(!canMoveSelectedElementForward || model.isExporting)
+
+            Button {
+                model.moveSelectedElementBackward()
+            } label: {
+                Label(localization.string("inspector.sendBackward"), systemImage: "arrow.down")
+            }
+            .disabled(!canMoveSelectedElementBackward || model.isExporting)
+        } label: {
+            actionIcon("square.stack.3d.up")
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(model.isExporting)
+        .help(localization.string("inspector.arrange"))
+
+        Button(role: .destructive) {
+            model.deleteSelectedElement()
+        } label: {
+            actionIcon("trash")
+        }
+        .disabled(model.isExporting)
+        .help(localization.string("inspector.delete"))
     }
 
     private func symbolBadge(systemName: String) -> some View {
@@ -176,5 +175,23 @@ struct InspectorSelectionHeader: View {
 
     private func elementDisplayTitle(_ element: OverlayElement) -> String {
         element.customization.label(default: localization.string(element.kind.localizationKey))
+    }
+}
+
+private struct InspectorHeaderActionGroup<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        HStack(spacing: 2) {
+            content()
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
+        .background(InspectorStyle.actionGroupFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(InspectorStyle.actionGroupStroke)
+        }
     }
 }
