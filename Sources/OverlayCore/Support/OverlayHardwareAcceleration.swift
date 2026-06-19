@@ -113,17 +113,13 @@ public struct OverlayHardwareProfile: Equatable, Sendable {
 
     private static func highestSupportedAppleGPUFamily(_ device: MTLDevice?) -> Int? {
         guard let device else { return nil }
-        if #available(macOS 15.0, *), device.supportsFamily(.apple10) {
-            return 10
-        }
-        if #available(macOS 14.0, *), device.supportsFamily(.apple9) {
-            return 9
-        }
-        if device.supportsFamily(.apple8) {
-            return 8
-        }
-        if device.supportsFamily(.apple7) {
-            return 7
+        for family in stride(from: 10, through: 7, by: -1) {
+            guard let gpuFamily = MTLGPUFamily(rawValue: 1000 + family) else {
+                continue
+            }
+            if device.supportsFamily(gpuFamily) {
+                return family
+            }
         }
         return nil
     }
