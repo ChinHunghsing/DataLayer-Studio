@@ -153,6 +153,8 @@ grep -q 'swift build -c release --product datalayer-studio' .github/workflows/ci
 grep -q 'swift test' .github/workflows/ci.yml || fail "CI must run swift test"
 grep -q 'scripts/verify_source_available_readiness.sh' .github/workflows/release.yml || fail "release workflow must run readiness verification"
 grep -q 'scripts/verify_app_bundle.sh' .github/workflows/release.yml || fail "release workflow must verify the app bundle"
+grep -q 'swift build -c release --product overlay' .github/workflows/release.yml || fail "release workflow must build the overlay release product"
+grep -q 'swift build -c release --product datalayer-studio' .github/workflows/release.yml || fail "release workflow must build the datalayer-studio release product"
 grep -q 'swift test' .github/workflows/release.yml || fail "release workflow must run swift test"
 
 grep -q '@leeeboo' .github/CODEOWNERS || fail "CODEOWNERS must name the current repository owner"

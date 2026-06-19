@@ -33,6 +33,11 @@ jobs:
       - name: Run tests
         run: swift test
 
+      - name: Build release products
+        run: |
+          swift build -c release --product overlay
+          swift build -c release --product datalayer-studio
+
       - name: Build app bundle
         env:
           APP_VERSION: ${{ github.ref_name }}
