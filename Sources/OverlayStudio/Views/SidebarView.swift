@@ -133,11 +133,6 @@ struct SidebarView: View {
                 set: { model.setOutputFPS($0) },
                 range: 1...240
             ))
-            NumberField(title: localization.string("sidebar.duration"), suffix: "s", value: doubleBinding(
-                get: { model.outputDuration },
-                set: { model.setOutputDuration($0) },
-                range: 0.1...86_400
-            ))
 
             NumberIntField(title: localization.string("sidebar.bitrate"), suffix: "kbps", value: intBinding(
                 get: { model.bitRateKbps },

@@ -216,7 +216,11 @@ final class StudioModel: ObservableObject {
 
     var sourceResolutionPresetTitle: String? {
         guard let sourceDimensions else { return nil }
-        return "Source \(sourceDimensions.width)x\(sourceDimensions.height)"
+        return AppLocalizer.currentString(
+            "sidebar.sourceResolutionPreset",
+            sourceDimensions.width,
+            sourceDimensions.height
+        )
     }
 
     var selectedResolutionPresetID: String {
@@ -237,7 +241,7 @@ final class StudioModel: ObservableObject {
 
     var sourceFrameRatePresetTitle: String? {
         guard let sourceFrameRate else { return nil }
-        return "Source \(formatFrameRate(sourceFrameRate)) fps"
+        return AppLocalizer.currentString("sidebar.sourceFrameRatePreset", formatFrameRate(sourceFrameRate))
     }
 
     var selectedFrameRatePresetID: String {

@@ -130,7 +130,10 @@ final class StudioModelTests: XCTestCase {
             duration: 10,
             framesPerSecond: 59.94
         )
-        XCTAssertEqual(model.sourceFrameRatePresetTitle, "Source 59.940 fps")
+        XCTAssertEqual(
+            model.sourceFrameRatePresetTitle,
+            AppLocalizer.currentString("sidebar.sourceFrameRatePreset", "59.940")
+        )
     }
 
     func testRefreshPreviewClearsStaleWarningWithoutVideo() {
