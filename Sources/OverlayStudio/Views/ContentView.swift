@@ -15,43 +15,6 @@ struct ContentView: View {
                 editorLayout
             }
         }
-        .toolbar {
-            ToolbarItemGroup {
-                Button {
-                    model.refreshPreview()
-                } label: {
-                    Label(localization.string("toolbar.refreshPreview"), systemImage: "arrow.clockwise")
-                }
-                .disabled(model.isExporting)
-
-                Button {
-                    model.markSportStart()
-                } label: {
-                    Label(localization.string("toolbar.sportStart"), systemImage: "figure.run.circle")
-                }
-                .disabled(model.player == nil || model.isExporting)
-
-                Button {
-                    model.chooseOutput()
-                } label: {
-                    Label(localization.string("toolbar.output"), systemImage: "square.and.arrow.down")
-                }
-                .disabled(model.isExporting)
-
-                Button {
-                    if model.isExporting {
-                        model.cancelExport()
-                    } else {
-                        model.export()
-                    }
-                } label: {
-                    Label(model.isExporting ? localization.string("toolbar.cancelExport") : localization.string("toolbar.export"), systemImage: model.isExporting ? "xmark.circle.fill" : "play.fill")
-                }
-                .disabled(!model.isExporting && !model.canExport)
-                .help(model.isExporting ? localization.string("help.cancelExport") : (model.exportReadinessMessage ?? localization.string("help.exportTransparentOverlay")))
-            }
-        }
-        .toolbar(isPreviewFullscreen ? .hidden : .automatic, for: .windowToolbar)
         .onChange(of: previewInvalidationState) { _ in model.refreshOverlayOrPreview() }
         .onChange(of: localization.selection) { _ in model.refreshLocalizedStatus() }
         .onDisappear {
