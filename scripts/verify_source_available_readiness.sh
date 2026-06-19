@@ -18,6 +18,13 @@ require_file() {
     fi
 }
 
+require_gitignore_pattern() {
+    local pattern="$1"
+    if ! grep -q "$pattern" .gitignore; then
+        fail ".gitignore must include pattern: $pattern"
+    fi
+}
+
 required_files=(
     "README.md"
     "LICENSE.md"
@@ -44,8 +51,24 @@ for path in "${required_files[@]}"; do
     require_file "$path"
 done
 
-grep -q '^\.build/$' .gitignore || fail ".gitignore must ignore .build/"
-grep -q '^\.colameta/$' .gitignore || fail ".gitignore must ignore .colameta/"
+require_gitignore_pattern '^\.build/$'
+require_gitignore_pattern '^\.colameta/$'
+require_gitignore_pattern '^\*\.fit$'
+require_gitignore_pattern '^\*\.gpx$'
+require_gitignore_pattern '^\*\.tcx$'
+require_gitignore_pattern '^\*\.mov$'
+require_gitignore_pattern '^\*\.mp4$'
+require_gitignore_pattern '^\*\.m4v$'
+require_gitignore_pattern '^\*\.avi$'
+require_gitignore_pattern '^\*\.mkv$'
+require_gitignore_pattern '^\*\.zip$'
+require_gitignore_pattern '^\*\.p8$'
+require_gitignore_pattern '^\*\.p12$'
+require_gitignore_pattern '^\*\.mobileprovision$'
+require_gitignore_pattern '^\*\.xcarchive/$'
+require_gitignore_pattern '^\.env$'
+require_gitignore_pattern '^\.env\.\*$'
+require_gitignore_pattern '^!\.env\.example$'
 
 tracked_local_state="$(git ls-files '.build/*' '.colameta/*')"
 if [[ -n "$tracked_local_state" ]]; then
@@ -54,7 +77,7 @@ fi
 
 while IFS= read -r path; do
     case "$path" in
-        *.fit|*.FIT|*.mov|*.MOV|*.mp4|*.MP4|*.m4v|*.M4V|*.p8|*.p12|*.mobileprovision|*.xcarchive/*|*.zip)
+        *.fit|*.FIT|*.gpx|*.GPX|*.tcx|*.TCX|*.mov|*.MOV|*.mp4|*.MP4|*.m4v|*.M4V|*.avi|*.AVI|*.mkv|*.MKV|*.p8|*.p12|*.mobileprovision|*.xcarchive/*|*.zip)
             fail "tracked private or generated artifact: $path"
             ;;
         .env|.env.local|.private.env|*.private.env)

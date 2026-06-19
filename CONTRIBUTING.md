@@ -26,6 +26,8 @@ from commercial software or from projects with incompatible licenses.
    changes.
 5. For GUI-visible changes, make sure the app can be rebuilt and launched from
    the current source.
+6. Do not force-add ignored private videos, FIT/GPX/TCX activity data, signing
+   files, generated archives, or local environment files.
 
 ## Local Development
 

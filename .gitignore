@@ -1,6 +1,33 @@
 .build/
 .DS_Store
 
+# Local activity data, videos, exports, and signing secrets.
+# Do not force-add private source media or telemetry files to public PRs.
+*.fit
+*.FIT
+*.gpx
+*.GPX
+*.tcx
+*.TCX
+*.mov
+*.MOV
+*.mp4
+*.MP4
+*.m4v
+*.M4V
+*.avi
+*.AVI
+*.mkv
+*.MKV
+*.zip
+*.p8
+*.p12
+*.mobileprovision
+*.xcarchive/
+.env
+.env.*
+!.env.example
+
 # >>> ColaMeta local state >>>
 .colameta/
 .colameta/state.json
