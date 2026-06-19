@@ -38,6 +38,16 @@ done
 
 if [[ -f "$CONTENTS_DIR/Info.plist" ]]; then
     plutil -lint "$CONTENTS_DIR/Info.plist" >/dev/null || fail "invalid Info.plist"
+    mixed_localizations="$(/usr/libexec/PlistBuddy -c "Print :CFBundleAllowMixedLocalizations" "$CONTENTS_DIR/Info.plist" 2>/dev/null || true)"
+    if [[ "$mixed_localizations" != "true" ]]; then
+        fail "Info.plist must enable CFBundleAllowMixedLocalizations"
+    fi
+    declared_localizations="$(/usr/libexec/PlistBuddy -c "Print :CFBundleLocalizations" "$CONTENTS_DIR/Info.plist" 2>/dev/null || true)"
+    for locale in en zh-Hans zh-Hant zh_CN zh_TW ja; do
+        if ! printf '%s\n' "$declared_localizations" | grep -qx "    $locale"; then
+            fail "Info.plist must declare localization: $locale"
+        fi
+    done
 fi
 
 if [[ -f "$LEGAL_DIR/LICENSE.md" ]]; then

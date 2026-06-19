@@ -170,8 +170,8 @@ final class StudioModel: ObservableObject {
         if !outputFPS.isFinite || outputFPS < 1 || outputFPS > 240 {
             return AppLocalizer.currentString("status.frameRateRange")
         }
-        if !outputDuration.isFinite || outputDuration < 0.1 || outputDuration > 86_400 {
-            return AppLocalizer.currentString("status.durationRange")
+        if exportDuration == nil {
+            return AppLocalizer.currentString("status.sourceDurationRange")
         }
         if bitRateKbps < 1 || bitRateKbps > 1_000_000 {
             return AppLocalizer.currentString("status.bitrateRange")
@@ -1293,16 +1293,22 @@ final class StudioModel: ObservableObject {
         guard outputHeight >= 2, outputHeight <= 16_384 else { return nil }
         guard outputWidth % 2 == 0, outputHeight % 2 == 0 else { return nil }
         guard outputFPS.isFinite, outputFPS >= 1, outputFPS <= 240 else { return nil }
-        guard outputDuration.isFinite, outputDuration >= 0.1, outputDuration <= 86_400 else { return nil }
+        guard let duration = exportDuration else { return nil }
         guard bitRateKbps >= 1, bitRateKbps <= 1_000_000 else { return nil }
         guard bitRateKbps <= Int.max / 1000 else { return nil }
         return ExportSettings(
             width: outputWidth,
             height: outputHeight,
             framesPerSecond: outputFPS,
-            duration: outputDuration,
+            duration: duration,
             averageBitRate: bitRateKbps * 1000
         )
+    }
+
+    private var exportDuration: TimeInterval? {
+        let duration = outputDuration
+        guard duration.isFinite, duration >= 0.1, duration <= 86_400 else { return nil }
+        return duration
     }
 
     private func mergeImportedLayoutPresets(_ importedState: LayoutPresetState) -> Int {

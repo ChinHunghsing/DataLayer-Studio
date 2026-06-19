@@ -64,6 +64,25 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.bitRateKbps, 1)
     }
 
+    func testExportReadinessReportsSourceDurationInsteadOfEditableDuration() {
+        let model = StudioModel()
+        model.videoURL = URL(fileURLWithPath: "/tmp/source.mov")
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, distanceMeters: 3)
+        ])
+        model.outputDuration = .nan
+
+        XCTAssertEqual(
+            model.exportReadinessMessage,
+            AppLocalizer.currentString("status.sourceDurationRange")
+        )
+
+        model.outputDuration = 12
+
+        XCTAssertNil(model.exportReadinessMessage)
+    }
+
     func testGridDivisionSettersClampToPreviewBounds() {
         XCTAssertEqual(StudioModel.sanitizedGridDivision(1), 2)
         XCTAssertEqual(StudioModel.sanitizedGridDivision(65), 64)

@@ -15,6 +15,18 @@ struct InspectorSettingsPanel: View {
     private var selectedElementSettings: some View {
         if let element = model.selectedElement {
             VStack(alignment: .leading, spacing: 12) {
+                if !element.frame.isVisible {
+                    InspectorMessageBlock(
+                        systemImage: "eye.slash",
+                        title: localization.string("inspector.hiddenElement.title"),
+                        message: localization.string("inspector.hiddenElement.message"),
+                        actionTitle: localization.string("inspector.hiddenElement.action")
+                    ) {
+                        model.updateElement(element.id) { element in
+                            element.frame.isVisible = true
+                        }
+                    }
+                }
                 settings(for: element)
             }
             .id(element.id)
@@ -1101,6 +1113,8 @@ private struct InspectorMessageBlock: View {
     var systemImage: String
     var title: String
     var message: String
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -1118,6 +1132,13 @@ private struct InspectorMessageBlock: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let actionTitle, let action {
+                    Button(actionTitle, action: action)
+                        .controlSize(.small)
+                        .buttonStyle(.bordered)
+                        .padding(.top, 2)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
