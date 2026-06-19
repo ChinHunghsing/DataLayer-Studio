@@ -4,6 +4,7 @@ import OverlayCore
 struct InspectorSettingsPanel: View {
     @ObservedObject var model: StudioModel
     @Binding var expandedSections: Set<InspectorSection>
+    var focusedSection: InspectorSection?
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
@@ -25,11 +26,25 @@ struct InspectorSettingsPanel: View {
 
     @ViewBuilder
     private func settings(for element: OverlayElement) -> some View {
-        layoutSection(for: element)
-        contentSection(for: element)
-        appearanceSection(for: element)
-        typographySection(for: element)
-        dataSection(for: element)
+        if shouldShow(.layout) {
+            layoutSection(for: element)
+        }
+        if shouldShow(.content) {
+            contentSection(for: element)
+        }
+        if shouldShow(.appearance) {
+            appearanceSection(for: element)
+        }
+        if shouldShow(.typography) {
+            typographySection(for: element)
+        }
+        if shouldShow(.data) {
+            dataSection(for: element)
+        }
+    }
+
+    private func shouldShow(_ section: InspectorSection) -> Bool {
+        focusedSection == nil || focusedSection == section
     }
 
     private func layoutSection(for element: OverlayElement) -> some View {
@@ -373,6 +388,11 @@ struct InspectorSettingsPanel: View {
                     )
                 }
             }
+        } else if focusedSection == .data {
+            InspectorUnavailableSection(
+                title: localization.string("inspector.noDataSettings.title"),
+                message: localization.string("inspector.noDataSettings.message")
+            )
         }
     }
 
@@ -792,6 +812,34 @@ private struct InspectorStepperRow: View {
                     .padding(.vertical, 3)
                     .background(Color.secondary.opacity(0.10), in: Capsule())
             }
+        }
+    }
+}
+
+private struct InspectorUnavailableSection: View {
+    var title: String
+    var message: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "slider.horizontal.below.rectangle")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(InspectorStyle.panelFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(InspectorStyle.panelStroke)
         }
     }
 }
