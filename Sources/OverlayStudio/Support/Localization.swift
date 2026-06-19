@@ -451,10 +451,15 @@ enum AppLocalizer {
         "panel.export": "Export",
         "panel.import": "Import",
         "panel.chooseSourceVideo": "Choose source video",
+        "panel.chooseSourceVideo.message": "Select the video that will sit under the transparent overlay.",
         "panel.chooseFitActivity": "Choose FIT activity",
+        "panel.chooseFitActivity.message": "Select the FIT file that contains the activity telemetry.",
         "panel.saveOverlayVideo": "Save transparent overlay video",
+        "panel.saveOverlayVideo.message": "Choose where to save the transparent overlay movie.",
         "panel.exportLayoutPresets": "Export layout presets",
-        "panel.importLayoutPresets": "Import layout presets"
+        "panel.exportLayoutPresets.message": "Save your reusable layout presets as a JSON file.",
+        "panel.importLayoutPresets": "Import layout presets",
+        "panel.importLayoutPresets.message": "Choose a layout preset JSON file exported from DataLayer Studio."
     ]
 
     private static let simplifiedChinese: [String: String] = [
@@ -732,10 +737,15 @@ enum AppLocalizer {
         "panel.export": "导出",
         "panel.import": "导入",
         "panel.chooseSourceVideo": "选择源视频",
+        "panel.chooseSourceVideo.message": "选择要放在透明浮层下方的源视频。",
         "panel.chooseFitActivity": "选择 FIT 运动数据",
+        "panel.chooseFitActivity.message": "选择包含运动遥测数据的 FIT 文件。",
         "panel.saveOverlayVideo": "保存透明浮层视频",
+        "panel.saveOverlayVideo.message": "选择透明浮层视频的保存位置。",
         "panel.exportLayoutPresets": "导出布局预设",
-        "panel.importLayoutPresets": "导入布局预设"
+        "panel.exportLayoutPresets.message": "把可复用的布局预设保存为 JSON 文件。",
+        "panel.importLayoutPresets": "导入布局预设",
+        "panel.importLayoutPresets.message": "选择从 DataLayer Studio 导出的布局预设 JSON 文件。"
     ]
 
     private static let traditionalChinese: [String: String] = [
@@ -1013,10 +1023,15 @@ enum AppLocalizer {
         "panel.export": "匯出",
         "panel.import": "匯入",
         "panel.chooseSourceVideo": "選擇來源影片",
+        "panel.chooseSourceVideo.message": "選擇要放在透明浮層下方的來源影片。",
         "panel.chooseFitActivity": "選擇 FIT 運動資料",
+        "panel.chooseFitActivity.message": "選擇包含運動遙測資料的 FIT 檔案。",
         "panel.saveOverlayVideo": "儲存透明浮層影片",
+        "panel.saveOverlayVideo.message": "選擇透明浮層影片的儲存位置。",
         "panel.exportLayoutPresets": "匯出布局預設",
-        "panel.importLayoutPresets": "匯入布局預設"
+        "panel.exportLayoutPresets.message": "把可重用的布局預設儲存為 JSON 檔案。",
+        "panel.importLayoutPresets": "匯入布局預設",
+        "panel.importLayoutPresets.message": "選擇從 DataLayer Studio 匯出的布局預設 JSON 檔案。"
     ]
 
     private static let japanese: [String: String] = [
@@ -1294,10 +1309,15 @@ enum AppLocalizer {
         "panel.export": "書き出す",
         "panel.import": "読み込む",
         "panel.chooseSourceVideo": "ソース動画を選択",
+        "panel.chooseSourceVideo.message": "透明オーバーレイの下に置くソース動画を選択します。",
         "panel.chooseFitActivity": "FIT アクティビティを選択",
+        "panel.chooseFitActivity.message": "アクティビティのテレメトリを含む FIT ファイルを選択します。",
         "panel.saveOverlayVideo": "透明オーバーレイ動画を保存",
+        "panel.saveOverlayVideo.message": "透明オーバーレイ動画の保存先を選択します。",
         "panel.exportLayoutPresets": "配置プリセットを書き出す",
-        "panel.importLayoutPresets": "配置プリセットを読み込む"
+        "panel.exportLayoutPresets.message": "再利用できる配置プリセットを JSON ファイルとして保存します。",
+        "panel.importLayoutPresets": "配置プリセットを読み込む",
+        "panel.importLayoutPresets.message": "DataLayer Studio から書き出した配置プリセット JSON ファイルを選択します。"
     ]
 }
 

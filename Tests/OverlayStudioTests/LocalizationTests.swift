@@ -102,4 +102,15 @@ final class LocalizationTests: XCTestCase {
             "Export"
         )
     }
+
+    func testFilePanelMessagesAreLocalized() {
+        XCTAssertEqual(
+            AppLocalizer.string("panel.chooseSourceVideo.message", language: .simplifiedChinese),
+            "选择要放在透明浮层下方的源视频。"
+        )
+        XCTAssertEqual(
+            AppLocalizer.string("panel.importLayoutPresets.message", language: .japanese),
+            "DataLayer Studio から書き出した配置プリセット JSON ファイルを選択します。"
+        )
+    }
 }

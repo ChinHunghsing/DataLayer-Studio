@@ -262,6 +262,7 @@ final class StudioModel: ObservableObject {
         guard !isExporting else { return }
         let panel = NSOpenPanel()
         panel.title = AppLocalizer.currentString("panel.chooseSourceVideo")
+        panel.message = AppLocalizer.currentString("panel.chooseSourceVideo.message")
         panel.prompt = AppLocalizer.currentString("panel.open")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
@@ -274,6 +275,7 @@ final class StudioModel: ObservableObject {
         guard !isExporting else { return }
         let panel = NSOpenPanel()
         panel.title = AppLocalizer.currentString("panel.chooseFitActivity")
+        panel.message = AppLocalizer.currentString("panel.chooseFitActivity.message")
         panel.prompt = AppLocalizer.currentString("panel.open")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
@@ -288,6 +290,7 @@ final class StudioModel: ObservableObject {
         guard !isExporting else { return }
         let panel = NSSavePanel()
         panel.title = AppLocalizer.currentString("panel.saveOverlayVideo")
+        panel.message = AppLocalizer.currentString("panel.saveOverlayVideo.message")
         panel.prompt = AppLocalizer.currentString("panel.export")
         panel.allowedContentTypes = [.quickTimeMovie]
         panel.nameFieldStringValue = "datalayer-overlay.mov"
@@ -428,6 +431,7 @@ final class StudioModel: ObservableObject {
 
         let panel = NSSavePanel()
         panel.title = AppLocalizer.currentString("panel.exportLayoutPresets")
+        panel.message = AppLocalizer.currentString("panel.exportLayoutPresets.message")
         panel.prompt = AppLocalizer.currentString("panel.export")
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "datalayer-studio-layout-presets.json"
@@ -448,6 +452,7 @@ final class StudioModel: ObservableObject {
     func importLayoutPresets() {
         let panel = NSOpenPanel()
         panel.title = AppLocalizer.currentString("panel.importLayoutPresets")
+        panel.message = AppLocalizer.currentString("panel.importLayoutPresets.message")
         panel.prompt = AppLocalizer.currentString("panel.import")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false

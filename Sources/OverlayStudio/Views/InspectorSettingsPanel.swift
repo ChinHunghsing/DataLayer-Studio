@@ -51,7 +51,7 @@ struct InspectorSettingsPanel: View {
         let id = element.id
         let kind = element.kind
 
-        return InspectorGroup(
+        return sectionContainer(
             section: .layout,
             summary: layoutSummary(for: element),
             expandedSections: $expandedSections
@@ -101,7 +101,7 @@ struct InspectorSettingsPanel: View {
         let id = element.id
         let kind = element.kind
 
-        return InspectorGroup(
+        return sectionContainer(
             section: .content,
             summary: contentSummary(for: element),
             expandedSections: $expandedSections
@@ -183,7 +183,7 @@ struct InspectorSettingsPanel: View {
         let id = element.id
         let kind = element.kind
 
-        return InspectorGroup(
+        return sectionContainer(
             section: .appearance,
             summary: appearanceSummary(for: element),
             expandedSections: $expandedSections
@@ -315,7 +315,7 @@ struct InspectorSettingsPanel: View {
         let id = element.id
         let kind = element.kind
 
-        return InspectorGroup(
+        return sectionContainer(
             section: .typography,
             summary: typographySummary(for: element),
             expandedSections: $expandedSections
@@ -369,7 +369,7 @@ struct InspectorSettingsPanel: View {
         let kind = element.kind
 
         if kind.supportsValuePrecision || kind == .speed {
-            InspectorGroup(
+            sectionContainer(
                 section: .data,
                 summary: dataSummary(for: element),
                 expandedSections: $expandedSections
@@ -418,6 +418,24 @@ struct InspectorSettingsPanel: View {
 
     private func currentElement(_ id: String) -> OverlayElement? {
         model.layout.elements.first { $0.id == id }
+    }
+
+    @ViewBuilder
+    private func sectionContainer<Content: View>(
+        section: InspectorSection,
+        summary: String?,
+        expandedSections: Binding<Set<InspectorSection>>,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        if focusedSection == section {
+            InspectorFocusedSection {
+                content()
+            }
+        } else {
+            InspectorGroup(section: section, summary: summary, expandedSections: expandedSections) {
+                content()
+            }
+        }
     }
 
     private func layoutSummary(for element: OverlayElement) -> String {
@@ -658,6 +676,20 @@ private enum TypographyRole {
     case value
     case unit
     case icon
+}
+
+private struct InspectorFocusedSection<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 2)
+        .padding(.top, 2)
+        .padding(.bottom, 6)
+    }
 }
 
 enum InspectorSection: String, CaseIterable, Identifiable {
