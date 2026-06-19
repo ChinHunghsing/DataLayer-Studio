@@ -7,7 +7,7 @@ with the DataLayer Studio Source-Share Addendum below.
 
 The PolyForm Noncommercial License 1.0.0 is available at:
 
-https://polyformproject.org/licenses/noncommercial/1.0.0/
+https://polyformproject.org/licenses/noncommercial/1.0.0
 
 ## DataLayer Studio Source-Share Addendum
 
