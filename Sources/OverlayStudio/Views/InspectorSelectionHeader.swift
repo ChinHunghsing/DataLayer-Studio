@@ -70,57 +70,74 @@ struct InspectorSelectionHeader: View {
 
     private var actions: some View {
         HStack(spacing: 6) {
-            Menu {
-                ForEach(OverlayComponentID.allCases) { component in
-                    Button {
-                        model.addElement(kind: component)
-                    } label: {
-                        Label(localization.string(component.localizationKey), systemImage: component.systemImage)
-                    }
-                }
-            } label: {
-                Label(localization.string("inspector.add"), systemImage: "plus")
-                    .frame(minWidth: 70)
-            }
-            .menuStyle(.borderlessButton)
-            .disabled(model.isExporting)
-            .help(localization.string("inspector.addElement"))
+            addElementMenu
 
             Spacer(minLength: 6)
 
+            if model.selectedElement != nil {
+                selectedElementActions
+            }
+        }
+        .controlSize(.small)
+    }
+
+    private var addElementMenu: some View {
+        Menu {
+            ForEach(OverlayComponentID.allCases) { component in
+                Button {
+                    model.addElement(kind: component)
+                } label: {
+                    Label(localization.string(component.localizationKey), systemImage: component.systemImage)
+                }
+            }
+        } label: {
+            Label(localization.string("inspector.add"), systemImage: "plus")
+                .frame(minWidth: 70)
+        }
+        .menuStyle(.borderlessButton)
+        .disabled(model.isExporting)
+        .help(localization.string("inspector.addElement"))
+    }
+
+    private var selectedElementActions: some View {
+        HStack(spacing: 6) {
             Button {
                 model.duplicateSelectedElement()
             } label: {
                 actionIcon("doc.on.doc")
             }
-            .disabled(model.selectedElement == nil || model.isExporting)
+            .disabled(model.isExporting)
             .help(localization.string("inspector.duplicate"))
 
-            Button {
-                model.moveSelectedElementBackward()
-            } label: {
-                actionIcon("arrow.down")
-            }
-            .disabled(!canMoveSelectedElementBackward || model.isExporting)
-            .help(localization.string("inspector.sendBackward"))
+            Menu {
+                Button {
+                    model.moveSelectedElementForward()
+                } label: {
+                    Label(localization.string("inspector.bringForward"), systemImage: "arrow.up")
+                }
+                .disabled(!canMoveSelectedElementForward || model.isExporting)
 
-            Button {
-                model.moveSelectedElementForward()
+                Button {
+                    model.moveSelectedElementBackward()
+                } label: {
+                    Label(localization.string("inspector.sendBackward"), systemImage: "arrow.down")
+                }
+                .disabled(!canMoveSelectedElementBackward || model.isExporting)
             } label: {
-                actionIcon("arrow.up")
+                actionIcon("square.stack.3d.up")
             }
-            .disabled(!canMoveSelectedElementForward || model.isExporting)
-            .help(localization.string("inspector.bringForward"))
+            .menuStyle(.borderlessButton)
+            .disabled(model.isExporting)
+            .help(localization.string("inspector.arrange"))
 
             Button(role: .destructive) {
                 model.deleteSelectedElement()
             } label: {
                 actionIcon("trash")
             }
-            .disabled(model.selectedElement == nil || model.isExporting)
+            .disabled(model.isExporting)
             .help(localization.string("inspector.delete"))
         }
-        .controlSize(.small)
     }
 
     private func symbolBadge(systemName: String) -> some View {
