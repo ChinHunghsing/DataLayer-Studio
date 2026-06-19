@@ -835,10 +835,17 @@ private struct TextStyleRow: View {
                     .controlSize(.small)
             }
 
-            Picker(localization.string("inspector.font"), selection: $font) {
-                ForEach(OverlayFontFamily.allCases) { font in
-                    Text(font.displayName).tag(font)
+            HStack(spacing: InspectorFormMetrics.rowGap) {
+                Text(localization.string("inspector.font"))
+                    .inspectorControlLabel()
+
+                Picker(localization.string("inspector.font"), selection: $font) {
+                    ForEach(OverlayFontFamily.allCases) { font in
+                        Text(font.displayName).tag(font)
+                    }
                 }
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
             }
 
             LabeledSlider(
@@ -884,11 +891,11 @@ private struct InspectorColorRow: View {
     @Binding var selection: Color
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: InspectorFormMetrics.rowGap) {
             Text(title)
                 .inspectorControlLabel()
 
-            Spacer()
+            Spacer(minLength: 8)
 
             ColorPicker(title, selection: $selection)
                 .labelsHidden()
@@ -902,7 +909,7 @@ private struct InspectorTextRow: View {
     @Binding var text: String
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: InspectorFormMetrics.rowGap) {
             Text(title)
                 .inspectorControlLabel()
 
@@ -911,7 +918,7 @@ private struct InspectorTextRow: View {
             TextField(title, text: $text)
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
-                .frame(maxWidth: 180)
+                .frame(width: InspectorFormMetrics.textFieldWidth)
         }
     }
 }
@@ -929,7 +936,7 @@ private struct InspectorStepperRow: View {
 
     var body: some View {
         Stepper(value: $value, in: range) {
-            HStack(spacing: 10) {
+            HStack(spacing: InspectorFormMetrics.rowGap) {
                 Text(title)
                     .inspectorControlLabel()
 
@@ -997,12 +1004,12 @@ private struct LabeledSlider: View {
     @ViewBuilder
     private var valueAccessory: some View {
         if showsTextField {
-            HStack(spacing: 6) {
+            HStack(spacing: InspectorFormMetrics.accessoryGap) {
                 TextField(title, text: $draftText)
                     .multilineTextAlignment(.trailing)
                     .textFieldStyle(.roundedBorder)
                     .font(.caption.monospacedDigit())
-                    .frame(width: 84)
+                    .frame(width: InspectorFormMetrics.numericFieldWidth)
                     .focused($isTextFieldFocused)
                     .onSubmit(commitDraft)
 
@@ -1053,11 +1060,20 @@ private struct InspectorValuePill: View {
             .foregroundStyle(.primary)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-            .frame(minWidth: 54, alignment: .trailing)
+            .frame(width: InspectorFormMetrics.valuePillWidth, alignment: .trailing)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(Color.secondary.opacity(0.095), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
+}
+
+private enum InspectorFormMetrics {
+    static let labelWidth: CGFloat = 112
+    static let rowGap: CGFloat = 10
+    static let accessoryGap: CGFloat = 6
+    static let textFieldWidth: CGFloat = 178
+    static let numericFieldWidth: CGFloat = 84
+    static let valuePillWidth: CGFloat = 58
 }
 
 private extension View {
@@ -1065,6 +1081,7 @@ private extension View {
         font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
             .lineLimit(1)
+            .frame(width: InspectorFormMetrics.labelWidth, alignment: .leading)
     }
 }
 
