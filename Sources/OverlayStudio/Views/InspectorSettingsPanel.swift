@@ -15,6 +15,7 @@ struct InspectorSettingsPanel: View {
     private var selectedElementSettings: some View {
         if let element = model.selectedElement {
             VStack(alignment: .leading, spacing: 10) {
+                InspectorElementSummary(element: currentElement(element.id) ?? element)
                 settings(for: element)
             }
             .id(element.id)
@@ -570,6 +571,64 @@ private enum TypographyRole {
     case value
     case unit
     case icon
+}
+
+private struct InspectorElementSummary: View {
+    var element: OverlayElement
+    @EnvironmentObject private var localization: LocalizationStore
+
+    var body: some View {
+        HStack(spacing: 8) {
+            InspectorSummaryMetric(
+                title: localization.string("inspector.summary.position"),
+                value: "X \(element.frame.x.percentString)  Y \(element.frame.y.percentString)",
+                systemImage: "arrow.left.and.right"
+            )
+            InspectorSummaryMetric(
+                title: localization.string("inspector.summary.scale"),
+                value: element.frame.scale.percentString,
+                systemImage: "arrow.up.left.and.arrow.down.right"
+            )
+            InspectorSummaryMetric(
+                title: localization.string("inspector.summary.state"),
+                value: element.frame.isVisible
+                    ? localization.string("inspector.summary.visible")
+                    : localization.string("inspector.summary.hidden"),
+                systemImage: element.frame.isVisible ? "eye" : "eye.slash"
+            )
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+private struct InspectorSummaryMetric: View {
+    var title: String
+    var value: String
+    var systemImage: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12)
+
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Text(value)
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.74)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 enum InspectorSection: String, CaseIterable, Identifiable {

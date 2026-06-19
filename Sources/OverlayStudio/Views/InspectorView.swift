@@ -12,12 +12,14 @@ struct InspectorView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 12)
 
-            InspectorSectionScopePicker(
-                selectedScopeRawValue: $selectedScopeRawValue,
-                expandedSections: $expandedSections
-            )
-            .padding(.horizontal, 18)
-            .padding(.bottom, 12)
+            if model.selectedElement != nil {
+                InspectorSectionScopePicker(
+                    selectedScopeRawValue: $selectedScopeRawValue,
+                    expandedSections: $expandedSections
+                )
+                .padding(.horizontal, 18)
+                .padding(.bottom, 12)
+            }
 
             Divider()
                 .overlay(Color.secondary.opacity(0.16))
