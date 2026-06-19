@@ -80,4 +80,15 @@ final class LocalizationTests: XCTestCase {
             "運動開始"
         )
     }
+
+    func testExportResolutionPresetTitlesAreLocalized() {
+        XCTAssertEqual(
+            AppLocalizer.string("resolutionPreset.vertical-1080", language: .simplifiedChinese),
+            "竖屏 1080×1920"
+        )
+        XCTAssertEqual(
+            AppLocalizer.string("resolutionPreset.vertical-1080", language: .english),
+            "Vertical 1080×1920"
+        )
+    }
 }

@@ -155,6 +155,8 @@ struct InspectorSettingsPanel: View {
         let kind = element.kind
 
         return InspectorGroup(section: .appearance, expandedSections: $expandedSections) {
+            InspectorSubheading(localization.string("inspector.panelSection"))
+
             Toggle(localization.string("inspector.panel"), isOn: boolBinding(
                 id: id,
                 get: { $0.customization.showsPanel },
@@ -181,6 +183,9 @@ struct InspectorSettingsPanel: View {
             }
 
             if kind.supportsLineWidth {
+                InspectorRule()
+                InspectorSubheading(localization.string("inspector.lineSection"))
+
                 LabeledSlider(
                     title: kind == .speed ? localization.string("inspector.gaugeWidth") : localization.string("inspector.lineWidth"),
                     value: doubleBinding(id: id, get: { $0.customization.lineWidth }, set: { $0.customization.lineWidth = $1 }),
@@ -190,21 +195,30 @@ struct InspectorSettingsPanel: View {
                     unitLabel: "px"
                 )
 
-                ColorPicker(localization.string("inspector.trackColor"), selection: colorBinding(
-                    id: id,
-                    fallback: .track,
-                    get: { $0.customization.trackColor },
-                    set: { $0.customization.trackColor = $1 }
-                ))
+                InspectorColorRow(
+                    title: localization.string("inspector.trackColor"),
+                    selection: colorBinding(
+                        id: id,
+                        fallback: .track,
+                        get: { $0.customization.trackColor },
+                        set: { $0.customization.trackColor = $1 }
+                    )
+                )
             }
 
             if kind == .topProgress {
-                ColorPicker(localization.string("inspector.progressColor"), selection: colorBinding(
-                    id: id,
-                    fallback: defaultValueColor(for: element),
-                    get: { $0.customization.valueColor },
-                    set: { $0.customization.valueColor = $1 }
-                ))
+                InspectorRule()
+                InspectorSubheading(localization.string("inspector.progressSection"))
+
+                InspectorColorRow(
+                    title: localization.string("inspector.progressColor"),
+                    selection: colorBinding(
+                        id: id,
+                        fallback: defaultValueColor(for: element),
+                        get: { $0.customization.valueColor },
+                        set: { $0.customization.valueColor = $1 }
+                    )
+                )
 
                 LabeledSlider(
                     title: localization.string("inspector.sidePadding"),
@@ -238,6 +252,9 @@ struct InspectorSettingsPanel: View {
                     range: 0...4,
                     label: "\(Int(((currentElement(id)?.customization.progressValueMarginScale ?? 1) * 100).rounded()))%"
                 )
+
+                InspectorRule()
+                InspectorSubheading(localization.string("inspector.tickSection"))
 
                 Toggle(localization.string("inspector.tickMarks"), isOn: boolBinding(
                     id: id,
@@ -274,6 +291,7 @@ struct InspectorSettingsPanel: View {
                     size: fontSizeBinding(id: id, role: .label, kind: kind),
                     sizeLabel: fontSizeLabel(id: id, role: .label, kind: kind)
                 )
+                InspectorRule()
             }
 
             TextStyleRow(
@@ -285,6 +303,7 @@ struct InspectorSettingsPanel: View {
             )
 
             if currentElement(id)?.customization.showsUnit == true {
+                InspectorRule()
                 TextStyleRow(
                     title: localization.string("inspector.unit"),
                     font: fontBinding(id: id, get: { $0.customization.unitFont }, set: { $0.customization.unitFont = $1 }),
@@ -295,6 +314,7 @@ struct InspectorSettingsPanel: View {
             }
 
             if currentElement(id)?.customization.showsIcon == true {
+                InspectorRule()
                 TextStyleRow(
                     title: localization.string("inspector.icon"),
                     font: fontBinding(id: id, get: { $0.customization.iconFont }, set: { $0.customization.iconFont = $1 }),
@@ -648,6 +668,7 @@ private struct TextStyleRow: View {
 
                 ColorPicker(localization.string("inspector.color"), selection: $color)
                     .labelsHidden()
+                    .controlSize(.small)
             }
 
             Picker(localization.string("inspector.font"), selection: $font) {
@@ -666,6 +687,51 @@ private struct TextStyleRow: View {
             )
         }
         .padding(.vertical, 2)
+    }
+}
+
+private struct InspectorSubheading: View {
+    var title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .tracking(0.3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct InspectorRule: View {
+    var body: some View {
+        Divider()
+            .overlay(Color.secondary.opacity(0.18))
+            .padding(.vertical, 2)
+    }
+}
+
+private struct InspectorColorRow: View {
+    var title: String
+    @Binding var selection: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer()
+
+            ColorPicker(title, selection: $selection)
+                .labelsHidden()
+                .controlSize(.small)
+        }
     }
 }
 

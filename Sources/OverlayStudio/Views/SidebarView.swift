@@ -93,7 +93,7 @@ struct SidebarView: View {
                         Text(sourceTitle).tag(OutputResolutionPreset.sourceID)
                     }
                     ForEach(OutputResolutionPreset.fixed) { preset in
-                        Text(preset.title).tag(preset.id)
+                        Text(localization.string(preset.localizationKey)).tag(preset.id)
                     }
                     Text(localization.string("sidebar.custom")).tag(OutputResolutionPreset.customID)
                 }
