@@ -452,6 +452,9 @@ enum AppLocalizer {
         "status.exportError": "Export error: %@",
         "status.cancellingExport": "Cancelling export...",
 
+        "panel.open": "Open",
+        "panel.export": "Export",
+        "panel.import": "Import",
         "panel.chooseSourceVideo": "Choose source video",
         "panel.chooseFitActivity": "Choose FIT activity",
         "panel.saveOverlayVideo": "Save transparent overlay video",
@@ -735,6 +738,9 @@ enum AppLocalizer {
         "status.exportError": "导出错误：%@",
         "status.cancellingExport": "正在取消导出...",
 
+        "panel.open": "打开",
+        "panel.export": "导出",
+        "panel.import": "导入",
         "panel.chooseSourceVideo": "选择源视频",
         "panel.chooseFitActivity": "选择 FIT 运动数据",
         "panel.saveOverlayVideo": "保存透明浮层视频",
@@ -1018,6 +1024,9 @@ enum AppLocalizer {
         "status.exportError": "匯出錯誤：%@",
         "status.cancellingExport": "正在取消匯出...",
 
+        "panel.open": "打開",
+        "panel.export": "匯出",
+        "panel.import": "匯入",
         "panel.chooseSourceVideo": "選擇來源影片",
         "panel.chooseFitActivity": "選擇 FIT 運動資料",
         "panel.saveOverlayVideo": "儲存透明浮層影片",
@@ -1301,6 +1310,9 @@ enum AppLocalizer {
         "status.exportError": "書き出しエラー：%@",
         "status.cancellingExport": "書き出しをキャンセル中...",
 
+        "panel.open": "開く",
+        "panel.export": "書き出す",
+        "panel.import": "読み込む",
         "panel.chooseSourceVideo": "ソース動画を選択",
         "panel.chooseFitActivity": "FIT アクティビティを選択",
         "panel.saveOverlayVideo": "透明オーバーレイ動画を保存",

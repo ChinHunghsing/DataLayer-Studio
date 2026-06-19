@@ -262,6 +262,7 @@ final class StudioModel: ObservableObject {
         guard !isExporting else { return }
         let panel = NSOpenPanel()
         panel.title = AppLocalizer.currentString("panel.chooseSourceVideo")
+        panel.prompt = AppLocalizer.currentString("panel.open")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.movie, .video, .mpeg4Movie, .quickTimeMovie]
@@ -273,6 +274,7 @@ final class StudioModel: ObservableObject {
         guard !isExporting else { return }
         let panel = NSOpenPanel()
         panel.title = AppLocalizer.currentString("panel.chooseFitActivity")
+        panel.prompt = AppLocalizer.currentString("panel.open")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         if let fitType = UTType(filenameExtension: "fit") {
@@ -286,6 +288,7 @@ final class StudioModel: ObservableObject {
         guard !isExporting else { return }
         let panel = NSSavePanel()
         panel.title = AppLocalizer.currentString("panel.saveOverlayVideo")
+        panel.prompt = AppLocalizer.currentString("panel.export")
         panel.allowedContentTypes = [.quickTimeMovie]
         panel.nameFieldStringValue = "datalayer-overlay.mov"
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -425,6 +428,7 @@ final class StudioModel: ObservableObject {
 
         let panel = NSSavePanel()
         panel.title = AppLocalizer.currentString("panel.exportLayoutPresets")
+        panel.prompt = AppLocalizer.currentString("panel.export")
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "datalayer-studio-layout-presets.json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -444,6 +448,7 @@ final class StudioModel: ObservableObject {
     func importLayoutPresets() {
         let panel = NSOpenPanel()
         panel.title = AppLocalizer.currentString("panel.importLayoutPresets")
+        panel.prompt = AppLocalizer.currentString("panel.import")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.json]

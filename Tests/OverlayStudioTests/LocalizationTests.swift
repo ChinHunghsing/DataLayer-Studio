@@ -91,4 +91,15 @@ final class LocalizationTests: XCTestCase {
             "Vertical 1080×1920"
         )
     }
+
+    func testFilePanelActionsAreLocalized() {
+        XCTAssertEqual(
+            AppLocalizer.string("panel.open", language: .simplifiedChinese),
+            "打开"
+        )
+        XCTAssertEqual(
+            AppLocalizer.string("panel.export", language: .english),
+            "Export"
+        )
+    }
 }
