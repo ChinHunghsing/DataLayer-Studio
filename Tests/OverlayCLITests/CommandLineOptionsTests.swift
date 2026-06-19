@@ -111,4 +111,129 @@ final class CommandLineOptionsTests: XCTestCase {
             }
         }
     }
+
+    func testResolveLayoutPresetLoadsDefaultPresetFromExportedJSONFile() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        var firstLayout = OverlayLayout.default
+        firstLayout.speed = OverlayComponentFrame(x: 0.2, y: 0.1, scale: 1)
+        var defaultLayout = OverlayLayout.default
+        defaultLayout.speed = OverlayComponentFrame(x: 0.7, y: 0.1, scale: 1.4)
+        let state = LayoutPresetState(
+            presets: [
+                LayoutPreset(
+                    id: "first",
+                    name: "First",
+                    layout: firstLayout,
+                    createdAt: now,
+                    updatedAt: now
+                ),
+                LayoutPreset(
+                    id: "default",
+                    name: "Default Export",
+                    layout: defaultLayout,
+                    createdAt: now,
+                    updatedAt: now
+                )
+            ],
+            defaultPresetID: "default"
+        )
+        let fileURL = try writePresetFixture(state)
+
+        let resolved = try resolveOverlayLayout(
+            presetReference: fileURL.path,
+            loadPresetState: { .empty }
+        )
+
+        XCTAssertEqual(resolved.presetName, "Default Export")
+        XCTAssertEqual(resolved.layout.component(.speed).x, 0.7, accuracy: 0.0001)
+        XCTAssertEqual(resolved.layout.component(.speed).scale, 1.4, accuracy: 0.0001)
+    }
+
+    func testResolveLayoutPresetLoadsFirstPresetWhenExportedJSONHasNoDefault() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        var firstLayout = OverlayLayout.default
+        firstLayout.speed = OverlayComponentFrame(x: 0.23, y: 0.1, scale: 1)
+        var secondLayout = OverlayLayout.default
+        secondLayout.speed = OverlayComponentFrame(x: 0.82, y: 0.1, scale: 1)
+        let state = LayoutPresetState(
+            presets: [
+                LayoutPreset(
+                    id: "first",
+                    name: "First Export",
+                    layout: firstLayout,
+                    createdAt: now,
+                    updatedAt: now
+                ),
+                LayoutPreset(
+                    id: "second",
+                    name: "Second Export",
+                    layout: secondLayout,
+                    createdAt: now,
+                    updatedAt: now
+                )
+            ],
+            defaultPresetID: nil
+        )
+        let fileURL = try writePresetFixture(state)
+
+        let resolved = try resolveOverlayLayout(
+            presetReference: fileURL.path,
+            loadPresetState: { .empty }
+        )
+
+        XCTAssertEqual(resolved.presetName, "First Export")
+        XCTAssertEqual(resolved.layout.component(.speed).x, 0.23, accuracy: 0.0001)
+    }
+
+    func testResolveLayoutPresetLoadsSinglePresetJSONFile() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        var layout = OverlayLayout.default
+        layout.speed = OverlayComponentFrame(x: 0.58, y: 0.1, scale: 1.3)
+        let preset = LayoutPreset(
+            id: "single",
+            name: "Single Export",
+            layout: layout,
+            createdAt: now,
+            updatedAt: now
+        )
+        let fileURL = try writePresetFixture(preset)
+
+        let resolved = try resolveOverlayLayout(
+            presetReference: fileURL.path,
+            loadPresetState: { .empty }
+        )
+
+        XCTAssertEqual(resolved.presetName, "Single Export")
+        XCTAssertEqual(resolved.layout.component(.speed).x, 0.58, accuracy: 0.0001)
+        XCTAssertEqual(resolved.layout.component(.speed).scale, 1.3, accuracy: 0.0001)
+    }
+
+    func testResolveLayoutPresetThrowsWhenJSONFileHasNoPreset() throws {
+        let fileURL = temporaryPresetURL()
+        try #"{"presets":[]}"#.data(using: .utf8)!.write(to: fileURL)
+
+        XCTAssertThrowsError(try resolveOverlayLayout(
+            presetReference: fileURL.path,
+            loadPresetState: { .empty }
+        )) { error in
+            guard case CLIError.layoutPresetFileInvalid(fileURL.path) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    private func writePresetFixture<T: Encodable>(_ value: T) throws -> URL {
+        let fileURL = temporaryPresetURL()
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(value)
+        try data.write(to: fileURL)
+        return fileURL
+    }
+
+    private func temporaryPresetURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("datalayer-cli-layout-preset-\(UUID().uuidString)")
+            .appendingPathExtension("json")
+    }
 }

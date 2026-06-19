@@ -97,6 +97,7 @@ Useful options:
 --codec hevc-alpha  # default; use prores-4444 as an alpha-capable intermediate
 --distance-unit km  # distance labels: km (default) or m
 --layout-preset "Race Layout" # use a saved GUI layout preset by name or ID
+--layout-preset presets.json # use a GUI-exported layout preset JSON file
 --inspect           # parse metadata without rendering
 --skip-fit-crc      # useful for malformed FIT exports
 ```
@@ -104,6 +105,8 @@ Useful options:
 If `--layout-preset` is not set, the command-line renderer uses the built-in
 default layout. Saved presets are looked up from the GUI's local DataLayer
 Studio preferences, first by preset ID and then by case-insensitive preset name.
+When the value is an existing JSON file path exported by the GUI, the CLI uses
+the exported default preset when present, otherwise the first preset in the file.
 
 ## Time sync
 

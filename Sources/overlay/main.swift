@@ -179,6 +179,8 @@ enum CLIError: Error, CustomStringConvertible {
     case invalidValue(String, String)
     case invalidOutputDimensions(Int, Int)
     case layoutPresetNotFound(String)
+    case layoutPresetFileUnreadable(String, String)
+    case layoutPresetFileInvalid(String)
     case conflictingArguments(String)
     case unknownArgument(String)
 
@@ -196,6 +198,10 @@ enum CLIError: Error, CustomStringConvertible {
             return "Invalid output dimensions: \(width)x\(height). Width and height must be 2...16384 and even pixel values."
         case let .layoutPresetNotFound(reference):
             return "Layout preset not found: \(reference).\n\n\(Self.help)"
+        case let .layoutPresetFileUnreadable(path, reason):
+            return "Could not read layout preset file \(path): \(reason).\n\n\(Self.help)"
+        case let .layoutPresetFileInvalid(path):
+            return "Layout preset file does not contain any usable preset: \(path).\n\n\(Self.help)"
         case let .conflictingArguments(message):
             return "\(message).\n\n\(Self.help)"
         case let .unknownArgument(argument):
@@ -226,7 +232,7 @@ enum CLIError: Error, CustomStringConvertible {
       --bitrate-bps BPS  Legacy explicit bps bitrate.
       --codec NAME       hevc-alpha (default) or prores-4444.
       --distance-unit U  Distance unit for overlay labels: km (default) or m.
-      --layout-preset P  Use a saved GUI layout preset by name or ID.
+      --layout-preset P  Use a saved GUI layout preset by name/ID, or a GUI-exported JSON file.
       --skip-fit-crc     Parse FIT even if CRC validation fails.
       --inspect          Parse video and FIT, print metadata, do not render.
       -h, --help         Show this help.
@@ -250,12 +256,50 @@ func resolveOverlayLayout(
         throw CLIError.invalidValue("--layout-preset", presetReference)
     }
 
+    let fileURL = URL(fileURLWithPath: trimmedReference)
+    var isDirectory: ObjCBool = false
+    if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDirectory), !isDirectory.boolValue {
+        return try resolveOverlayLayout(fromPresetFile: fileURL)
+    }
+
     let state = loadPresetState()
     guard let preset = state.preset(matching: trimmedReference) else {
         throw CLIError.layoutPresetNotFound(trimmedReference)
     }
 
     return ResolvedOverlayLayout(layout: preset.layout.sanitized, presetName: preset.name)
+}
+
+private func resolveOverlayLayout(fromPresetFile fileURL: URL) throws -> ResolvedOverlayLayout {
+    let data: Data
+    do {
+        data = try Data(contentsOf: fileURL)
+    } catch {
+        throw CLIError.layoutPresetFileUnreadable(fileURL.path, error.localizedDescription)
+    }
+
+    let decoder = JSONDecoder()
+    if let state = try? decoder.decode(LayoutPresetState.self, from: data) {
+        let sanitizedState = state.sanitized
+        if let defaultPresetID = sanitizedState.defaultPresetID,
+           let defaultPreset = sanitizedState.presets.first(where: { $0.id == defaultPresetID }) {
+            return ResolvedOverlayLayout(layout: defaultPreset.layout.sanitized, presetName: defaultPreset.name)
+        }
+        if let preset = sanitizedState.presets.first {
+            return ResolvedOverlayLayout(layout: preset.layout.sanitized, presetName: preset.name)
+        }
+        throw CLIError.layoutPresetFileInvalid(fileURL.path)
+    }
+
+    if let preset = try? decoder.decode(LayoutPreset.self, from: data) {
+        let sanitizedState = LayoutPresetState(presets: [preset], defaultPresetID: preset.id).sanitized
+        guard let sanitizedPreset = sanitizedState.presets.first else {
+            throw CLIError.layoutPresetFileInvalid(fileURL.path)
+        }
+        return ResolvedOverlayLayout(layout: sanitizedPreset.layout.sanitized, presetName: sanitizedPreset.name)
+    }
+
+    throw CLIError.layoutPresetFileInvalid(fileURL.path)
 }
 
 func run() async throws {
