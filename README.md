@@ -180,8 +180,11 @@ git push origin main --tags
 
 When a `v*` tag is pushed, `.github/workflows/release.yml` will:
 
+- run `scripts/verify_source_available_readiness.sh`
 - run `swift test`
+- build the release products for `overlay` and `datalayer-studio`
 - build `DataLayer Studio.app`
+- verify the app bundle includes the required legal files
 - zip the app as `DataLayer-Studio-<tag>-macOS-arm64.zip`
 - generate a SHA-256 checksum
 - create or update the GitHub Release for that tag and upload both files
