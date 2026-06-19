@@ -188,7 +188,7 @@ public struct TelemetrySeries {
             previousOutput = sample
         }
 
-        return output
+        return backfilledStartupDistances(samples: output, baseline: firstDistance)
     }
 
     private static func startupDistanceBaseline(samples: [TelemetrySample]) -> Double {
@@ -203,6 +203,50 @@ public struct TelemetrySeries {
         let elapsed = firstDistanceSample.elapsed - first.elapsed
         let startupSpeed = firstDistance / elapsed
         return startupSpeed <= maximumPlausibleStartupSpeedMetersPerSecond ? 0 : firstDistance
+    }
+
+    private static func backfilledStartupDistances(
+        samples: [TelemetrySample],
+        baseline: Double
+    ) -> [TelemetrySample] {
+        guard baseline <= distanceEpsilon,
+              samples.count > 1,
+              let first = samples.first,
+              let targetIndex = samples.firstIndex(where: { ($0.distanceMeters ?? 0) > distanceEpsilon }),
+              targetIndex > 0 else {
+            return samples
+        }
+
+        let target = samples[targetIndex]
+        guard let targetDistance = target.distanceMeters,
+              targetDistance.isFinite else {
+            return samples
+        }
+
+        let elapsed = target.elapsed - first.elapsed
+        guard elapsed > 0 else { return samples }
+        let startupSpeed = targetDistance / elapsed
+        guard startupSpeed.isFinite,
+              startupSpeed <= maximumPlausibleStartupSpeedMetersPerSecond else {
+            return samples
+        }
+
+        guard samples[..<targetIndex].allSatisfy({ ($0.distanceMeters ?? 0) <= distanceEpsilon }) else {
+            return samples
+        }
+
+        var output = samples
+        for index in 0..<targetIndex {
+            let sampleElapsed = samples[index].elapsed - first.elapsed
+            guard sampleElapsed > 0 else {
+                output[index].distanceMeters = 0
+                continue
+            }
+
+            let progress = min(1, max(0, sampleElapsed / elapsed))
+            output[index].distanceMeters = targetDistance * progress
+        }
+        return output
     }
 
     private static func enrichedWithDistanceDerivedSpeed(samples: [TelemetrySample]) -> [TelemetrySample] {
