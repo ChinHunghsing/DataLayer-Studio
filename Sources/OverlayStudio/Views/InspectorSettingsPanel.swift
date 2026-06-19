@@ -14,7 +14,7 @@ struct InspectorSettingsPanel: View {
     @ViewBuilder
     private var selectedElementSettings: some View {
         if let element = model.selectedElement {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 InspectorElementSummary(element: currentElement(element.id) ?? element)
                 settings(for: element)
             }
@@ -700,21 +700,23 @@ private struct InspectorGroup<Content: View>: View {
                         .frame(width: 12)
 
                     Image(systemName: section.systemImage)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 18)
+                        .frame(width: 16)
 
                     Text(localization.string(section.localizationKey))
-                        .font(.subheadline.weight(.semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(.primary)
+                        .textCase(.uppercase)
+                        .tracking(0.2)
 
                     Spacer()
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
 
             if isExpanded {
                 Divider()
@@ -723,14 +725,16 @@ private struct InspectorGroup<Content: View>: View {
                 VStack(alignment: .leading, spacing: 12) {
                     content()
                 }
-                .padding(12)
+                .padding(.horizontal, 10)
+                .padding(.top, 12)
+                .padding(.bottom, 14)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(InspectorStyle.panelFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(InspectorStyle.sectionFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(InspectorStyle.panelStroke)
+                .stroke(InspectorStyle.sectionStroke)
         }
     }
 
@@ -879,26 +883,11 @@ private struct InspectorUnavailableSection: View {
     var message: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: "slider.horizontal.below.rectangle")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(InspectorStyle.panelFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(InspectorStyle.panelStroke)
-        }
+        InspectorMessageBlock(
+            systemImage: "slider.horizontal.below.rectangle",
+            title: title,
+            message: message
+        )
     }
 }
 
@@ -1020,25 +1009,43 @@ private struct InspectorEmptyState: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: "cursorarrow.click.2")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.secondary)
+        InspectorMessageBlock(
+            systemImage: "cursorarrow.click.2",
+            title: localization.string("inspector.noSelection.title"),
+            message: localization.string("inspector.noSelection.message")
+        )
+    }
+}
 
-            Text(localization.string("inspector.noSelection.title"))
-                .font(.subheadline.weight(.semibold))
+private struct InspectorMessageBlock: View {
+    var systemImage: String
+    var title: String
+    var message: String
 
-            Text(localization.string("inspector.noSelection.message"))
-                .font(.caption)
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 22, height: 22)
+                .background(Color.secondary.opacity(0.09), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(InspectorStyle.panelFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(InspectorStyle.messageFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(InspectorStyle.panelStroke)
+                .stroke(InspectorStyle.messageStroke)
         }
     }
 }
@@ -1046,4 +1053,8 @@ private struct InspectorEmptyState: View {
 enum InspectorStyle {
     static let panelFill = Color.secondary.opacity(0.065)
     static let panelStroke = Color.secondary.opacity(0.12)
+    static let sectionFill = Color.secondary.opacity(0.038)
+    static let sectionStroke = Color.secondary.opacity(0.095)
+    static let messageFill = Color.secondary.opacity(0.045)
+    static let messageStroke = Color.secondary.opacity(0.09)
 }
