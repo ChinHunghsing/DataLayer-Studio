@@ -180,6 +180,10 @@ final class TransparentVideoWriterTests: XCTestCase {
     }
 
     func testWriterRendersTinyHEVCAlphaOutputWhenEncoderIsAvailable() async throws {
+        guard OverlayHardwareProfile.current.canUseHardwareEncoder(for: .hevcAlpha) else {
+            throw XCTSkip("This Mac does not list a hardware HEVC-with-alpha encoder.")
+        }
+
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("overlay-tiny-\(UUID().uuidString)")
             .appendingPathExtension("mov")
@@ -205,7 +209,7 @@ final class TransparentVideoWriterTests: XCTestCase {
 
         do {
             try writer.write()
-        } catch let error as OverlayVideoError where error.description.localizedCaseInsensitiveContains("encoder") {
+        } catch let error as OverlayVideoError where error.isUnavailableHEVCAlphaTestEncoder {
             throw XCTSkip("HEVC-with-alpha encoder is unavailable on this Mac: \(error.description)")
         }
 
@@ -244,5 +248,22 @@ final class TransparentVideoWriterTests: XCTestCase {
             framesPerSecond: 1,
             duration: 1
         )
+    }
+}
+
+private extension OverlayVideoError {
+    var isUnavailableHEVCAlphaTestEncoder: Bool {
+        switch self {
+        case .unsupportedEncoder, .cannotStartWriter:
+            return true
+        case let .writerFailed(message):
+            return message.localizedCaseInsensitiveContains("encoder") || message.contains("-12903")
+        case .unreadableVideo,
+             .cannotCreatePixelBuffer,
+             .cannotCreateBitmapContext,
+             .invalidConfiguration,
+             .cancelled:
+            return false
+        }
     }
 }
