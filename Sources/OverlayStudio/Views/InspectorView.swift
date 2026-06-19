@@ -13,7 +13,7 @@ struct InspectorView: View {
                 .padding(.bottom, model.selectedElement == nil ? 12 : 10)
 
             if model.selectedElement != nil {
-                InspectorSectionScopePicker(
+                InspectorSectionScopeBar(
                     selectedScopeRawValue: $selectedScopeRawValue,
                     expandedSections: $expandedSections
                 )
@@ -84,35 +84,85 @@ private enum InspectorSectionScope: String, CaseIterable, Identifiable {
             return "inspector.scope.data"
         }
     }
+
+    var systemImage: String {
+        switch self {
+        case .all:
+            return "square.grid.2x2"
+        case .layout:
+            return InspectorSection.layout.systemImage
+        case .content:
+            return InspectorSection.content.systemImage
+        case .appearance:
+            return InspectorSection.appearance.systemImage
+        case .typography:
+            return InspectorSection.typography.systemImage
+        case .data:
+            return InspectorSection.data.systemImage
+        }
+    }
 }
 
-private struct InspectorSectionScopePicker: View {
+private struct InspectorSectionScopeBar: View {
     @Binding var selectedScopeRawValue: String
     @Binding var expandedSections: Set<InspectorSection>
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        Picker(localization.string("inspector.sectionScope"), selection: selection) {
+        HStack(spacing: 4) {
             ForEach(InspectorSectionScope.allCases) { scope in
-                Text(localization.string(scope.localizationKey))
-                    .tag(scope.rawValue)
+                Button {
+                    select(scope)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: scope.systemImage)
+                            .font(.system(size: 11, weight: .semibold))
+                            .frame(width: 13)
+
+                        Text(localization.string(scope.localizationKey))
+                            .font(.caption2.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                    .foregroundStyle(isSelected(scope) ? Color.accentColor : Color.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 28)
+                    .padding(.horizontal, 4)
+                    .background(scopeBackground(for: scope), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .stroke(scopeStroke(for: scope))
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help(localization.string(scope.localizationKey))
             }
         }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .controlSize(.small)
+        .padding(3)
+        .background(InspectorStyle.scopeBarFill, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(InspectorStyle.scopeBarStroke)
+        }
         .accessibilityLabel(localization.string("inspector.sectionScope"))
     }
 
-    private var selection: Binding<String> {
-        Binding(
-            get: { selectedScopeRawValue },
-            set: { newValue in
-                selectedScopeRawValue = newValue
-                if let section = InspectorSectionScope(rawValue: newValue)?.section {
-                    expandedSections.insert(section)
-                }
-            }
-        )
+    private func isSelected(_ scope: InspectorSectionScope) -> Bool {
+        selectedScopeRawValue == scope.rawValue
+    }
+
+    private func select(_ scope: InspectorSectionScope) {
+        selectedScopeRawValue = scope.rawValue
+        if let section = scope.section {
+            expandedSections.insert(section)
+        }
+    }
+
+    private func scopeBackground(for scope: InspectorSectionScope) -> Color {
+        isSelected(scope) ? InspectorStyle.scopeSelectedFill : Color.clear
+    }
+
+    private func scopeStroke(for scope: InspectorSectionScope) -> Color {
+        isSelected(scope) ? InspectorStyle.scopeSelectedStroke : Color.clear
     }
 }

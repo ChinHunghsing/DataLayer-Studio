@@ -1140,4 +1140,8 @@ enum InspectorStyle {
     static let messageStroke = Color.secondary.opacity(0.09)
     static let actionGroupFill = Color.secondary.opacity(0.055)
     static let actionGroupStroke = Color.secondary.opacity(0.10)
+    static let scopeBarFill = Color.secondary.opacity(0.055)
+    static let scopeBarStroke = Color.secondary.opacity(0.10)
+    static let scopeSelectedFill = Color.accentColor.opacity(0.16)
+    static let scopeSelectedStroke = Color.accentColor.opacity(0.34)
 }
