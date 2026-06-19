@@ -709,7 +709,7 @@ private struct InspectorGroup<Content: View>: View {
                 Divider()
                     .overlay(Color.secondary.opacity(0.16))
 
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     content()
                 }
                 .padding(12)
@@ -748,8 +748,7 @@ private struct TextStyleRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 8) {
                 Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .inspectorControlLabel()
 
                 Spacer()
 
@@ -809,9 +808,7 @@ private struct InspectorColorRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .inspectorControlLabel()
 
             Spacer()
 
@@ -829,9 +826,7 @@ private struct InspectorTextRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .inspectorControlLabel()
 
             Spacer(minLength: 8)
 
@@ -858,18 +853,11 @@ private struct InspectorStepperRow: View {
         Stepper(value: $value, in: range) {
             HStack(spacing: 10) {
                 Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .inspectorControlLabel()
 
                 Spacer(minLength: 8)
 
-                Text("\(value)")
-                    .font(.caption.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.secondary.opacity(0.10), in: Capsule())
+                InspectorValuePill("\(value)")
             }
         }
     }
@@ -914,34 +902,16 @@ private struct LabeledSlider: View {
     @FocusState private var isTextFieldFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .center, spacing: 8) {
                 Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if showsTextField {
-                    HStack(spacing: 5) {
-                        TextField(title, text: $draftText)
-                            .multilineTextAlignment(.trailing)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.caption.monospacedDigit())
-                            .frame(width: 82)
-                            .focused($isTextFieldFocused)
-                            .onSubmit(commitDraft)
+                    .inspectorControlLabel()
 
-                        if let unitLabel {
-                            Text(unitLabel)
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
-                        }
-                    }
-                } else {
-                    Text(label)
-                        .foregroundStyle(.secondary)
-                        .font(.caption.monospacedDigit())
-                }
+                Spacer()
+
+                valueAccessory
             }
+
             Slider(value: clampedValue, in: range)
                 .controlSize(.small)
         }
@@ -958,6 +928,30 @@ private struct LabeledSlider: View {
             } else {
                 commitDraft()
             }
+        }
+    }
+
+    @ViewBuilder
+    private var valueAccessory: some View {
+        if showsTextField {
+            HStack(spacing: 6) {
+                TextField(title, text: $draftText)
+                    .multilineTextAlignment(.trailing)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.caption.monospacedDigit())
+                    .frame(width: 84)
+                    .focused($isTextFieldFocused)
+                    .onSubmit(commitDraft)
+
+                if let unitLabel {
+                    Text(unitLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 18, alignment: .leading)
+                }
+            }
+        } else {
+            InspectorValuePill(label)
         }
     }
 
@@ -980,6 +974,34 @@ private struct LabeledSlider: View {
         }
         value = clamp(parsed)
         draftText = NumberTextFormatter.formatDouble(clamp(value))
+    }
+}
+
+private struct InspectorValuePill: View {
+    var value: String
+
+    init(_ value: String) {
+        self.value = value
+    }
+
+    var body: some View {
+        Text(value)
+            .font(.caption.monospacedDigit().weight(.semibold))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(minWidth: 54, alignment: .trailing)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.secondary.opacity(0.095), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+}
+
+private extension View {
+    func inspectorControlLabel() -> some View {
+        font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
     }
 }
 
