@@ -80,56 +80,7 @@ struct SidebarView: View {
     }
 
     private var syncSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SidebarControl(title: localization.string("sidebar.mode")) {
-                Picker(localization.string("sidebar.mode"), selection: $model.syncMode) {
-                    ForEach(SyncMode.allCases) { mode in
-                        Text(localization.string(mode.localizationKey)).tag(mode)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-            }
-
-            Button {
-                model.markSportStart()
-            } label: {
-                Label(localization.string("sidebar.sportStart"), systemImage: "figure.run.circle")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .disabled(model.player == nil || model.isExporting)
-
-            switch model.syncMode {
-            case .offset:
-                NumberField(title: localization.string("sidebar.offset"), suffix: "s", value: doubleBinding(
-                    get: { model.offsetSeconds },
-                    set: { model.offsetSeconds = $0 },
-                    range: -86_400...86_400
-                ))
-                Text(localization.string("sidebar.offset.description"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            case .fitStart:
-                NumberField(title: localization.string("sidebar.videoZeroFit"), suffix: "s", value: doubleBinding(
-                    get: { model.fitStartSeconds },
-                    set: { model.fitStartSeconds = $0 },
-                    range: 0...86_400
-                ))
-            case .syncPoint:
-                NumberField(title: localization.string("sidebar.videoPoint"), suffix: "s", value: doubleBinding(
-                    get: { model.syncVideoSeconds },
-                    set: { model.syncVideoSeconds = $0 },
-                    range: 0...86_400
-                ))
-                NumberField(title: localization.string("sidebar.fitPoint"), suffix: "s", value: doubleBinding(
-                    get: { model.syncFITSeconds },
-                    set: { model.syncFITSeconds = $0 },
-                    range: 0...86_400
-                ))
-            }
-        }
+        SidebarSyncSection(model: model)
     }
 
     private var outputSection: some View {

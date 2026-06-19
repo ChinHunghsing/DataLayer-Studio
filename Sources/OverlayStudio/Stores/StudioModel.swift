@@ -48,7 +48,7 @@ final class StudioModel: ObservableObject {
         didSet { persistStudioPreferences() }
     }
 
-    @Published var syncMode: SyncMode = .offset
+    @Published var syncMode: SyncMode = .syncPoint
     @Published var offsetSeconds = 0.0
     @Published var fitStartSeconds = 0.0
     @Published var syncVideoSeconds = 0.0
