@@ -52,7 +52,11 @@ struct InspectorSettingsPanel: View {
         let id = element.id
         let kind = element.kind
 
-        return InspectorGroup(section: .layout, expandedSections: $expandedSections) {
+        return InspectorGroup(
+            section: .layout,
+            summary: layoutSummary(for: element),
+            expandedSections: $expandedSections
+        ) {
             Toggle(localization.string("inspector.visible"), isOn: boolBinding(
                 id: id,
                 get: { $0.frame.isVisible },
@@ -98,7 +102,11 @@ struct InspectorSettingsPanel: View {
         let id = element.id
         let kind = element.kind
 
-        return InspectorGroup(section: .content, expandedSections: $expandedSections) {
+        return InspectorGroup(
+            section: .content,
+            summary: contentSummary(for: element),
+            expandedSections: $expandedSections
+        ) {
             Toggle(localization.string("inspector.label"), isOn: boolBinding(
                 id: id,
                 get: { $0.customization.showsLabel },
@@ -176,7 +184,11 @@ struct InspectorSettingsPanel: View {
         let id = element.id
         let kind = element.kind
 
-        return InspectorGroup(section: .appearance, expandedSections: $expandedSections) {
+        return InspectorGroup(
+            section: .appearance,
+            summary: appearanceSummary(for: element),
+            expandedSections: $expandedSections
+        ) {
             InspectorSubheading(localization.string("inspector.panelSection"))
 
             Toggle(localization.string("inspector.panel"), isOn: boolBinding(
@@ -304,7 +316,11 @@ struct InspectorSettingsPanel: View {
         let id = element.id
         let kind = element.kind
 
-        return InspectorGroup(section: .typography, expandedSections: $expandedSections) {
+        return InspectorGroup(
+            section: .typography,
+            summary: typographySummary(for: element),
+            expandedSections: $expandedSections
+        ) {
             if currentElement(id)?.customization.showsLabel == true {
                 TextStyleRow(
                     title: localization.string("inspector.label"),
@@ -354,7 +370,11 @@ struct InspectorSettingsPanel: View {
         let kind = element.kind
 
         if kind.supportsValuePrecision || kind == .speed {
-            InspectorGroup(section: .data, expandedSections: $expandedSections) {
+            InspectorGroup(
+                section: .data,
+                summary: dataSummary(for: element),
+                expandedSections: $expandedSections
+            ) {
                 if kind.supportsValuePrecision {
                     InspectorStepperRow(
                         title: localization.string("inspector.decimalsTitle"),
@@ -399,6 +419,74 @@ struct InspectorSettingsPanel: View {
 
     private func currentElement(_ id: String) -> OverlayElement? {
         model.layout.elements.first { $0.id == id }
+    }
+
+    private func layoutSummary(for element: OverlayElement) -> String {
+        let frame = currentElement(element.id)?.frame ?? element.frame
+        return "X \(frame.x.percentString) / Y \(frame.y.percentString)"
+    }
+
+    private func contentSummary(for element: OverlayElement) -> String? {
+        let current = currentElement(element.id) ?? element
+        var parts = [String]()
+
+        if current.customization.showsLabel {
+            parts.append(localization.string("inspector.label"))
+        }
+        if current.customization.showsUnit {
+            switch current.kind {
+            case .topProgress:
+                parts.append(localization.string("inspector.endLabel"))
+            case .timeDate:
+                parts.append(localization.string("inspector.clockAndDate"))
+            default:
+                parts.append(localization.string("inspector.unit"))
+            }
+        }
+        if current.customization.showsIcon {
+            parts.append(localization.string("inspector.icon"))
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " / ")
+    }
+
+    private func appearanceSummary(for element: OverlayElement) -> String? {
+        let current = currentElement(element.id) ?? element
+        var parts = [String]()
+
+        if current.customization.showsPanel {
+            parts.append(localization.string("inspector.panel"))
+        }
+        if current.kind.supportsLineWidth {
+            parts.append("\(Int(current.customization.lineWidth.rounded())) px")
+        }
+        if current.kind == .topProgress,
+           current.customization.showGaugeTicks == true {
+            parts.append(localization.string("inspector.tickMarks"))
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " / ")
+    }
+
+    private func typographySummary(for element: OverlayElement) -> String {
+        "\(localization.string("inspector.value")) \(fontSizeLabel(id: element.id, role: .value, kind: element.kind))"
+    }
+
+    private func dataSummary(for element: OverlayElement) -> String? {
+        let current = currentElement(element.id) ?? element
+        var parts = [String]()
+
+        if current.kind.supportsValuePrecision {
+            let precision = current.customization.valuePrecision ?? current.kind.defaultPrecision
+            parts.append(localization.string("inspector.decimals", precision))
+        }
+        if current.kind == .speed {
+            let minimum = Int((current.customization.gaugeMinimum ?? 0).rounded())
+            let maximum = Int((current.customization.gaugeMaximum ?? 24).rounded())
+            parts.append("\(minimum)-\(maximum)")
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " / ")
     }
 
     private func fontSizeLabel(id: String, role: TypographyRole, kind: OverlayComponentID) -> String {
@@ -684,6 +772,7 @@ enum InspectorSection: String, CaseIterable, Identifiable {
 
 private struct InspectorGroup<Content: View>: View {
     var section: InspectorSection
+    var summary: String?
     @Binding var expandedSections: Set<InspectorSection>
     @ViewBuilder var content: () -> Content
     @EnvironmentObject private var localization: LocalizationStore
@@ -711,6 +800,18 @@ private struct InspectorGroup<Content: View>: View {
                         .tracking(0.2)
 
                     Spacer()
+
+                    if let summary {
+                        Text(summary)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .frame(maxWidth: 132, alignment: .trailing)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(InspectorStyle.sectionSummaryFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
                 }
                 .contentShape(Rectangle())
             }
@@ -1055,6 +1156,7 @@ enum InspectorStyle {
     static let panelStroke = Color.secondary.opacity(0.12)
     static let sectionFill = Color.secondary.opacity(0.038)
     static let sectionStroke = Color.secondary.opacity(0.095)
+    static let sectionSummaryFill = Color.secondary.opacity(0.06)
     static let messageFill = Color.secondary.opacity(0.045)
     static let messageStroke = Color.secondary.opacity(0.09)
     static let actionGroupFill = Color.secondary.opacity(0.055)
