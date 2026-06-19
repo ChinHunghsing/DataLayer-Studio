@@ -210,6 +210,7 @@ enum AppLocalizer {
         "help.cancelExport": "Cancel export",
         "help.exportTransparentOverlay": "Export transparent overlay video",
 
+        "sidebar.workflowTabs": "Workflow steps",
         "sidebar.source.title": "Source",
         "sidebar.source.subtitle": "Video and FIT activity data",
         "sidebar.video.title": "Video",
@@ -440,6 +441,7 @@ enum AppLocalizer {
         "help.cancelExport": "取消导出",
         "help.exportTransparentOverlay": "导出透明浮层视频",
 
+        "sidebar.workflowTabs": "工作流步骤",
         "sidebar.source.title": "素材",
         "sidebar.source.subtitle": "视频和 FIT 运动数据",
         "sidebar.video.title": "视频",
@@ -670,6 +672,7 @@ enum AppLocalizer {
         "help.cancelExport": "取消匯出",
         "help.exportTransparentOverlay": "匯出透明浮層影片",
 
+        "sidebar.workflowTabs": "工作流程步驟",
         "sidebar.source.title": "素材",
         "sidebar.source.subtitle": "影片和 FIT 運動資料",
         "sidebar.video.title": "影片",
@@ -900,6 +903,7 @@ enum AppLocalizer {
         "help.cancelExport": "書き出しをキャンセル",
         "help.exportTransparentOverlay": "透明オーバーレイ動画を書き出す",
 
+        "sidebar.workflowTabs": "ワークフロー手順",
         "sidebar.source.title": "ソース",
         "sidebar.source.subtitle": "動画と FIT アクティビティデータ",
         "sidebar.video.title": "動画",

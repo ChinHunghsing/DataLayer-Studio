@@ -5,46 +5,20 @@ struct SidebarView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
     @State private var layoutPresetName = ""
+    @SceneStorage("sidebarWorkflowTab") private var selectedTabRawValue = SidebarWorkflowTab.source.rawValue
 
     var body: some View {
         ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 24) {
-                SidebarWorkflowSection(
-                    step: "1",
-                    title: localization.string("sidebar.source.title"),
-                    subtitle: localization.string("sidebar.source.subtitle"),
-                    systemImage: "film.stack"
-                ) {
-                    fileSection
-                }
-                .disabled(model.isExporting)
+            VStack(alignment: .leading, spacing: 18) {
+                workflowTabs
 
                 SidebarWorkflowSection(
-                    step: "2",
-                    title: localization.string("sidebar.sync.title"),
-                    subtitle: localization.string("sidebar.sync.subtitle"),
-                    systemImage: "timer"
+                    step: selectedTab.step,
+                    title: localization.string(selectedTab.titleKey),
+                    subtitle: localization.string(selectedTab.subtitleKey),
+                    systemImage: selectedTab.systemImage
                 ) {
-                    syncSection
-                }
-                .disabled(model.isExporting)
-
-                SidebarWorkflowSection(
-                    step: "3",
-                    title: localization.string("sidebar.canvas.title"),
-                    subtitle: localization.string("sidebar.canvas.subtitle"),
-                    systemImage: "rectangle.dashed"
-                ) {
-                    canvasSection
-                }
-
-                SidebarWorkflowSection(
-                    step: "4",
-                    title: localization.string("sidebar.export.title"),
-                    subtitle: localization.string("sidebar.export.subtitle"),
-                    systemImage: "paperplane"
-                ) {
-                    exportWorkflowSection
+                    selectedTabContent
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -52,6 +26,37 @@ struct SidebarView: View {
             .padding(.vertical, 20)
         }
         .controlSize(.small)
+    }
+
+    private var selectedTab: SidebarWorkflowTab {
+        SidebarWorkflowTab(rawValue: selectedTabRawValue) ?? .source
+    }
+
+    private var workflowTabs: some View {
+        Picker(localization.string("sidebar.workflowTabs"), selection: $selectedTabRawValue) {
+            ForEach(SidebarWorkflowTab.allCases) { tab in
+                Text(localization.string(tab.titleKey)).tag(tab.rawValue)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .accessibilityLabel(localization.string("sidebar.workflowTabs"))
+    }
+
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case .source:
+            fileSection
+                .disabled(model.isExporting)
+        case .sync:
+            syncSection
+                .disabled(model.isExporting)
+        case .canvas:
+            canvasSection
+        case .export:
+            exportWorkflowSection
+        }
     }
 
     private var fileSection: some View {
@@ -425,5 +430,66 @@ struct SidebarView: View {
     private var clampedExportProgress: Double {
         guard model.exportProgress.isFinite else { return 0 }
         return min(1, max(0, model.exportProgress))
+    }
+}
+
+private enum SidebarWorkflowTab: String, CaseIterable, Identifiable {
+    case source
+    case sync
+    case canvas
+    case export
+
+    var id: String { rawValue }
+
+    var step: String {
+        switch self {
+        case .source:
+            return "1"
+        case .sync:
+            return "2"
+        case .canvas:
+            return "3"
+        case .export:
+            return "4"
+        }
+    }
+
+    var titleKey: String {
+        switch self {
+        case .source:
+            return "sidebar.source.title"
+        case .sync:
+            return "sidebar.sync.title"
+        case .canvas:
+            return "sidebar.canvas.title"
+        case .export:
+            return "sidebar.export.title"
+        }
+    }
+
+    var subtitleKey: String {
+        switch self {
+        case .source:
+            return "sidebar.source.subtitle"
+        case .sync:
+            return "sidebar.sync.subtitle"
+        case .canvas:
+            return "sidebar.canvas.subtitle"
+        case .export:
+            return "sidebar.export.subtitle"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .source:
+            return "film.stack"
+        case .sync:
+            return "timer"
+        case .canvas:
+            return "rectangle.dashed"
+        case .export:
+            return "paperplane"
+        }
     }
 }
