@@ -6,20 +6,14 @@ struct InspectorSelectionHeader: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 10) {
-                titleContent
-                Spacer(minLength: 8)
-
-                if model.selectedElement != nil {
-                    selectedElementActions
-                }
-            }
-
-            addElementMenu
+        HStack(alignment: .center, spacing: 10) {
+            titleContent
+            Spacer(minLength: 8)
+            headerActions
         }
         .buttonStyle(.borderless)
-        .padding(12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(InspectorStyle.panelFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -74,7 +68,19 @@ struct InspectorSelectionHeader: View {
         .foregroundStyle(.secondary)
     }
 
-    private var addElementMenu: some View {
+    @ViewBuilder
+    private var headerActions: some View {
+        if model.selectedElement != nil {
+            HStack(spacing: 6) {
+                addElementMenu(compact: true)
+                selectedElementActions
+            }
+        } else {
+            addElementMenu(compact: false)
+        }
+    }
+
+    private func addElementMenu(compact: Bool) -> some View {
         Menu {
             ForEach(OverlayComponentID.allCases) { component in
                 Button {
@@ -84,8 +90,12 @@ struct InspectorSelectionHeader: View {
                 }
             }
         } label: {
-            Label(localization.string("inspector.add"), systemImage: "plus")
-                .frame(minWidth: 86)
+            if compact {
+                actionIcon("plus")
+            } else {
+                Label(localization.string("inspector.add"), systemImage: "plus")
+                    .frame(minWidth: 86)
+            }
         }
         .menuStyle(.borderlessButton)
         .controlSize(.small)
