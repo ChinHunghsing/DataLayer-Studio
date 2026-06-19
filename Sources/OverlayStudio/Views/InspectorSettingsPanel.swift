@@ -14,8 +14,7 @@ struct InspectorSettingsPanel: View {
     @ViewBuilder
     private var selectedElementSettings: some View {
         if let element = model.selectedElement {
-            VStack(alignment: .leading, spacing: 14) {
-                InspectorElementSummary(element: currentElement(element.id) ?? element)
+            VStack(alignment: .leading, spacing: 12) {
                 settings(for: element)
             }
             .id(element.id)
@@ -659,75 +658,6 @@ private enum TypographyRole {
     case value
     case unit
     case icon
-}
-
-private struct InspectorElementSummary: View {
-    var element: OverlayElement
-    @EnvironmentObject private var localization: LocalizationStore
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) {
-                metrics
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                metrics
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 2)
-    }
-
-    @ViewBuilder
-    private var metrics: some View {
-        InspectorSummaryMetric(
-            title: localization.string("inspector.summary.position"),
-            value: "X \(element.frame.x.percentString)  Y \(element.frame.y.percentString)",
-            systemImage: "arrow.left.and.right"
-        )
-        InspectorSummaryMetric(
-            title: localization.string("inspector.summary.scale"),
-            value: element.frame.scale.percentString,
-            systemImage: "arrow.up.left.and.arrow.down.right"
-        )
-        InspectorSummaryMetric(
-            title: localization.string("inspector.summary.state"),
-            value: element.frame.isVisible
-                ? localization.string("inspector.summary.visible")
-                : localization.string("inspector.summary.hidden"),
-            systemImage: element.frame.isVisible ? "eye" : "eye.slash"
-        )
-    }
-}
-
-private struct InspectorSummaryMetric: View {
-    var title: String
-    var value: String
-    var systemImage: String
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 12)
-
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            Text(value)
-                .font(.caption2.monospacedDigit().weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-        }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
-        .background(Color.secondary.opacity(0.075), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-    }
 }
 
 enum InspectorSection: String, CaseIterable, Identifiable {
