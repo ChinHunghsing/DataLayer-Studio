@@ -36,6 +36,8 @@ scripts/verify_source_available_readiness.sh
 For vulnerabilities or private data exposure, follow [SECURITY.md](SECURITY.md)
 instead of opening a public issue with sensitive details.
 
+For local data handling and privacy expectations, see [PRIVACY.md](PRIVACY.md).
+
 For general support expectations, see [SUPPORT.md](SUPPORT.md).
 
 ## Build
