@@ -37,6 +37,13 @@ Build the package:
 swift build
 ```
 
+Build release products checked by CI:
+
+```bash
+swift build -c release --product overlay
+swift build -c release --product datalayer-studio
+```
+
 Run tests:
 
 ```bash

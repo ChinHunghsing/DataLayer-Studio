@@ -5,6 +5,7 @@
 ## Verification
 
 - [ ] `swift test`
+- [ ] Release product builds pass, or not applicable
 - [ ] GUI-visible changes were rebuilt and manually checked
 - [ ] Not applicable
 

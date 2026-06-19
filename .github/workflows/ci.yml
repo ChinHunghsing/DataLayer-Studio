@@ -31,5 +31,10 @@ jobs:
       - name: Verify source-available readiness
         run: scripts/verify_source_available_readiness.sh
 
+      - name: Build release products
+        run: |
+          swift build -c release --product overlay
+          swift build -c release --product datalayer-studio
+
       - name: Run tests
         run: swift test
