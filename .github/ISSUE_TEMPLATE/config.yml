@@ -1,0 +1,6 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security reports
+    url: https://github.com/leeeboo/DataLayer-Studio/security/advisories/new
+    about: Report vulnerabilities privately when repository security advisories are enabled.
+

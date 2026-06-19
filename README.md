@@ -19,6 +19,14 @@ See [LICENSE.md](LICENSE.md). This is not an OSI open-source license because
 commercial use, resale, paid redistribution, and paid hosting are not permitted
 without a separate written commercial license.
 
+## Contributing
+
+Pull requests are welcome when they are compatible with the project license.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
+
+For vulnerabilities or private data exposure, follow [SECURITY.md](SECURITY.md)
+instead of opening a public issue with sensitive details.
+
 ## Build
 
 ```bash
@@ -147,8 +155,8 @@ GUI and can be saved, imported, exported, or reused as defaults.
 
 ## Release
 
-GitHub Actions builds release zips only when a version tag is pushed. This keeps
-private-repository macOS runner usage low for free GitHub accounts.
+GitHub Actions builds release zips only when a version tag is pushed. Regular
+pull requests run the lighter CI test workflow.
 
 Use semantic version tags:
 
