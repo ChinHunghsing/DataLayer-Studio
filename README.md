@@ -187,3 +187,9 @@ When a `v*` tag is pushed, `.github/workflows/release.yml` will:
 The app bundle includes `LICENSE.md`, `NOTICE.md`, and `README.md` under
 `Contents/Resources/Legal`. The zip appears under the matching tag's GitHub
 Release assets.
+
+You can verify a local app bundle before publishing:
+
+```bash
+scripts/verify_app_bundle.sh
+```

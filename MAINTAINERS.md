@@ -28,8 +28,8 @@ Before pushing a release tag:
 - Run `swift test`.
 - Build the app bundle with `scripts/build_app_bundle.sh` when release-facing
   files, packaging, icons, localization, or GUI-visible behavior changed.
-- Confirm the app bundle includes `LICENSE.md`, `NOTICE.md`, and `README.md`
-  under `Contents/Resources/Legal`.
+- Run `scripts/verify_app_bundle.sh` to confirm the bundle includes
+  `LICENSE.md`, `NOTICE.md`, and `README.md` under `Contents/Resources/Legal`.
 
 ## Data Handling
 

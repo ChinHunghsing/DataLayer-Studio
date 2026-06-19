@@ -36,6 +36,7 @@ required_files=(
     ".github/workflows/ci.yml"
     ".github/workflows/release.yml"
     ".github/dependabot.yml"
+    "scripts/verify_app_bundle.sh"
 )
 
 for path in "${required_files[@]}"; do
@@ -76,9 +77,11 @@ grep -qi 'license' CONTRIBUTING.md || fail "CONTRIBUTING.md must mention license
 grep -q 'scripts/verify_open_source_readiness.sh' .github/workflows/ci.yml || fail "CI must run readiness verification"
 grep -q 'swift test' .github/workflows/ci.yml || fail "CI must run swift test"
 grep -q 'scripts/verify_open_source_readiness.sh' .github/workflows/release.yml || fail "release workflow must run readiness verification"
+grep -q 'scripts/verify_app_bundle.sh' .github/workflows/release.yml || fail "release workflow must verify the app bundle"
 grep -q 'swift test' .github/workflows/release.yml || fail "release workflow must run swift test"
 
 grep -q '@leeeboo' .github/CODEOWNERS || fail "CODEOWNERS must name the current repository owner"
+grep -q 'https://polyformproject.org/licenses/noncommercial/1.0.0' LICENSE.md || fail "LICENSE.md must contain the canonical PolyForm Noncommercial URL"
 
 if (( failures > 0 )); then
     exit 1
