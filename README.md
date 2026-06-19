@@ -119,7 +119,7 @@ The GUI supports:
 - saving, importing, exporting, and setting default layout presets
 - setting output resolution and frame rate through presets or manual input
 - choosing whether distance labels render in `m` or `km`
-- setting output bitrate in kbps, plus duration, codec, and destination
+- setting output bitrate in kbps, codec, and destination
 
 ## Usage
 

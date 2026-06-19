@@ -94,4 +94,16 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
 </plist>
 PLIST
 
+for locale in en zh-Hans zh-Hant ja; do
+    LPROJ_DIR="$RESOURCES_DIR/$locale.lproj"
+    mkdir -p "$LPROJ_DIR"
+    cat > "$LPROJ_DIR/InfoPlist.strings" <<STRINGS
+CFBundleName = "$APP_NAME";
+CFBundleDisplayName = "$APP_NAME";
+STRINGS
+    cat > "$LPROJ_DIR/Localizable.strings" <<STRINGS
+"app.name" = "$APP_NAME";
+STRINGS
+done
+
 echo "$APP_DIR"
