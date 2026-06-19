@@ -3,6 +3,18 @@ description: Suggest an improvement for the app, CLI, renderer, or FIT parsing.
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach private videos, FIT files, GPS traces, or credentials.
+        Describe workflows with sanitized examples whenever possible.
+  - type: checkboxes
+    id: data-safety
+    attributes:
+      label: Data safety
+      options:
+        - label: I removed or redacted private videos, FIT files, GPS traces, credentials, and local paths from public attachments.
+          required: true
   - type: textarea
     id: problem
     attributes:
@@ -35,4 +47,3 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
-

@@ -1,6 +1,8 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Security reports
     url: https://github.com/leeeboo/DataLayer-Studio/security/advisories/new
     about: Report vulnerabilities privately when repository security advisories are enabled.
-
+  - name: Support policy
+    url: https://github.com/leeeboo/DataLayer-Studio/blob/main/SUPPORT.md
+    about: Read support expectations before opening public issues.

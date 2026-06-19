@@ -8,6 +8,13 @@ body:
       value: |
         Do not attach private videos, FIT files, GPS traces, or credentials.
         Use sanitized fixtures whenever possible.
+  - type: checkboxes
+    id: data-safety
+    attributes:
+      label: Data safety
+      options:
+        - label: I removed or redacted private videos, FIT files, GPS traces, credentials, and local paths from public attachments.
+          required: true
   - type: textarea
     id: summary
     attributes:
@@ -53,4 +60,3 @@ body:
     attributes:
       label: Verification notes
       description: Commands run, screenshots, sanitized sample details, or logs.
-

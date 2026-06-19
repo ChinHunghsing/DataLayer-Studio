@@ -74,6 +74,13 @@ grep -q '## Release' README.md || fail "README.md must include a Release section
 grep -q 'scripts/verify_source_available_readiness.sh' README.md || fail "README.md must document the readiness check"
 grep -q 'swift test' CONTRIBUTING.md || fail "CONTRIBUTING.md must document swift test"
 grep -qi 'license' CONTRIBUTING.md || fail "CONTRIBUTING.md must mention license expectations"
+grep -q 'GPS traces' .github/pull_request_template.md || fail "PR template must warn about GPS traces"
+grep -q 'generated build output' .github/pull_request_template.md || fail "PR template must warn about generated build output"
+grep -q 'Data safety' .github/ISSUE_TEMPLATE/bug_report.yml || fail "bug report template must require data safety confirmation"
+grep -q 'GPS traces' .github/ISSUE_TEMPLATE/bug_report.yml || fail "bug report template must warn about GPS traces"
+grep -q 'Data safety' .github/ISSUE_TEMPLATE/feature_request.yml || fail "feature request template must require data safety confirmation"
+grep -q 'GPS traces' .github/ISSUE_TEMPLATE/feature_request.yml || fail "feature request template must warn about GPS traces"
+grep -q '^blank_issues_enabled: false$' .github/ISSUE_TEMPLATE/config.yml || fail "blank issues must be disabled so templates capture data safety checks"
 
 grep -q 'scripts/verify_source_available_readiness.sh' .github/workflows/ci.yml || fail "CI must run readiness verification"
 grep -q 'swift test' .github/workflows/ci.yml || fail "CI must run swift test"
