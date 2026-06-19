@@ -19,6 +19,8 @@ See [LICENSE.md](LICENSE.md). This is not an OSI open-source license because
 commercial use, resale, paid redistribution, and paid hosting are not permitted
 without a separate written commercial license.
 
+See [NOTICE.md](NOTICE.md) for project notices and third-party dependency notes.
+
 ## Contributing
 
 Pull requests are welcome when they are compatible with the project license.
@@ -26,6 +28,8 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
 
 For vulnerabilities or private data exposure, follow [SECURITY.md](SECURITY.md)
 instead of opening a public issue with sensitive details.
+
+For general support expectations, see [SUPPORT.md](SUPPORT.md).
 
 ## Build
 
@@ -173,4 +177,6 @@ When a `v*` tag is pushed, `.github/workflows/release.yml` will:
 - generate a SHA-256 checksum
 - create or update the GitHub Release for that tag and upload both files
 
-The zip appears under the matching tag's GitHub Release assets.
+The app bundle includes `LICENSE.md`, `NOTICE.md`, and `README.md` under
+`Contents/Resources/Legal`. The zip appears under the matching tag's GitHub
+Release assets.

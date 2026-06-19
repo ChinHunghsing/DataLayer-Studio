@@ -11,6 +11,7 @@ APP_DIR="$ROOT_DIR/.build/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+LEGAL_DIR="$RESOURCES_DIR/Legal"
 APP_ICON_NAME="DataLayerStudio"
 APP_ICON_SOURCE="$ROOT_DIR/Resources/AppIcon.png"
 
@@ -18,8 +19,11 @@ cd "$ROOT_DIR"
 swift build -c release --arch arm64 --product "$SWIFT_PRODUCT"
 
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$LEGAL_DIR"
 cp "$ROOT_DIR/.build/release/$SWIFT_PRODUCT" "$MACOS_DIR/$APP_NAME"
+cp "$ROOT_DIR/LICENSE.md" "$LEGAL_DIR/LICENSE.md"
+cp "$ROOT_DIR/NOTICE.md" "$LEGAL_DIR/NOTICE.md"
+cp "$ROOT_DIR/README.md" "$LEGAL_DIR/README.md"
 
 if [[ ! -f "$APP_ICON_SOURCE" ]]; then
     echo "Missing app icon source: $APP_ICON_SOURCE" >&2
