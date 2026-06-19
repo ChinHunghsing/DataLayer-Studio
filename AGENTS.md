@@ -1,6 +1,7 @@
 <!-- BEGIN:git-rules -->
 # Always use Simplified Chinese as git commit message 
 - 每次完成代码或项目文件修改后，判断这次变更是否适合单独做一个 git 提交；如果适合，就提交并推送到远端。
+- 每次修改后判断这次变更是否需要重新 build 才能看到效果；如果需要，就在完成后重新 build。
 <!-- END:git-rules -->
 
 ## Product Naming
