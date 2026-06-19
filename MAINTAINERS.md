@@ -12,7 +12,7 @@ Before merging a pull request, confirm:
 
 - The change is focused and described clearly.
 - New behavior has tests, or the PR explains why tests are not appropriate.
-- `scripts/verify_open_source_readiness.sh` passes.
+- `scripts/verify_source_available_readiness.sh` passes.
 - `swift test` passes, or the PR documents a reproducible local failure.
 - GUI-visible changes include rebuild or launch notes from the contributor.
 - The PR does not include private videos, FIT files, GPS/activity data,
@@ -24,7 +24,7 @@ Before merging a pull request, confirm:
 
 Before pushing a release tag:
 
-- Run `scripts/verify_open_source_readiness.sh`.
+- Run `scripts/verify_source_available_readiness.sh`.
 - Run `swift test`.
 - Build the app bundle with `scripts/build_app_bundle.sh` when release-facing
   files, packaging, icons, localization, or GUI-visible behavior changed.

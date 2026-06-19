@@ -30,7 +30,7 @@ Maintainers and contributors can run the repository readiness check before
 opening or merging PRs:
 
 ```bash
-scripts/verify_open_source_readiness.sh
+scripts/verify_source_available_readiness.sh
 ```
 
 For vulnerabilities or private data exposure, follow [SECURITY.md](SECURITY.md)

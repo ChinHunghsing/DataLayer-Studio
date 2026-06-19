@@ -44,7 +44,7 @@ swift test
 Run repository readiness checks:
 
 ```bash
-scripts/verify_open_source_readiness.sh
+scripts/verify_source_available_readiness.sh
 ```
 
 Run the GUI from SwiftPM:
@@ -69,7 +69,7 @@ swift run overlay --help
 ## Pull Request Checklist
 
 - The PR describes what changed and why.
-- `scripts/verify_open_source_readiness.sh` passes locally, or the PR explains
+- `scripts/verify_source_available_readiness.sh` passes locally, or the PR explains
   why it could not be run.
 - `swift test` passes locally, or the PR explains why it could not be run.
 - GUI-visible changes include manual verification notes.

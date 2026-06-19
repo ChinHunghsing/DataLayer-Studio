@@ -36,6 +36,7 @@ required_files=(
     ".github/workflows/ci.yml"
     ".github/workflows/release.yml"
     ".github/dependabot.yml"
+    "scripts/verify_source_available_readiness.sh"
     "scripts/verify_app_bundle.sh"
 )
 
@@ -70,13 +71,13 @@ grep -q 'README.md' scripts/build_app_bundle.sh || fail "app bundle script must 
 grep -q '## License' README.md || fail "README.md must include a License section"
 grep -q '## Contributing' README.md || fail "README.md must include a Contributing section"
 grep -q '## Release' README.md || fail "README.md must include a Release section"
-grep -q 'scripts/verify_open_source_readiness.sh' README.md || fail "README.md must document the readiness check"
+grep -q 'scripts/verify_source_available_readiness.sh' README.md || fail "README.md must document the readiness check"
 grep -q 'swift test' CONTRIBUTING.md || fail "CONTRIBUTING.md must document swift test"
 grep -qi 'license' CONTRIBUTING.md || fail "CONTRIBUTING.md must mention license expectations"
 
-grep -q 'scripts/verify_open_source_readiness.sh' .github/workflows/ci.yml || fail "CI must run readiness verification"
+grep -q 'scripts/verify_source_available_readiness.sh' .github/workflows/ci.yml || fail "CI must run readiness verification"
 grep -q 'swift test' .github/workflows/ci.yml || fail "CI must run swift test"
-grep -q 'scripts/verify_open_source_readiness.sh' .github/workflows/release.yml || fail "release workflow must run readiness verification"
+grep -q 'scripts/verify_source_available_readiness.sh' .github/workflows/release.yml || fail "release workflow must run readiness verification"
 grep -q 'scripts/verify_app_bundle.sh' .github/workflows/release.yml || fail "release workflow must verify the app bundle"
 grep -q 'swift test' .github/workflows/release.yml || fail "release workflow must run swift test"
 
@@ -87,4 +88,4 @@ if (( failures > 0 )); then
     exit 1
 fi
 
-echo "Open-source readiness checks passed."
+echo "Source-available readiness checks passed."
