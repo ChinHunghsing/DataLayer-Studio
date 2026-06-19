@@ -6,14 +6,17 @@ struct InspectorSelectionHeader: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
                 titleContent
                 Spacer(minLength: 8)
-                layerStatus
+
+                if model.selectedElement != nil {
+                    selectedElementActions
+                }
             }
 
-            actions
+            addElementMenu
         }
         .buttonStyle(.borderless)
         .padding(12)
@@ -34,10 +37,8 @@ struct InspectorSelectionHeader: View {
                     Text(elementDisplayTitle(element))
                         .font(.headline)
                         .lineLimit(1)
-                    Text(localization.string(element.kind.localizationKey))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+
+                    elementMetadata(element)
                 }
             }
         } else {
@@ -55,30 +56,22 @@ struct InspectorSelectionHeader: View {
         }
     }
 
-    @ViewBuilder
-    private var layerStatus: some View {
-        if let selectedElementIndex {
-            Text(localization.string("inspector.layerPosition", selectedElementIndex + 1, model.layout.elements.count))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.10), in: Capsule())
-        }
-    }
-
-    private var actions: some View {
+    private func elementMetadata(_ element: OverlayElement) -> some View {
         HStack(spacing: 6) {
-            addElementMenu
+            Text(localization.string(element.kind.localizationKey))
+                .lineLimit(1)
 
-            Spacer(minLength: 6)
+            if let selectedElementIndex {
+                Text("/")
+                    .foregroundStyle(.tertiary)
 
-            if model.selectedElement != nil {
-                selectedElementActions
+                Text(localization.string("inspector.layerPosition", selectedElementIndex + 1, model.layout.elements.count))
+                    .monospacedDigit()
+                    .lineLimit(1)
             }
         }
-        .controlSize(.small)
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 
     private var addElementMenu: some View {
@@ -92,9 +85,10 @@ struct InspectorSelectionHeader: View {
             }
         } label: {
             Label(localization.string("inspector.add"), systemImage: "plus")
-                .frame(minWidth: 70)
+                .frame(minWidth: 86)
         }
         .menuStyle(.borderlessButton)
+        .controlSize(.small)
         .disabled(model.isExporting)
         .help(localization.string("inspector.addElement"))
     }
@@ -138,6 +132,7 @@ struct InspectorSelectionHeader: View {
             .disabled(model.isExporting)
             .help(localization.string("inspector.delete"))
         }
+        .controlSize(.small)
     }
 
     private func symbolBadge(systemName: String) -> some View {

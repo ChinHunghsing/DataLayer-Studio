@@ -9,8 +9,8 @@ struct InspectorView: View {
         VStack(spacing: 0) {
             InspectorSelectionHeader(model: model)
                 .padding(.horizontal, 18)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
+                .padding(.top, 14)
+                .padding(.bottom, model.selectedElement == nil ? 12 : 10)
 
             if model.selectedElement != nil {
                 InspectorSectionScopePicker(
@@ -18,7 +18,7 @@ struct InspectorView: View {
                     expandedSections: $expandedSections
                 )
                 .padding(.horizontal, 18)
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
             }
 
             Divider()
@@ -31,7 +31,7 @@ struct InspectorView: View {
                     focusedSection: selectedScope.section
                 )
                     .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 14)
             }
         }
     }
