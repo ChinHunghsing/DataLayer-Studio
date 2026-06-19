@@ -378,11 +378,13 @@ public final class TransparentVideoWriter {
 
     private func installCompletedOutput(from temporaryOutputURL: URL) throws {
         let fileManager = FileManager.default
-        do {
-            try fileManager.removeItem(at: outputURL)
-        } catch {
-            if !isMissingFileError(error) {
-                throw error
+        if fileManager.fileExists(atPath: outputURL.path) {
+            do {
+                try fileManager.removeItem(at: outputURL)
+            } catch {
+                if !isMissingFileError(error) {
+                    throw error
+                }
             }
         }
 

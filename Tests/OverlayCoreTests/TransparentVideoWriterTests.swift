@@ -183,7 +183,11 @@ final class TransparentVideoWriterTests: XCTestCase {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("overlay-tiny-\(UUID().uuidString)")
             .appendingPathExtension("mov")
-        defer { try? FileManager.default.removeItem(at: outputURL) }
+        defer {
+            if FileManager.default.fileExists(atPath: outputURL.path) {
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+        }
 
         let writer = TransparentVideoWriter(
             outputURL: outputURL,
