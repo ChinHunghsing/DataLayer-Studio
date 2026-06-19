@@ -13,15 +13,13 @@ struct InspectorSettingsPanel: View {
     @ViewBuilder
     private var selectedElementSettings: some View {
         if let element = model.selectedElement {
-            settings(for: element)
-                .id(element.id)
-                .disabled(model.isExporting)
+            VStack(alignment: .leading, spacing: 10) {
+                settings(for: element)
+            }
+            .id(element.id)
+            .disabled(model.isExporting)
         } else {
-            Text(localization.string("inspector.noSelection.message"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            InspectorEmptyState()
         }
     }
 
@@ -576,30 +574,57 @@ private struct InspectorGroup<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            DisclosureGroup(
-                isExpanded: Binding(
-                    get: { expandedSections.contains(section) },
-                    set: { isExpanded in
-                        if isExpanded {
-                            expandedSections.insert(section)
-                        } else {
-                            expandedSections.remove(section)
-                        }
-                    }
-                )
-            ) {
+            Button {
+                toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+
+                    Image(systemName: section.systemImage)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18)
+
+                    Text(localization.string(section.localizationKey))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+
+            if isExpanded {
                 VStack(alignment: .leading, spacing: 10) {
                     content()
                 }
-                .padding(.top, 10)
-                .padding(.leading, 1)
-            } label: {
-                Label(localization.string(section.localizationKey), systemImage: section.systemImage)
-                    .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
             }
-            .padding(.vertical, 8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(InspectorStyle.panelFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(InspectorStyle.panelStroke)
+        }
+    }
 
-            Divider()
+    private var isExpanded: Bool {
+        expandedSections.contains(section)
+    }
+
+    private func toggle() {
+        if isExpanded {
+            expandedSections.remove(section)
+        } else {
+            expandedSections.insert(section)
         }
     }
 }
@@ -614,17 +639,22 @@ private struct TextStyleRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            HStack(alignment: .center, spacing: 8) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                ColorPicker(localization.string("inspector.color"), selection: $color)
+                    .labelsHidden()
+            }
 
             Picker(localization.string("inspector.font"), selection: $font) {
                 ForEach(OverlayFontFamily.allCases) { font in
                     Text(font.displayName).tag(font)
                 }
             }
-
-            ColorPicker(localization.string("inspector.color"), selection: $color)
 
             LabeledSlider(
                 title: localization.string("inspector.fontSize"),
@@ -635,7 +665,7 @@ private struct TextStyleRow: View {
                 unitLabel: "pt"
             )
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }
 
@@ -653,13 +683,16 @@ private struct LabeledSlider: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
                 Spacer()
                 if showsTextField {
                     HStack(spacing: 5) {
                         TextField(title, text: $draftText)
                             .multilineTextAlignment(.trailing)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 88)
+                            .font(.caption.monospacedDigit())
+                            .frame(width: 82)
                             .focused($isTextFieldFocused)
                             .onSubmit(commitDraft)
 
@@ -672,10 +705,11 @@ private struct LabeledSlider: View {
                 } else {
                     Text(label)
                         .foregroundStyle(.secondary)
-                        .font(.caption)
+                        .font(.caption.monospacedDigit())
                 }
             }
             Slider(value: clampedValue, in: range)
+                .controlSize(.small)
         }
         .onAppear {
             draftText = NumberTextFormatter.formatDouble(clamp(value))
@@ -713,4 +747,36 @@ private struct LabeledSlider: View {
         value = clamp(parsed)
         draftText = NumberTextFormatter.formatDouble(clamp(value))
     }
+}
+
+private struct InspectorEmptyState: View {
+    @EnvironmentObject private var localization: LocalizationStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "cursorarrow.click.2")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Text(localization.string("inspector.noSelection.title"))
+                .font(.subheadline.weight(.semibold))
+
+            Text(localization.string("inspector.noSelection.message"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(InspectorStyle.panelFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(InspectorStyle.panelStroke)
+        }
+    }
+}
+
+enum InspectorStyle {
+    static let panelFill = Color.secondary.opacity(0.065)
+    static let panelStroke = Color.secondary.opacity(0.12)
 }

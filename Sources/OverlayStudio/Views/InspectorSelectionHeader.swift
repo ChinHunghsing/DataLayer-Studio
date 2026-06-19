@@ -6,48 +6,70 @@ struct InspectorSelectionHeader: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        HStack(spacing: 12) {
-            titleContent
-            Spacer()
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                titleContent
+                Spacer(minLength: 8)
+                layerStatus
+            }
+
             actions
         }
         .buttonStyle(.borderless)
-        .padding(.bottom, 2)
+        .padding(12)
+        .background(InspectorStyle.panelFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(InspectorStyle.panelStroke)
+        }
     }
 
     @ViewBuilder
     private var titleContent: some View {
         if let element = model.selectedElement {
-            Image(systemName: element.kind.systemImage)
-                .font(.system(size: 18, weight: .semibold))
-                .frame(width: 24)
+            HStack(alignment: .center, spacing: 10) {
+                symbolBadge(systemName: element.kind.systemImage)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(elementDisplayTitle(element))
-                    .font(.headline)
-                    .lineLimit(1)
-                Text(localization.string(element.kind.localizationKey))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(elementDisplayTitle(element))
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text(localization.string(element.kind.localizationKey))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
         } else {
-            Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 18, weight: .semibold))
-                .frame(width: 24)
+            HStack(alignment: .center, spacing: 10) {
+                symbolBadge(systemName: "slider.horizontal.3")
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(localization.string("inspector.noSelection.title"))
-                    .font(.headline)
-                Text(localization.string("inspector.noSelection.subtitle"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(localization.string("inspector.noSelection.title"))
+                        .font(.headline)
+                    Text(localization.string("inspector.noSelection.subtitle"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
 
+    @ViewBuilder
+    private var layerStatus: some View {
+        if let selectedElementIndex {
+            Text(localization.string("inspector.layerPosition", selectedElementIndex + 1, model.layout.elements.count))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.10), in: Capsule())
+        }
+    }
+
     private var actions: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Menu {
                 ForEach(OverlayComponentID.allCases) { component in
                     Button {
@@ -57,15 +79,19 @@ struct InspectorSelectionHeader: View {
                     }
                 }
             } label: {
-                Image(systemName: "plus")
+                Label(localization.string("inspector.add"), systemImage: "plus")
+                    .frame(minWidth: 70)
             }
+            .menuStyle(.borderlessButton)
             .disabled(model.isExporting)
             .help(localization.string("inspector.addElement"))
+
+            Spacer(minLength: 6)
 
             Button {
                 model.duplicateSelectedElement()
             } label: {
-                Image(systemName: "doc.on.doc")
+                actionIcon("doc.on.doc")
             }
             .disabled(model.selectedElement == nil || model.isExporting)
             .help(localization.string("inspector.duplicate"))
@@ -73,7 +99,7 @@ struct InspectorSelectionHeader: View {
             Button {
                 model.moveSelectedElementBackward()
             } label: {
-                Image(systemName: "arrow.down")
+                actionIcon("arrow.down")
             }
             .disabled(!canMoveSelectedElementBackward || model.isExporting)
             .help(localization.string("inspector.sendBackward"))
@@ -81,7 +107,7 @@ struct InspectorSelectionHeader: View {
             Button {
                 model.moveSelectedElementForward()
             } label: {
-                Image(systemName: "arrow.up")
+                actionIcon("arrow.up")
             }
             .disabled(!canMoveSelectedElementForward || model.isExporting)
             .help(localization.string("inspector.bringForward"))
@@ -89,11 +115,26 @@ struct InspectorSelectionHeader: View {
             Button(role: .destructive) {
                 model.deleteSelectedElement()
             } label: {
-                Image(systemName: "trash")
+                actionIcon("trash")
             }
             .disabled(model.selectedElement == nil || model.isExporting)
             .help(localization.string("inspector.delete"))
         }
+        .controlSize(.small)
+    }
+
+    private func symbolBadge(systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(.primary)
+            .frame(width: 32, height: 32)
+            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    private func actionIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 13, weight: .semibold))
+            .frame(width: 24, height: 24)
     }
 
     private var selectedElementIndex: Int? {

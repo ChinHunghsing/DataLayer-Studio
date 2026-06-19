@@ -6,9 +6,8 @@ struct InspectorView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 InspectorSelectionHeader(model: model)
-                Divider()
                 InspectorSettingsPanel(model: model, expandedSections: $expandedSections)
             }
             .padding(.horizontal, 18)
