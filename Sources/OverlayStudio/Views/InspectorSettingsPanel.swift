@@ -14,7 +14,7 @@ struct InspectorSettingsPanel: View {
     @ViewBuilder
     private var selectedElementSettings: some View {
         if let element = model.selectedElement {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 InspectorElementSummary(element: currentElement(element.id) ?? element)
                 settings(for: element)
             }
@@ -578,27 +578,38 @@ private struct InspectorElementSummary: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        HStack(spacing: 8) {
-            InspectorSummaryMetric(
-                title: localization.string("inspector.summary.position"),
-                value: "X \(element.frame.x.percentString)  Y \(element.frame.y.percentString)",
-                systemImage: "arrow.left.and.right"
-            )
-            InspectorSummaryMetric(
-                title: localization.string("inspector.summary.scale"),
-                value: element.frame.scale.percentString,
-                systemImage: "arrow.up.left.and.arrow.down.right"
-            )
-            InspectorSummaryMetric(
-                title: localization.string("inspector.summary.state"),
-                value: element.frame.isVisible
-                    ? localization.string("inspector.summary.visible")
-                    : localization.string("inspector.summary.hidden"),
-                systemImage: element.frame.isVisible ? "eye" : "eye.slash"
-            )
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                metrics
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                metrics
+            }
         }
-        .padding(10)
-        .background(Color.secondary.opacity(0.045), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 2)
+    }
+
+    @ViewBuilder
+    private var metrics: some View {
+        InspectorSummaryMetric(
+            title: localization.string("inspector.summary.position"),
+            value: "X \(element.frame.x.percentString)  Y \(element.frame.y.percentString)",
+            systemImage: "arrow.left.and.right"
+        )
+        InspectorSummaryMetric(
+            title: localization.string("inspector.summary.scale"),
+            value: element.frame.scale.percentString,
+            systemImage: "arrow.up.left.and.arrow.down.right"
+        )
+        InspectorSummaryMetric(
+            title: localization.string("inspector.summary.state"),
+            value: element.frame.isVisible
+                ? localization.string("inspector.summary.visible")
+                : localization.string("inspector.summary.hidden"),
+            systemImage: element.frame.isVisible ? "eye" : "eye.slash"
+        )
     }
 }
 
@@ -608,26 +619,26 @@ private struct InspectorSummaryMetric: View {
     var systemImage: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 5) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 12)
+        HStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
 
-                Text(title)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
 
             Text(value)
-                .font(.caption.monospacedDigit().weight(.semibold))
+                .font(.caption2.monospacedDigit().weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.74)
+                .minimumScaleFactor(0.72)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(Color.secondary.opacity(0.075), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 

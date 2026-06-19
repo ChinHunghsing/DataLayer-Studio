@@ -31,7 +31,7 @@ require_file "$LEGAL_DIR/LICENSE.md"
 require_file "$LEGAL_DIR/NOTICE.md"
 require_file "$LEGAL_DIR/README.md"
 
-for locale in en zh-Hans zh-Hant ja; do
+for locale in en zh-Hans zh-Hant zh_CN zh_TW ja; do
     require_file "$CONTENTS_DIR/Resources/$locale.lproj/InfoPlist.strings"
     require_file "$CONTENTS_DIR/Resources/$locale.lproj/Localizable.strings"
 done
