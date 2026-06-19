@@ -28,6 +28,8 @@ jobs:
           swift --version
           xcodebuild -version
 
+      - name: Verify open-source readiness
+        run: scripts/verify_open_source_readiness.sh
+
       - name: Run tests
         run: swift test
-

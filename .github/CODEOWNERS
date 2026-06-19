@@ -1,0 +1,9 @@
+# Default review owner for all pull requests.
+* @leeeboo
+
+# Repository policy, release, and legal files need maintainer review.
+/.github/ @leeeboo
+/scripts/ @leeeboo
+/LICENSE.md @leeeboo
+/NOTICE.md @leeeboo
+/MAINTAINERS.md @leeeboo

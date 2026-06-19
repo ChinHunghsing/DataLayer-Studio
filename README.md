@@ -26,6 +26,13 @@ See [NOTICE.md](NOTICE.md) for project notices and third-party dependency notes.
 Pull requests are welcome when they are compatible with the project license.
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
 
+Maintainers and contributors can run the repository readiness check before
+opening or merging PRs:
+
+```bash
+scripts/verify_open_source_readiness.sh
+```
+
 For vulnerabilities or private data exposure, follow [SECURITY.md](SECURITY.md)
 instead of opening a public issue with sensitive details.
 
