@@ -7,7 +7,10 @@ DataLayer Studio is a macOS app and command-line tool for generating a transpare
 
 The output is a `.mov` encoded with Apple HEVC/H.265 with alpha, intended to sit on an upper track in Final Cut Pro, DaVinci Resolve, Premiere, or similar editors.
 
-This project does not read from or modify `/Applications/Telemetry Overlay.app`.
+DataLayer Studio is an independent project. It is not affiliated with,
+endorsed by, or sponsored by Telemetry Overlay or its developers. This project
+does not read from or modify `/Applications/Telemetry Overlay.app`, and it does
+not include proprietary code or assets from Telemetry Overlay.
 
 ## License
 

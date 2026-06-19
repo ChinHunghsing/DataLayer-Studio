@@ -20,6 +20,8 @@ are the source of truth for contribution licensing.
 Only submit work that you have the right to contribute. Do not copy code,
 assets, UI artwork, icons, screenshots, or proprietary implementation details
 from commercial software or from projects with incompatible licenses.
+Do not submit code, assets, icons, screenshots, or implementation details copied
+from Telemetry Overlay or any other third-party commercial app.
 
 If your change adds a dependency, externally sourced asset, generated code, or
 adapted example, include the source, license, and attribution requirements in

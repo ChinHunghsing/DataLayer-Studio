@@ -12,6 +12,14 @@ bundled project assets in this repository are covered by the project license.
 
 The app icon in `Resources/AppIcon.png` is a project asset.
 
+## Third-Party Product References
+
+Telemetry Overlay is referenced only to describe interoperability expectations
+and user workflows. DataLayer Studio is not affiliated with, endorsed by, or
+sponsored by Telemetry Overlay or its developers. This repository does not
+include proprietary code, assets, icons, screenshots, or implementation details
+from Telemetry Overlay.
+
 ## Third-Party Dependencies
 
 This SwiftPM package currently declares no third-party package dependencies.
@@ -24,4 +32,3 @@ dependencies in this repository.
 If a future contribution adds a third-party dependency or externally sourced
 asset, it must include compatible license information in this file or in a
 dedicated notice file referenced from here.
-
