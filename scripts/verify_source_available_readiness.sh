@@ -25,6 +25,18 @@ require_gitignore_pattern() {
     fi
 }
 
+require_no_pattern_in_paths() {
+    local pattern="$1"
+    local message="$2"
+    shift 2
+
+    local matches
+    matches="$(grep -RInE "$pattern" "$@" 2>/dev/null || true)"
+    if [[ -n "$matches" ]]; then
+        fail "$message: $matches"
+    fi
+}
+
 required_files=(
     "README.md"
     "LICENSE.md"
@@ -87,6 +99,13 @@ while IFS= read -r path; do
     esac
 done < <(git ls-files)
 
+require_no_pattern_in_paths 'URLSession|URLRequest|NSURLConnection|NWConnection|WKWebView|ASWebAuthenticationSession|^[[:space:]]*import[[:space:]]+Network[[:space:]]*$|https?://' \
+    "source code must not add network transfer APIs without updating privacy policy" \
+    Sources
+require_no_pattern_in_paths 'Sentry|Firebase|Crashlytics|analytics' \
+    "source or package metadata must not add analytics/crash reporting dependencies without updating privacy policy" \
+    Sources Package.swift
+
 grep -q 'LEGAL_DIR' scripts/build_app_bundle.sh || fail "app bundle script must define LEGAL_DIR"
 grep -q 'LICENSE.md' scripts/build_app_bundle.sh || fail "app bundle script must copy LICENSE.md"
 grep -q 'NOTICE.md' scripts/build_app_bundle.sh || fail "app bundle script must copy NOTICE.md"
@@ -100,6 +119,7 @@ grep -q 'PRIVACY.md' README.md || fail "README.md must link to PRIVACY.md"
 grep -q 'does not include analytics' PRIVACY.md || fail "PRIVACY.md must state the current analytics behavior"
 grep -q 'network transfer code' PRIVACY.md || fail "PRIVACY.md must state the current network transfer behavior"
 grep -q 'UserDefaults' PRIVACY.md || fail "PRIVACY.md must document local preference storage"
+grep -q 'network access, analytics, cloud sync, crash' PRIVACY.md || fail "PRIVACY.md must require updates when network or analytics behavior changes"
 grep -q 'swift test' CONTRIBUTING.md || fail "CONTRIBUTING.md must document swift test"
 grep -qi 'license' CONTRIBUTING.md || fail "CONTRIBUTING.md must mention license expectations"
 grep -q 'GPS traces' .github/pull_request_template.md || fail "PR template must warn about GPS traces"
