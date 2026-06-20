@@ -116,7 +116,7 @@ private struct PreviewCommands: Commands {
             Button(studioActions?.isPlayingPreview == true ? localization.string("menu.pausePreview") : localization.string("menu.playPreview")) {
                 studioActions?.togglePlayback()
             }
-            .keyboardShortcut(.return, modifiers: [.command])
+            .keyboardShortcut(.space, modifiers: [])
             .disabled(studioActions?.canPlayPreview != true)
 
             Button(localization.string("menu.setSportStart")) {
