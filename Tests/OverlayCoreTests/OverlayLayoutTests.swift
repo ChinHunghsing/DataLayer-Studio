@@ -23,8 +23,9 @@ final class OverlayLayoutTests: XCTestCase {
         let topProgress = layout.elements.first { $0.kind == .topProgress }
         XCTAssertEqual(topProgress?.customization.valuePrecision, 1)
         XCTAssertEqual(topProgress?.customization.showsPanel, false)
+        XCTAssertEqual(topProgress?.customization.lineWidth ?? -1, 6, accuracy: 0.0001)
         XCTAssertEqual(topProgress?.customization.progressInsetScale ?? -1, 0.82, accuracy: 0.0001)
-        XCTAssertEqual(topProgress?.customization.progressKnobScale ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(topProgress?.customization.progressKnobScale ?? -1, 0.86, accuracy: 0.0001)
         XCTAssertEqual(topProgress?.customization.progressValueMarginScale ?? -1, 1, accuracy: 0.0001)
         XCTAssertEqual(topProgress?.customization.progressTickCount, 48)
     }

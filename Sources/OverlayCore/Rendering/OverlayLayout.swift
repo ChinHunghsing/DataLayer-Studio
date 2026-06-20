@@ -701,9 +701,9 @@ public extension OverlayElement {
                 showsPanel: false,
                 showGaugeTicks: false,
                 valuePrecision: 1,
-                lineWidth: 8,
+                lineWidth: 6,
                 progressInsetScale: 0.82,
-                progressKnobScale: 1,
+                progressKnobScale: 0.86,
                 progressValueMarginScale: 1,
                 progressTickCount: 48
             )
