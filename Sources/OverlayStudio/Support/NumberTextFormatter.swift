@@ -19,6 +19,7 @@ enum NumberTextFormatter {
     static func formatDouble(_ value: Double, maximumFractionDigits: Int = 3) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
         formatter.minimumFractionDigits = 0
         formatter.maximumFractionDigits = maximumFractionDigits
         return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.\(maximumFractionDigits)f", value)
@@ -48,6 +49,7 @@ enum NumberTextFormatter {
     static func formatInt(_ value: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 }

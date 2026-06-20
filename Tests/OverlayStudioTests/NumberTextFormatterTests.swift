@@ -18,4 +18,9 @@ final class NumberTextFormatterTests: XCTestCase {
         XCTAssertEqual(NumberTextFormatter.parseDouble(NumberTextFormatter.formatDouble(12.34567)), 12.346)
         XCTAssertEqual(NumberTextFormatter.parseInt(NumberTextFormatter.formatInt(12000)), 12000)
     }
+
+    func testFormattersDoNotInsertThousandsSeparators() {
+        XCTAssertEqual(NumberTextFormatter.formatInt(12000), "12000")
+        XCTAssertEqual(NumberTextFormatter.formatDouble(12345.67, maximumFractionDigits: 2), "12345.67")
+    }
 }
