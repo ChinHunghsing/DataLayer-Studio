@@ -829,20 +829,9 @@ private struct TextStyleRow: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center, spacing: 8) {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .center, spacing: InspectorFormMetrics.rowGap) {
                 Text(title)
-                    .inspectorControlLabel()
-
-                Spacer()
-
-                ColorPicker(localization.string("inspector.color"), selection: $color)
-                    .labelsHidden()
-                    .controlSize(.small)
-            }
-
-            HStack(spacing: InspectorFormMetrics.rowGap) {
-                Text(localization.string("inspector.font"))
                     .inspectorControlLabel()
 
                 Picker(localization.string("inspector.font"), selection: $font) {
@@ -852,6 +841,10 @@ private struct TextStyleRow: View {
                 }
                 .labelsHidden()
                 .frame(maxWidth: .infinity)
+
+                ColorPicker(localization.string("inspector.color"), selection: $color)
+                    .labelsHidden()
+                    .controlSize(.small)
             }
 
             LabeledSlider(
