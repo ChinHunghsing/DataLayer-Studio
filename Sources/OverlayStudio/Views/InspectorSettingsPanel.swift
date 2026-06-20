@@ -729,7 +729,7 @@ private struct InspectorFocusedSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            InspectorSectionTitle(section: section, summary: summary, isFocused: true, showsSummary: false)
+            InspectorSectionTitle(section: section, summary: summary, isFocused: true, showsSummary: true)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
 
@@ -810,7 +810,7 @@ private struct InspectorGroup<Content: View>: View {
                 toggle()
             } label: {
                 HStack(alignment: .center, spacing: 10) {
-                    InspectorSectionTitle(section: section, summary: summary, isFocused: false, showsSummary: !isExpanded)
+                    InspectorSectionTitle(section: section, summary: summary, isFocused: false, showsSummary: true)
 
                     Spacer(minLength: 8)
 
