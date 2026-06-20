@@ -171,11 +171,17 @@ private struct InspectorSectionScopeBar: View {
                 scopeButtons(showTitles: false)
             }
 
-            Spacer(minLength: 4)
+            if showsSectionActions {
+                Spacer(minLength: 4)
 
-            sectionActionsMenu
+                sectionActionsMenu
+            }
         }
         .accessibilityLabel(localization.string("inspector.sectionScope"))
+    }
+
+    private var showsSectionActions: Bool {
+        selectedScopeRawValue == InspectorSectionScope.all.rawValue
     }
 
     private func scopeButtons(showTitles: Bool) -> some View {
