@@ -14,7 +14,7 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 LEGAL_DIR="$RESOURCES_DIR/Legal"
 APP_ICON_NAME="DataLayerStudio"
 APP_ICON_SOURCE="$ROOT_DIR/Resources/AppIcon.png"
-APP_LOCALIZATIONS=(en zh-Hans zh-Hant zh_CN zh_TW ja)
+APP_LOCALIZATIONS=(en zh zh-Hans zh-Hant zh_CN zh_TW ja)
 
 cd "$ROOT_DIR"
 swift build -c release --arch arm64 --product "$SWIFT_PRODUCT"
@@ -67,6 +67,7 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <key>CFBundleLocalizations</key>
     <array>
         <string>en</string>
+        <string>zh</string>
         <string>zh-Hans</string>
         <string>zh-Hant</string>
         <string>zh_CN</string>
