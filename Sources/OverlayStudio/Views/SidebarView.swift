@@ -291,7 +291,7 @@ struct SidebarView: View {
         guard let metadata = model.metadata else { return nil }
         let width = StudioModel.sanitizedOutputDimension(Int(metadata.size.width.rounded()))
         let height = StudioModel.sanitizedOutputDimension(Int(metadata.size.height.rounded()))
-        return localization.string("sidebar.sourceResolutionPreset", width, height)
+        return localization.string("sidebar.sourceResolutionPreset", String(width), String(height))
     }
 
     private var sourceFrameRatePresetTitle: String? {

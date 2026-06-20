@@ -84,6 +84,7 @@ final class StudioModel: ObservableObject {
     @Published var isExporting = false
     @Published var exportProgress = 0.0
 
+    private var resolvedLanguage = AppLocalizer.resolvedLanguage(for: AppLocalizer.storedSelection())
     private let videoFrameService = VideoFrameService()
     private let previewRenderer = OverlayPreviewRenderer()
     private let layoutPresetStore: LayoutPresetStore
@@ -148,36 +149,42 @@ final class StudioModel: ObservableObject {
         exportReadinessMessage == nil
     }
 
+    func setResolvedLanguage(_ language: AppResolvedLanguage) {
+        guard resolvedLanguage != language else { return }
+        resolvedLanguage = language
+        refreshLocalizedStatus()
+    }
+
     var exportReadinessMessage: String? {
         if videoURL == nil {
-            return AppLocalizer.currentString("status.chooseSourceVideo")
+            return localized("status.chooseSourceVideo")
         }
         if series == nil {
-            return AppLocalizer.currentString("status.chooseFitFile")
+            return localized("status.chooseFitFile")
         }
         if outputWidth < 2 || outputWidth > 16_384 {
-            return AppLocalizer.currentString("status.outputWidthRange")
+            return localized("status.outputWidthRange")
         }
         if outputWidth % 2 != 0 {
-            return AppLocalizer.currentString("status.outputWidthEven")
+            return localized("status.outputWidthEven")
         }
         if outputHeight < 2 || outputHeight > 16_384 {
-            return AppLocalizer.currentString("status.outputHeightRange")
+            return localized("status.outputHeightRange")
         }
         if outputHeight % 2 != 0 {
-            return AppLocalizer.currentString("status.outputHeightEven")
+            return localized("status.outputHeightEven")
         }
         if !outputFPS.isFinite || outputFPS < 1 || outputFPS > 240 {
-            return AppLocalizer.currentString("status.frameRateRange")
+            return localized("status.frameRateRange")
         }
         if exportDuration == nil {
-            return AppLocalizer.currentString("status.sourceDurationRange")
+            return localized("status.sourceDurationRange")
         }
         if bitRateKbps < 1 || bitRateKbps > 1_000_000 {
-            return AppLocalizer.currentString("status.bitrateRange")
+            return localized("status.bitrateRange")
         }
         if bitRateKbps > Int.max / 1000 {
-            return AppLocalizer.currentString("status.bitrateTooLarge")
+            return localized("status.bitrateTooLarge")
         }
         return nil
     }
@@ -216,10 +223,10 @@ final class StudioModel: ObservableObject {
 
     var sourceResolutionPresetTitle: String? {
         guard let sourceDimensions else { return nil }
-        return AppLocalizer.currentString(
+        return localized(
             "sidebar.sourceResolutionPreset",
-            sourceDimensions.width,
-            sourceDimensions.height
+            String(sourceDimensions.width),
+            String(sourceDimensions.height)
         )
     }
 
@@ -241,7 +248,7 @@ final class StudioModel: ObservableObject {
 
     var sourceFrameRatePresetTitle: String? {
         guard let sourceFrameRate else { return nil }
-        return AppLocalizer.currentString("sidebar.sourceFrameRatePreset", formatFrameRate(sourceFrameRate))
+        return localized("sidebar.sourceFrameRatePreset", formatFrameRate(sourceFrameRate))
     }
 
     var selectedFrameRatePresetID: String {
@@ -261,9 +268,9 @@ final class StudioModel: ObservableObject {
     func chooseVideo() {
         guard !isExporting else { return }
         let panel = NSOpenPanel()
-        panel.title = AppLocalizer.currentString("panel.chooseSourceVideo")
-        panel.message = AppLocalizer.currentString("panel.chooseSourceVideo.message")
-        panel.prompt = AppLocalizer.currentString("panel.open")
+        panel.title = localized("panel.chooseSourceVideo")
+        panel.message = localized("panel.chooseSourceVideo.message")
+        panel.prompt = localized("panel.open")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.movie, .video, .mpeg4Movie, .quickTimeMovie]
@@ -274,9 +281,9 @@ final class StudioModel: ObservableObject {
     func chooseFIT() {
         guard !isExporting else { return }
         let panel = NSOpenPanel()
-        panel.title = AppLocalizer.currentString("panel.chooseFitActivity")
-        panel.message = AppLocalizer.currentString("panel.chooseFitActivity.message")
-        panel.prompt = AppLocalizer.currentString("panel.open")
+        panel.title = localized("panel.chooseFitActivity")
+        panel.message = localized("panel.chooseFitActivity.message")
+        panel.prompt = localized("panel.open")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         if let fitType = UTType(filenameExtension: "fit") {
@@ -289,9 +296,9 @@ final class StudioModel: ObservableObject {
     func chooseOutput() {
         guard !isExporting else { return }
         let panel = NSSavePanel()
-        panel.title = AppLocalizer.currentString("panel.saveOverlayVideo")
-        panel.message = AppLocalizer.currentString("panel.saveOverlayVideo.message")
-        panel.prompt = AppLocalizer.currentString("panel.export")
+        panel.title = localized("panel.saveOverlayVideo")
+        panel.message = localized("panel.saveOverlayVideo.message")
+        panel.prompt = localized("panel.export")
         panel.allowedContentTypes = [.quickTimeMovie]
         panel.nameFieldStringValue = "datalayer-overlay.mov"
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -308,7 +315,7 @@ final class StudioModel: ObservableObject {
         if isExporting {
             isExporting = false
             exportProgress = 0
-            status = AppLocalizer.currentString("status.exportCancelled")
+            status = localized("status.exportCancelled")
         }
         videoFrameService.clearCache()
         stopPlayback()
@@ -366,7 +373,7 @@ final class StudioModel: ObservableObject {
     func saveLayoutPreset(named rawName: String) -> Bool {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
-            status = AppLocalizer.currentString("status.presetNameRequired")
+            status = localized("status.presetNameRequired")
             return false
         }
 
@@ -376,7 +383,7 @@ final class StudioModel: ObservableObject {
             layoutPresets[index].layout = layout.sanitized
             layoutPresets[index].updatedAt = now
             persistLayoutPresets()
-            status = AppLocalizer.currentString("status.updatedPreset", name)
+            status = localized("status.updatedPreset", name)
             return true
         }
 
@@ -389,7 +396,7 @@ final class StudioModel: ObservableObject {
         )
         layoutPresets.append(preset)
         persistLayoutPresets()
-        status = AppLocalizer.currentString("status.savedPreset", name)
+        status = localized("status.savedPreset", name)
         return true
     }
 
@@ -398,7 +405,7 @@ final class StudioModel: ObservableObject {
         guard let preset = layoutPresets.first(where: { $0.id == id }) else { return }
         layout = preset.layout.sanitized
         selectedElementID = Self.firstSelectableElementID(in: layout)
-        status = AppLocalizer.currentString("status.appliedPreset", preset.name)
+        status = localized("status.appliedPreset", preset.name)
         refreshOverlayOrPreview()
     }
 
@@ -406,7 +413,7 @@ final class StudioModel: ObservableObject {
         guard let preset = layoutPresets.first(where: { $0.id == id }) else { return }
         defaultLayoutPresetID = id
         persistLayoutPresets()
-        status = AppLocalizer.currentString("status.defaultPreset", preset.name)
+        status = localized("status.defaultPreset", preset.name)
     }
 
     func deleteLayoutPreset(id: String) {
@@ -416,19 +423,19 @@ final class StudioModel: ObservableObject {
             defaultLayoutPresetID = nil
         }
         persistLayoutPresets()
-        status = AppLocalizer.currentString("status.deletedPreset", preset.name)
+        status = localized("status.deletedPreset", preset.name)
     }
 
     func exportLayoutPresets() {
         guard !layoutPresets.isEmpty else {
-            status = AppLocalizer.currentString("status.noPresetsToExport")
+            status = localized("status.noPresetsToExport")
             return
         }
 
         let panel = NSSavePanel()
-        panel.title = AppLocalizer.currentString("panel.exportLayoutPresets")
-        panel.message = AppLocalizer.currentString("panel.exportLayoutPresets.message")
-        panel.prompt = AppLocalizer.currentString("panel.export")
+        panel.title = localized("panel.exportLayoutPresets")
+        panel.message = localized("panel.exportLayoutPresets.message")
+        panel.prompt = localized("panel.export")
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "datalayer-studio-layout-presets.json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -439,17 +446,17 @@ final class StudioModel: ObservableObject {
             let state = LayoutPresetState(presets: layoutPresets, defaultPresetID: defaultLayoutPresetID)
             let data = try encoder.encode(state.sanitized)
             try data.write(to: url, options: .atomic)
-            status = AppLocalizer.currentString("status.exportedPresets", layoutPresets.count)
+            status = localized("status.exportedPresets", layoutPresets.count)
         } catch {
-            status = AppLocalizer.currentString("status.presetExportError", error.localizedDescription)
+            status = localized("status.presetExportError", error.localizedDescription)
         }
     }
 
     func importLayoutPresets() {
         let panel = NSOpenPanel()
-        panel.title = AppLocalizer.currentString("panel.importLayoutPresets")
-        panel.message = AppLocalizer.currentString("panel.importLayoutPresets.message")
-        panel.prompt = AppLocalizer.currentString("panel.import")
+        panel.title = localized("panel.importLayoutPresets")
+        panel.message = localized("panel.importLayoutPresets.message")
+        panel.prompt = localized("panel.import")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.json]
@@ -468,10 +475,10 @@ final class StudioModel: ObservableObject {
 
             let importedCount = mergeImportedLayoutPresets(state)
             status = importedCount == 0
-                ? AppLocalizer.currentString("status.noPresetsImported")
-                : AppLocalizer.currentString("status.importedPresets", importedCount)
+                ? localized("status.noPresetsImported")
+                : localized("status.importedPresets", importedCount)
         } catch {
-            status = AppLocalizer.currentString("status.presetImportError", error.localizedDescription)
+            status = localized("status.presetImportError", error.localizedDescription)
         }
     }
 
@@ -494,7 +501,7 @@ final class StudioModel: ObservableObject {
         dragBaseOverlayImage = nil
         dragOverlayImage = nil
         previewWarning = nil
-        status = AppLocalizer.currentString("status.loadingVideo", url.lastPathComponent)
+        status = localized("status.loadingVideo", url.lastPathComponent)
 
         videoLoadTask = Task.detached {
             do {
@@ -512,7 +519,7 @@ final class StudioModel: ObservableObject {
                     self.sourceDuration = Self.sanitizedSourceDuration(loaded.duration)
                     self.previewTime = 0
                     self.configurePlayer(url: url)
-                    self.status = AppLocalizer.currentString("status.loadedVideo", url.lastPathComponent)
+                    self.status = self.localized("status.loadedVideo", url.lastPathComponent)
                     self.refreshPreview()
                     self.videoLoadTask = nil
                 }
@@ -528,7 +535,7 @@ final class StudioModel: ObservableObject {
                     guard let self else { return }
                     guard !Task.isCancelled,
                           self.videoLoadGeneration == loadGeneration else { return }
-                    self.status = AppLocalizer.currentString("status.videoError", message)
+                    self.status = self.localized("status.videoError", message)
                     self.videoLoadTask = nil
                 }
             }
@@ -631,7 +638,7 @@ final class StudioModel: ObservableObject {
         syncMode = .syncPoint
         syncVideoSeconds = previewTime
         syncFITSeconds = 0
-        status = AppLocalizer.currentString("status.sportStartSet", formatTime(previewTime))
+        status = localized("status.sportStartSet", formatTime(previewTime))
         refreshOverlayOrPreview()
     }
 
@@ -649,7 +656,7 @@ final class StudioModel: ObservableObject {
         dragBaseOverlayImage = nil
         dragOverlayImage = nil
         previewWarning = nil
-        status = AppLocalizer.currentString("status.loadingFit", url.lastPathComponent)
+        status = localized("status.loadingFit", url.lastPathComponent)
 
         fitLoadTask = Task.detached {
             do {
@@ -661,7 +668,7 @@ final class StudioModel: ObservableObject {
                           self.fitLoadGeneration == loadGeneration else { return }
                     self.fitURL = url
                     self.series = parsedSeries
-                    self.status = AppLocalizer.currentString("status.loadedFit", url.lastPathComponent)
+                    self.status = self.localized("status.loadedFit", url.lastPathComponent)
                     self.refreshOverlayOrPreview()
                     self.fitLoadTask = nil
                 }
@@ -682,7 +689,7 @@ final class StudioModel: ObservableObject {
                     guard let self else { return }
                     guard !Task.isCancelled,
                           self.fitLoadGeneration == loadGeneration else { return }
-                    self.status = AppLocalizer.currentString("status.fitError", message)
+                    self.status = self.localized("status.fitError", message)
                     self.fitLoadTask = nil
                     self.refreshOverlayOnly()
                 }
@@ -713,6 +720,8 @@ final class StudioModel: ObservableObject {
         let currentSync = timeSync
         let currentLayout = layout
         let currentDistanceUnit = distanceUnit
+        let videoPreviewFailedTitle = localized("status.previewVideoFailed")
+        let overlayPreviewFailedTitle = localized("status.previewOverlayFailed")
 
         previewRenderTask?.cancel()
         previewRenderTask = Task.detached { [videoFrameService, previewRenderer] in
@@ -725,7 +734,7 @@ final class StudioModel: ObservableObject {
                 return
             } catch {
                 background = nil
-                warningMessage = Self.previewWarningMessage(AppLocalizer.currentString("status.previewVideoFailed"), error: error)
+                warningMessage = Self.previewWarningMessage(videoPreviewFailedTitle, error: error)
             }
             guard !Task.isCancelled else { return }
             let overlay: NSImage?
@@ -744,7 +753,7 @@ final class StudioModel: ObservableObject {
                     return
                 } catch {
                     overlay = nil
-                    warningMessage = Self.previewWarningMessage(AppLocalizer.currentString("status.previewOverlayFailed"), error: error)
+                    warningMessage = Self.previewWarningMessage(overlayPreviewFailedTitle, error: error)
                 }
             } else {
                 overlay = nil
@@ -802,6 +811,7 @@ final class StudioModel: ObservableObject {
         let currentSync = timeSync
         let currentLayout = layout
         let currentDistanceUnit = distanceUnit
+        let overlayPreviewFailedTitle = localized("status.previewOverlayFailed")
 
         previewRenderTask?.cancel()
         previewRenderTask = Task.detached { [previewRenderer] in
@@ -823,7 +833,7 @@ final class StudioModel: ObservableObject {
                 return
             } catch {
                 overlay = nil
-                warningMessage = Self.previewWarningMessage(AppLocalizer.currentString("status.previewOverlayFailed"), error: error)
+                warningMessage = Self.previewWarningMessage(overlayPreviewFailedTitle, error: error)
             }
             guard !Task.isCancelled else { return }
 
@@ -1146,18 +1156,18 @@ final class StudioModel: ObservableObject {
             return
         }
         guard let exportSettings = validatedExportSettings else {
-            status = AppLocalizer.currentString("status.checkOutputSettings")
+            status = localized("status.checkOutputSettings")
             return
         }
         if outputURL == nil {
             chooseOutput()
         }
         guard let outputURL else {
-            status = AppLocalizer.currentString("status.chooseOutputFile")
+            status = localized("status.chooseOutputFile")
             return
         }
         guard let series else {
-            status = AppLocalizer.currentString("status.chooseFitBeforeExport")
+            status = localized("status.chooseFitBeforeExport")
             return
         }
 
@@ -1165,7 +1175,7 @@ final class StudioModel: ObservableObject {
         cancelPreviewRenderTasks()
         isExporting = true
         exportProgress = 0
-        status = AppLocalizer.currentString("status.exporting")
+        status = localized("status.exporting")
         let cancellationToken = ExportCancellationToken()
         exportCancellationToken = cancellationToken
 
@@ -1198,7 +1208,7 @@ final class StudioModel: ObservableObject {
                     self.exportProgress = 1
                     self.exportTask = nil
                     self.exportCancellationToken = nil
-                    self.status = AppLocalizer.currentString("status.wroteFile", outputURL.path)
+                    self.status = self.localized("status.wroteFile", outputURL.path)
                     self.refreshOverlayOrPreview()
                 }
             } catch OverlayVideoError.cancelled {
@@ -1208,7 +1218,7 @@ final class StudioModel: ObservableObject {
                     self.exportProgress = 0
                     self.exportTask = nil
                     self.exportCancellationToken = nil
-                    self.status = AppLocalizer.currentString("status.exportCancelled")
+                    self.status = self.localized("status.exportCancelled")
                     self.refreshOverlayOrPreview()
                 }
             } catch {
@@ -1217,7 +1227,7 @@ final class StudioModel: ObservableObject {
                     self.isExporting = false
                     self.exportTask = nil
                     self.exportCancellationToken = nil
-                    self.status = AppLocalizer.currentString("status.exportError", error.localizedDescription)
+                    self.status = self.localized("status.exportError", error.localizedDescription)
                     self.refreshOverlayOrPreview()
                 }
             }
@@ -1228,22 +1238,26 @@ final class StudioModel: ObservableObject {
         guard isExporting else { return }
         exportCancellationToken?.cancel()
         exportTask?.cancel()
-        status = AppLocalizer.currentString("status.cancellingExport")
+        status = localized("status.cancellingExport")
     }
 
     func refreshLocalizedStatus() {
         guard !isExporting else { return }
         if videoURL == nil && series == nil {
-            status = AppLocalizer.currentString("status.chooseVideoAndFit")
+            status = localized("status.chooseVideoAndFit")
         } else if videoURL == nil {
-            status = AppLocalizer.currentString("status.chooseSourceVideo")
+            status = localized("status.chooseSourceVideo")
         } else if series == nil {
-            status = AppLocalizer.currentString("status.chooseFitFile")
+            status = localized("status.chooseFitFile")
         }
     }
 
     private func formatTime(_ time: TimeInterval) -> String {
         String(format: "%.3f", time)
+    }
+
+    private func localized(_ key: String, _ arguments: CVarArg...) -> String {
+        AppLocalizer.string(key, language: resolvedLanguage, arguments: arguments)
     }
 
     private func persistLayoutPresets() {

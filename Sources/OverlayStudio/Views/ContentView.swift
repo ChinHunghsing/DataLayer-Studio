@@ -16,7 +16,12 @@ struct ContentView: View {
             }
         }
         .onChange(of: previewInvalidationState) { _ in model.refreshOverlayOrPreview() }
-        .onChange(of: localization.selection) { _ in model.refreshLocalizedStatus() }
+        .onAppear {
+            model.setResolvedLanguage(localization.resolvedLanguage)
+        }
+        .onChange(of: localization.selection) { _ in
+            model.setResolvedLanguage(localization.resolvedLanguage)
+        }
         .onDisappear {
             model.shutdown()
         }

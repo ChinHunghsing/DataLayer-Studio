@@ -81,6 +81,22 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNil(model.exportReadinessMessage)
     }
 
+    func testStudioModelStringsFollowResolvedLanguage() {
+        let model = StudioModel()
+        model.setResolvedLanguage(.simplifiedChinese)
+
+        XCTAssertEqual(model.exportReadinessMessage, "请选择源视频。")
+
+        model.metadata = VideoMetadata(
+            size: CGSize(width: 3840, height: 2160),
+            duration: 10,
+            framesPerSecond: 29.97
+        )
+
+        XCTAssertEqual(model.sourceResolutionPresetTitle, "源视频 3840×2160")
+        XCTAssertEqual(model.sourceFrameRatePresetTitle, "源视频 29.970 fps")
+    }
+
     func testGridDivisionSettersClampToPreviewBounds() {
         XCTAssertEqual(StudioModel.sanitizedGridDivision(1), 2)
         XCTAssertEqual(StudioModel.sanitizedGridDivision(65), 64)

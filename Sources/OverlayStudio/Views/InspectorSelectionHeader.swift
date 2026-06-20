@@ -6,11 +6,9 @@ struct InspectorSelectionHeader: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            titleContent
-                .layoutPriority(1)
-            Spacer(minLength: 8)
-            headerActions
+        ViewThatFits(in: .horizontal) {
+            horizontalHeader
+            stackedHeader
         }
         .buttonStyle(.borderless)
         .padding(.horizontal, 10)
@@ -19,6 +17,25 @@ struct InspectorSelectionHeader: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(InspectorStyle.headerStroke)
+        }
+    }
+
+    private var horizontalHeader: some View {
+        HStack(alignment: .center, spacing: 8) {
+            titleContent
+                .layoutPriority(1)
+            Spacer(minLength: 8)
+            headerActions
+        }
+    }
+
+    private var stackedHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            titleContent
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            headerActions
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
