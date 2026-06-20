@@ -1042,6 +1042,7 @@ private struct InspectorColorRow: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
+        .inspectorControlRowSurface()
     }
 
     private var colorPicker: some View {
@@ -1075,6 +1076,7 @@ private struct InspectorToggleRow: View {
                 toggle
             }
         }
+        .inspectorControlRowSurface()
     }
 
     private var toggle: some View {
@@ -1109,6 +1111,7 @@ private struct InspectorTextRow: View {
                     .frame(maxWidth: .infinity)
             }
         }
+        .inspectorControlRowSurface()
     }
 
     private var textField: some View {
@@ -1150,6 +1153,7 @@ private struct InspectorStepperRow: View {
                 }
             }
         }
+        .inspectorControlRowSurface()
     }
 }
 
@@ -1258,6 +1262,7 @@ private struct LabeledSlider: View {
                 commitDraft()
             }
         }
+        .inspectorControlRowSurface()
     }
 
     @ViewBuilder
@@ -1516,4 +1521,30 @@ enum InspectorStyle {
     static let messageStroke = Color.secondary.opacity(0.09)
     static let actionGroupFill = Color.secondary.opacity(0.04)
     static let actionGroupStroke = Color.secondary.opacity(0.085)
+    static let controlRowHoverFill = Color.secondary.opacity(0.045)
+}
+
+private struct InspectorControlRowSurface: ViewModifier {
+    @State private var isHovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 7)
+            .padding(.vertical, 5)
+            .background(rowFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .onHover { hovering in
+                isHovering = hovering
+            }
+    }
+
+    private var rowFill: Color {
+        isHovering ? InspectorStyle.controlRowHoverFill : Color.clear
+    }
+}
+
+private extension View {
+    func inspectorControlRowSurface() -> some View {
+        modifier(InspectorControlRowSurface())
+    }
 }
