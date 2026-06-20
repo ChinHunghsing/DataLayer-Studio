@@ -219,7 +219,7 @@ private struct InspectorSectionScopeBar: View {
             if showsSectionActions {
                 Spacer(minLength: 4)
 
-                sectionActionsMenu
+                sectionActions
             }
         }
         .accessibilityLabel(localization.string("inspector.sectionScope"))
@@ -227,6 +227,40 @@ private struct InspectorSectionScopeBar: View {
 
     private var showsSectionActions: Bool {
         selectedScopeRawValue == InspectorSectionScope.all.rawValue
+    }
+
+    private var sectionActions: some View {
+        ViewThatFits(in: .horizontal) {
+            directSectionActions
+            sectionActionsMenu
+        }
+    }
+
+    private var directSectionActions: some View {
+        HStack(spacing: 2) {
+            InspectorSectionActionButton(
+                systemName: "rectangle.expand.vertical",
+                title: localization.string("inspector.expandAllSections"),
+                isDisabled: expandedSections == InspectorSection.defaultExpandedSections
+            ) {
+                expandedSections = InspectorSection.defaultExpandedSections
+            }
+
+            InspectorSectionActionButton(
+                systemName: "rectangle.compress.vertical",
+                title: localization.string("inspector.collapseAllSections"),
+                isDisabled: expandedSections.isEmpty
+            ) {
+                expandedSections.removeAll()
+            }
+        }
+        .padding(2)
+        .background(InspectorStyle.actionGroupFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(InspectorStyle.actionGroupStroke)
+        }
+        .fixedSize()
     }
 
     private func scopeStrip(showTitles: Bool) -> some View {
@@ -342,5 +376,40 @@ private struct InspectorSectionScopeBar: View {
             return Color.secondary.opacity(0.16)
         }
         return Color.clear
+    }
+}
+
+private struct InspectorSectionActionButton: View {
+    var systemName: String
+    var title: String
+    var isDisabled: Bool
+    var action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 24, height: 22)
+                .background(backgroundFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(foregroundStyle)
+        .disabled(isDisabled)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .help(title)
+        .accessibilityLabel(title)
+    }
+
+    private var foregroundStyle: Color {
+        isDisabled ? Color.secondary.opacity(0.42) : Color.secondary
+    }
+
+    private var backgroundFill: Color {
+        guard !isDisabled, isHovering else { return .clear }
+        return Color.secondary.opacity(0.09)
     }
 }
