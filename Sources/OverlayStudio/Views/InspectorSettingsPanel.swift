@@ -769,7 +769,7 @@ private struct InspectorGroup<Content: View>: View {
 
                     Spacer()
 
-                    if let summary {
+                    if let summary, !isExpanded {
                         Text(summary)
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
