@@ -485,6 +485,10 @@ struct InspectorSettingsPanel: View {
             parts.append(localization.string("inspector.icon"))
         }
 
+        if parts.isEmpty {
+            parts.append(localization.string("inspector.contentHidden"))
+        }
+
         return parts
     }
 
@@ -498,6 +502,8 @@ struct InspectorSettingsPanel: View {
                 parts.append(localization.string("inspector.panelBorder"))
             }
             parts.append((current.frame.style.panelOpacity ?? model.layout.style.panelOpacity).percentString)
+        } else {
+            parts.append(localization.string("inspector.panelHidden"))
         }
         if current.kind.supportsLineWidth {
             parts.append("\(Int(current.customization.lineWidth.rounded())) px")
