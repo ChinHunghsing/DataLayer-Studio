@@ -21,6 +21,10 @@ activities, and ongoing maintenance.
 DataLayer Studio 是一个独立维护的 source-available 项目。如果它对你的跑步视频制作有帮助，
 欢迎通过赞助支持后续测试、样本整理和持续维护。
 
+<a href="https://buymeacoffee.com/leeeboo">
+  <img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="360">
+</a>
+
 [Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo)
 
 For WeChat Pay or Alipay, scan one of the QR codes below.
@@ -136,7 +140,6 @@ Useful options:
 --width 1920        # override source width; 2...16384 and even
 --height 1080       # override source height; 2...16384 and even
 --fps 30            # override source frame rate
---duration 60       # render only 60 seconds
 --fit-start 300     # video starts at FIT elapsed 5:00
 --sync-video 12     # sync point in the video timeline
 --sync-fit 0        # FIT elapsed at the same sync point

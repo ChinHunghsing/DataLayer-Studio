@@ -220,6 +220,7 @@ public final class TransparentVideoWriter {
                     let presentationTime = timing.presentationTime(for: frameIndex)
                     let videoTime = CMTimeGetSeconds(presentationTime)
                     try renderer.render(videoTime: videoTime, into: pixelBuffer)
+                    Self.markAlphaMode(on: pixelBuffer)
                     guard adaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
                         throw OverlayVideoError.writerFailed(self.describe(error: writer.error, codec: codec))
                     }
@@ -308,11 +309,22 @@ public final class TransparentVideoWriter {
                 AVVideoAverageBitRateKey: averageBitRate,
                 AVVideoExpectedSourceFrameRateKey: encoderFrameRate,
                 AVVideoMaxKeyFrameIntervalKey: encoderFrameRate,
-                AVVideoAllowFrameReorderingKey: false
+                AVVideoAllowFrameReorderingKey: false,
+                kVTCompressionPropertyKey_AlphaChannelMode as String: kVTAlphaChannelMode_PremultipliedAlpha,
+                kVTCompressionPropertyKey_TargetQualityForAlpha as String: 1.0
             ]
         }
 
         return settings
+    }
+
+    private static func markAlphaMode(on pixelBuffer: CVPixelBuffer) {
+        CVBufferSetAttachment(
+            pixelBuffer,
+            kCVImageBufferAlphaChannelModeKey,
+            kCVImageBufferAlphaChannelMode_PremultipliedAlpha,
+            .shouldPropagate
+        )
     }
 
     private static func hardwareEncoderSpecification(

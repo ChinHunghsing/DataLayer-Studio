@@ -8,7 +8,6 @@ struct CommandLineOptions {
     var width: Int?
     var height: Int?
     var framesPerSecond: Double?
-    var duration: TimeInterval?
     var timeSync: TelemetryTimeSync
     var averageBitRate: Int
     var codec: OverlayVideoCodec
@@ -30,7 +29,7 @@ struct CommandLineOptions {
             case "--skip-fit-crc", "--inspect":
                 flags.insert(argument)
                 index += 1
-            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--duration", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--codec", "--distance-unit", "--layout-preset":
+            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--codec", "--distance-unit", "--layout-preset":
                 guard index + 1 < arguments.count else {
                     throw CLIError.missingValue(argument)
                 }
@@ -52,7 +51,6 @@ struct CommandLineOptions {
             width: try optionalInt(values["--width"], name: "--width", minimum: 2, maximum: 16_384, requireEven: true),
             height: try optionalInt(values["--height"], name: "--height", minimum: 2, maximum: 16_384, requireEven: true),
             framesPerSecond: try optionalDouble(values["--fps"], name: "--fps", minimum: 1),
-            duration: try optionalDouble(values["--duration"], name: "--duration", minimum: 0.1),
             timeSync: try parseTimeSync(values: values),
             averageBitRate: try parseAverageBitRate(values: values),
             codec: try parseCodec(values["--codec"]),
@@ -222,7 +220,6 @@ enum CLIError: Error, CustomStringConvertible {
       --width PX         Override output width, 2...16384 and even. Defaults to source video width.
       --height PX        Override output height, 2...16384 and even. Defaults to source video height.
       --fps N            Override output frame rate, minimum 1. Defaults to source video frame rate.
-      --duration SEC     Override output duration, minimum 0.1. Defaults to source video duration.
       --fit-start SEC    FIT elapsed time at video 0. Use when recording starts mid-activity.
       --sync-video SEC   Video timestamp for a sync point. Requires --sync-fit.
       --sync-fit SEC     FIT elapsed timestamp for the same sync point. Requires --sync-video.
@@ -312,7 +309,7 @@ func run() async throws {
     let width = options.width ?? Int(metadata.size.width.rounded())
     let height = options.height ?? Int(metadata.size.height.rounded())
     let fps = options.framesPerSecond ?? metadata.framesPerSecond
-    let duration = options.duration ?? metadata.duration
+    let duration = metadata.duration
 
     print("Video: \(width)x\(height), \(String(format: "%.3f", fps)) fps, \(String(format: "%.2f", duration)) s")
     print("FIT: \(series.samples.count) samples, \(String(format: "%.2f", series.duration)) s telemetry")

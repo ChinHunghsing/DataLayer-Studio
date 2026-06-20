@@ -138,15 +138,15 @@ struct SidebarSyncSection: View {
 
     private func formatDuration(_ seconds: TimeInterval) -> String {
         let absoluteSeconds = max(0, abs(seconds))
-        let roundedTenths = Int((absoluteSeconds * 10).rounded())
-        let hours = roundedTenths / 36_000
-        let minutes = (roundedTenths % 36_000) / 600
-        let seconds = Double(roundedTenths % 600) / 10
+        let roundedMilliseconds = Int((absoluteSeconds * 1_000).rounded())
+        let hours = roundedMilliseconds / 3_600_000
+        let minutes = (roundedMilliseconds % 3_600_000) / 60_000
+        let seconds = Double(roundedMilliseconds % 60_000) / 1_000
 
         if hours > 0 {
-            return String(format: "%d:%02d:%04.1f", hours, minutes, seconds)
+            return String(format: "%d:%02d:%06.3f", hours, minutes, seconds)
         }
-        return String(format: "%02d:%04.1f", minutes, seconds)
+        return String(format: "%02d:%06.3f", minutes, seconds)
     }
 }
 
@@ -178,30 +178,72 @@ private struct TimecodeField: View {
                 }
             }
 
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                TimecodeUnitStepper(
-                    label: localization.string("sidebar.sync.time.hours"),
-                    value: componentBinding(.hours),
-                    range: 0...maxHours
-                )
-                Text(":")
-                    .font(.body.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                TimecodeUnitStepper(
-                    label: localization.string("sidebar.sync.time.minutes"),
-                    value: componentBinding(.minutes),
-                    range: 0...59
-                )
-                Text(":")
-                    .font(.body.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                TimecodeUnitStepper(
-                    label: localization.string("sidebar.sync.time.seconds"),
-                    value: componentBinding(.seconds),
-                    range: 0...59
-                )
+            ViewThatFits(in: .horizontal) {
+                timecodeControls
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        hoursControl
+                        timecodeSeparator(":")
+                        minutesControl
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        secondsControl
+                        timecodeSeparator(".")
+                        millisecondsControl
+                    }
+                }
             }
         }
+    }
+
+    private var timecodeControls: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            hoursControl
+            timecodeSeparator(":")
+            minutesControl
+            timecodeSeparator(":")
+            secondsControl
+            timecodeSeparator(".")
+            millisecondsControl
+        }
+    }
+
+    private var hoursControl: some View {
+        TimecodeUnitStepper(
+            label: localization.string("sidebar.sync.time.hours"),
+            value: componentBinding(.hours),
+            range: 0...maxHours
+        )
+    }
+
+    private var minutesControl: some View {
+        TimecodeUnitStepper(
+            label: localization.string("sidebar.sync.time.minutes"),
+            value: componentBinding(.minutes),
+            range: 0...59
+        )
+    }
+
+    private var secondsControl: some View {
+        TimecodeUnitStepper(
+            label: localization.string("sidebar.sync.time.seconds"),
+            value: componentBinding(.seconds),
+            range: 0...59
+        )
+    }
+
+    private var millisecondsControl: some View {
+        TimecodeUnitStepper(
+            label: localization.string("sidebar.sync.time.milliseconds"),
+            value: componentBinding(.milliseconds),
+            range: 0...999
+        )
+    }
+
+    private func timecodeSeparator(_ text: String) -> some View {
+        Text(text)
+            .font(.body.monospacedDigit())
+            .foregroundStyle(.secondary)
     }
 
     private var signBinding: Binding<Int> {
@@ -231,13 +273,13 @@ private struct TimecodeField: View {
             set: { newValue in
                 var next = components
                 next[keyPath: component.keyPath] = newValue
-                setSeconds(Double(currentSign) * Double(next.totalSeconds))
+                setSeconds(Double(currentSign) * Double(next.totalMilliseconds) / 1_000)
             }
         )
     }
 
     private var components: TimecodeComponents {
-        TimecodeComponents(totalSeconds: Int(abs(value.isFinite ? value : 0).rounded()))
+        TimecodeComponents(totalMilliseconds: Int((abs(value.isFinite ? value : 0) * 1_000).rounded()))
     }
 
     private func setSeconds(_ seconds: Double) {
@@ -286,6 +328,7 @@ private enum TimecodeComponent {
     case hours
     case minutes
     case seconds
+    case milliseconds
 
     var keyPath: WritableKeyPath<TimecodeComponents, Int> {
         switch self {
@@ -295,6 +338,8 @@ private enum TimecodeComponent {
             return \.minutes
         case .seconds:
             return \.seconds
+        case .milliseconds:
+            return \.milliseconds
         }
     }
 }
@@ -303,16 +348,18 @@ private struct TimecodeComponents {
     var hours: Int
     var minutes: Int
     var seconds: Int
+    var milliseconds: Int
 
-    init(totalSeconds: Int) {
-        let clamped = max(0, totalSeconds)
-        self.hours = clamped / 3_600
-        self.minutes = (clamped % 3_600) / 60
-        self.seconds = clamped % 60
+    init(totalMilliseconds: Int) {
+        let clamped = max(0, totalMilliseconds)
+        self.hours = clamped / 3_600_000
+        self.minutes = (clamped % 3_600_000) / 60_000
+        self.seconds = (clamped % 60_000) / 1_000
+        self.milliseconds = clamped % 1_000
     }
 
-    var totalSeconds: Int {
-        hours * 3_600 + minutes * 60 + seconds
+    var totalMilliseconds: Int {
+        hours * 3_600_000 + minutes * 60_000 + seconds * 1_000 + milliseconds
     }
 }
 

@@ -39,6 +39,20 @@ final class CommandLineOptionsTests: XCTestCase {
         XCTAssertEqual(options.layoutPresetReference, "Race Layout")
     }
 
+    func testDurationArgumentIsNoLongerSupported() {
+        XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--video", "run.mov",
+            "--fit", "activity.fit",
+            "--output", "overlay.mov",
+            "--duration", "60"
+        ])) { error in
+            guard case CLIError.unknownArgument("--duration") = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
     func testResolveLayoutPresetMatchesNameCaseInsensitively() throws {
         let now = Date(timeIntervalSince1970: 0)
         var layout = OverlayLayout.default

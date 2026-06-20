@@ -1,6 +1,7 @@
 import CoreGraphics
 import CoreText
 import CoreVideo
+import Darwin
 import Foundation
 
 public final class OverlayRenderer {
@@ -36,6 +37,8 @@ public final class OverlayRenderer {
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        memset(baseAddress, 0, bytesPerRow * height)
+
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(
             data: baseAddress,
