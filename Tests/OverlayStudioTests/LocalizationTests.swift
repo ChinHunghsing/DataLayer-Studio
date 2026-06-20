@@ -81,6 +81,17 @@ final class LocalizationTests: XCTestCase {
         )
     }
 
+    func testLanguageMenuTitleIsLocalized() {
+        XCTAssertEqual(
+            AppLocalizer.string("menu.language", language: .simplifiedChinese),
+            "语言"
+        )
+        XCTAssertEqual(
+            AppLocalizer.string("menu.language", language: .english),
+            "Language"
+        )
+    }
+
     func testExportResolutionPresetTitlesAreLocalized() {
         XCTAssertEqual(
             AppLocalizer.string("resolutionPreset.vertical-1080", language: .simplifiedChinese),

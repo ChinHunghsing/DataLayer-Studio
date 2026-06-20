@@ -44,9 +44,9 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(StudioModel.sanitizedOutputFrameRate(0.5), 1)
         XCTAssertEqual(StudioModel.sanitizedOutputFrameRate(241), 240)
 
-        XCTAssertEqual(StudioModel.sanitizedOutputDuration(.infinity), 0.1)
-        XCTAssertEqual(StudioModel.sanitizedOutputDuration(0), 0.1)
-        XCTAssertEqual(StudioModel.sanitizedOutputDuration(86_401), 86_400)
+        XCTAssertEqual(StudioModel.sanitizedSourceDuration(.infinity), 0.1)
+        XCTAssertEqual(StudioModel.sanitizedSourceDuration(0), 0.1)
+        XCTAssertEqual(StudioModel.sanitizedSourceDuration(86_401), 86_400)
 
         XCTAssertEqual(StudioModel.sanitizedBitRateKbps(0), 1)
         XCTAssertEqual(StudioModel.sanitizedBitRateKbps(1_000_001), 1_000_000)
@@ -56,11 +56,9 @@ final class StudioModelTests: XCTestCase {
         let model = StudioModel()
 
         model.setOutputFPS(.infinity)
-        model.setOutputDuration(0)
         model.setBitRateKbps(-20)
 
         XCTAssertEqual(model.outputFPS, 1)
-        XCTAssertEqual(model.outputDuration, 0.1)
         XCTAssertEqual(model.bitRateKbps, 1)
     }
 
@@ -71,14 +69,14 @@ final class StudioModelTests: XCTestCase {
             TelemetrySample(elapsed: 0, distanceMeters: 0),
             TelemetrySample(elapsed: 1, distanceMeters: 3)
         ])
-        model.outputDuration = .nan
+        model.sourceDuration = .nan
 
         XCTAssertEqual(
             model.exportReadinessMessage,
             AppLocalizer.currentString("status.sourceDurationRange")
         )
 
-        model.outputDuration = 12
+        model.sourceDuration = 12
 
         XCTAssertNil(model.exportReadinessMessage)
     }
@@ -199,9 +197,9 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.selectedElementID, model.layout.elements.first?.id)
     }
 
-    func testSeekPreviewClampsTimeToOutputDuration() {
+    func testSeekPreviewClampsTimeToSourceDuration() {
         let model = StudioModel()
-        model.setOutputDuration(12)
+        model.sourceDuration = 12
 
         model.seekPreview(to: 20)
         XCTAssertEqual(model.previewTime, 12)
@@ -218,7 +216,7 @@ final class StudioModelTests: XCTestCase {
             framesPerSecond: 60
         )
         model.setOutputFPS(30)
-        model.setOutputDuration(10)
+        model.sourceDuration = 10
         model.seekPreview(to: 5)
 
         XCTAssertEqual(model.previewFrameRate, 60, accuracy: 0.0001)
@@ -232,7 +230,7 @@ final class StudioModelTests: XCTestCase {
     func testStepPreviewFrameClampsToPreviewBounds() {
         let model = StudioModel()
         model.setOutputFPS(25)
-        model.setOutputDuration(1)
+        model.sourceDuration = 1
 
         model.seekPreview(to: 0)
         model.stepPreviewFrame(by: -1)

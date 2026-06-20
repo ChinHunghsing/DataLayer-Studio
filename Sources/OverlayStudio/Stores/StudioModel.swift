@@ -41,7 +41,7 @@ final class StudioModel: ObservableObject {
     @Published var outputWidth = 1920
     @Published var outputHeight = 1080
     @Published var outputFPS = 30.0
-    @Published var outputDuration: TimeInterval = 0
+    @Published var sourceDuration: TimeInterval = 0
     @Published var bitRateKbps = 12_000
     @Published var codec: OverlayVideoCodec = .hevcAlpha
     @Published var distanceUnit: OverlayDistanceUnit = .kilometers {
@@ -339,10 +339,6 @@ final class StudioModel: ObservableObject {
         outputFPS = Self.sanitizedOutputFrameRate(value)
     }
 
-    func setOutputDuration(_ value: TimeInterval) {
-        outputDuration = Self.sanitizedOutputDuration(value)
-    }
-
     func setBitRateKbps(_ value: Int) {
         bitRateKbps = Self.sanitizedBitRateKbps(value)
     }
@@ -492,7 +488,7 @@ final class StudioModel: ObservableObject {
         previewOverlayRenderSize = nil
         videoURL = nil
         metadata = nil
-        outputDuration = 0
+        sourceDuration = 0
         backgroundImage = nil
         overlayImage = nil
         dragBaseOverlayImage = nil
@@ -513,7 +509,7 @@ final class StudioModel: ObservableObject {
                     self.setOutputWidth(Int(loaded.size.width.rounded()))
                     self.setOutputHeight(Int(loaded.size.height.rounded()))
                     self.setOutputFPS(loaded.framesPerSecond)
-                    self.setOutputDuration(loaded.duration)
+                    self.sourceDuration = Self.sanitizedSourceDuration(loaded.duration)
                     self.previewTime = 0
                     self.configurePlayer(url: url)
                     self.status = AppLocalizer.currentString("status.loadedVideo", url.lastPathComponent)
@@ -553,12 +549,12 @@ final class StudioModel: ObservableObject {
             Task { @MainActor in
                 let seconds = CMTimeGetSeconds(time)
                 guard seconds.isFinite else { return }
-                self.previewTime = min(max(0, seconds), max(0, self.outputDuration))
+                self.previewTime = min(max(0, seconds), max(0, self.sourceDuration))
                 self.refreshOverlayOnly(
                     minimumInterval: Self.playbackOverlayRefreshInterval,
                     coalesceIfBusy: true
                 )
-                if self.outputDuration > 0, self.previewTime >= self.outputDuration {
+                if self.sourceDuration > 0, self.previewTime >= self.sourceDuration {
                     self.pausePlayback()
                 }
             }
@@ -612,7 +608,7 @@ final class StudioModel: ObservableObject {
 
     private func seekPreview(to time: TimeInterval, coalesceOverlayRefresh: Bool, isScrubbing: Bool = false) {
         guard !isExporting else { return }
-        let clamped = min(max(0, time), max(outputDuration, 0))
+        let clamped = min(max(0, time), max(sourceDuration, 0))
         previewTime = clamped
         if let player {
             player.seek(
@@ -1306,7 +1302,7 @@ final class StudioModel: ObservableObject {
     }
 
     private var exportDuration: TimeInterval? {
-        let duration = outputDuration
+        let duration = sourceDuration
         guard duration.isFinite, duration >= 0.1, duration <= 86_400 else { return nil }
         return duration
     }
@@ -1390,7 +1386,7 @@ final class StudioModel: ObservableObject {
         return min(240, max(1, finiteValue))
     }
 
-    static func sanitizedOutputDuration(_ value: TimeInterval) -> TimeInterval {
+    static func sanitizedSourceDuration(_ value: TimeInterval) -> TimeInterval {
         let finiteValue = value.isFinite ? value : 0.1
         return min(86_400, max(0.1, finiteValue))
     }

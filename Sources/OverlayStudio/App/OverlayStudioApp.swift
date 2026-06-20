@@ -18,8 +18,23 @@ struct OverlayStudioApp: App {
         }
         .commands {
             StudioFileCommands(localization: localization)
+            LanguageCommands(localization: localization)
             PreviewCommands(localization: localization)
             ArrangeCommands(localization: localization)
+        }
+    }
+}
+
+private struct LanguageCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
+
+    var body: some Commands {
+        CommandMenu(localization.string("menu.language")) {
+            Picker(localization.string("settings.language.picker"), selection: $localization.selection) {
+                ForEach(AppLanguageSelection.allCases) { selection in
+                    Text(selection.nativeName).tag(selection)
+                }
+            }
         }
     }
 }
