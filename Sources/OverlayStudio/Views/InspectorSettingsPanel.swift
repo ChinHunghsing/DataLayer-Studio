@@ -1327,27 +1327,79 @@ private struct InspectorEmptyState: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        InspectorMessageBlock(
-            systemImage: "cursorarrow.click.2",
-            title: localization.string("inspector.noSelection.emptyTitle"),
-            message: localization.string("inspector.noSelection.message")
-        ) {
-            Menu {
+        VStack(alignment: .leading, spacing: 12) {
+            InspectorMessageBlock(
+                systemImage: "cursorarrow.click.2",
+                title: localization.string("inspector.noSelection.emptyTitle"),
+                message: localization.string("inspector.noSelection.message")
+            )
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 8),
+                    GridItem(.flexible(), spacing: 8)
+                ],
+                alignment: .leading,
+                spacing: 8
+            ) {
                 ForEach(OverlayComponentID.allCases) { component in
                     Button {
                         model.addElement(kind: component)
                     } label: {
-                        Label(localization.string(component.localizationKey), systemImage: component.systemImage)
+                        InspectorQuickAddItem(
+                            title: localization.string(component.localizationKey),
+                            systemImage: component.systemImage
+                        )
                     }
+                    .buttonStyle(.plain)
+                    .disabled(model.isExporting)
+                    .accessibilityLabel(localization.string(component.localizationKey))
                 }
-            } label: {
-                Label(localization.string("inspector.addElement"), systemImage: "plus")
             }
-            .menuStyle(.borderlessButton)
-            .controlSize(.small)
-            .disabled(model.isExporting)
-            .padding(.top, 2)
         }
+    }
+}
+
+private struct InspectorQuickAddItem: View {
+    var title: String
+    var systemImage: String
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isHovering ? Color.accentColor : Color.secondary)
+                .frame(width: 18, height: 18)
+
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(itemFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(itemStroke)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .onHover { hovering in
+            isHovering = hovering
+        }
+    }
+
+    private var itemFill: Color {
+        isHovering ? Color.accentColor.opacity(0.075) : InspectorStyle.sectionFill
+    }
+
+    private var itemStroke: Color {
+        isHovering ? Color.accentColor.opacity(0.28) : InspectorStyle.sectionStroke
     }
 }
 
