@@ -167,8 +167,8 @@ private struct InspectorSectionScopeBar: View {
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
             ViewThatFits(in: .horizontal) {
-                scopeButtons(showTitles: true)
-                scopeButtons(showTitles: false)
+                scopeStrip(showTitles: true)
+                scopeStrip(showTitles: false)
             }
 
             if showsSectionActions {
@@ -184,14 +184,22 @@ private struct InspectorSectionScopeBar: View {
         selectedScopeRawValue == InspectorSectionScope.all.rawValue
     }
 
+    private func scopeStrip(showTitles: Bool) -> some View {
+        scopeButtons(showTitles: showTitles)
+            .padding(2)
+            .background(InspectorStyle.actionGroupFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(InspectorStyle.actionGroupStroke)
+            }
+    }
+
     private func scopeButtons(showTitles: Bool) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 2) {
             ForEach(scopes) { scope in
                 scopeButton(scope, showTitle: showTitles)
             }
         }
-        .padding(.vertical, 1)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func scopeButton(_ scope: InspectorSectionScope, showTitle: Bool) -> some View {
@@ -260,9 +268,9 @@ private struct InspectorSectionScopeBar: View {
             return Color.accentColor.opacity(0.12)
         }
         if hoveredScopeRawValue == scope.rawValue {
-            return Color.secondary.opacity(0.075)
+            return Color.secondary.opacity(0.08)
         }
-        return Color.secondary.opacity(0.045)
+        return Color.clear
     }
 
     private func scopeStroke(_ scope: InspectorSectionScope) -> Color {
@@ -270,8 +278,8 @@ private struct InspectorSectionScopeBar: View {
             return Color.accentColor.opacity(0.34)
         }
         if hoveredScopeRawValue == scope.rawValue {
-            return Color.secondary.opacity(0.14)
+            return Color.secondary.opacity(0.16)
         }
-        return Color.secondary.opacity(0.07)
+        return Color.clear
     }
 }
