@@ -452,7 +452,16 @@ struct InspectorSettingsPanel: View {
 
     private func layoutSummary(for element: OverlayElement) -> String {
         let frame = currentElement(element.id)?.frame ?? element.frame
-        return "X \(frame.x.percentString) / Y \(frame.y.percentString)"
+        var parts = [
+            "X \(frame.x.percentString)",
+            "Y \(frame.y.percentString)",
+            "\(Int((frame.scale * 100).rounded()))%"
+        ]
+        let current = currentElement(element.id) ?? element
+        if current.kind.supportsLengthScale {
+            parts.append("\(localization.string("inspector.length")) \(Int((current.customization.lengthScale * 100).rounded()))%")
+        }
+        return summary(parts) ?? ""
     }
 
     private func contentSummary(for element: OverlayElement) -> String? {
@@ -476,7 +485,7 @@ struct InspectorSettingsPanel: View {
             parts.append(localization.string("inspector.icon"))
         }
 
-        return parts.isEmpty ? nil : parts.joined(separator: " / ")
+        return summary(parts)
     }
 
     private func appearanceSummary(for element: OverlayElement) -> String? {
@@ -485,6 +494,10 @@ struct InspectorSettingsPanel: View {
 
         if current.customization.showsPanel {
             parts.append(localization.string("inspector.panel"))
+            if current.customization.panelBorderIsVisible {
+                parts.append(localization.string("inspector.panelBorder"))
+            }
+            parts.append((current.frame.style.panelOpacity ?? model.layout.style.panelOpacity).percentString)
         }
         if current.kind.supportsLineWidth {
             parts.append("\(Int(current.customization.lineWidth.rounded())) px")
@@ -494,11 +507,23 @@ struct InspectorSettingsPanel: View {
             parts.append(localization.string("inspector.tickMarks"))
         }
 
-        return parts.isEmpty ? nil : parts.joined(separator: " / ")
+        return summary(parts)
     }
 
     private func typographySummary(for element: OverlayElement) -> String {
-        "\(localization.string("inspector.value")) \(fontSizeLabel(id: element.id, role: .value, kind: element.kind))"
+        let current = currentElement(element.id) ?? element
+        var parts = [String]()
+        if current.customization.showsLabel {
+            parts.append("\(localization.string("inspector.label")) \(fontSizeLabel(id: element.id, role: .label, kind: element.kind))")
+        }
+        parts.append("\(localization.string("inspector.value")) \(fontSizeLabel(id: element.id, role: .value, kind: element.kind))")
+        if current.customization.showsUnit {
+            parts.append("\(localization.string("inspector.unit")) \(fontSizeLabel(id: element.id, role: .unit, kind: element.kind))")
+        }
+        if current.customization.showsIcon {
+            parts.append("\(localization.string("inspector.icon")) \(fontSizeLabel(id: element.id, role: .icon, kind: element.kind))")
+        }
+        return summary(parts) ?? ""
     }
 
     private func dataSummary(for element: OverlayElement) -> String? {
@@ -515,7 +540,12 @@ struct InspectorSettingsPanel: View {
             parts.append("\(minimum)-\(maximum)")
         }
 
-        return parts.isEmpty ? nil : parts.joined(separator: " / ")
+        return summary(parts)
+    }
+
+    private func summary(_ parts: [String]) -> String? {
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: " · ")
     }
 
     private func fontSizeLabel(id: String, role: TypographyRole, kind: OverlayComponentID) -> String {
