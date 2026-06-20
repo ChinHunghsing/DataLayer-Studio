@@ -971,10 +971,12 @@ private struct TextStyleRow: View {
                 range: 6...180,
                 label: sizeLabel,
                 showsTextField: true,
-                unitLabel: "pt"
+                unitLabel: "pt",
+                usesRowSurface: false
             )
         }
         .padding(.vertical, 2)
+        .inspectorControlRowSurface()
     }
 
     private var fontAndColorControls: some View {
@@ -1221,6 +1223,7 @@ private struct LabeledSlider: View {
     var label: String
     var showsTextField = false
     var unitLabel: String?
+    var usesRowSurface = true
     @State private var draftText = ""
     @FocusState private var isTextFieldFocused: Bool
 
@@ -1262,7 +1265,7 @@ private struct LabeledSlider: View {
                 commitDraft()
             }
         }
-        .inspectorControlRowSurface()
+        .inspectorControlRowSurface(enabled: usesRowSurface)
     }
 
     @ViewBuilder
@@ -1525,17 +1528,23 @@ enum InspectorStyle {
 }
 
 private struct InspectorControlRowSurface: ViewModifier {
+    var enabled: Bool
     @State private var isHovering = false
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
-            .padding(.horizontal, 7)
-            .padding(.vertical, 5)
-            .background(rowFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .onHover { hovering in
-                isHovering = hovering
-            }
+        if enabled {
+            content
+                .padding(.horizontal, 7)
+                .padding(.vertical, 5)
+                .background(rowFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .onHover { hovering in
+                    isHovering = hovering
+                }
+        } else {
+            content
+        }
     }
 
     private var rowFill: Color {
@@ -1544,7 +1553,7 @@ private struct InspectorControlRowSurface: ViewModifier {
 }
 
 private extension View {
-    func inspectorControlRowSurface() -> some View {
-        modifier(InspectorControlRowSurface())
+    func inspectorControlRowSurface(enabled: Bool = true) -> some View {
+        modifier(InspectorControlRowSurface(enabled: enabled))
     }
 }
