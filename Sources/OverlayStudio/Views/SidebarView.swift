@@ -89,7 +89,7 @@ struct SidebarView: View {
 
             SidebarControl(title: localization.string("sidebar.resolution")) {
                 Picker(localization.string("sidebar.resolution"), selection: resolutionPresetSelection) {
-                    if let sourceTitle = sourceResolutionPresetTitle {
+                    if let sourceTitle = model.sourceResolutionPresetTitle {
                         Text(sourceTitle).tag(OutputResolutionPreset.sourceID)
                     }
                     ForEach(OutputResolutionPreset.fixed) { preset in
@@ -116,7 +116,7 @@ struct SidebarView: View {
 
             SidebarControl(title: localization.string("sidebar.frameRate")) {
                 Picker(localization.string("sidebar.frameRate"), selection: frameRatePresetSelection) {
-                    if let sourceTitle = sourceFrameRatePresetTitle {
+                    if let sourceTitle = model.sourceFrameRatePresetTitle {
                         Text(sourceTitle).tag(OutputFrameRatePreset.sourceID)
                     }
                     ForEach(OutputFrameRatePreset.fixed) { preset in
@@ -285,27 +285,6 @@ struct SidebarView: View {
             get: { model.selectedFrameRatePresetID },
             set: { model.applyFrameRatePreset(id: $0) }
         )
-    }
-
-    private var sourceResolutionPresetTitle: String? {
-        guard let metadata = model.metadata else { return nil }
-        let width = StudioModel.sanitizedOutputDimension(Int(metadata.size.width.rounded()))
-        let height = StudioModel.sanitizedOutputDimension(Int(metadata.size.height.rounded()))
-        return localization.string("sidebar.sourceResolutionPreset", String(width), String(height))
-    }
-
-    private var sourceFrameRatePresetTitle: String? {
-        guard let metadata = model.metadata else { return nil }
-        let fps = metadata.framesPerSecond
-        guard fps.isFinite, fps >= 1, fps <= 240 else { return nil }
-        return localization.string("sidebar.sourceFrameRatePreset", formatFrameRate(fps))
-    }
-
-    private func formatFrameRate(_ fps: Double) -> String {
-        if abs(fps - fps.rounded()) < 0.01 {
-            return String(format: "%.0f", fps)
-        }
-        return String(format: "%.3f", fps)
     }
 
     private func intBinding(

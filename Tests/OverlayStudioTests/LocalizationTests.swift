@@ -56,6 +56,10 @@ final class LocalizationTests: XCTestCase {
             argumentDomain["AppleLanguages"] as? [String],
             ["zh-Hans-CN", "zh-Hans", "zh_CN", "zh"]
         )
+        XCTAssertEqual(
+            defaults.array(forKey: "AppleLanguages") as? [String],
+            ["zh-Hans-CN", "zh-Hans", "zh_CN", "zh"]
+        )
     }
 
     func testSystemLanguageSelectionUsesLaunchPreferredLanguagesForAppKit() {

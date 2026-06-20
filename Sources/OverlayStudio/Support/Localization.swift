@@ -148,6 +148,8 @@ enum AppLocalizer {
         defaults: UserDefaults = .standard
     ) {
         let language = resolvedLanguage(for: selection, preferredLanguages: preferredLanguages)
+        defaults.set(language.appKitLanguageIdentifiers, forKey: "AppleLanguages")
+
         var argumentDomain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
         argumentDomain["AppleLanguages"] = language.appKitLanguageIdentifiers
         defaults.setVolatileDomain(argumentDomain, forName: UserDefaults.argumentDomain)
