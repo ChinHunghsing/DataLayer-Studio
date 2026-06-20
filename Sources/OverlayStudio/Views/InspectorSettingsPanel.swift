@@ -872,22 +872,20 @@ private struct TextStyleRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .center, spacing: InspectorFormMetrics.rowGap) {
-                Text(title)
-                    .inspectorControlLabel()
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: InspectorFormMetrics.rowGap) {
+                    Text(title)
+                        .inspectorControlLabel()
 
-                Picker(localization.string("inspector.font"), selection: $font) {
-                    ForEach(OverlayFontFamily.allCases) { font in
-                        Text(font.displayName).tag(font)
-                    }
+                    fontAndColorControls
                 }
-                .labelsHidden()
-                .controlSize(.small)
-                .frame(maxWidth: .infinity)
 
-                ColorPicker(localization.string("inspector.color"), selection: $color)
-                    .labelsHidden()
-                    .controlSize(.small)
+                VStack(alignment: .leading, spacing: InspectorFormMetrics.stackedRowGap) {
+                    Text(title)
+                        .inspectorControlLabel(width: nil)
+
+                    fontAndColorControls
+                }
             }
 
             LabeledSlider(
@@ -900,6 +898,24 @@ private struct TextStyleRow: View {
             )
         }
         .padding(.vertical, 2)
+    }
+
+    private var fontAndColorControls: some View {
+        HStack(alignment: .center, spacing: InspectorFormMetrics.accessoryGap) {
+            Picker(localization.string("inspector.font"), selection: $font) {
+                ForEach(OverlayFontFamily.allCases) { font in
+                    Text(font.displayName).tag(font)
+                }
+            }
+            .labelsHidden()
+            .controlSize(.small)
+            .frame(maxWidth: .infinity)
+
+            ColorPicker(localization.string("inspector.color"), selection: $color)
+                .labelsHidden()
+                .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
 
@@ -931,16 +947,30 @@ private struct InspectorColorRow: View {
     @Binding var selection: Color
 
     var body: some View {
-        HStack(spacing: InspectorFormMetrics.rowGap) {
-            Text(title)
-                .inspectorControlLabel()
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: InspectorFormMetrics.rowGap) {
+                Text(title)
+                    .inspectorControlLabel()
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-            ColorPicker(title, selection: $selection)
-                .labelsHidden()
-                .controlSize(.small)
+                colorPicker
+            }
+
+            VStack(alignment: .leading, spacing: InspectorFormMetrics.stackedRowGap) {
+                Text(title)
+                    .inspectorControlLabel(width: nil)
+
+                colorPicker
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }
+    }
+
+    private var colorPicker: some View {
+        ColorPicker(title, selection: $selection)
+            .labelsHidden()
+            .controlSize(.small)
     }
 }
 
@@ -949,17 +979,32 @@ private struct InspectorToggleRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        HStack(spacing: InspectorFormMetrics.rowGap) {
-            Text(title)
-                .inspectorControlLabel()
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: InspectorFormMetrics.rowGap) {
+                Text(title)
+                    .inspectorControlLabel()
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-            Toggle(title, isOn: $isOn)
-                .labelsHidden()
-                .controlSize(.small)
-                .accessibilityLabel(title)
+                toggle
+            }
+
+            HStack(spacing: InspectorFormMetrics.rowGap) {
+                Text(title)
+                    .inspectorControlLabel(width: nil)
+
+                Spacer(minLength: 8)
+
+                toggle
+            }
         }
+    }
+
+    private var toggle: some View {
+        Toggle(title, isOn: $isOn)
+            .labelsHidden()
+            .controlSize(.small)
+            .accessibilityLabel(title)
     }
 }
 
@@ -968,17 +1013,31 @@ private struct InspectorTextRow: View {
     @Binding var text: String
 
     var body: some View {
-        HStack(spacing: InspectorFormMetrics.rowGap) {
-            Text(title)
-                .inspectorControlLabel()
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: InspectorFormMetrics.rowGap) {
+                Text(title)
+                    .inspectorControlLabel()
 
-            Spacer(minLength: 8)
+                Spacer(minLength: 8)
 
-            TextField(title, text: $text)
-                .textFieldStyle(.roundedBorder)
-                .font(.caption)
-                .frame(width: InspectorFormMetrics.textFieldWidth)
+                textField
+                    .frame(width: InspectorFormMetrics.textFieldWidth)
+            }
+
+            VStack(alignment: .leading, spacing: InspectorFormMetrics.stackedRowGap) {
+                Text(title)
+                    .inspectorControlLabel(width: nil)
+
+                textField
+                    .frame(maxWidth: .infinity)
+            }
         }
+    }
+
+    private var textField: some View {
+        TextField(title, text: $text)
+            .textFieldStyle(.roundedBorder)
+            .font(.caption)
     }
 }
 
@@ -995,13 +1054,23 @@ private struct InspectorStepperRow: View {
 
     var body: some View {
         Stepper(value: $value, in: range) {
-            HStack(spacing: InspectorFormMetrics.rowGap) {
-                Text(title)
-                    .inspectorControlLabel()
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: InspectorFormMetrics.rowGap) {
+                    Text(title)
+                        .inspectorControlLabel()
 
-                Spacer(minLength: 8)
+                    Spacer(minLength: 8)
 
-                InspectorValuePill("\(value)")
+                    InspectorValuePill("\(value)")
+                }
+
+                VStack(alignment: .leading, spacing: InspectorFormMetrics.stackedRowGap) {
+                    Text(title)
+                        .inspectorControlLabel(width: nil)
+
+                    InspectorValuePill("\(value)")
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
         }
     }
@@ -1069,13 +1138,23 @@ private struct LabeledSlider: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .center, spacing: 8) {
-                Text(title)
-                    .inspectorControlLabel()
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 8) {
+                    Text(title)
+                        .inspectorControlLabel()
 
-                Spacer()
+                    Spacer(minLength: 8)
 
-                valueAccessory
+                    valueAccessory
+                }
+
+                VStack(alignment: .leading, spacing: InspectorFormMetrics.stackedRowGap) {
+                    Text(title)
+                        .inspectorControlLabel(width: nil)
+
+                    valueAccessory
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
             }
 
             Slider(value: clampedValue, in: range)
@@ -1166,6 +1245,7 @@ private struct InspectorValuePill: View {
 private enum InspectorFormMetrics {
     static let labelWidth: CGFloat = 112
     static let rowGap: CGFloat = 10
+    static let stackedRowGap: CGFloat = 6
     static let accessoryGap: CGFloat = 6
     static let textFieldWidth: CGFloat = 178
     static let numericFieldWidth: CGFloat = 84
@@ -1173,11 +1253,18 @@ private enum InspectorFormMetrics {
 }
 
 private extension View {
-    func inspectorControlLabel() -> some View {
-        font(.caption.weight(.semibold))
+    @ViewBuilder
+    func inspectorControlLabel(width: CGFloat? = InspectorFormMetrics.labelWidth) -> some View {
+        let label = font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .frame(width: InspectorFormMetrics.labelWidth, alignment: .leading)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+
+        if let width {
+            label.frame(width: width, alignment: .leading)
+        } else {
+            label.frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
