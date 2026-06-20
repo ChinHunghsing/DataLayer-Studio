@@ -16,7 +16,7 @@ struct InspectorSettingsPanel: View {
         if let element = model.selectedElement {
             VStack(alignment: .leading, spacing: 12) {
                 if !element.frame.isVisible {
-                    InspectorMessageBlock(
+                    InspectorInlineStatusBar(
                         systemImage: "eye.slash",
                         title: localization.string("inspector.hiddenElement.title"),
                         message: localization.string("inspector.hiddenElement.message"),
@@ -970,6 +970,43 @@ private struct InspectorUnavailableSection: View {
             title: title,
             message: message
         )
+    }
+}
+
+private struct InspectorInlineStatusBar: View {
+    var systemImage: String
+    var title: String
+    var message: String
+    var actionTitle: String
+    var action: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            Button(actionTitle, action: action)
+                .font(.caption.weight(.semibold))
+                .controlSize(.small)
+                .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(InspectorStyle.sectionFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(InspectorStyle.sectionStroke)
+        }
+        .help(message)
     }
 }
 
