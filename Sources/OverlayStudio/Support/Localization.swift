@@ -78,10 +78,10 @@ final class LocalizationStore: ObservableObject {
 
     init(
         defaults: UserDefaults = .standard,
-        systemPreferredLanguages: [String] = Locale.preferredLanguages
+        systemPreferredLanguages: [String]? = nil
     ) {
         self.defaults = defaults
-        self.systemPreferredLanguages = systemPreferredLanguages
+        self.systemPreferredLanguages = systemPreferredLanguages ?? AppLocalizer.systemPreferredLanguages(defaults: defaults)
         self.selection = AppLocalizer.storedSelection(defaults: defaults)
         AppLocalizer.applyProcessLanguagePreference(
             for: selection,
@@ -105,6 +105,7 @@ final class LocalizationStore: ObservableObject {
 
 enum AppLocalizer {
     static let selectionDefaultsKey = "run.libo.overlay-studio.language.v1"
+    private static let appleLanguagesKey = "AppleLanguages"
 
     static func storedSelection(
         defaults: UserDefaults = .standard,
@@ -144,20 +145,28 @@ enum AppLocalizer {
 
     static func applyProcessLanguagePreference(
         for selection: AppLanguageSelection,
-        preferredLanguages: [String] = Locale.preferredLanguages,
+        preferredLanguages: [String]? = nil,
         defaults: UserDefaults = .standard
     ) {
-        let language = resolvedLanguage(for: selection, preferredLanguages: preferredLanguages)
-        defaults.set(language.appKitLanguageIdentifiers, forKey: "AppleLanguages")
+        guard selection != .system else {
+            clearProcessLanguagePreference(defaults: defaults)
+            return
+        }
+
+        let language = resolvedLanguage(
+            for: selection,
+            preferredLanguages: preferredLanguages ?? systemPreferredLanguages(defaults: defaults)
+        )
+        defaults.set(language.appKitLanguageIdentifiers, forKey: appleLanguagesKey)
 
         var argumentDomain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
-        argumentDomain["AppleLanguages"] = language.appKitLanguageIdentifiers
+        argumentDomain[appleLanguagesKey] = language.appKitLanguageIdentifiers
         defaults.setVolatileDomain(argumentDomain, forName: UserDefaults.argumentDomain)
     }
 
     static func applyStoredProcessLanguagePreference(
         defaults: UserDefaults = .standard,
-        preferredLanguages: [String] = Locale.preferredLanguages,
+        preferredLanguages: [String]? = nil,
         appDomains: [String] = DataLayerStudioDefaults.appDomains
     ) {
         applyProcessLanguagePreference(
@@ -165,6 +174,17 @@ enum AppLocalizer {
             preferredLanguages: preferredLanguages,
             defaults: defaults
         )
+    }
+
+    static func systemPreferredLanguages(
+        defaults: UserDefaults = .standard,
+        fallback: [String] = Locale.preferredLanguages
+    ) -> [String] {
+        let globalLanguages = defaults.persistentDomain(forName: UserDefaults.globalDomain)?[appleLanguagesKey] as? [String]
+        guard let globalLanguages, !globalLanguages.isEmpty else {
+            return fallback
+        }
+        return globalLanguages
     }
 
     static func resolvedLanguage(forPreferredLanguages preferredLanguages: [String]) -> AppResolvedLanguage {
@@ -198,6 +218,14 @@ enum AppLocalizer {
     private static func selection(from rawValue: String?) -> AppLanguageSelection? {
         guard let rawValue else { return nil }
         return AppLanguageSelection(rawValue: rawValue)
+    }
+
+    private static func clearProcessLanguagePreference(defaults: UserDefaults) {
+        defaults.removeObject(forKey: appleLanguagesKey)
+
+        var argumentDomain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        argumentDomain.removeValue(forKey: appleLanguagesKey)
+        defaults.setVolatileDomain(argumentDomain, forName: UserDefaults.argumentDomain)
     }
 
     static func currentString(_ key: String, _ arguments: CVarArg...) -> String {
