@@ -1419,74 +1419,50 @@ private struct InspectorEmptyState: View {
                 systemImage: "cursorarrow.click.2",
                 title: localization.string("inspector.noSelection.emptyTitle"),
                 message: localization.string("inspector.noSelection.message")
-            )
-
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 8),
-                    GridItem(.flexible(), spacing: 8)
-                ],
-                alignment: .leading,
-                spacing: 8
             ) {
-                ForEach(OverlayComponentID.allCases) { component in
-                    Button {
-                        model.addElement(kind: component)
-                    } label: {
-                        InspectorQuickAddItem(
-                            title: localization.string(component.localizationKey),
-                            systemImage: component.systemImage
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(model.isExporting)
-                    .accessibilityLabel(localization.string(component.localizationKey))
-                }
+                addElementMenu
+                    .padding(.top, 4)
             }
         }
     }
-}
 
-private struct InspectorQuickAddItem: View {
-    var title: String
-    var systemImage: String
-    @State private var isHovering = false
+    private var addElementMenu: some View {
+        Menu {
+            ForEach(OverlayComponentID.allCases) { component in
+                Button {
+                    model.addElement(kind: component)
+                } label: {
+                    Label(localization.string(component.localizationKey), systemImage: component.systemImage)
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .bold))
 
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(isHovering ? Color.accentColor : Color.secondary)
-                .frame(width: 18, height: 18)
+                Text(localization.string("inspector.addElement"))
+                    .font(.caption.weight(.semibold))
 
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
+                Spacer(minLength: 8)
 
-            Spacer(minLength: 0)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accentColor.opacity(0.11), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(Color.accentColor.opacity(0.24))
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(itemFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(itemStroke)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .onHover { hovering in
-            isHovering = hovering
-        }
-    }
-
-    private var itemFill: Color {
-        isHovering ? Color.accentColor.opacity(0.075) : InspectorStyle.sectionFill
-    }
-
-    private var itemStroke: Color {
-        isHovering ? Color.accentColor.opacity(0.28) : InspectorStyle.sectionStroke
+        .menuStyle(.borderlessButton)
+        .disabled(model.isExporting)
+        .help(localization.string("inspector.addElement"))
+        .accessibilityLabel(localization.string("inspector.addElement"))
     }
 }
 
