@@ -1,4 +1,5 @@
 import SwiftUI
+import OverlayCore
 
 struct InspectorView: View {
     @ObservedObject var model: StudioModel
@@ -14,7 +15,8 @@ struct InspectorView: View {
 
             if model.selectedElement != nil {
                 InspectorSectionScopeBar(
-                    selectedScopeRawValue: $selectedScopeRawValue,
+                    scopes: availableScopes,
+                    selectedScopeRawValue: selectedScopeBinding,
                     expandedSections: $expandedSections
                 )
                 .padding(.horizontal, 18)
@@ -37,7 +39,21 @@ struct InspectorView: View {
     }
 
     private var selectedScope: InspectorSectionScope {
-        InspectorSectionScope(rawValue: selectedScopeRawValue) ?? .all
+        let scope = InspectorSectionScope(rawValue: selectedScopeRawValue) ?? .all
+        guard let element = model.selectedElement else { return .all }
+        return scope.isAvailable(for: element) ? scope : .all
+    }
+
+    private var selectedScopeBinding: Binding<String> {
+        Binding(
+            get: { selectedScope.rawValue },
+            set: { selectedScopeRawValue = $0 }
+        )
+    }
+
+    private var availableScopes: [InspectorSectionScope] {
+        guard let element = model.selectedElement else { return [.all] }
+        return InspectorSectionScope.allCases.filter { $0.isAvailable(for: element) }
     }
 }
 
@@ -101,16 +117,26 @@ private enum InspectorSectionScope: String, CaseIterable, Identifiable {
             return InspectorSection.data.systemImage
         }
     }
+
+    func isAvailable(for element: OverlayElement) -> Bool {
+        switch self {
+        case .all, .layout, .content, .appearance, .typography:
+            return true
+        case .data:
+            return element.kind.supportsValuePrecision || element.kind == .speed
+        }
+    }
 }
 
 private struct InspectorSectionScopeBar: View {
+    var scopes: [InspectorSectionScope]
     @Binding var selectedScopeRawValue: String
     @Binding var expandedSections: Set<InspectorSection>
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(InspectorSectionScope.allCases) { scope in
+            ForEach(scopes) { scope in
                 Button {
                     select(scope)
                 } label: {
