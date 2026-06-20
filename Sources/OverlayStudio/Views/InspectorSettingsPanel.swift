@@ -32,7 +32,7 @@ struct InspectorSettingsPanel: View {
             .id(element.id)
             .disabled(model.isExporting)
         } else {
-            InspectorEmptyState()
+            InspectorEmptyState(model: model)
         }
     }
 
@@ -1098,6 +1098,7 @@ private extension View {
 }
 
 private struct InspectorEmptyState: View {
+    @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
@@ -1105,16 +1106,62 @@ private struct InspectorEmptyState: View {
             systemImage: "cursorarrow.click.2",
             title: localization.string("inspector.noSelection.title"),
             message: localization.string("inspector.noSelection.message")
-        )
+        ) {
+            Menu {
+                ForEach(OverlayComponentID.allCases) { component in
+                    Button {
+                        model.addElement(kind: component)
+                    } label: {
+                        Label(localization.string(component.localizationKey), systemImage: component.systemImage)
+                    }
+                }
+            } label: {
+                Label(localization.string("inspector.addElement"), systemImage: "plus")
+            }
+            .menuStyle(.borderlessButton)
+            .controlSize(.small)
+            .disabled(model.isExporting)
+            .padding(.top, 2)
+        }
     }
 }
 
-private struct InspectorMessageBlock: View {
+private struct InspectorMessageBlock<Actions: View>: View {
     var systemImage: String
     var title: String
     var message: String
     var actionTitle: String? = nil
     var action: (() -> Void)? = nil
+    @ViewBuilder var actions: () -> Actions
+
+    init(
+        systemImage: String,
+        title: String,
+        message: String,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) where Actions == EmptyView {
+        self.systemImage = systemImage
+        self.title = title
+        self.message = message
+        self.actionTitle = actionTitle
+        self.action = action
+        self.actions = { EmptyView() }
+    }
+
+    init(
+        systemImage: String,
+        title: String,
+        message: String,
+        @ViewBuilder actions: @escaping () -> Actions
+    ) {
+        self.systemImage = systemImage
+        self.title = title
+        self.message = message
+        self.actionTitle = nil
+        self.action = nil
+        self.actions = actions
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -1139,6 +1186,8 @@ private struct InspectorMessageBlock: View {
                         .buttonStyle(.bordered)
                         .padding(.top, 2)
                 }
+
+                actions()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
