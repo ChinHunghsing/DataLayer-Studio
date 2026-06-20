@@ -695,7 +695,7 @@ public extension OverlayElement {
         case .speed:
             return OverlayElementCustomization(valuePrecision: 1, gaugeMinimum: 0, gaugeMaximum: 24, lineWidth: 12)
         case .distance:
-            return OverlayElementCustomization(valuePrecision: nil)
+            return OverlayElementCustomization(valuePrecision: nil, labelScale: 0.92, valueScale: 1.04, unitScale: 0.94)
         case .topProgress:
             return OverlayElementCustomization(
                 showsPanel: false,
@@ -712,7 +712,7 @@ public extension OverlayElement {
         case .route:
             return OverlayElementCustomization(lineWidth: 5.5)
         case .pace, .heartRate, .cadence, .calories, .strideLength, .power:
-            return OverlayElementCustomization()
+            return OverlayElementCustomization(labelScale: 0.92, valueScale: 1.04, unitScale: 0.94)
         }
     }
 }
