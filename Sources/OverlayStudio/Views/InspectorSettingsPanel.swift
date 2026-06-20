@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import OverlayCore
 
@@ -78,16 +79,20 @@ struct InspectorSettingsPanel: View {
                 title: "X",
                 value: doubleBinding(id: id, get: { $0.frame.x }, set: { $0.frame.x = $1 }),
                 range: PreviewLayoutLimits.positionRange,
-                label: (currentElement(id)?.frame.x ?? 0).percentString,
-                showsTextField: true
+                label: layoutCoordinateLabel(currentElement(id)?.frame.x ?? 0),
+                showsTextField: true,
+                displayScale: 1_000,
+                keyboardStep: 1
             )
 
             LabeledSlider(
                 title: "Y",
                 value: doubleBinding(id: id, get: { $0.frame.y }, set: { $0.frame.y = $1 }),
                 range: PreviewLayoutLimits.positionRange,
-                label: (currentElement(id)?.frame.y ?? 0).percentString,
-                showsTextField: true
+                label: layoutCoordinateLabel(currentElement(id)?.frame.y ?? 0),
+                showsTextField: true,
+                displayScale: 1_000,
+                keyboardStep: 1
             )
 
             LabeledSlider(
@@ -453,8 +458,8 @@ struct InspectorSettingsPanel: View {
     private func layoutSummary(for element: OverlayElement) -> [String] {
         let frame = currentElement(element.id)?.frame ?? element.frame
         var parts = [
-            "X \(frame.x.percentString)",
-            "Y \(frame.y.percentString)",
+            "X \(layoutCoordinateLabel(frame.x))",
+            "Y \(layoutCoordinateLabel(frame.y))",
             "\(Int((frame.scale * 100).rounded()))%"
         ]
         let current = currentElement(element.id) ?? element
@@ -551,6 +556,10 @@ struct InspectorSettingsPanel: View {
 
     private func fontSizeLabel(id: String, role: TypographyRole, kind: OverlayComponentID) -> String {
         "\(Int(fontSizeValue(id: id, role: role, kind: kind).rounded())) pt"
+    }
+
+    private func layoutCoordinateLabel(_ value: Double) -> String {
+        NumberTextFormatter.formatDouble(value * 1_000)
     }
 
     private func fontSizeValue(id: String, role: TypographyRole, kind: OverlayComponentID) -> Double {
@@ -1279,8 +1288,11 @@ private struct LabeledSlider: View {
     var showsTextField = false
     var unitLabel: String?
     var usesRowSurface = true
+    var displayScale = 1.0
+    var displayFractionDigits = 3
+    var keyboardStep: Double?
     @State private var draftText = ""
-    @FocusState private var isTextFieldFocused: Bool
+    @State private var isTextFieldFocused = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -1307,17 +1319,15 @@ private struct LabeledSlider: View {
                 .controlSize(.small)
         }
         .onAppear {
-            draftText = NumberTextFormatter.formatDouble(clamp(value))
+            draftText = formatDisplayValue(clamp(value))
         }
         .onChange(of: value) { _ in
             guard !isTextFieldFocused else { return }
-            draftText = NumberTextFormatter.formatDouble(clamp(value))
+            draftText = formatDisplayValue(clamp(value))
         }
         .onChange(of: isTextFieldFocused) { focused in
             if focused {
-                draftText = NumberTextFormatter.formatDouble(clamp(value))
-            } else {
-                commitDraft()
+                draftText = formatDisplayValue(clamp(value))
             }
         }
         .inspectorControlRowSurface(enabled: usesRowSurface)
@@ -1327,13 +1337,14 @@ private struct LabeledSlider: View {
     private var valueAccessory: some View {
         if showsTextField {
             HStack(spacing: InspectorFormMetrics.accessoryGap) {
-                TextField(title, text: $draftText)
-                    .multilineTextAlignment(.trailing)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption.monospacedDigit())
-                    .frame(width: InspectorFormMetrics.numericFieldWidth)
-                    .focused($isTextFieldFocused)
-                    .onSubmit(commitDraft)
+                SteppableNumericTextField(
+                    title: title,
+                    text: $draftText,
+                    onCommit: commitDraft,
+                    onStep: stepDraft,
+                    onFocusChange: { isTextFieldFocused = $0 }
+                )
+                .frame(width: InspectorFormMetrics.numericFieldWidth)
 
                 if let unitLabel {
                     Text(unitLabel)
@@ -1361,11 +1372,127 @@ private struct LabeledSlider: View {
 
     private func commitDraft() {
         guard let parsed = NumberTextFormatter.parseDouble(draftText) else {
-            draftText = NumberTextFormatter.formatDouble(clamp(value))
+            draftText = formatDisplayValue(clamp(value))
             return
         }
-        value = clamp(parsed)
-        draftText = NumberTextFormatter.formatDouble(clamp(value))
+        value = clamp(parsed / displayScale)
+        draftText = formatDisplayValue(clamp(value))
+    }
+
+    private func stepDraft(by direction: Int) {
+        let baseDisplayValue = NumberTextFormatter.parseDouble(draftText) ?? displayValue(for: value)
+        let step = keyboardStep ?? defaultKeyboardStep
+        value = clamp((baseDisplayValue + (Double(direction) * step)) / displayScale)
+        draftText = formatDisplayValue(clamp(value))
+    }
+
+    private var defaultKeyboardStep: Double {
+        if displayScale == 1 {
+            return max(0.1, (range.upperBound - range.lowerBound) / 100)
+        }
+        return 1
+    }
+
+    private func displayValue(for rawValue: Double) -> Double {
+        clamp(rawValue) * displayScale
+    }
+
+    private func formatDisplayValue(_ rawValue: Double) -> String {
+        NumberTextFormatter.formatDouble(displayValue(for: rawValue), maximumFractionDigits: displayFractionDigits)
+    }
+}
+
+private struct SteppableNumericTextField: NSViewRepresentable {
+    var title: String
+    @Binding var text: String
+    var onCommit: () -> Void
+    var onStep: (Int) -> Void
+    var onFocusChange: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, onCommit: onCommit, onStep: onStep, onFocusChange: onFocusChange)
+    }
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField(string: text)
+        textField.delegate = context.coordinator
+        textField.placeholderString = title
+        textField.alignment = .right
+        textField.font = .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        textField.isBezeled = true
+        textField.bezelStyle = .roundedBezel
+        textField.controlSize = .small
+        textField.lineBreakMode = .byClipping
+        return textField
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        context.coordinator.text = $text
+        context.coordinator.onCommit = onCommit
+        context.coordinator.onStep = onStep
+        context.coordinator.onFocusChange = onFocusChange
+        nsView.placeholderString = title
+
+        if nsView.stringValue != text,
+           nsView.currentEditor() == nil {
+            nsView.stringValue = text
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var text: Binding<String>
+        var onCommit: () -> Void
+        var onStep: (Int) -> Void
+        var onFocusChange: (Bool) -> Void
+
+        init(
+            text: Binding<String>,
+            onCommit: @escaping () -> Void,
+            onStep: @escaping (Int) -> Void,
+            onFocusChange: @escaping (Bool) -> Void
+        ) {
+            self.text = text
+            self.onCommit = onCommit
+            self.onStep = onStep
+            self.onFocusChange = onFocusChange
+        }
+
+        func controlTextDidBeginEditing(_ notification: Notification) {
+            onFocusChange(true)
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField else { return }
+            text.wrappedValue = textField.stringValue
+        }
+
+        func controlTextDidEndEditing(_ notification: Notification) {
+            guard let textField = notification.object as? NSTextField else { return }
+            text.wrappedValue = textField.stringValue
+            onFocusChange(false)
+            onCommit()
+        }
+
+        func control(
+            _ control: NSControl,
+            textView: NSTextView,
+            doCommandBy commandSelector: Selector
+        ) -> Bool {
+            switch commandSelector {
+            case #selector(NSResponder.moveUp(_:)):
+                text.wrappedValue = textView.string
+                onStep(1)
+                textView.string = text.wrappedValue
+                return true
+            case #selector(NSResponder.moveDown(_:)):
+                text.wrappedValue = textView.string
+                onStep(-1)
+                textView.string = text.wrappedValue
+                return true
+            default:
+                return false
+            }
+        }
     }
 }
 
