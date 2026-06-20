@@ -435,7 +435,7 @@ struct InspectorSettingsPanel: View {
     @ViewBuilder
     private func sectionContainer<Content: View>(
         section: InspectorSection,
-        summary: String?,
+        summary: [String],
         expandedSections: Binding<Set<InspectorSection>>,
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
@@ -450,7 +450,7 @@ struct InspectorSettingsPanel: View {
         }
     }
 
-    private func layoutSummary(for element: OverlayElement) -> String {
+    private func layoutSummary(for element: OverlayElement) -> [String] {
         let frame = currentElement(element.id)?.frame ?? element.frame
         var parts = [
             "X \(frame.x.percentString)",
@@ -461,10 +461,10 @@ struct InspectorSettingsPanel: View {
         if current.kind.supportsLengthScale {
             parts.append("\(localization.string("inspector.length")) \(Int((current.customization.lengthScale * 100).rounded()))%")
         }
-        return summary(parts) ?? ""
+        return parts
     }
 
-    private func contentSummary(for element: OverlayElement) -> String? {
+    private func contentSummary(for element: OverlayElement) -> [String] {
         let current = currentElement(element.id) ?? element
         var parts = [String]()
 
@@ -485,10 +485,10 @@ struct InspectorSettingsPanel: View {
             parts.append(localization.string("inspector.icon"))
         }
 
-        return summary(parts)
+        return parts
     }
 
-    private func appearanceSummary(for element: OverlayElement) -> String? {
+    private func appearanceSummary(for element: OverlayElement) -> [String] {
         let current = currentElement(element.id) ?? element
         var parts = [String]()
 
@@ -507,10 +507,10 @@ struct InspectorSettingsPanel: View {
             parts.append(localization.string("inspector.tickMarks"))
         }
 
-        return summary(parts)
+        return parts
     }
 
-    private func typographySummary(for element: OverlayElement) -> String {
+    private func typographySummary(for element: OverlayElement) -> [String] {
         let current = currentElement(element.id) ?? element
         var parts = [String]()
         if current.customization.showsLabel {
@@ -523,10 +523,10 @@ struct InspectorSettingsPanel: View {
         if current.customization.showsIcon {
             parts.append("\(localization.string("inspector.icon")) \(fontSizeLabel(id: element.id, role: .icon, kind: element.kind))")
         }
-        return summary(parts) ?? ""
+        return parts
     }
 
-    private func dataSummary(for element: OverlayElement) -> String? {
+    private func dataSummary(for element: OverlayElement) -> [String] {
         let current = currentElement(element.id) ?? element
         var parts = [String]()
 
@@ -540,12 +540,7 @@ struct InspectorSettingsPanel: View {
             parts.append("\(minimum)-\(maximum)")
         }
 
-        return summary(parts)
-    }
-
-    private func summary(_ parts: [String]) -> String? {
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: " · ")
+        return parts
     }
 
     private func fontSizeLabel(id: String, role: TypographyRole, kind: OverlayComponentID) -> String {
@@ -722,7 +717,7 @@ private enum TypographyRole {
 
 private struct InspectorFocusedSection<Content: View>: View {
     var section: InspectorSection
-    var summary: String?
+    var summary: [String]
     @ViewBuilder var content: () -> Content
     @EnvironmentObject private var localization: LocalizationStore
 
@@ -797,7 +792,7 @@ enum InspectorSection: String, CaseIterable, Identifiable {
 
 private struct InspectorGroup<Content: View>: View {
     var section: InspectorSection
-    var summary: String?
+    var summary: [String]
     @Binding var expandedSections: Set<InspectorSection>
     @ViewBuilder var content: () -> Content
     @EnvironmentObject private var localization: LocalizationStore
@@ -872,7 +867,7 @@ private struct InspectorGroup<Content: View>: View {
 
 private struct InspectorSectionTitle: View {
     var section: InspectorSection
-    var summary: String?
+    var summary: [String]
     var isFocused: Bool
     @EnvironmentObject private var localization: LocalizationStore
 
@@ -880,12 +875,8 @@ private struct InspectorSectionTitle: View {
         VStack(alignment: .leading, spacing: 4) {
             sectionIdentity
 
-            if let summary {
-                Text(summary)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+            if !summary.isEmpty {
+                InspectorSummaryPills(parts: summary)
                     .padding(.leading, 27)
             }
         }
@@ -909,6 +900,56 @@ private struct InspectorSectionTitle: View {
 
     private var iconBackground: Color {
         isFocused ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.065)
+    }
+}
+
+private struct InspectorSummaryPills: View {
+    var parts: [String]
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                ForEach(Array(visibleParts.enumerated()), id: \.offset) { _, part in
+                    InspectorSummaryPill(part)
+                }
+
+                if hiddenCount > 0 {
+                    InspectorSummaryPill("+\(hiddenCount)")
+                }
+            }
+
+            Text(parts.joined(separator: " · "))
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+
+    private var visibleParts: [String] {
+        Array(parts.prefix(3))
+    }
+
+    private var hiddenCount: Int {
+        max(0, parts.count - visibleParts.count)
+    }
+}
+
+private struct InspectorSummaryPill: View {
+    var value: String
+
+    init(_ value: String) {
+        self.value = value
+    }
+
+    var body: some View {
+        Text(value)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
 }
 
