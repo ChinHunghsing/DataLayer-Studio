@@ -126,42 +126,43 @@ struct InspectorSelectionHeader: View {
         .disabled(model.isExporting)
         .help(localization.string(element.frame.isVisible ? "inspector.hideElement.action" : "inspector.hiddenElement.action"))
 
-        Button {
-            model.duplicateSelectedElement()
-        } label: {
-            actionIcon("doc.on.doc")
-        }
-        .disabled(model.isExporting)
-        .help(localization.string("inspector.duplicate"))
-
         Menu {
+            Button {
+                model.duplicateSelectedElement()
+            } label: {
+                Label(localization.string("inspector.duplicate"), systemImage: "doc.on.doc")
+            }
+
+            Divider()
+
             Button {
                 model.moveSelectedElementForward()
             } label: {
                 Label(localization.string("inspector.bringForward"), systemImage: "arrow.up")
             }
-            .disabled(!canMoveSelectedElementForward || model.isExporting)
+            .disabled(!canMoveSelectedElementForward)
 
             Button {
                 model.moveSelectedElementBackward()
             } label: {
                 Label(localization.string("inspector.sendBackward"), systemImage: "arrow.down")
             }
-            .disabled(!canMoveSelectedElementBackward || model.isExporting)
+            .disabled(!canMoveSelectedElementBackward)
+
+            Divider()
+
+            Button(role: .destructive) {
+                model.deleteSelectedElement()
+            } label: {
+                Label(localization.string("inspector.delete"), systemImage: "trash")
+            }
         } label: {
-            actionIcon("square.stack.3d.up")
+            actionIcon("ellipsis")
         }
         .menuStyle(.borderlessButton)
         .disabled(model.isExporting)
-        .help(localization.string("inspector.arrange"))
-
-        Button(role: .destructive) {
-            model.deleteSelectedElement()
-        } label: {
-            actionIcon("trash")
-        }
-        .disabled(model.isExporting)
-        .help(localization.string("inspector.delete"))
+        .help(localization.string("inspector.moreActions"))
+        .accessibilityLabel(localization.string("inspector.moreActions"))
     }
 
     private func symbolBadge(systemName: String) -> some View {
