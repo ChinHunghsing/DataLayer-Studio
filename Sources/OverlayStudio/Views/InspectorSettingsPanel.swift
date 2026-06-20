@@ -723,7 +723,7 @@ private struct InspectorFocusedSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            InspectorSectionTitle(section: section, summary: summary, isFocused: true)
+            InspectorSectionTitle(section: section, summary: summary, isFocused: true, showsSummary: false)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
 
@@ -804,7 +804,7 @@ private struct InspectorGroup<Content: View>: View {
                 toggle()
             } label: {
                 HStack(alignment: .center, spacing: 10) {
-                    InspectorSectionTitle(section: section, summary: summary, isFocused: false)
+                    InspectorSectionTitle(section: section, summary: summary, isFocused: false, showsSummary: !isExpanded)
 
                     Spacer(minLength: 8)
 
@@ -869,13 +869,14 @@ private struct InspectorSectionTitle: View {
     var section: InspectorSection
     var summary: [String]
     var isFocused: Bool
+    var showsSummary: Bool
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             sectionIdentity
 
-            if !summary.isEmpty {
+            if showsSummary && !summary.isEmpty {
                 InspectorSummaryPills(parts: summary)
                     .padding(.leading, 27)
             }
