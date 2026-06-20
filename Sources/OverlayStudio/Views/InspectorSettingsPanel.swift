@@ -581,13 +581,13 @@ struct InspectorSettingsPanel: View {
             return 24
         case (.speed, .icon):
             return 13
-        case (.pace, .label), (.distance, .label), (.heartRate, .label), (.cadence, .label):
+        case (.pace, .label), (.distance, .label), (.heartRate, .label), (.cadence, .label), (.calories, .label), (.strideLength, .label), (.power, .label):
             return 10
-        case (.pace, .value), (.distance, .value), (.heartRate, .value), (.cadence, .value):
+        case (.pace, .value), (.distance, .value), (.heartRate, .value), (.cadence, .value), (.calories, .value), (.strideLength, .value), (.power, .value):
             return 23
-        case (.pace, .unit), (.distance, .unit), (.heartRate, .unit), (.cadence, .unit):
+        case (.pace, .unit), (.distance, .unit), (.heartRate, .unit), (.cadence, .unit), (.calories, .unit), (.strideLength, .unit), (.power, .unit):
             return 10
-        case (.pace, .icon), (.distance, .icon), (.heartRate, .icon), (.cadence, .icon):
+        case (.pace, .icon), (.distance, .icon), (.heartRate, .icon), (.cadence, .icon), (.calories, .icon), (.strideLength, .icon), (.power, .icon):
             return 10
         case (.route, .label):
             return 13

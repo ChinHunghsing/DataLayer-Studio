@@ -493,6 +493,9 @@ enum AppLocalizer {
         "component.pace": "Pace",
         "component.heartRate": "Heart rate",
         "component.cadence": "Cadence",
+        "component.calories": "Calories",
+        "component.strideLength": "Stride length",
+        "component.power": "Power",
         "component.distanceValue": "Distance value",
         "component.gpsRoute": "GPS route",
         "component.distance": "Distance",
@@ -792,6 +795,9 @@ enum AppLocalizer {
         "component.pace": "配速",
         "component.heartRate": "心率",
         "component.cadence": "步频",
+        "component.calories": "热量",
+        "component.strideLength": "步幅",
+        "component.power": "功率",
         "component.distanceValue": "距离数值",
         "component.gpsRoute": "GPS 轨迹",
         "component.distance": "距离",
@@ -1091,6 +1097,9 @@ enum AppLocalizer {
         "component.pace": "配速",
         "component.heartRate": "心率",
         "component.cadence": "步頻",
+        "component.calories": "熱量",
+        "component.strideLength": "步幅",
+        "component.power": "功率",
         "component.distanceValue": "距離數值",
         "component.gpsRoute": "GPS 軌跡",
         "component.distance": "距離",
@@ -1390,6 +1399,9 @@ enum AppLocalizer {
         "component.pace": "ペース",
         "component.heartRate": "心拍数",
         "component.cadence": "ピッチ",
+        "component.calories": "消費カロリー",
+        "component.strideLength": "歩幅",
+        "component.power": "パワー",
         "component.distanceValue": "距離の値",
         "component.gpsRoute": "GPS ルート",
         "component.distance": "距離",
@@ -1481,6 +1493,12 @@ extension OverlayComponentID {
             return "component.heartRate"
         case .cadence:
             return "component.cadence"
+        case .calories:
+            return "component.calories"
+        case .strideLength:
+            return "component.strideLength"
+        case .power:
+            return "component.power"
         case .distance:
             return "component.distanceValue"
         case .route:

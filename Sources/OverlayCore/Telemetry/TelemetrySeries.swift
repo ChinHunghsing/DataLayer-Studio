@@ -117,6 +117,8 @@ public struct TelemetrySeries {
             distanceMeters: interpolate(a.distanceMeters, b.distanceMeters, fraction: fraction),
             speedMetersPerSecond: interpolate(a.speedMetersPerSecond, b.speedMetersPerSecond, fraction: fraction),
             powerWatts: nearest(a.powerWatts, b.powerWatts, fraction: fraction),
+            totalCalories: interpolate(a.totalCalories, b.totalCalories, fraction: fraction),
+            stepLengthMeters: interpolate(a.stepLengthMeters, b.stepLengthMeters, fraction: fraction),
             temperatureCelsius: nearest(a.temperatureCelsius, b.temperatureCelsius, fraction: fraction)
         )
     }

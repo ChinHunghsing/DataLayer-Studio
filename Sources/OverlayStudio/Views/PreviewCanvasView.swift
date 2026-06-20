@@ -329,7 +329,7 @@ struct PreviewCanvasView: View {
         let baseHeight = base.height * scale
 
         switch element.kind {
-        case .pace, .distance, .heartRate, .cadence:
+        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power:
             return metricOutputSize(element: element, baseWidth: baseWidth, baseHeight: baseHeight, scale: scale)
         case .topProgress:
             return progressOutputSize(element: element, baseWidth: baseWidth, baseHeight: baseHeight, scale: scale)
@@ -425,7 +425,7 @@ struct PreviewCanvasView: View {
 
     private func isMetricElement(_ element: OverlayElement) -> Bool {
         switch element.kind {
-        case .pace, .distance, .heartRate, .cadence:
+        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power:
             return true
         case .speed, .route, .topProgress, .timeDate:
             return false
@@ -552,6 +552,27 @@ struct PreviewCanvasView: View {
                 sample.cadence.map { "\($0)" } ?? "--",
                 element.customization.unit(default: "SPM"),
                 element.customization.icon(default: "CAD")
+            )
+        case .calories:
+            return (
+                element.customization.label(default: "CAL"),
+                sample.totalCalories.map { "\(Int($0.rounded()))" } ?? "--",
+                element.customization.unit(default: "KCAL"),
+                element.customization.icon(default: "CAL")
+            )
+        case .strideLength:
+            return (
+                element.customization.label(default: "STRIDE"),
+                formatStrideLength(sample.stepLengthMeters, precision: element.customization.valuePrecision),
+                element.customization.unit(default: "m"),
+                element.customization.icon(default: "STR")
+            )
+        case .power:
+            return (
+                element.customization.label(default: "PWR"),
+                sample.powerWatts.map { "\($0)" } ?? "--",
+                element.customization.unit(default: "W"),
+                element.customization.icon(default: "PWR")
             )
         default:
             return (
@@ -695,6 +716,12 @@ struct PreviewCanvasView: View {
             }
         }
         return model.distanceUnit.format(meters: meters)
+    }
+
+    private func formatStrideLength(_ meters: Double?, precision: Int?) -> String {
+        guard let meters, meters.isFinite else { return "--" }
+        let digits = min(3, max(0, precision ?? 2))
+        return String(format: "%.\(digits)f", meters)
     }
 
     private func formatPace(_ metersPerSecond: Double?) -> String {

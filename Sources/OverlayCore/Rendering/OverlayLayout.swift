@@ -6,6 +6,9 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
     case pace
     case heartRate
     case cadence
+    case calories
+    case strideLength
+    case power
     case distance
     case route
     case topProgress
@@ -23,6 +26,12 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
             return "Heart rate"
         case .cadence:
             return "Cadence"
+        case .calories:
+            return "Calories"
+        case .strideLength:
+            return "Stride length"
+        case .power:
+            return "Power"
         case .distance:
             return "Distance value"
         case .route:
@@ -646,6 +655,24 @@ public extension OverlayElement {
                 y: 0.814,
                 style: OverlayComponentStyle(accentColor: .telemetryGreen)
             )
+        case .calories:
+            return OverlayComponentFrame(
+                x: 0.631,
+                y: 0.814,
+                style: OverlayComponentStyle(accentColor: .amber)
+            )
+        case .strideLength:
+            return OverlayComponentFrame(
+                x: 0.725,
+                y: 0.814,
+                style: OverlayComponentStyle(accentColor: .electricBlue)
+            )
+        case .power:
+            return OverlayComponentFrame(
+                x: 0.819,
+                y: 0.814,
+                style: OverlayComponentStyle(accentColor: .cleanWhite)
+            )
         case .route:
             return OverlayComponentFrame(x: 0.776, y: 0.682)
         case .topProgress:
@@ -684,7 +711,7 @@ public extension OverlayElement {
             return OverlayElementCustomization(showsLabel: false, showsPanel: false, showGaugeTicks: false, valueScale: 1.08, unitScale: 1.04)
         case .route:
             return OverlayElementCustomization(lineWidth: 5.5)
-        case .pace, .heartRate, .cadence:
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power:
             return OverlayElementCustomization()
         }
     }

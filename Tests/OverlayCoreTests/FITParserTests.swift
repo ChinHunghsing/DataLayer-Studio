@@ -123,6 +123,61 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(sample.cadence, 161)
     }
 
+    func testParsesPowerAndStepLengthRecordFields() throws {
+        var content = Data()
+        appendExtendedRecordDefinition(localMessageType: 0, to: &content)
+        appendExtendedRecord(
+            TestRecord(
+                timestamp: 1_000_000,
+                latitude: 35.0,
+                longitude: 139.0,
+                distanceMeters: 0,
+                speed: 3.0,
+                heartRate: 150,
+                cadence: 80,
+                powerWatts: 286,
+                stepLengthRaw: 12_340
+            ),
+            localMessageType: 0,
+            to: &content
+        )
+
+        let sample = try FITParser().parse(data: makeFITFile(content: content)).sample(at: 0)
+
+        XCTAssertEqual(sample.powerWatts, 286)
+        XCTAssertEqual(sample.stepLengthMeters ?? -1, 1.234, accuracy: 0.001)
+    }
+
+    func testInterpolatesCurrentCaloriesFromLapTotals() throws {
+        var content = Data()
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendLapDefinition(localMessageType: 1, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 150, cadence: 80),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_005, latitude: 35.00005, longitude: 139.00005, distanceMeters: 15, speed: 3.0, heartRate: 151, cadence: 81),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_010, latitude: 35.0001, longitude: 139.0001, distanceMeters: 30, speed: 3.0, heartRate: 151, cadence: 81),
+            localMessageType: 0,
+            to: &content
+        )
+        appendLap(timestamp: 1_000_005, totalCalories: 50, localMessageType: 1, to: &content)
+        appendLap(timestamp: 1_000_010, totalCalories: 70, localMessageType: 1, to: &content)
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.sample(at: 0).totalCalories ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 2).totalCalories ?? -1, 20, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 7).totalCalories ?? -1, 78, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 10).totalCalories ?? -1, 120, accuracy: 0.001)
+    }
+
     func testParsesStandardCompressedSpeedDistanceRecords() throws {
         var content = Data()
         appendCompressedSpeedDistanceRecordDefinition(localMessageType: 0, to: &content)
@@ -193,6 +248,8 @@ private struct TestRecord {
     var speed: Double
     var heartRate: UInt8
     var cadence: UInt8
+    var powerWatts: UInt16? = nil
+    var stepLengthRaw: UInt16? = nil
 }
 
 private func makeFITFile(records: [TestRecord]) -> Data {
@@ -258,6 +315,33 @@ private func appendCompressedSpeedDistanceRecordDefinition(localMessageType: UIn
     content.append(2)
     content.append(contentsOf: [253, 4, 0x86])
     content.append(contentsOf: [8, 3, 0x0D])
+}
+
+private func appendExtendedRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(20, to: &content)
+    content.append(9)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [0, 4, 0x85])
+    content.append(contentsOf: [1, 4, 0x85])
+    content.append(contentsOf: [5, 4, 0x86])
+    content.append(contentsOf: [6, 2, 0x84])
+    content.append(contentsOf: [3, 1, 0x02])
+    content.append(contentsOf: [4, 1, 0x02])
+    content.append(contentsOf: [7, 2, 0x84])
+    content.append(contentsOf: [85, 2, 0x84])
+}
+
+private func appendLapDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(19, to: &content)
+    content.append(2)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [11, 2, 0x84])
 }
 
 private func appendEventDefinition(localMessageType: UInt8, to content: inout Data) {
@@ -327,6 +411,18 @@ private func appendRecord(_ record: TestRecord, localMessageType: UInt8, to cont
     appendUInt16(UInt16((record.speed * 1000).rounded()), to: &content)
     content.append(record.heartRate)
     content.append(record.cadence)
+}
+
+private func appendExtendedRecord(_ record: TestRecord, localMessageType: UInt8, to content: inout Data) {
+    appendRecord(record, localMessageType: localMessageType, to: &content)
+    appendUInt16(record.powerWatts ?? 0xFFFF, to: &content)
+    appendUInt16(record.stepLengthRaw ?? 0xFFFF, to: &content)
+}
+
+private func appendLap(timestamp: UInt32, totalCalories: UInt16, localMessageType: UInt8, to content: inout Data) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    appendUInt16(totalCalories, to: &content)
 }
 
 private func appendRecordWithDeveloperByte(

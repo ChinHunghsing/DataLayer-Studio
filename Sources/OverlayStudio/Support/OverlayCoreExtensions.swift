@@ -13,6 +13,12 @@ extension OverlayComponentID {
             return "heart.fill"
         case .cadence:
             return "figure.run"
+        case .calories:
+            return "flame.fill"
+        case .strideLength:
+            return "figure.run.motion"
+        case .power:
+            return "bolt.fill"
         case .distance:
             return "ruler"
         case .route:
@@ -26,9 +32,9 @@ extension OverlayComponentID {
 
     var supportsValuePrecision: Bool {
         switch self {
-        case .speed, .distance, .topProgress:
+        case .speed, .distance, .strideLength, .topProgress:
             return true
-        case .pace, .heartRate, .cadence, .route, .timeDate:
+        case .pace, .heartRate, .cadence, .calories, .power, .route, .timeDate:
             return false
         }
     }
@@ -39,9 +45,11 @@ extension OverlayComponentID {
             return 1
         case .distance:
             return 2
+        case .strideLength:
+            return 2
         case .topProgress:
             return 1
-        case .pace, .heartRate, .cadence, .route, .timeDate:
+        case .pace, .heartRate, .cadence, .calories, .power, .route, .timeDate:
             return 0
         }
     }
@@ -50,7 +58,7 @@ extension OverlayComponentID {
         switch self {
         case .speed, .route, .topProgress:
             return true
-        case .pace, .heartRate, .cadence, .distance, .timeDate:
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance, .timeDate:
             return false
         }
     }
@@ -59,7 +67,7 @@ extension OverlayComponentID {
         switch self {
         case .topProgress:
             return true
-        case .speed, .pace, .heartRate, .cadence, .distance, .route, .timeDate:
+        case .speed, .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance, .route, .timeDate:
             return false
         }
     }

@@ -70,7 +70,7 @@ public final class OverlayRenderer {
                 drawTopProgress(context: context, sample: sample, canvas: canvas, element: element)
             case .speed:
                 drawSpeed(context: context, sample: sample, canvas: canvas, element: element)
-            case .pace, .distance, .heartRate, .cadence:
+            case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power:
                 if let content = metricContent(for: element, sample: sample) {
                     drawMetricComponent(
                         element,
@@ -281,6 +281,12 @@ public final class OverlayRenderer {
             return ("HR", sample.heartRate.map { "\($0)" } ?? "--", "BPM")
         case .cadence:
             return ("CAD", sample.cadence.map { "\($0)" } ?? "--", "SPM")
+        case .calories:
+            return ("CAL", sample.totalCalories.map { "\(Int($0.rounded()))" } ?? "--", "KCAL")
+        case .strideLength:
+            return ("STRIDE", formatStrideLength(sample.stepLengthMeters, precision: element.customization.valuePrecision), "m")
+        case .power:
+            return ("PWR", sample.powerWatts.map { "\($0)" } ?? "--", "W")
         default:
             return nil
         }
@@ -881,7 +887,7 @@ public final class OverlayRenderer {
         switch kind {
         case .speed:
             return CGSize(width: 420, height: 238)
-        case .pace, .heartRate, .cadence, .distance:
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance:
             return CGSize(width: 160, height: 74)
         case .route:
             return CGSize(width: 382, height: 238)
@@ -1005,6 +1011,12 @@ public final class OverlayRenderer {
             return "HR"
         case .cadence:
             return "CAD"
+        case .calories:
+            return "CAL"
+        case .strideLength:
+            return "STR"
+        case .power:
+            return "PWR"
         case .distance:
             return "DIST"
         case .route:
@@ -1175,6 +1187,12 @@ public final class OverlayRenderer {
             }
         }
         return config.distanceUnit.format(meters: meters)
+    }
+
+    private func formatStrideLength(_ meters: Double?, precision: Int?) -> String {
+        guard let meters, meters.isFinite else { return "--" }
+        let digits = min(3, max(0, precision ?? 2))
+        return String(format: "%.\(digits)f", meters)
     }
 
     private func distanceLabel(_ meters: Double?, element: OverlayElement) -> String {
