@@ -692,32 +692,9 @@ private struct InspectorFocusedSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: section.systemImage)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-
-                Text(localization.string(section.localizationKey))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                if let summary {
-                    Text(summary)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                        .frame(maxWidth: 156, alignment: .trailing)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(InspectorStyle.sectionSummaryFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
+            InspectorSectionTitle(section: section, summary: summary, isFocused: true)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
 
             Divider()
                 .overlay(Color.secondary.opacity(0.16))
@@ -725,7 +702,7 @@ private struct InspectorFocusedSection<Content: View>: View {
             VStack(alignment: .leading, spacing: 12) {
                 content()
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .padding(.top, 12)
             .padding(.bottom, 14)
         }
@@ -790,40 +767,21 @@ private struct InspectorGroup<Content: View>: View {
             Button {
                 toggle()
             } label: {
-                HStack(spacing: 8) {
+                HStack(alignment: .center, spacing: 10) {
+                    InspectorSectionTitle(section: section, summary: summary, isFocused: false)
+
+                    Spacer(minLength: 8)
+
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 12)
-
-                    Image(systemName: section.systemImage)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16)
-
-                    Text(localization.string(section.localizationKey))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.primary)
-
-                    Spacer()
-
-                    if let summary, !isExpanded {
-                        Text(summary)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                            .frame(maxWidth: 132, alignment: .trailing)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(InspectorStyle.sectionSummaryFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 18, height: 18)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
 
             if isExpanded {
                 Divider()
@@ -832,7 +790,7 @@ private struct InspectorGroup<Content: View>: View {
                 VStack(alignment: .leading, spacing: 12) {
                     content()
                 }
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 12)
                 .padding(.top, 12)
                 .padding(.bottom, 14)
             }
@@ -855,6 +813,43 @@ private struct InspectorGroup<Content: View>: View {
         } else {
             expandedSections.insert(section)
         }
+    }
+}
+
+private struct InspectorSectionTitle: View {
+    var section: InspectorSection
+    var summary: String?
+    var isFocused: Bool
+    @EnvironmentObject private var localization: LocalizationStore
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 9) {
+            Image(systemName: section.systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(isFocused ? Color.accentColor : Color.secondary)
+                .frame(width: 18, height: 18)
+                .background(iconBackground, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(localization.string(section.localizationKey))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                if let summary {
+                    Text(summary)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var iconBackground: Color {
+        isFocused ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.065)
     }
 }
 
@@ -1283,9 +1278,8 @@ private struct InspectorMessageBlock<Actions: View>: View {
 enum InspectorStyle {
     static let headerFill = Color.secondary.opacity(0.036)
     static let headerStroke = Color.secondary.opacity(0.085)
-    static let sectionFill = Color.secondary.opacity(0.032)
-    static let sectionStroke = Color.secondary.opacity(0.082)
-    static let sectionSummaryFill = Color.secondary.opacity(0.06)
+    static let sectionFill = Color.secondary.opacity(0.026)
+    static let sectionStroke = Color.secondary.opacity(0.072)
     static let messageFill = Color.secondary.opacity(0.045)
     static let messageStroke = Color.secondary.opacity(0.09)
     static let actionGroupFill = Color.secondary.opacity(0.04)
