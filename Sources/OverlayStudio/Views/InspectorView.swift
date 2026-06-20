@@ -16,7 +16,8 @@ struct InspectorView: View {
 
                 InspectorSectionScopeBar(
                     scopes: availableScopes,
-                    selectedScopeRawValue: selectedScopeBinding
+                    selectedScopeRawValue: selectedScopeBinding,
+                    expandedSections: expandedSectionsBinding
                 )
                 .padding(.horizontal, 18)
                 .padding(.bottom, 10)
@@ -159,13 +160,20 @@ private enum InspectorSectionScope: String, CaseIterable, Identifiable {
 private struct InspectorSectionScopeBar: View {
     var scopes: [InspectorSectionScope]
     @Binding var selectedScopeRawValue: String
+    @Binding var expandedSections: Set<InspectorSection>
     @EnvironmentObject private var localization: LocalizationStore
     @State private var hoveredScopeRawValue: String?
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            scopeButtons(showTitles: true)
-            scopeButtons(showTitles: false)
+        HStack(alignment: .center, spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                scopeButtons(showTitles: true)
+                scopeButtons(showTitles: false)
+            }
+
+            Spacer(minLength: 4)
+
+            sectionActionsMenu
         }
         .accessibilityLabel(localization.string("inspector.sectionScope"))
     }
@@ -213,6 +221,32 @@ private struct InspectorSectionScopeBar: View {
         }
         .accessibilityLabel(title)
         .accessibilityAddTraits(selectedScopeRawValue == scope.rawValue ? .isSelected : [])
+    }
+
+    private var sectionActionsMenu: some View {
+        Menu {
+            Button {
+                expandedSections = InspectorSection.defaultExpandedSections
+            } label: {
+                Label(localization.string("inspector.expandAllSections"), systemImage: "rectangle.expand.vertical")
+            }
+
+            Button {
+                expandedSections.removeAll()
+            } label: {
+                Label(localization.string("inspector.collapseAllSections"), systemImage: "rectangle.compress.vertical")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(localization.string("inspector.sectionActions"))
+        .accessibilityLabel(localization.string("inspector.sectionActions"))
     }
 
     private func scopeFill(_ scope: InspectorSectionScope) -> Color {
