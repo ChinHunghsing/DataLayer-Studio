@@ -770,6 +770,7 @@ private struct InspectorGroup<Content: View>: View {
     @Binding var expandedSections: Set<InspectorSection>
     @ViewBuilder var content: () -> Content
     @EnvironmentObject private var localization: LocalizationStore
+    @State private var isHoveringHeader = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -787,10 +788,16 @@ private struct InspectorGroup<Content: View>: View {
                         .frame(width: 18, height: 18)
                 }
                 .contentShape(Rectangle())
+                .padding(.horizontal, 4)
+                .padding(.vertical, 3)
+                .background(headerFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .onHover { hovering in
+                isHoveringHeader = hovering
+            }
 
             if isExpanded {
                 Divider()
@@ -814,6 +821,13 @@ private struct InspectorGroup<Content: View>: View {
 
     private var isExpanded: Bool {
         expandedSections.contains(section)
+    }
+
+    private var headerFill: Color {
+        if isExpanded {
+            return Color.secondary.opacity(0.035)
+        }
+        return isHoveringHeader ? Color.secondary.opacity(0.045) : Color.clear
     }
 
     private func toggle() {
@@ -885,7 +899,9 @@ private struct InspectorSummaryPill: View {
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
             .lineLimit(1)
+            .truncationMode(.middle)
             .minimumScaleFactor(0.75)
+            .frame(maxWidth: 158, alignment: .trailing)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(Color.secondary.opacity(0.065), in: Capsule())
@@ -1127,16 +1143,24 @@ private struct InspectorInlineStatusBar: View {
     var action: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 10) {
             Image(systemName: systemImage)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 16)
 
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(message)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Spacer(minLength: 8)
 
@@ -1152,7 +1176,6 @@ private struct InspectorInlineStatusBar: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(InspectorStyle.sectionStroke)
         }
-        .help(message)
     }
 }
 
@@ -1265,7 +1288,7 @@ private struct InspectorValuePill: View {
             .foregroundStyle(.primary)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-            .frame(width: InspectorFormMetrics.valuePillWidth, alignment: .trailing)
+            .frame(minWidth: InspectorFormMetrics.valuePillWidth, idealWidth: 68, maxWidth: 96, alignment: .trailing)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(Color.secondary.opacity(0.095), in: RoundedRectangle(cornerRadius: 6, style: .continuous))

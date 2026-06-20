@@ -137,6 +137,7 @@ private struct InspectorSectionScopeBar: View {
     var scopes: [InspectorSectionScope]
     @Binding var selectedScopeRawValue: String
     @EnvironmentObject private var localization: LocalizationStore
+    @State private var hoveredScopeRawValue: String?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -159,6 +160,9 @@ private struct InspectorSectionScopeBar: View {
                             }
                     }
                     .buttonStyle(.plain)
+                    .onHover { hovering in
+                        hoveredScopeRawValue = hovering ? scope.rawValue : nil
+                    }
                     .accessibilityLabel(localization.string(scope.localizationKey))
                     .accessibilityAddTraits(selectedScopeRawValue == scope.rawValue ? .isSelected : [])
                 }
@@ -169,14 +173,22 @@ private struct InspectorSectionScopeBar: View {
     }
 
     private func scopeFill(_ scope: InspectorSectionScope) -> Color {
-        selectedScopeRawValue == scope.rawValue
-            ? Color.accentColor.opacity(0.12)
-            : Color.secondary.opacity(0.045)
+        if selectedScopeRawValue == scope.rawValue {
+            return Color.accentColor.opacity(0.12)
+        }
+        if hoveredScopeRawValue == scope.rawValue {
+            return Color.secondary.opacity(0.075)
+        }
+        return Color.secondary.opacity(0.045)
     }
 
     private func scopeStroke(_ scope: InspectorSectionScope) -> Color {
-        selectedScopeRawValue == scope.rawValue
-            ? Color.accentColor.opacity(0.34)
-            : Color.secondary.opacity(0.07)
+        if selectedScopeRawValue == scope.rawValue {
+            return Color.accentColor.opacity(0.34)
+        }
+        if hoveredScopeRawValue == scope.rawValue {
+            return Color.secondary.opacity(0.14)
+        }
+        return Color.secondary.opacity(0.07)
     }
 }
