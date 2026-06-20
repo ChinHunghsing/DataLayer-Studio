@@ -37,12 +37,33 @@ struct InspectorView: View {
                     .padding(.bottom, 14)
             }
         }
+        .onAppear(perform: repairSelectedScopeIfNeeded)
+        .onChange(of: selectedElementScopeIdentity) { _ in
+            repairSelectedScopeIfNeeded()
+        }
     }
 
     private var selectedScope: InspectorSectionScope {
         let scope = InspectorSectionScope(rawValue: selectedScopeRawValue) ?? .all
         guard let element = model.selectedElement else { return .all }
         return scope.isAvailable(for: element) ? scope : .all
+    }
+
+    private var selectedElementScopeIdentity: String {
+        guard let element = model.selectedElement else { return "none" }
+        return "\(element.id):\(element.kind.rawValue)"
+    }
+
+    private func repairSelectedScopeIfNeeded() {
+        guard let element = model.selectedElement else {
+            selectedScopeRawValue = InspectorSectionScope.all.rawValue
+            return
+        }
+
+        let scope = InspectorSectionScope(rawValue: selectedScopeRawValue) ?? .all
+        if !scope.isAvailable(for: element) {
+            selectedScopeRawValue = InspectorSectionScope.all.rawValue
+        }
     }
 
     private var selectedScopeBinding: Binding<String> {
