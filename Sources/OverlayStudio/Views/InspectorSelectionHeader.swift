@@ -135,6 +135,25 @@ struct InspectorSelectionHeader: View {
 
     @ViewBuilder
     private func selectedElementActions(for element: OverlayElement) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 2) {
+                visibilityButton(for: element)
+                InspectorHeaderActionDivider()
+                duplicateButton
+                sendBackwardButton
+                bringForwardButton
+                InspectorHeaderActionDivider()
+                deleteButton
+            }
+
+            HStack(spacing: 2) {
+                visibilityButton(for: element)
+                compactActionsMenu
+            }
+        }
+    }
+
+    private func visibilityButton(for element: OverlayElement) -> some View {
         Button {
             toggleVisibility(of: element)
         } label: {
@@ -142,13 +161,61 @@ struct InspectorSelectionHeader: View {
         }
         .disabled(model.isExporting)
         .help(localization.string(element.frame.isVisible ? "inspector.hideElement.action" : "inspector.hiddenElement.action"))
+        .accessibilityLabel(localization.string(element.frame.isVisible ? "inspector.hideElement.action" : "inspector.hiddenElement.action"))
+    }
 
+    private var duplicateButton: some View {
+        Button {
+            model.duplicateSelectedElement()
+        } label: {
+            actionIcon("doc.on.doc")
+        }
+        .disabled(model.isExporting)
+        .help(localization.string("inspector.duplicate"))
+        .accessibilityLabel(localization.string("inspector.duplicate"))
+    }
+
+    private var bringForwardButton: some View {
+        Button {
+            model.moveSelectedElementForward()
+        } label: {
+            actionIcon("arrow.up")
+        }
+        .disabled(model.isExporting || !canMoveSelectedElementForward)
+        .help(localization.string("inspector.bringForward"))
+        .accessibilityLabel(localization.string("inspector.bringForward"))
+    }
+
+    private var sendBackwardButton: some View {
+        Button {
+            model.moveSelectedElementBackward()
+        } label: {
+            actionIcon("arrow.down")
+        }
+        .disabled(model.isExporting || !canMoveSelectedElementBackward)
+        .help(localization.string("inspector.sendBackward"))
+        .accessibilityLabel(localization.string("inspector.sendBackward"))
+    }
+
+    private var deleteButton: some View {
+        Button(role: .destructive) {
+            model.deleteSelectedElement()
+        } label: {
+            actionIcon("trash", foregroundStyle: .red)
+        }
+        .disabled(model.isExporting)
+        .help(localization.string("inspector.delete"))
+        .accessibilityLabel(localization.string("inspector.delete"))
+    }
+
+    private var compactActionsMenu: some View {
         Menu {
             Button {
                 model.duplicateSelectedElement()
             } label: {
                 Label(localization.string("inspector.duplicate"), systemImage: "doc.on.doc")
             }
+            .disabled(model.isExporting)
 
             Divider()
 
@@ -157,14 +224,14 @@ struct InspectorSelectionHeader: View {
             } label: {
                 Label(localization.string("inspector.bringForward"), systemImage: "arrow.up")
             }
-            .disabled(!canMoveSelectedElementForward)
+            .disabled(model.isExporting || !canMoveSelectedElementForward)
 
             Button {
                 model.moveSelectedElementBackward()
             } label: {
                 Label(localization.string("inspector.sendBackward"), systemImage: "arrow.down")
             }
-            .disabled(!canMoveSelectedElementBackward)
+            .disabled(model.isExporting || !canMoveSelectedElementBackward)
 
             Divider()
 
@@ -173,6 +240,7 @@ struct InspectorSelectionHeader: View {
             } label: {
                 Label(localization.string("inspector.delete"), systemImage: "trash")
             }
+            .disabled(model.isExporting)
         } label: {
             actionIcon("ellipsis")
         }
@@ -194,9 +262,10 @@ struct InspectorSelectionHeader: View {
             }
     }
 
-    private func actionIcon(_ systemName: String) -> some View {
+    private func actionIcon(_ systemName: String, foregroundStyle: Color? = nil) -> some View {
         Image(systemName: systemName)
             .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(foregroundStyle ?? Color.primary)
             .frame(width: 22, height: 22)
     }
 
@@ -241,5 +310,14 @@ private struct InspectorHeaderActionGroup<Content: View>: View {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(InspectorStyle.actionGroupStroke)
         }
+    }
+}
+
+private struct InspectorHeaderActionDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.16))
+            .frame(width: 1, height: 14)
+            .padding(.horizontal, 2)
     }
 }
