@@ -6,43 +6,43 @@ struct InspectorSelectionHeader: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
+        HStack(alignment: .center, spacing: 8) {
             titleContent
                 .layoutPriority(1)
             Spacer(minLength: 8)
             headerActions
         }
         .buttonStyle(.borderless)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(InspectorStyle.panelFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(InspectorStyle.headerFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(InspectorStyle.panelStroke)
+                .stroke(InspectorStyle.headerStroke)
         }
     }
 
     @ViewBuilder
     private var titleContent: some View {
         if let element = model.selectedElement {
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
                 symbolBadge(systemName: element.kind.systemImage)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(elementDisplayTitle(element))
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
 
                     elementMetadata(element)
                 }
             }
         } else {
-            HStack(alignment: .center, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
                 symbolBadge(systemName: "slider.horizontal.3")
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(localization.string("inspector.noSelection.title"))
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                     Text(localization.string("inspector.noSelection.subtitle"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -57,8 +57,7 @@ struct InspectorSelectionHeader: View {
                 .lineLimit(1)
 
             if let selectedElementIndex {
-                Text("/")
-                    .foregroundStyle(.tertiary)
+                metadataSeparator
 
                 Text(localization.string("inspector.layerPosition", selectedElementIndex + 1, model.layout.elements.count))
                     .monospacedDigit()
@@ -66,15 +65,20 @@ struct InspectorSelectionHeader: View {
             }
 
             if !element.frame.isVisible {
-                Text("/")
-                    .foregroundStyle(.tertiary)
+                metadataSeparator
 
                 Text(localization.string("inspector.hiddenElement.badge"))
                     .lineLimit(1)
             }
         }
-        .font(.caption)
+        .font(.caption2.weight(.medium))
         .foregroundStyle(.secondary)
+    }
+
+    private var metadataSeparator: some View {
+        Circle()
+            .fill(Color.secondary.opacity(0.42))
+            .frame(width: 3, height: 3)
     }
 
     @ViewBuilder
@@ -162,16 +166,20 @@ struct InspectorSelectionHeader: View {
 
     private func symbolBadge(systemName: String) -> some View {
         Image(systemName: systemName)
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(.primary)
-            .frame(width: 32, height: 32)
-            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(width: 26, height: 26)
+            .background(Color.secondary.opacity(0.075), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.06))
+            }
     }
 
     private func actionIcon(_ systemName: String) -> some View {
         Image(systemName: systemName)
             .font(.system(size: 13, weight: .semibold))
-            .frame(width: 24, height: 24)
+            .frame(width: 22, height: 22)
     }
 
     private var selectedElementIndex: Int? {
@@ -208,7 +216,7 @@ private struct InspectorHeaderActionGroup<Content: View>: View {
             content()
         }
         .controlSize(.small)
-        .padding(.horizontal, 3)
+        .padding(.horizontal, 2)
         .padding(.vertical, 2)
         .background(InspectorStyle.actionGroupFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {

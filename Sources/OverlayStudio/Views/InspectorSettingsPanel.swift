@@ -840,6 +840,7 @@ private struct TextStyleRow: View {
                     }
                 }
                 .labelsHidden()
+                .controlSize(.small)
                 .frame(maxWidth: .infinity)
 
                 ColorPicker(localization.string("inspector.color"), selection: $color)
@@ -1225,15 +1226,15 @@ private struct InspectorMessageBlock<Actions: View>: View {
 }
 
 enum InspectorStyle {
-    static let panelFill = Color.secondary.opacity(0.065)
-    static let panelStroke = Color.secondary.opacity(0.12)
-    static let sectionFill = Color.secondary.opacity(0.038)
-    static let sectionStroke = Color.secondary.opacity(0.095)
+    static let headerFill = Color.secondary.opacity(0.036)
+    static let headerStroke = Color.secondary.opacity(0.085)
+    static let sectionFill = Color.secondary.opacity(0.032)
+    static let sectionStroke = Color.secondary.opacity(0.082)
     static let sectionSummaryFill = Color.secondary.opacity(0.06)
     static let messageFill = Color.secondary.opacity(0.045)
     static let messageStroke = Color.secondary.opacity(0.09)
-    static let actionGroupFill = Color.secondary.opacity(0.055)
-    static let actionGroupStroke = Color.secondary.opacity(0.10)
+    static let actionGroupFill = Color.secondary.opacity(0.04)
+    static let actionGroupStroke = Color.secondary.opacity(0.085)
     static let scopeBarFill = Color.secondary.opacity(0.055)
     static let scopeBarStroke = Color.secondary.opacity(0.10)
     static let scopeSelectedFill = Color.accentColor.opacity(0.16)
