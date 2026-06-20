@@ -909,48 +909,82 @@ private struct InspectorSummaryPills: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 4) {
+            HStack(spacing: 5) {
                 ForEach(Array(visibleParts.enumerated()), id: \.offset) { _, part in
                     InspectorSummaryPill(part)
                 }
 
                 if hiddenCount > 0 {
-                    InspectorSummaryPill("+\(hiddenCount)")
+                    InspectorSummaryPill("+\(hiddenCount)", style: .count)
                 }
             }
 
-            Text(parts.joined(separator: " · "))
+            Text(fallbackText)
                 .font(.caption2.weight(.medium))
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
     }
 
     private var visibleParts: [String] {
-        Array(parts.prefix(3))
+        Array(parts.prefix(2))
     }
 
     private var hiddenCount: Int {
         max(0, parts.count - visibleParts.count)
     }
+
+    private var fallbackText: String {
+        if hiddenCount > 0 {
+            return (visibleParts + ["+\(hiddenCount)"]).joined(separator: " · ")
+        }
+        return parts.joined(separator: " · ")
+    }
 }
 
 private struct InspectorSummaryPill: View {
-    var value: String
+    enum Style {
+        case value
+        case count
+    }
 
-    init(_ value: String) {
+    var value: String
+    var style: Style
+
+    init(_ value: String, style: Style = .value) {
         self.value = value
+        self.style = style
     }
 
     var body: some View {
         Text(value)
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .foregroundStyle(foregroundStyle)
             .lineLimit(1)
             .minimumScaleFactor(0.82)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .background(backgroundFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+    }
+
+    private var foregroundStyle: Color {
+        switch style {
+        case .value:
+            return .secondary
+        case .count:
+            return .accentColor
+        }
+    }
+
+    private var backgroundFill: Color {
+        switch style {
+        case .value:
+            return Color.secondary.opacity(0.07)
+        case .count:
+            return Color.accentColor.opacity(0.10)
+        }
     }
 }
 
