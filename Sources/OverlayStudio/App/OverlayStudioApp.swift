@@ -2,7 +2,12 @@ import SwiftUI
 
 @main
 struct OverlayStudioApp: App {
-    @StateObject private var localization = LocalizationStore()
+    @StateObject private var localization: LocalizationStore
+
+    init() {
+        AppLocalizer.applyStoredProcessLanguagePreference()
+        _localization = StateObject(wrappedValue: LocalizationStore())
+    }
 
     var body: some Scene {
         WindowGroup(localization.string("app.name"), id: "studio") {

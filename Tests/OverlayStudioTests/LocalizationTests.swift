@@ -62,6 +62,21 @@ final class LocalizationTests: XCTestCase {
         )
     }
 
+    func testStoredLanguageCanBeAppliedBeforeStoreCreation() {
+        let suiteName = "run.libo.overlay-studio.localization-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(AppLanguageSelection.simplifiedChinese.rawValue, forKey: AppLocalizer.selectionDefaultsKey)
+        AppLocalizer.applyStoredProcessLanguagePreference(defaults: defaults, preferredLanguages: ["en-US"])
+
+        let argumentDomain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        XCTAssertEqual(
+            argumentDomain["AppleLanguages"] as? [String],
+            ["zh-Hans-CN", "zh-Hans", "zh_CN", "zh"]
+        )
+    }
+
     func testSystemLanguageSelectionUsesLaunchPreferredLanguagesForAppKit() {
         let suiteName = "run.libo.overlay-studio.localization-tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

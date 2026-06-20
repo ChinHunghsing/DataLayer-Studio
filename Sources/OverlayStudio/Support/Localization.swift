@@ -155,6 +155,18 @@ enum AppLocalizer {
         defaults.setVolatileDomain(argumentDomain, forName: UserDefaults.argumentDomain)
     }
 
+    static func applyStoredProcessLanguagePreference(
+        defaults: UserDefaults = .standard,
+        preferredLanguages: [String] = Locale.preferredLanguages,
+        appDomains: [String] = DataLayerStudioDefaults.appDomains
+    ) {
+        applyProcessLanguagePreference(
+            for: storedSelection(defaults: defaults, appDomains: appDomains),
+            preferredLanguages: preferredLanguages,
+            defaults: defaults
+        )
+    }
+
     static func resolvedLanguage(forPreferredLanguages preferredLanguages: [String]) -> AppResolvedLanguage {
         for identifier in preferredLanguages {
             let normalized = identifier
