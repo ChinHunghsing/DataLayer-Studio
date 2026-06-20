@@ -64,6 +64,14 @@ struct InspectorSelectionHeader: View {
                     .monospacedDigit()
                     .lineLimit(1)
             }
+
+            if !element.frame.isVisible {
+                Text("/")
+                    .foregroundStyle(.tertiary)
+
+                Text(localization.string("inspector.hiddenElement.badge"))
+                    .lineLimit(1)
+            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -71,10 +79,10 @@ struct InspectorSelectionHeader: View {
 
     @ViewBuilder
     private var headerActions: some View {
-        if model.selectedElement != nil {
+        if let element = model.selectedElement {
             InspectorHeaderActionGroup {
                 addElementMenu(compact: true)
-                selectedElementActions
+                selectedElementActions(for: element)
             }
         } else {
             addElementMenu(compact: false)
@@ -105,7 +113,15 @@ struct InspectorSelectionHeader: View {
     }
 
     @ViewBuilder
-    private var selectedElementActions: some View {
+    private func selectedElementActions(for element: OverlayElement) -> some View {
+        Button {
+            toggleVisibility(of: element)
+        } label: {
+            actionIcon(element.frame.isVisible ? "eye" : "eye.slash")
+        }
+        .disabled(model.isExporting)
+        .help(localization.string(element.frame.isVisible ? "inspector.hideElement.action" : "inspector.hiddenElement.action"))
+
         Button {
             model.duplicateSelectedElement()
         } label: {
@@ -171,6 +187,12 @@ struct InspectorSelectionHeader: View {
     private var canMoveSelectedElementForward: Bool {
         guard let selectedElementIndex else { return false }
         return selectedElementIndex < model.layout.elements.count - 1
+    }
+
+    private func toggleVisibility(of element: OverlayElement) {
+        model.updateElement(element.id) { element in
+            element.frame.isVisible.toggle()
+        }
     }
 
     private func elementDisplayTitle(_ element: OverlayElement) -> String {
