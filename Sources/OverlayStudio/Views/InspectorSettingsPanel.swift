@@ -1184,7 +1184,7 @@ private struct InspectorEmptyState: View {
     var body: some View {
         InspectorMessageBlock(
             systemImage: "cursorarrow.click.2",
-            title: localization.string("inspector.noSelection.title"),
+            title: localization.string("inspector.noSelection.emptyTitle"),
             message: localization.string("inspector.noSelection.message")
         ) {
             Menu {
