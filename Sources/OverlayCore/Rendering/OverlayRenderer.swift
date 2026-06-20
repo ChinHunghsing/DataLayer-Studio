@@ -311,8 +311,9 @@ public final class OverlayRenderer {
         let hasTopRow = element.customization.showsLabel || element.customization.showsIcon
         let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
         let valueRowHeight = max(valueFontSize, element.customization.showsUnit ? unitFontSize : 0)
-        let topPadding = 8 * scale
-        let bottomPadding = 12 * scale
+        let horizontalPadding = 14 * scale
+        let topPadding = 9 * scale
+        let bottomPadding = 14 * scale
         let rowGap = hasTopRow ? max(6 * scale, valueFontSize * 0.18) : 0
         let desiredHeight = max(rect.height, topPadding + topRowHeight + rowGap + valueRowHeight + bottomPadding)
 
@@ -337,9 +338,11 @@ public final class OverlayRenderer {
         let tileRect = CGRect(x: rect.minX, y: rect.maxY - desiredHeight, width: desiredWidth, height: desiredHeight)
 
         if element.customization.showsPanel {
-            fillRoundedRect(context, tileRect, radius: 13 * scale, color: Colors.tile(opacity: componentPanelOpacity(element) * 0.88))
+            let radius = 10 * scale
+            drawElevatedSurface(context, tileRect, radius: radius, fill: Colors.tile(opacity: componentPanelOpacity(element) * 0.94))
             if element.customization.panelBorderIsVisible {
-                strokeRoundedRect(context, tileRect, radius: 13 * scale, color: Colors.tileStroke, lineWidth: 1 * scale)
+                strokeRoundedRect(context, tileRect, radius: radius, color: Colors.tileStroke, lineWidth: max(0.7, 0.8 * scale))
+                drawTopHighlight(context, tileRect, radius: radius, inset: 11 * scale, color: Colors.tileHighlight)
             }
         }
 
@@ -348,7 +351,7 @@ public final class OverlayRenderer {
             drawText(
                 label,
                 context: context,
-                baseline: CGPoint(x: tileRect.minX + 12 * scale, y: topBaselineY),
+                baseline: CGPoint(x: tileRect.minX + horizontalPadding, y: topBaselineY),
                 size: labelFontSize,
                 color: labelColor(element),
                 fontName: labelFontName(element)
@@ -358,7 +361,7 @@ public final class OverlayRenderer {
             drawText(
                 iconText,
                 context: context,
-                baseline: CGPoint(x: tileRect.maxX - 12 * scale - iconWidth, y: topBaselineY),
+                baseline: CGPoint(x: tileRect.maxX - horizontalPadding - iconWidth, y: topBaselineY),
                 size: iconFontSize,
                 color: iconColor(element),
                 fontName: iconFontName(element)
@@ -369,7 +372,7 @@ public final class OverlayRenderer {
         drawText(
             value,
             context: context,
-            baseline: CGPoint(x: tileRect.minX + 12 * scale, y: valueBaselineY),
+            baseline: CGPoint(x: tileRect.minX + horizontalPadding, y: valueBaselineY),
             size: valueFontSize,
             color: valueColor(element, fallback: accent),
             fontName: valueFontName(element)
@@ -378,7 +381,7 @@ public final class OverlayRenderer {
             drawText(
                 unit,
                 context: context,
-                baseline: CGPoint(x: tileRect.maxX - 12 * scale - unitWidth, y: valueBaselineY),
+                baseline: CGPoint(x: tileRect.maxX - horizontalPadding - unitWidth, y: valueBaselineY),
                 size: unitFontSize,
                 color: unitColor(element),
                 fontName: unitFontName(element)
@@ -422,6 +425,7 @@ public final class OverlayRenderer {
     ) -> CGFloat {
         let valueWidth = textWidth(value, size: valueFontSize, fontName: valueFontName(element))
         let unitWidth = element.customization.showsUnit ? textWidth(unit, size: unitFontSize, fontName: unitFontName(element)) : 0
+        let horizontalPadding = 14 * scale
         let unitGap = element.customization.showsUnit ? 10 * scale : 0
         let labelWidth = element.customization.showsLabel ? textWidth(label, size: labelFontSize, fontName: labelFontName(element)) : 0
         let iconText = element.customization.icon(default: defaultIcon(for: element.kind))
@@ -429,8 +433,8 @@ public final class OverlayRenderer {
         let iconGap = element.customization.showsIcon ? 12 * scale : 0
         return max(
             rectWidth,
-            24 * scale + valueWidth + unitGap + unitWidth + 12 * scale,
-            24 * scale + labelWidth + iconGap + iconWidth + 12 * scale
+            (horizontalPadding * 2) + valueWidth + unitGap + unitWidth,
+            (horizontalPadding * 2) + labelWidth + iconGap + iconWidth
         )
     }
 
@@ -1133,6 +1137,13 @@ public final class OverlayRenderer {
         context.fillPath()
     }
 
+    private func drawElevatedSurface(_ context: CGContext, _ rect: CGRect, radius: CGFloat, fill: CGColor) {
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: -2), blur: 10, color: Colors.surfaceShadow)
+        fillRoundedRect(context, rect, radius: radius, color: fill)
+        context.restoreGState()
+    }
+
     private func strokeRoundedRect(
         _ context: CGContext,
         _ rect: CGRect,
@@ -1148,15 +1159,21 @@ public final class OverlayRenderer {
 
     private func drawPanelBackground(_ context: CGContext, _ rect: CGRect, element: OverlayElement, radius: CGFloat) {
         guard element.customization.showsPanel else { return }
-        fillRoundedRect(context, rect, radius: radius, color: Colors.panel(opacity: componentPanelOpacity(element)))
+        drawElevatedSurface(context, rect, radius: radius, fill: Colors.panel(opacity: componentPanelOpacity(element)))
         if element.customization.panelBorderIsVisible {
-            strokeRoundedRect(context, rect, radius: radius, color: Colors.panelStroke, lineWidth: 1.4)
+            strokeRoundedRect(context, rect, radius: radius, color: Colors.panelStroke, lineWidth: 1)
         }
 
         if element.customization.panelBorderIsVisible {
-            let topLine = CGRect(x: rect.minX + 18, y: rect.maxY - 1.5, width: rect.width - 36, height: 1)
-            fillRoundedRect(context, topLine, radius: 0.5, color: Colors.panelHighlight)
+            drawTopHighlight(context, rect, radius: radius, inset: 18, color: Colors.panelHighlight)
         }
+    }
+
+    private func drawTopHighlight(_ context: CGContext, _ rect: CGRect, radius: CGFloat, inset: CGFloat, color: CGColor) {
+        let width = max(0, rect.width - inset * 2)
+        guard width > 0 else { return }
+        let topLine = CGRect(x: rect.minX + inset, y: rect.maxY - 1.25, width: width, height: 0.8)
+        fillRoundedRect(context, topLine, radius: min(radius, 0.5), color: color)
     }
 
     private func roundedPath(rect: CGRect, radius: CGFloat) -> CGPath {
@@ -1312,14 +1329,16 @@ private enum Colors {
     static let muted = CGColor(red: 0.66, green: 0.72, blue: 0.78, alpha: 0.82)
     static let label = CGColor(red: 0.74, green: 0.80, blue: 0.86, alpha: 0.92)
     static func panel(opacity: Double) -> CGColor {
-        CGColor(red: 0.015, green: 0.017, blue: 0.020, alpha: min(0.95, max(0.12, opacity)))
+        CGColor(red: 0.018, green: 0.022, blue: 0.026, alpha: min(0.95, max(0.12, opacity)))
     }
     static func tile(opacity: Double) -> CGColor {
-        CGColor(red: 0.035, green: 0.041, blue: 0.048, alpha: min(0.90, max(0.10, opacity)))
+        CGColor(red: 0.024, green: 0.029, blue: 0.034, alpha: min(0.92, max(0.10, opacity)))
     }
-    static let panelStroke = CGColor(red: 1, green: 1, blue: 1, alpha: 0.20)
-    static let panelHighlight = CGColor(red: 1, green: 1, blue: 1, alpha: 0.30)
-    static let tileStroke = CGColor(red: 1, green: 1, blue: 1, alpha: 0.12)
+    static let panelStroke = CGColor(red: 1, green: 1, blue: 1, alpha: 0.14)
+    static let panelHighlight = CGColor(red: 1, green: 1, blue: 1, alpha: 0.22)
+    static let tileStroke = CGColor(red: 1, green: 1, blue: 1, alpha: 0.16)
+    static let tileHighlight = CGColor(red: 1, green: 1, blue: 1, alpha: 0.18)
+    static let surfaceShadow = CGColor(red: 0, green: 0, blue: 0, alpha: 0.28)
     static let track = CGColor(red: 1, green: 1, blue: 1, alpha: 0.14)
     static let gaugeTrack = CGColor(red: 1, green: 1, blue: 1, alpha: 0.17)
     static let tick = CGColor(red: 1, green: 1, blue: 1, alpha: 0.28)

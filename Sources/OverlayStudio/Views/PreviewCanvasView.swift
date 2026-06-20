@@ -367,8 +367,9 @@ struct PreviewCanvasView: View {
         let hasTopRow = element.customization.showsLabel || element.customization.showsIcon
         let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
         let valueRowHeight = max(valueFontSize, element.customization.showsUnit ? unitFontSize : 0)
-        let topPadding = 8 * scale
-        let bottomPadding = 12 * scale
+        let horizontalPadding = 14 * scale
+        let topPadding = 9 * scale
+        let bottomPadding = 14 * scale
         let rowGap = hasTopRow ? max(6 * scale, valueFontSize * 0.18) : 0
         let desiredHeight = max(baseHeight, topPadding + topRowHeight + rowGap + valueRowHeight + bottomPadding)
 
@@ -382,8 +383,8 @@ struct PreviewCanvasView: View {
         let desiredWidth = max(
             alignedMetricOutputWidth() ?? 0,
             baseWidth,
-            24 * scale + valueWidth + unitGap + unitWidth + 12 * scale,
-            24 * scale + labelWidth + iconGap + iconWidth + 12 * scale
+            (horizontalPadding * 2) + valueWidth + unitGap + unitWidth,
+            (horizontalPadding * 2) + labelWidth + iconGap + iconWidth
         )
         return CGSize(width: desiredWidth, height: desiredHeight)
     }
@@ -412,14 +413,15 @@ struct PreviewCanvasView: View {
         let text = metricText(for: element)
         let valueWidth = textWidth(text.value, size: valueFontSize, fontName: element.customization.valueFont)
         let unitWidth = element.customization.showsUnit ? textWidth(text.unit, size: unitFontSize, fontName: element.customization.unitFont) : 0
+        let horizontalPadding = 14 * scale
         let unitGap = element.customization.showsUnit ? 10 * scale : 0
         let labelWidth = element.customization.showsLabel ? textWidth(text.label, size: labelFontSize, fontName: element.customization.labelFont) : 0
         let iconWidth = element.customization.showsIcon ? textWidth(text.icon, size: iconFontSize, fontName: element.customization.iconFont) : 0
         let iconGap = element.customization.showsIcon ? 12 * scale : 0
         return max(
             baseWidth,
-            24 * scale + valueWidth + unitGap + unitWidth + 12 * scale,
-            24 * scale + labelWidth + iconGap + iconWidth + 12 * scale
+            (horizontalPadding * 2) + valueWidth + unitGap + unitWidth,
+            (horizontalPadding * 2) + labelWidth + iconGap + iconWidth
         )
     }
 
