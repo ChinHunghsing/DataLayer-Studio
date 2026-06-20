@@ -5,6 +5,7 @@ struct InspectorView: View {
     @ObservedObject var model: StudioModel
     @SceneStorage("inspectorSectionScope") private var selectedScopeRawValue = InspectorSectionScope.all.rawValue
     @SceneStorage("inspectorExpandedSections") private var expandedSectionsRawValue = InspectorSection.defaultExpandedSectionsRawValue
+    private static let topAnchorID = "inspector-top"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,15 +27,26 @@ struct InspectorView: View {
                     .overlay(Color.secondary.opacity(0.16))
             }
 
-            ScrollView {
-                InspectorSettingsPanel(
-                    model: model,
-                    expandedSections: expandedSectionsBinding,
-                    focusedSection: selectedScope.section
-                )
-                    .padding(.horizontal, 18)
-                    .padding(.top, model.selectedElement == nil ? 18 : 14)
-                    .padding(.bottom, 14)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Color.clear
+                        .frame(height: 0)
+                        .id(Self.topAnchorID)
+
+                    InspectorSettingsPanel(
+                        model: model,
+                        expandedSections: expandedSectionsBinding,
+                        focusedSection: selectedScope.section
+                    )
+                        .padding(.horizontal, 18)
+                        .padding(.top, model.selectedElement == nil ? 18 : 14)
+                        .padding(.bottom, 14)
+                }
+                .onChange(of: inspectorScrollIdentity) { _ in
+                    withAnimation(.easeOut(duration: 0.16)) {
+                        proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                    }
+                }
             }
         }
         .onAppear(perform: repairSelectedScopeIfNeeded)
@@ -52,6 +64,10 @@ struct InspectorView: View {
     private var selectedElementScopeIdentity: String {
         guard let element = model.selectedElement else { return "none" }
         return "\(element.id):\(element.kind.rawValue)"
+    }
+
+    private var inspectorScrollIdentity: String {
+        "\(selectedElementScopeIdentity):\(selectedScope.rawValue)"
     }
 
     private func repairSelectedScopeIfNeeded() {
