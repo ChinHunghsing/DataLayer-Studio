@@ -732,6 +732,7 @@ enum InspectorSection: String, CaseIterable, Identifiable {
 
     static let displayOrder: [InspectorSection] = [.layout, .content, .appearance, .typography, .data]
     static let defaultExpandedSections = Set(displayOrder)
+    static let defaultExpandedSectionsRawValue = displayOrder.map(\.rawValue).joined(separator: ",")
 
     var localizationKey: String {
         switch self {

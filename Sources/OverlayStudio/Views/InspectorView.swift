@@ -3,8 +3,8 @@ import OverlayCore
 
 struct InspectorView: View {
     @ObservedObject var model: StudioModel
-    @State private var expandedSections = InspectorSection.defaultExpandedSections
     @SceneStorage("inspectorSectionScope") private var selectedScopeRawValue = InspectorSectionScope.all.rawValue
+    @SceneStorage("inspectorExpandedSections") private var expandedSectionsRawValue = InspectorSection.defaultExpandedSectionsRawValue
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +28,7 @@ struct InspectorView: View {
             ScrollView {
                 InspectorSettingsPanel(
                     model: model,
-                    expandedSections: $expandedSections,
+                    expandedSections: expandedSectionsBinding,
                     focusedSection: selectedScope.section
                 )
                     .padding(.horizontal, 18)
@@ -50,10 +50,33 @@ struct InspectorView: View {
             set: { rawValue in
                 selectedScopeRawValue = rawValue
                 if let section = InspectorSectionScope(rawValue: rawValue)?.section {
+                    var expandedSections = decodedExpandedSections
                     expandedSections.insert(section)
+                    expandedSectionsRawValue = Self.encode(expandedSections)
                 }
             }
         )
+    }
+
+    private var expandedSectionsBinding: Binding<Set<InspectorSection>> {
+        Binding(
+            get: { decodedExpandedSections },
+            set: { expandedSectionsRawValue = Self.encode($0) }
+        )
+    }
+
+    private var decodedExpandedSections: Set<InspectorSection> {
+        let sections = expandedSectionsRawValue
+            .split(separator: ",")
+            .compactMap { InspectorSection(rawValue: String($0)) }
+        return Set(sections)
+    }
+
+    private static func encode(_ sections: Set<InspectorSection>) -> String {
+        InspectorSection.displayOrder
+            .filter { sections.contains($0) }
+            .map(\.rawValue)
+            .joined(separator: ",")
     }
 
     private var availableScopes: [InspectorSectionScope] {
