@@ -105,6 +105,23 @@ private enum InspectorSectionScope: String, CaseIterable, Identifiable {
         }
     }
 
+    var systemImage: String {
+        switch self {
+        case .all:
+            return "square.grid.2x2"
+        case .layout:
+            return InspectorSection.layout.systemImage
+        case .content:
+            return InspectorSection.content.systemImage
+        case .appearance:
+            return InspectorSection.appearance.systemImage
+        case .typography:
+            return InspectorSection.typography.systemImage
+        case .data:
+            return InspectorSection.data.systemImage
+        }
+    }
+
     func isAvailable(for element: OverlayElement) -> Bool {
         switch self {
         case .all, .layout, .content, .appearance, .typography:
@@ -121,15 +138,44 @@ private struct InspectorSectionScopeBar: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        Picker(localization.string("inspector.sectionScope"), selection: $selectedScopeRawValue) {
-            ForEach(scopes) { scope in
-                Text(localization.string(scope.localizationKey))
-                    .tag(scope.rawValue)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(scopes) { scope in
+                    Button {
+                        selectedScopeRawValue = scope.rawValue
+                    } label: {
+                        Label(localization.string(scope.localizationKey), systemImage: scope.systemImage)
+                            .font(.caption.weight(.semibold))
+                            .labelStyle(.titleAndIcon)
+                            .lineLimit(1)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .foregroundStyle(selectedScopeRawValue == scope.rawValue ? Color.accentColor : Color.secondary)
+                            .background(scopeFill(scope), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .stroke(scopeStroke(scope))
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(localization.string(scope.localizationKey))
+                    .accessibilityAddTraits(selectedScopeRawValue == scope.rawValue ? .isSelected : [])
+                }
             }
+            .padding(.vertical, 1)
         }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .controlSize(.small)
         .accessibilityLabel(localization.string("inspector.sectionScope"))
+    }
+
+    private func scopeFill(_ scope: InspectorSectionScope) -> Color {
+        selectedScopeRawValue == scope.rawValue
+            ? Color.accentColor.opacity(0.12)
+            : Color.secondary.opacity(0.045)
+    }
+
+    private func scopeStroke(_ scope: InspectorSectionScope) -> Color {
+        selectedScopeRawValue == scope.rawValue
+            ? Color.accentColor.opacity(0.34)
+            : Color.secondary.opacity(0.07)
     }
 }
