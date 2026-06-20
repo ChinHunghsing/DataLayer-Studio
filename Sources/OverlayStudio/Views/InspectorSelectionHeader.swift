@@ -103,6 +103,7 @@ struct InspectorSelectionHeader: View {
         if let element = model.selectedElement {
             InspectorHeaderActionGroup {
                 addElementMenu(compact: true)
+                InspectorHeaderActionDivider()
                 selectedElementActions(for: element)
             }
         } else {
