@@ -112,7 +112,7 @@ struct InspectorSettingsPanel: View {
             summary: contentSummary(for: element),
             expandedSections: $expandedSections
         ) {
-            Toggle(localization.string("inspector.label"), isOn: boolBinding(
+            InspectorToggleRow(title: localization.string("inspector.label"), isOn: boolBinding(
                 id: id,
                 get: { $0.customization.showsLabel },
                 set: { $0.customization.showsLabel = $1 }
@@ -141,7 +141,7 @@ struct InspectorSettingsPanel: View {
                 localization.string("inspector.unit")
             }
 
-            Toggle(unitToggleTitle, isOn: boolBinding(
+            InspectorToggleRow(title: unitToggleTitle, isOn: boolBinding(
                 id: id,
                 get: { $0.customization.showsUnit },
                 set: { $0.customization.showsUnit = $1 }
@@ -163,7 +163,7 @@ struct InspectorSettingsPanel: View {
                 )
             }
 
-            Toggle(localization.string("inspector.icon"), isOn: boolBinding(
+            InspectorToggleRow(title: localization.string("inspector.icon"), isOn: boolBinding(
                 id: id,
                 get: { $0.customization.showsIcon },
                 set: { $0.customization.showsIcon = $1 }
@@ -196,14 +196,14 @@ struct InspectorSettingsPanel: View {
         ) {
             InspectorSubheading(localization.string("inspector.panelSection"))
 
-            Toggle(localization.string("inspector.panel"), isOn: boolBinding(
+            InspectorToggleRow(title: localization.string("inspector.panel"), isOn: boolBinding(
                 id: id,
                 get: { $0.customization.showsPanel },
                 set: { $0.customization.showsPanel = $1 }
             ))
 
             if currentElement(id)?.customization.showsPanel == true {
-                Toggle(localization.string("inspector.panelBorder"), isOn: boolBinding(
+                InspectorToggleRow(title: localization.string("inspector.panelBorder"), isOn: boolBinding(
                     id: id,
                     get: { $0.customization.panelBorderIsVisible },
                     set: { $0.customization.showsPanelBorder = $1 }
@@ -295,7 +295,7 @@ struct InspectorSettingsPanel: View {
                 InspectorRule()
                 InspectorSubheading(localization.string("inspector.tickSection"))
 
-                Toggle(localization.string("inspector.tickMarks"), isOn: boolBinding(
+                InspectorToggleRow(title: localization.string("inspector.tickMarks"), isOn: boolBinding(
                     id: id,
                     get: { $0.customization.showGaugeTicks ?? false },
                     set: { $0.customization.showGaugeTicks = $1 }
@@ -393,7 +393,7 @@ struct InspectorSettingsPanel: View {
                 }
 
                 if kind == .speed {
-                    Toggle(localization.string("inspector.gaugeTicks"), isOn: boolBinding(
+                    InspectorToggleRow(title: localization.string("inspector.gaugeTicks"), isOn: boolBinding(
                         id: id,
                         get: { $0.customization.showGaugeTicks ?? model.layout.style.showGaugeTicks },
                         set: { $0.customization.showGaugeTicks = $1 }
@@ -896,6 +896,25 @@ private struct InspectorColorRow: View {
             ColorPicker(title, selection: $selection)
                 .labelsHidden()
                 .controlSize(.small)
+        }
+    }
+}
+
+private struct InspectorToggleRow: View {
+    var title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: InspectorFormMetrics.rowGap) {
+            Text(title)
+                .inspectorControlLabel()
+
+            Spacer(minLength: 8)
+
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityLabel(title)
         }
     }
 }
