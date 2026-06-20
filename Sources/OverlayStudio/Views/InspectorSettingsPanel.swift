@@ -434,7 +434,7 @@ struct InspectorSettingsPanel: View {
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         if focusedSection == section {
-            InspectorFocusedSection {
+            InspectorFocusedSection(section: section, summary: summary) {
                 content()
             }
         } else {
@@ -685,16 +685,56 @@ private enum TypographyRole {
 }
 
 private struct InspectorFocusedSection<Content: View>: View {
+    var section: InspectorSection
+    var summary: String?
     @ViewBuilder var content: () -> Content
+    @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            content()
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: section.systemImage)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+
+                Text(localization.string(section.localizationKey))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+
+                if let summary {
+                    Text(summary)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .frame(maxWidth: 156, alignment: .trailing)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(InspectorStyle.sectionSummaryFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+
+            Divider()
+                .overlay(Color.secondary.opacity(0.16))
+
+            VStack(alignment: .leading, spacing: 12) {
+                content()
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 14)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 2)
-        .padding(.top, 2)
-        .padding(.bottom, 6)
+        .background(InspectorStyle.sectionFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(InspectorStyle.sectionStroke)
+        }
     }
 }
 
