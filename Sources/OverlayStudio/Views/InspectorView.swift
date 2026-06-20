@@ -8,22 +8,22 @@ struct InspectorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            InspectorSelectionHeader(model: model)
-                .padding(.horizontal, 18)
-                .padding(.top, 14)
-                .padding(.bottom, model.selectedElement == nil ? 12 : 10)
-
             if model.selectedElement != nil {
+                InspectorSelectionHeader(model: model)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 14)
+                    .padding(.bottom, 10)
+
                 InspectorSectionScopeBar(
                     scopes: availableScopes,
                     selectedScopeRawValue: selectedScopeBinding
                 )
                 .padding(.horizontal, 18)
                 .padding(.bottom, 10)
-            }
 
-            Divider()
-                .overlay(Color.secondary.opacity(0.16))
+                Divider()
+                    .overlay(Color.secondary.opacity(0.16))
+            }
 
             ScrollView {
                 InspectorSettingsPanel(
@@ -32,7 +32,8 @@ struct InspectorView: View {
                     focusedSection: selectedScope.section
                 )
                     .padding(.horizontal, 18)
-                    .padding(.vertical, 14)
+                    .padding(.top, model.selectedElement == nil ? 18 : 14)
+                    .padding(.bottom, 14)
             }
         }
     }
