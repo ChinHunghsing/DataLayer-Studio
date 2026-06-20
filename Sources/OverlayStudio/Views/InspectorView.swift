@@ -163,6 +163,7 @@ private struct InspectorSectionScopeBar: View {
     @Binding var expandedSections: Set<InspectorSection>
     @EnvironmentObject private var localization: LocalizationStore
     @State private var hoveredScopeRawValue: String?
+    @State private var isHoveringSectionActions = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -251,16 +252,32 @@ private struct InspectorSectionScopeBar: View {
                 Label(localization.string("inspector.collapseAllSections"), systemImage: "rectangle.compress.vertical")
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
-                .font(.system(size: 13, weight: .semibold))
+            Image(systemName: "ellipsis")
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Rectangle())
+                .frame(width: 28, height: 24)
+                .background(sectionActionsFill, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(sectionActionsStroke)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
+        .onHover { hovering in
+            isHoveringSectionActions = hovering
+        }
         .help(localization.string("inspector.sectionActions"))
         .accessibilityLabel(localization.string("inspector.sectionActions"))
+    }
+
+    private var sectionActionsFill: Color {
+        isHoveringSectionActions ? Color.secondary.opacity(0.08) : InspectorStyle.actionGroupFill
+    }
+
+    private var sectionActionsStroke: Color {
+        isHoveringSectionActions ? Color.secondary.opacity(0.16) : InspectorStyle.actionGroupStroke
     }
 
     private func scopeFill(_ scope: InspectorSectionScope) -> Color {
