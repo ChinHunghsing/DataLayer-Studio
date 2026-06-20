@@ -31,7 +31,7 @@ require_file "$LEGAL_DIR/LICENSE.md"
 require_file "$LEGAL_DIR/NOTICE.md"
 require_file "$LEGAL_DIR/README.md"
 
-for locale in en zh zh-Hans zh-Hant zh_CN zh_TW ja; do
+for locale in en zh zh-Hans zh-Hans-CN zh-Hant zh-Hant-TW zh_CN zh_TW ja; do
     require_file "$CONTENTS_DIR/Resources/$locale.lproj/InfoPlist.strings"
     require_file "$CONTENTS_DIR/Resources/$locale.lproj/Localizable.strings"
 done
@@ -43,7 +43,7 @@ if [[ -f "$CONTENTS_DIR/Info.plist" ]]; then
         fail "Info.plist must enable CFBundleAllowMixedLocalizations"
     fi
     declared_localizations="$(/usr/libexec/PlistBuddy -c "Print :CFBundleLocalizations" "$CONTENTS_DIR/Info.plist" 2>/dev/null || true)"
-    for locale in en zh zh-Hans zh-Hant zh_CN zh_TW ja; do
+    for locale in en zh zh-Hans zh-Hans-CN zh-Hant zh-Hant-TW zh_CN zh_TW ja; do
         if ! printf '%s\n' "$declared_localizations" | grep -qx "    $locale"; then
             fail "Info.plist must declare localization: $locale"
         fi

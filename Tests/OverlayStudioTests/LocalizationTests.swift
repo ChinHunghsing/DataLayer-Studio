@@ -43,6 +43,37 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(reloaded.resolvedLanguage, .japanese)
     }
 
+    func testLanguageSelectionUpdatesProcessAppleLanguages() {
+        let suiteName = "run.libo.overlay-studio.localization-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = LocalizationStore(defaults: defaults, systemPreferredLanguages: ["en-US"])
+        store.selection = .simplifiedChinese
+
+        let argumentDomain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        XCTAssertEqual(
+            argumentDomain["AppleLanguages"] as? [String],
+            ["zh-Hans-CN", "zh-Hans", "zh_CN", "zh"]
+        )
+    }
+
+    func testSystemLanguageSelectionUsesLaunchPreferredLanguagesForAppKit() {
+        let suiteName = "run.libo.overlay-studio.localization-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = LocalizationStore(defaults: defaults, systemPreferredLanguages: ["zh-Hant-TW"])
+        store.selection = .japanese
+        store.selection = .system
+
+        let argumentDomain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        XCTAssertEqual(
+            argumentDomain["AppleLanguages"] as? [String],
+            ["zh-Hant-TW", "zh-Hant", "zh_TW"]
+        )
+    }
+
     func testStoredSelectionFallsBackToLegacyAppDomain() {
         let suiteName = "run.libo.datalayer-studio.localization-tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

@@ -45,6 +45,19 @@ enum AppResolvedLanguage: String, CaseIterable {
             return "ja"
         }
     }
+
+    var appKitLanguageIdentifiers: [String] {
+        switch self {
+        case .simplifiedChinese:
+            return ["zh-Hans-CN", "zh-Hans", "zh_CN", "zh"]
+        case .traditionalChinese:
+            return ["zh-Hant-TW", "zh-Hant", "zh_TW"]
+        case .english:
+            return ["en"]
+        case .japanese:
+            return ["ja"]
+        }
+    }
 }
 
 @MainActor
@@ -52,18 +65,33 @@ final class LocalizationStore: ObservableObject {
     @Published var selection: AppLanguageSelection {
         didSet {
             defaults.set(selection.rawValue, forKey: AppLocalizer.selectionDefaultsKey)
+            AppLocalizer.applyProcessLanguagePreference(
+                for: selection,
+                preferredLanguages: systemPreferredLanguages,
+                defaults: defaults
+            )
         }
     }
 
     private let defaults: UserDefaults
+    private let systemPreferredLanguages: [String]
 
-    init(defaults: UserDefaults = .standard) {
+    init(
+        defaults: UserDefaults = .standard,
+        systemPreferredLanguages: [String] = Locale.preferredLanguages
+    ) {
         self.defaults = defaults
+        self.systemPreferredLanguages = systemPreferredLanguages
         self.selection = AppLocalizer.storedSelection(defaults: defaults)
+        AppLocalizer.applyProcessLanguagePreference(
+            for: selection,
+            preferredLanguages: systemPreferredLanguages,
+            defaults: defaults
+        )
     }
 
     var resolvedLanguage: AppResolvedLanguage {
-        AppLocalizer.resolvedLanguage(for: selection)
+        AppLocalizer.resolvedLanguage(for: selection, preferredLanguages: systemPreferredLanguages)
     }
 
     var locale: Locale {
@@ -96,10 +124,13 @@ enum AppLocalizer {
         return .system
     }
 
-    static func resolvedLanguage(for selection: AppLanguageSelection) -> AppResolvedLanguage {
+    static func resolvedLanguage(
+        for selection: AppLanguageSelection,
+        preferredLanguages: [String] = Locale.preferredLanguages
+    ) -> AppResolvedLanguage {
         switch selection {
         case .system:
-            return resolvedLanguage(forPreferredLanguages: Locale.preferredLanguages)
+            return resolvedLanguage(forPreferredLanguages: preferredLanguages)
         case .simplifiedChinese:
             return .simplifiedChinese
         case .traditionalChinese:
@@ -109,6 +140,17 @@ enum AppLocalizer {
         case .japanese:
             return .japanese
         }
+    }
+
+    static func applyProcessLanguagePreference(
+        for selection: AppLanguageSelection,
+        preferredLanguages: [String] = Locale.preferredLanguages,
+        defaults: UserDefaults = .standard
+    ) {
+        let language = resolvedLanguage(for: selection, preferredLanguages: preferredLanguages)
+        var argumentDomain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+        argumentDomain["AppleLanguages"] = language.appKitLanguageIdentifiers
+        defaults.setVolatileDomain(argumentDomain, forName: UserDefaults.argumentDomain)
     }
 
     static func resolvedLanguage(forPreferredLanguages preferredLanguages: [String]) -> AppResolvedLanguage {
