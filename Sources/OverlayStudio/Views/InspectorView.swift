@@ -53,6 +53,9 @@ struct InspectorView: View {
         .onChange(of: selectedElementScopeIdentity) { _ in
             repairSelectedScopeIfNeeded()
         }
+        .onChange(of: selectedElementKindRawValue) { _ in
+            expandedSectionsRawValue = InspectorSection.defaultExpandedSectionsRawValue
+        }
     }
 
     private var selectedScope: InspectorSectionScope {
@@ -64,6 +67,10 @@ struct InspectorView: View {
     private var selectedElementScopeIdentity: String {
         guard let element = model.selectedElement else { return "none" }
         return "\(element.id):\(element.kind.rawValue)"
+    }
+
+    private var selectedElementKindRawValue: String? {
+        model.selectedElement?.kind.rawValue
     }
 
     private var inspectorScrollIdentity: String {
