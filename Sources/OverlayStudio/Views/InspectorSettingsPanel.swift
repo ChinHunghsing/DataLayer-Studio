@@ -832,6 +832,28 @@ private struct InspectorSectionTitle: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 9) {
+                sectionIdentity
+
+                if let summary {
+                    Spacer(minLength: 8)
+                    InspectorSummaryPill(summary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                sectionIdentity
+
+                if let summary {
+                    InspectorSummaryPill(summary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var sectionIdentity: some View {
         HStack(alignment: .center, spacing: 9) {
             Image(systemName: section.systemImage)
                 .font(.system(size: 12, weight: .semibold))
@@ -839,26 +861,34 @@ private struct InspectorSectionTitle: View {
                 .frame(width: 18, height: 18)
                 .background(iconBackground, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(localization.string(section.localizationKey))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                if let summary {
-                    Text(summary)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-                }
-            }
+            Text(localization.string(section.localizationKey))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var iconBackground: Color {
         isFocused ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.065)
+    }
+}
+
+private struct InspectorSummaryPill: View {
+    var value: String
+
+    init(_ value: String) {
+        self.value = value
+    }
+
+    var body: some View {
+        Text(value)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Color.secondary.opacity(0.065), in: Capsule())
     }
 }
 
