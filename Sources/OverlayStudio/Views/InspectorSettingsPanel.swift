@@ -764,8 +764,6 @@ private struct InspectorGroup<Content: View>: View {
                     Text(localization.string(section.localizationKey))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.primary)
-                        .textCase(.uppercase)
-                        .tracking(0.2)
 
                     Spacer()
 
@@ -870,10 +868,8 @@ private struct InspectorSubheading: View {
 
     var body: some View {
         Text(title)
-            .font(.caption2.weight(.semibold))
+            .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-            .tracking(0.3)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
