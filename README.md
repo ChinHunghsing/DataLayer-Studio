@@ -21,19 +21,13 @@ activities, and ongoing maintenance.
 DataLayer Studio 是一个独立维护的 source-available 项目。如果它对你的跑步视频制作有帮助，
 欢迎通过赞助支持后续测试、样本整理和持续维护。
 
-<a href="https://buymeacoffee.com/leeeboo">
-  <img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="360">
-</a>
+Choose any of the channels below. For WeChat Pay or Alipay, scan the QR code.
 
-[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo)
+可以任选下面任一渠道。微信或支付宝请扫描二维码。
 
-For WeChat Pay or Alipay, scan one of the QR codes below.
-
-如果你更方便使用微信或支付宝，可以扫描下面的二维码支持项目。
-
-| WeChat Pay / 微信 | Alipay / 支付宝 |
-| --- | --- |
-| <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsor QR code" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsor QR code" width="180"> |
+| Buy Me a Coffee | WeChat Pay / 微信 | Alipay / 支付宝 |
+| --- | --- | --- |
+| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsor QR code" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsor QR code" width="180"> |
 
 Sponsorship is optional and does not purchase a commercial license, priority
 support, or guaranteed feature work. Commercial use still requires a separate
