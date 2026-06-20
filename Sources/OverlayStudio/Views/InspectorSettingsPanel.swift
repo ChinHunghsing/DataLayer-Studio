@@ -68,12 +68,6 @@ struct InspectorSettingsPanel: View {
             summary: layoutSummary(for: element),
             expandedSections: $expandedSections
         ) {
-            Toggle(localization.string("inspector.visible"), isOn: boolBinding(
-                id: id,
-                get: { $0.frame.isVisible },
-                set: { $0.frame.isVisible = $1 }
-            ))
-
             LabeledSlider(
                 title: "X",
                 value: doubleBinding(id: id, get: { $0.frame.x }, set: { $0.frame.x = $1 }),
