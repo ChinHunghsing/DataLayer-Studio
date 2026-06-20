@@ -163,36 +163,56 @@ private struct InspectorSectionScopeBar: View {
     @State private var hoveredScopeRawValue: String?
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(scopes) { scope in
-                    Button {
-                        selectedScopeRawValue = scope.rawValue
-                    } label: {
-                        Label(localization.string(scope.localizationKey), systemImage: scope.systemImage)
-                            .font(.caption.weight(.semibold))
-                            .labelStyle(.titleAndIcon)
-                            .lineLimit(1)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
-                            .foregroundStyle(selectedScopeRawValue == scope.rawValue ? Color.accentColor : Color.secondary)
-                            .background(scopeFill(scope), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .stroke(scopeStroke(scope))
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { hovering in
-                        hoveredScopeRawValue = hovering ? scope.rawValue : nil
-                    }
-                    .accessibilityLabel(localization.string(scope.localizationKey))
-                    .accessibilityAddTraits(selectedScopeRawValue == scope.rawValue ? .isSelected : [])
-                }
-            }
-            .padding(.vertical, 1)
+        ViewThatFits(in: .horizontal) {
+            scopeButtons(showTitles: true)
+            scopeButtons(showTitles: false)
         }
         .accessibilityLabel(localization.string("inspector.sectionScope"))
+    }
+
+    private func scopeButtons(showTitles: Bool) -> some View {
+        HStack(spacing: 6) {
+            ForEach(scopes) { scope in
+                scopeButton(scope, showTitle: showTitles)
+            }
+        }
+        .padding(.vertical, 1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func scopeButton(_ scope: InspectorSectionScope, showTitle: Bool) -> some View {
+        let title = localization.string(scope.localizationKey)
+
+        return Button {
+            selectedScopeRawValue = scope.rawValue
+        } label: {
+            HStack(spacing: showTitle ? 5 : 0) {
+                Image(systemName: scope.systemImage)
+                    .font(.caption.weight(.semibold))
+
+                if showTitle {
+                    Text(title)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                }
+            }
+            .frame(minWidth: showTitle ? 0 : 30)
+            .padding(.horizontal, showTitle ? 8 : 6)
+            .padding(.vertical, 5)
+            .foregroundStyle(selectedScopeRawValue == scope.rawValue ? Color.accentColor : Color.secondary)
+            .background(scopeFill(scope), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(scopeStroke(scope))
+            }
+        }
+        .buttonStyle(.plain)
+        .help(title)
+        .onHover { hovering in
+            hoveredScopeRawValue = hovering ? scope.rawValue : nil
+        }
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selectedScopeRawValue == scope.rawValue ? .isSelected : [])
     }
 
     private func scopeFill(_ scope: InspectorSectionScope) -> Color {
