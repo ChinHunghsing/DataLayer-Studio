@@ -202,7 +202,7 @@ struct InspectorSelectionHeader: View {
         Button(role: .destructive) {
             model.deleteSelectedElement()
         } label: {
-            actionIcon("trash", foregroundStyle: .red)
+            actionIcon("trash", foregroundStyle: .red, isDestructive: true)
         }
         .disabled(model.isExporting)
         .help(localization.string("inspector.delete"))
@@ -263,11 +263,8 @@ struct InspectorSelectionHeader: View {
             }
     }
 
-    private func actionIcon(_ systemName: String, foregroundStyle: Color? = nil) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(foregroundStyle ?? Color.primary)
-            .frame(width: 22, height: 22)
+    private func actionIcon(_ systemName: String, foregroundStyle: Color? = nil, isDestructive: Bool = false) -> some View {
+        InspectorHeaderActionIcon(systemName: systemName, foregroundStyle: foregroundStyle, isDestructive: isDestructive)
     }
 
     private var selectedElementIndex: Int? {
@@ -293,6 +290,39 @@ struct InspectorSelectionHeader: View {
 
     private func elementDisplayTitle(_ element: OverlayElement) -> String {
         element.customization.label(default: localization.string(element.kind.localizationKey))
+    }
+}
+
+private struct InspectorHeaderActionIcon: View {
+    var systemName: String
+    var foregroundStyle: Color?
+    var isDestructive: Bool
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(currentForegroundStyle)
+            .frame(width: 22, height: 22)
+            .background(backgroundFill, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .onHover { hovering in
+                isHovering = hovering
+            }
+    }
+
+    private var currentForegroundStyle: Color {
+        guard isEnabled else { return Color.secondary.opacity(0.46) }
+        return foregroundStyle ?? Color.primary
+    }
+
+    private var backgroundFill: Color {
+        guard isEnabled, isHovering else { return Color.clear }
+        if isDestructive {
+            return Color.red.opacity(0.12)
+        }
+        return Color.secondary.opacity(0.09)
     }
 }
 
