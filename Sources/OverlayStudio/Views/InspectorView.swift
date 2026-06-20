@@ -3,7 +3,7 @@ import OverlayCore
 
 struct InspectorView: View {
     @ObservedObject var model: StudioModel
-    @State private var expandedSections = Set(InspectorSection.allCases)
+    @State private var expandedSections = InspectorSection.defaultExpandedSections
     @SceneStorage("inspectorSectionScope") private var selectedScopeRawValue = InspectorSectionScope.all.rawValue
 
     var body: some View {

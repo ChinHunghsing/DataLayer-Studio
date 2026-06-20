@@ -38,25 +38,31 @@ struct InspectorSettingsPanel: View {
 
     @ViewBuilder
     private func settings(for element: OverlayElement) -> some View {
-        if shouldShow(.layout) {
-            layoutSection(for: element)
-        }
-        if shouldShow(.content) {
-            contentSection(for: element)
-        }
-        if shouldShow(.appearance) {
-            appearanceSection(for: element)
-        }
-        if shouldShow(.typography) {
-            typographySection(for: element)
-        }
-        if shouldShow(.data) {
-            dataSection(for: element)
+        ForEach(InspectorSection.displayOrder) { section in
+            if shouldShow(section) {
+                sectionView(section, for: element)
+            }
         }
     }
 
     private func shouldShow(_ section: InspectorSection) -> Bool {
         focusedSection == nil || focusedSection == section
+    }
+
+    @ViewBuilder
+    private func sectionView(_ section: InspectorSection, for element: OverlayElement) -> some View {
+        switch section {
+        case .layout:
+            layoutSection(for: element)
+        case .content:
+            contentSection(for: element)
+        case .appearance:
+            appearanceSection(for: element)
+        case .typography:
+            typographySection(for: element)
+        case .data:
+            dataSection(for: element)
+        }
     }
 
     private func layoutSection(for element: OverlayElement) -> some View {
@@ -717,12 +723,15 @@ private struct InspectorFocusedSection<Content: View>: View {
 
 enum InspectorSection: String, CaseIterable, Identifiable {
     case layout
-    case appearance
     case content
+    case appearance
     case typography
     case data
 
     var id: String { rawValue }
+
+    static let displayOrder: [InspectorSection] = [.layout, .content, .appearance, .typography, .data]
+    static let defaultExpandedSections = Set(displayOrder)
 
     var localizationKey: String {
         switch self {
