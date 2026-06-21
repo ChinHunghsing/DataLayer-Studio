@@ -196,11 +196,48 @@ final class TransparentVideoWriterTests: XCTestCase {
             temporaryURL.deletingLastPathComponent().standardizedFileURL.path,
             FileManager.default.temporaryDirectory.standardizedFileURL.path
         )
+        XCTAssertTrue(temporaryURL.lastPathComponent.hasPrefix("DataLayerStudio-\(ProcessInfo.processInfo.processIdentifier)-"))
         XCTAssertNotEqual(
             temporaryURL.deletingLastPathComponent().standardizedFileURL.path,
             outputURL.deletingLastPathComponent().standardizedFileURL.path
         )
         XCTAssertEqual(temporaryURL.pathExtension, "mov")
+    }
+
+    func testCleanupRemovesOnlyStaleDataLayerTemporaryOutputs() throws {
+        let fileManager = FileManager.default
+        let staleURL = fileManager.temporaryDirectory
+            .appendingPathComponent("DataLayerStudio-0-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let legacyURL = fileManager.temporaryDirectory
+            .appendingPathComponent("DataLayerStudio-legacy-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let otherURL = fileManager.temporaryDirectory
+            .appendingPathComponent("OtherApp-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let currentURL = TransparentVideoWriter(
+            outputURL: fileManager.temporaryDirectory
+                .appendingPathComponent("current-\(UUID().uuidString)")
+                .appendingPathExtension("mov"),
+            series: TelemetrySeries(samples: []),
+            config: validTinyConfig()
+        ).makeTemporaryOutputURL()
+
+        for url in [staleURL, legacyURL, otherURL, currentURL] {
+            try Data([1]).write(to: url)
+        }
+        defer {
+            for url in [staleURL, legacyURL, otherURL, currentURL] {
+                try? fileManager.removeItem(at: url)
+            }
+        }
+
+        TransparentVideoWriter.removeStaleTemporaryOutputs()
+
+        XCTAssertFalse(fileManager.fileExists(atPath: staleURL.path))
+        XCTAssertFalse(fileManager.fileExists(atPath: legacyURL.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: otherURL.path))
+        XCTAssertTrue(fileManager.fileExists(atPath: currentURL.path))
     }
 
     func testWriterRendersTinyHEVCAlphaOutputWhenEncoderIsAvailable() async throws {

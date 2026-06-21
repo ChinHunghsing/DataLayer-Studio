@@ -1,3 +1,4 @@
+import OverlayCore
 import SwiftUI
 
 @main
@@ -5,6 +6,7 @@ struct OverlayStudioApp: App {
     @StateObject private var localization: LocalizationStore
 
     init() {
+        TransparentVideoWriter.removeStaleTemporaryOutputs()
         AppLocalizer.applyStoredProcessLanguagePreference()
         _localization = StateObject(wrappedValue: LocalizationStore())
     }

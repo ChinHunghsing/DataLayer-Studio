@@ -2,6 +2,7 @@ import AVFoundation
 import CoreGraphics
 import CoreMedia
 import CoreVideo
+import Darwin
 import Foundation
 import VideoToolbox
 
@@ -107,6 +108,8 @@ public struct TransparentVideoFrameTiming {
 }
 
 public final class TransparentVideoWriter {
+    private static let temporaryFilePrefix = "DataLayerStudio-"
+
     private let outputURL: URL
     private let series: TelemetrySeries
     private let config: TransparentVideoWriterConfig
@@ -122,6 +125,7 @@ public final class TransparentVideoWriter {
             throw OverlayVideoError.cancelled
         }
 
+        Self.removeStaleTemporaryOutputs()
         let temporaryOutputURL = makeTemporaryOutputURL()
         removePartialOutput(at: temporaryOutputURL)
 
@@ -131,6 +135,20 @@ public final class TransparentVideoWriter {
         } catch {
             removePartialOutput(at: temporaryOutputURL)
             throw error
+        }
+    }
+
+    public static func removeStaleTemporaryOutputs() {
+        let fileManager = FileManager.default
+        guard let urls = try? fileManager.contentsOfDirectory(
+            at: fileManager.temporaryDirectory,
+            includingPropertiesForKeys: nil
+        ) else {
+            return
+        }
+
+        for url in urls where shouldRemoveTemporaryOutput(url) {
+            try? fileManager.removeItem(at: url)
         }
     }
 
@@ -430,8 +448,31 @@ public final class TransparentVideoWriter {
         let pathExtension = outputURL.pathExtension.isEmpty ? "mov" : outputURL.pathExtension
         let safeBaseName = baseName.isEmpty ? "datalayer-overlay" : baseName
         return FileManager.default.temporaryDirectory
-            .appendingPathComponent("DataLayerStudio-\(safeBaseName)-\(UUID().uuidString)")
+            .appendingPathComponent("\(Self.temporaryFilePrefix)\(ProcessInfo.processInfo.processIdentifier)-\(safeBaseName)-\(UUID().uuidString)")
             .appendingPathExtension(pathExtension)
+    }
+
+    private static func shouldRemoveTemporaryOutput(_ url: URL) -> Bool {
+        let name = url.lastPathComponent
+        guard name.hasPrefix(temporaryFilePrefix) else { return false }
+
+        let remainder = name.dropFirst(temporaryFilePrefix.count)
+        guard let separator = remainder.firstIndex(of: "-"),
+              let pid = Int32(remainder[..<separator]) else {
+            return true
+        }
+        return !isProcessRunning(pid)
+    }
+
+    private static func isProcessRunning(_ pid: Int32) -> Bool {
+        guard pid > 0 else { return false }
+        if pid == ProcessInfo.processInfo.processIdentifier {
+            return true
+        }
+        if kill(pid, 0) == 0 {
+            return true
+        }
+        return errno == EPERM
     }
 
     private func installCompletedOutput(from temporaryOutputURL: URL) throws {

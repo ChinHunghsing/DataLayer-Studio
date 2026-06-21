@@ -300,6 +300,7 @@ private func resolveOverlayLayout(fromPresetFile fileURL: URL) throws -> Resolve
 }
 
 func run() async throws {
+    TransparentVideoWriter.removeStaleTemporaryOutputs()
     let options = try CommandLineOptions.parse(arguments: CommandLine.arguments)
     let parser = FITParser(validateCRC: options.validateFITCRC)
     let series = try parser.parse(url: options.fitURL)
