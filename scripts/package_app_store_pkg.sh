@@ -8,6 +8,14 @@ PKG_PATH="${2:-"$ROOT_DIR/DataLayer-Studio-AppStore.pkg"}"
 APP_IDENTITY="${APPLE_DISTRIBUTION:-${APP_STORE_APP_IDENTITY:-}}"
 INSTALLER_IDENTITY="${MAC_INSTALLER_DISTRIBUTION:-${APP_STORE_INSTALLER_IDENTITY:-}}"
 ENTITLEMENTS_PATH="$ROOT_DIR/Resources/AppStore.entitlements"
+PROFILE_PLIST="$(mktemp "${TMPDIR:-/tmp}/datalayer-profile.XXXXXX.plist")"
+SIGN_ENTITLEMENTS="$(mktemp "${TMPDIR:-/tmp}/datalayer-appstore-entitlements.XXXXXX.plist")"
+SIGNED_ENTITLEMENTS="$(mktemp "${TMPDIR:-/tmp}/datalayer-signed-entitlements.XXXXXX.plist")"
+
+cleanup() {
+    rm -f "$PROFILE_PLIST" "$SIGN_ENTITLEMENTS" "$SIGNED_ENTITLEMENTS"
+}
+trap cleanup EXIT
 
 if [[ ! -d "$APP_PATH" ]]; then
     echo "error: missing app bundle: $APP_PATH" >&2
@@ -37,9 +45,31 @@ if [[ -z "$INSTALLER_IDENTITY" ]]; then
     exit 1
 fi
 
+security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+APP_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROFILE_PLIST")"
+TEAM_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROFILE_PLIST")"
+
+if [[ -z "$APP_IDENTIFIER" || -z "$TEAM_IDENTIFIER" ]]; then
+    echo "error: provisioning profile is missing application identifier entitlements" >&2
+    exit 1
+fi
+
+cp "$ENTITLEMENTS_PATH" "$SIGN_ENTITLEMENTS"
+/usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $APP_IDENTIFIER" "$SIGN_ENTITLEMENTS" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Set :com.apple.application-identifier $APP_IDENTIFIER" "$SIGN_ENTITLEMENTS"
+/usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string $TEAM_IDENTIFIER" "$SIGN_ENTITLEMENTS" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Set :com.apple.developer.team-identifier $TEAM_IDENTIFIER" "$SIGN_ENTITLEMENTS"
+
 cp "$PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
-codesign --force --deep --options runtime --entitlements "$ENTITLEMENTS_PATH" --sign "$APP_IDENTITY" "$APP_PATH"
+codesign --force --deep --options runtime --entitlements "$SIGN_ENTITLEMENTS" --sign "$APP_IDENTITY" "$APP_PATH"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+codesign -d --entitlements :- "$APP_PATH" > "$SIGNED_ENTITLEMENTS" 2>/dev/null
+SIGNED_APP_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :com.apple.application-identifier" "$SIGNED_ENTITLEMENTS")"
+
+if [[ "$SIGNED_APP_IDENTIFIER" != "$APP_IDENTIFIER" ]]; then
+    echo "error: signed app identifier does not match provisioning profile" >&2
+    exit 1
+fi
 
 rm -f "$PKG_PATH"
 productbuild --component "$APP_PATH" /Applications --sign "$INSTALLER_IDENTITY" "$PKG_PATH"
