@@ -65,7 +65,7 @@ jobs:
             exit 1
           fi
 
-          keychain_password="${KEYCHAIN_PASSWORD:-temporary-signing-keychain-password}"
+          keychain_password="${KEYCHAIN_PASSWORD:-ci-keychain}"
           keychain_path="$RUNNER_TEMP/signing.keychain-db"
           p12_path="$RUNNER_TEMP/developer-id.p12"
 
