@@ -27,6 +27,7 @@
 *.xcarchive/
 .env
 .env.*
+.apple.env.local
 !.env.example
 
 # >>> ColaMeta local state >>>
