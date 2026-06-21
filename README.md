@@ -1,5 +1,7 @@
 # DataLayer Studio
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 DataLayer Studio is a macOS app and command-line tool for turning running
 telemetry into a transparent video overlay layer.
 
@@ -16,13 +18,11 @@ endorsed by, or sponsored by Telemetry Overlay or its developers. This project
 does not read from or modify `/Applications/Telemetry Overlay.app`, and it does
 not include proprietary code or assets from Telemetry Overlay.
 
-## System requirements / 最低系统要求
+## System requirements
 
 > Requires macOS 13.0 Ventura or later on Apple Silicon Macs.
->
-> 需要 Apple Silicon 芯片的 Mac，系统为 macOS 13.0 Ventura 或更新版本。
 
-## App preview / 应用展示
+## App preview
 
 <img src="assets/readme/app-showcase.png" alt="DataLayer Studio macOS app preview with synced video and running telemetry overlay" width="100%">
 
@@ -50,28 +50,21 @@ swift run overlay \
   --output /path/to/overlay.mov
 ```
 
-## Support / 赞助
+## Support
 
 DataLayer Studio is maintained as an independent source-available project. If it
 helps your running-video workflow, sponsorship helps fund testing, sample
 activities, and ongoing maintenance.
 
-DataLayer Studio 是一个独立维护的 source-available 项目。如果它对你的跑步视频制作有帮助，
-欢迎通过赞助支持后续测试、样本整理和持续维护。
-
 Choose any of the channels below. For WeChat Pay or Alipay, scan the QR code.
 
-可以任选下面任一渠道。微信或支付宝请扫描二维码。
-
-| Buy Me a Coffee | WeChat Pay / 微信 | Alipay / 支付宝 |
+| Buy Me a Coffee | WeChat Pay | Alipay |
 | --- | --- | --- |
 | <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsor QR code" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsor QR code" width="180"> |
 
 Sponsorship is optional and does not purchase a commercial license, priority
 support, or guaranteed feature work. Commercial use still requires a separate
 written license.
-
-赞助是自愿支持，不等同于购买商业授权、优先支持或功能承诺。商业使用仍需另行获得书面授权。
 
 ## License
 
@@ -172,7 +165,7 @@ The GUI supports:
 - selecting a source video and `.fit` file
 - playing the source video in the preview while rendering the overlay on top
 - editing time sync through offset, FIT start, or sync-point mode
-- setting the current preview time as `运动开始`, which maps that video frame to FIT elapsed `0`
+- setting the current preview time as the activity start, which maps that video frame to FIT elapsed `0`
 - dragging overlay components on the preview canvas
 - changing the layer order for overlapping components
 - changing component visibility, position, and size
