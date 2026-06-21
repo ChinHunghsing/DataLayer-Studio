@@ -16,6 +16,12 @@ endorsed by, or sponsored by Telemetry Overlay or its developers. This project
 does not read from or modify `/Applications/Telemetry Overlay.app`, and it does
 not include proprietary code or assets from Telemetry Overlay.
 
+## System requirements / 最低系统要求
+
+> Requires macOS 13.0 Ventura or later on Apple Silicon Macs.
+>
+> 需要 Apple Silicon 芯片的 Mac，系统为 macOS 13.0 Ventura 或更新版本。
+
 ## App preview / 应用展示
 
 <img src="assets/readme/app-showcase.png" alt="DataLayer Studio macOS app preview with synced video and running telemetry overlay" width="100%">
