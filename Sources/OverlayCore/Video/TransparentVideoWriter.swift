@@ -425,12 +425,12 @@ public final class TransparentVideoWriter {
         return Int(rounded)
     }
 
-    private func makeTemporaryOutputURL() -> URL {
-        let directory = outputURL.deletingLastPathComponent()
+    func makeTemporaryOutputURL() -> URL {
         let baseName = outputURL.deletingPathExtension().lastPathComponent
         let pathExtension = outputURL.pathExtension.isEmpty ? "mov" : outputURL.pathExtension
-        return directory
-            .appendingPathComponent(".\(baseName).\(UUID().uuidString).tmp")
+        let safeBaseName = baseName.isEmpty ? "datalayer-overlay" : baseName
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataLayerStudio-\(safeBaseName)-\(UUID().uuidString)")
             .appendingPathExtension(pathExtension)
     }
 

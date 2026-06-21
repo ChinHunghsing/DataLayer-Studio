@@ -62,6 +62,20 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.bitRateKbps, 1)
     }
 
+    func testAutoSuggestedOutputStillNeedsExplicitExportSelection() {
+        let model = StudioModel()
+        XCTAssertTrue(model.needsOutputSelectionBeforeExport)
+
+        model.outputURL = URL(fileURLWithPath: "/tmp/manual.mov")
+        XCTAssertFalse(model.needsOutputSelectionBeforeExport)
+
+        model.outputURL = nil
+        model.applySuggestedOutputURLIfNeeded(for: URL(fileURLWithPath: "/tmp/source.mov"))
+
+        XCTAssertEqual(model.outputURL?.lastPathComponent, "source_overlay.mov")
+        XCTAssertTrue(model.needsOutputSelectionBeforeExport)
+    }
+
     func testExportReadinessReportsSourceDurationInsteadOfEditableDuration() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/source.mov")

@@ -180,6 +180,29 @@ final class TransparentVideoWriterTests: XCTestCase {
         }
     }
 
+    func testTemporaryOutputIsWrittenOutsideDestinationDirectory() {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sandbox-target-\(UUID().uuidString)")
+            .appendingPathComponent("overlay.mov")
+        let writer = TransparentVideoWriter(
+            outputURL: outputURL,
+            series: TelemetrySeries(samples: []),
+            config: validTinyConfig()
+        )
+
+        let temporaryURL = writer.makeTemporaryOutputURL()
+
+        XCTAssertEqual(
+            temporaryURL.deletingLastPathComponent().standardizedFileURL.path,
+            FileManager.default.temporaryDirectory.standardizedFileURL.path
+        )
+        XCTAssertNotEqual(
+            temporaryURL.deletingLastPathComponent().standardizedFileURL.path,
+            outputURL.deletingLastPathComponent().standardizedFileURL.path
+        )
+        XCTAssertEqual(temporaryURL.pathExtension, "mov")
+    }
+
     func testWriterRendersTinyHEVCAlphaOutputWhenEncoderIsAvailable() async throws {
         guard OverlayHardwareProfile.current.canUseHardwareEncoder(for: .hevcAlpha) else {
             throw XCTSkip("This Mac does not list a hardware HEVC-with-alpha encoder.")
