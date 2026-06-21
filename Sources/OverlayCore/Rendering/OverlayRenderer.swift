@@ -1178,7 +1178,8 @@ public final class OverlayRenderer {
 
     private func roundedPath(rect: CGRect, radius: CGFloat) -> CGPath {
         let path = CGMutablePath()
-        path.addRoundedRect(in: rect, cornerWidth: radius, cornerHeight: radius)
+        let clampedRadius = min(max(0, radius), rect.width / 2, rect.height / 2)
+        path.addRoundedRect(in: rect, cornerWidth: clampedRadius, cornerHeight: clampedRadius)
         return path
     }
 
