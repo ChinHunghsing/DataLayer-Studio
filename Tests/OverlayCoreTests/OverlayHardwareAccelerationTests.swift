@@ -62,7 +62,7 @@ final class OverlayHardwareAccelerationTests: XCTestCase {
         let compressionProperties = settings[AVVideoCompressionPropertiesKey] as? [String: Any]
         XCTAssertEqual(
             compressionProperties?[kVTCompressionPropertyKey_AlphaChannelMode as String] as? String,
-            kVTAlphaChannelMode_PremultipliedAlpha as String
+            kVTAlphaChannelMode_StraightAlpha as String
         )
         let alphaQuality = compressionProperties?[kVTCompressionPropertyKey_TargetQualityForAlpha as String]
         let alphaQualityValue = (alphaQuality as? NSNumber)?.doubleValue ?? (alphaQuality as? Double)

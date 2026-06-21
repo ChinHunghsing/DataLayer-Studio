@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreMedia
+import CoreVideo
 @testable import OverlayCore
 import XCTest
 
@@ -219,6 +220,49 @@ final class TransparentVideoWriterTests: XCTestCase {
         XCTAssertEqual(tracks.count, 1)
     }
 
+    func testHEVCAlphaKeepsEmptyPixelsTransparent() async throws {
+        guard OverlayHardwareProfile.current.canUseHardwareEncoder(for: .hevcAlpha) else {
+            throw XCTSkip("This Mac does not list a hardware HEVC-with-alpha encoder.")
+        }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("overlay-alpha-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        defer {
+            if FileManager.default.fileExists(atPath: outputURL.path) {
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+        }
+
+        var element = OverlayElement.defaultElement(kind: .pace)
+        element.frame = OverlayComponentFrame(x: 0.45, y: 0.45, scale: 1)
+        let writer = TransparentVideoWriter(
+            outputURL: outputURL,
+            series: TelemetrySeries(samples: [
+                TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 3)
+            ]),
+            config: TransparentVideoWriterConfig(
+                width: 256,
+                height: 256,
+                framesPerSecond: 1,
+                duration: 1,
+                overlayLayout: OverlayLayout(elements: [element])
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableHEVCAlphaTestEncoder {
+            throw XCTSkip("HEVC-with-alpha encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let pixel = try await decodedMaximumPixel(in: CGRect(x: 0, y: 0, width: 48, height: 48), from: outputURL)
+        XCTAssertLessThanOrEqual(pixel.alpha, 1)
+        XCTAssertLessThanOrEqual(pixel.red, 1)
+        XCTAssertLessThanOrEqual(pixel.green, 1)
+        XCTAssertLessThanOrEqual(pixel.blue, 1)
+    }
+
     private func assertWriterRejectsInvalidConfiguration(
         config: TransparentVideoWriterConfig,
         file: StaticString = #filePath,
@@ -248,6 +292,44 @@ final class TransparentVideoWriterTests: XCTestCase {
             framesPerSecond: 1,
             duration: 1
         )
+    }
+
+    private struct DecodedPixel {
+        var red: UInt8
+        var green: UInt8
+        var blue: UInt8
+        var alpha: UInt8
+    }
+
+    private func decodedMaximumPixel(in rect: CGRect, from url: URL) async throws -> DecodedPixel {
+        let asset = AVURLAsset(url: url)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(
+            track: try XCTUnwrap(tracks.first),
+            outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        )
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+        let sampleBuffer = try XCTUnwrap(output.copyNextSampleBuffer())
+        let pixelBuffer = try XCTUnwrap(CMSampleBufferGetImageBuffer(sampleBuffer))
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let bytes = try XCTUnwrap(CVPixelBufferGetBaseAddress(pixelBuffer))
+            .assumingMemoryBound(to: UInt8.self)
+        var maximum = DecodedPixel(red: 0, green: 0, blue: 0, alpha: 0)
+        for y in Int(rect.minY)..<Int(rect.maxY) {
+            for x in Int(rect.minX)..<Int(rect.maxX) {
+                let offset = y * bytesPerRow + x * 4
+                maximum.red = max(maximum.red, bytes[offset + 2])
+                maximum.green = max(maximum.green, bytes[offset + 1])
+                maximum.blue = max(maximum.blue, bytes[offset])
+                maximum.alpha = max(maximum.alpha, bytes[offset + 3])
+            }
+        }
+        return maximum
     }
 }
 

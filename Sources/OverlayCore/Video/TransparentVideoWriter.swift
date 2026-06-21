@@ -220,7 +220,7 @@ public final class TransparentVideoWriter {
                     let presentationTime = timing.presentationTime(for: frameIndex)
                     let videoTime = CMTimeGetSeconds(presentationTime)
                     try renderer.render(videoTime: videoTime, into: pixelBuffer)
-                    Self.markAlphaMode(on: pixelBuffer)
+                    try Self.prepareAlphaForEncoding(on: pixelBuffer, codec: codec)
                     guard adaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
                         throw OverlayVideoError.writerFailed(self.describe(error: writer.error, codec: codec))
                     }
@@ -310,7 +310,7 @@ public final class TransparentVideoWriter {
                 AVVideoExpectedSourceFrameRateKey: encoderFrameRate,
                 AVVideoMaxKeyFrameIntervalKey: encoderFrameRate,
                 AVVideoAllowFrameReorderingKey: false,
-                kVTCompressionPropertyKey_AlphaChannelMode as String: kVTAlphaChannelMode_PremultipliedAlpha,
+                kVTCompressionPropertyKey_AlphaChannelMode as String: kVTAlphaChannelMode_StraightAlpha,
                 kVTCompressionPropertyKey_TargetQualityForAlpha as String: 1.0
             ]
         }
@@ -318,13 +318,59 @@ public final class TransparentVideoWriter {
         return settings
     }
 
-    private static func markAlphaMode(on pixelBuffer: CVPixelBuffer) {
+    private static func prepareAlphaForEncoding(on pixelBuffer: CVPixelBuffer, codec: OverlayVideoCodec) throws {
+        if codec == .hevcAlpha {
+            try unpremultiplyAlpha(in: pixelBuffer)
+            CVBufferSetAttachment(
+                pixelBuffer,
+                kCVImageBufferAlphaChannelModeKey,
+                kCVImageBufferAlphaChannelMode_StraightAlpha,
+                .shouldPropagate
+            )
+            return
+        }
+
         CVBufferSetAttachment(
             pixelBuffer,
             kCVImageBufferAlphaChannelModeKey,
             kCVImageBufferAlphaChannelMode_PremultipliedAlpha,
             .shouldPropagate
         )
+    }
+
+    private static func unpremultiplyAlpha(in pixelBuffer: CVPixelBuffer) throws {
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+            throw OverlayVideoError.cannotCreatePixelBuffer
+        }
+
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let bytes = baseAddress.assumingMemoryBound(to: UInt8.self)
+
+        for row in 0..<height {
+            let rowStart = row * bytesPerRow
+            for x in 0..<width {
+                let offset = rowStart + x * 4
+                let alpha = Int(bytes[offset + 3])
+                if alpha == 0 {
+                    bytes[offset] = 0
+                    bytes[offset + 1] = 0
+                    bytes[offset + 2] = 0
+                } else if alpha < 255 {
+                    bytes[offset] = unpremultiplied(bytes[offset], alpha: alpha)
+                    bytes[offset + 1] = unpremultiplied(bytes[offset + 1], alpha: alpha)
+                    bytes[offset + 2] = unpremultiplied(bytes[offset + 2], alpha: alpha)
+                }
+            }
+        }
+    }
+
+    private static func unpremultiplied(_ component: UInt8, alpha: Int) -> UInt8 {
+        UInt8(min(255, (Int(component) * 255 + alpha / 2) / alpha))
     }
 
     private static func hardwareEncoderSpecification(
