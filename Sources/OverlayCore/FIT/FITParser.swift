@@ -41,11 +41,16 @@ struct RawFITEvent {
 struct RawFITSession {
     var timestamp: UInt32?
     var startTime: UInt32?
+    var totalElapsedTimeSeconds: TimeInterval?
+    var totalTimerTimeSeconds: TimeInterval?
     var totalCalories: Int?
 }
 
 struct RawFITLap {
     var timestamp: UInt32?
+    var startTime: UInt32?
+    var totalElapsedTimeSeconds: TimeInterval?
+    var totalTimerTimeSeconds: TimeInterval?
     var totalCalories: Int?
 }
 
@@ -388,6 +393,10 @@ public final class FITParser {
                 switch field.number {
                 case 2:
                     session.startTime = UInt32(value)
+                case 7:
+                    session.totalElapsedTimeSeconds = value / 1000
+                case 8:
+                    session.totalTimerTimeSeconds = value / 1000
                 case 11:
                     session.totalCalories = Int(value)
                 default:
@@ -395,6 +404,12 @@ public final class FITParser {
                 }
             case 19:
                 switch field.number {
+                case 2:
+                    lap.startTime = UInt32(value)
+                case 7:
+                    lap.totalElapsedTimeSeconds = value / 1000
+                case 8:
+                    lap.totalTimerTimeSeconds = value / 1000
                 case 11:
                     lap.totalCalories = Int(value)
                 default:
@@ -500,15 +515,13 @@ public final class FITParser {
         var cumulativeCalories = 0.0
 
         for lap in laps.sorted(by: { ($0.timestamp ?? 0) < ($1.timestamp ?? 0) }) {
-            guard let timestamp = lap.timestamp,
-                  timestamp >= activityStartTimestamp,
+            guard let elapsed = lapEndElapsed(lap, activityStartTimestamp: activityStartTimestamp),
                   let lapCalories = lap.totalCalories,
                   lapCalories >= 0 else {
                 continue
             }
 
             cumulativeCalories += Double(lapCalories)
-            let elapsed = TimeInterval(Int64(timestamp) - Int64(activityStartTimestamp))
             guard elapsed >= 0 else { continue }
             if let last = points.last, abs(last.elapsed - elapsed) < 0.000_001 {
                 points[points.count - 1] = CaloriePoint(elapsed: elapsed, calories: cumulativeCalories)
@@ -526,20 +539,47 @@ public final class FITParser {
             return []
         }
 
-        let sessionEndTimestamp = sessions.compactMap(\.timestamp).max()
-        let recordEndTimestamp = records.compactMap(\.timestamp).max()
-        guard let endTimestamp = sessionEndTimestamp ?? recordEndTimestamp,
-              endTimestamp > activityStartTimestamp else {
+        let sessionEnd = sessions.compactMap {
+            sessionEndElapsed($0, activityStartTimestamp: activityStartTimestamp)
+        }.max()
+        let recordEndElapsed = records
+            .compactMap(\.timestamp)
+            .max()
+            .map { TimeInterval(Int64($0) - Int64(activityStartTimestamp)) }
+        guard let endElapsed = sessionEnd ?? recordEndElapsed,
+              endElapsed > 0 else {
             return []
         }
 
         return [
             CaloriePoint(elapsed: 0, calories: 0),
             CaloriePoint(
-                elapsed: TimeInterval(Int64(endTimestamp) - Int64(activityStartTimestamp)),
+                elapsed: endElapsed,
                 calories: Double(totalCalories)
             )
         ]
+    }
+
+    private func lapEndElapsed(_ lap: RawFITLap, activityStartTimestamp: UInt32) -> TimeInterval? {
+        if let startTime = lap.startTime,
+           let duration = lap.totalElapsedTimeSeconds ?? lap.totalTimerTimeSeconds {
+            return TimeInterval(Int64(startTime) - Int64(activityStartTimestamp)) + duration
+        }
+        guard let timestamp = lap.timestamp, timestamp >= activityStartTimestamp else {
+            return nil
+        }
+        return TimeInterval(Int64(timestamp) - Int64(activityStartTimestamp))
+    }
+
+    private func sessionEndElapsed(_ session: RawFITSession, activityStartTimestamp: UInt32) -> TimeInterval? {
+        if let startTime = session.startTime,
+           let duration = session.totalElapsedTimeSeconds ?? session.totalTimerTimeSeconds {
+            return TimeInterval(Int64(startTime) - Int64(activityStartTimestamp)) + duration
+        }
+        guard let timestamp = session.timestamp, timestamp > activityStartTimestamp else {
+            return nil
+        }
+        return TimeInterval(Int64(timestamp) - Int64(activityStartTimestamp))
     }
 
     private func calories(at elapsed: TimeInterval, points: [CaloriePoint]) -> Double? {

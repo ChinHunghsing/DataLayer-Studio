@@ -178,6 +178,48 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 10).totalCalories ?? -1, 120, accuracy: 0.001)
     }
 
+    func testInterpolatesGarminLapCaloriesWhenLapTimestampIsActivityStart() throws {
+        var content = Data()
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendLapTimingDefinition(localMessageType: 1, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 150, cadence: 80),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_005, latitude: 35.00005, longitude: 139.00005, distanceMeters: 15, speed: 3.0, heartRate: 151, cadence: 81),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_010, latitude: 35.0001, longitude: 139.0001, distanceMeters: 30, speed: 3.0, heartRate: 151, cadence: 81),
+            localMessageType: 0,
+            to: &content
+        )
+        appendLapWithTiming(
+            timestamp: 1_000_000,
+            startTime: 1_000_000,
+            totalElapsedMilliseconds: 5_000,
+            totalCalories: 40,
+            localMessageType: 1,
+            to: &content
+        )
+        appendLapWithTiming(
+            timestamp: 1_000_000,
+            startTime: 1_000_005,
+            totalElapsedMilliseconds: 5_000,
+            totalCalories: 60,
+            localMessageType: 1,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.sample(at: 5).totalCalories ?? -1, 40, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 10).totalCalories ?? -1, 100, accuracy: 0.001)
+    }
+
     func testParsesStandardCompressedSpeedDistanceRecords() throws {
         var content = Data()
         appendCompressedSpeedDistanceRecordDefinition(localMessageType: 0, to: &content)
@@ -344,6 +386,18 @@ private func appendLapDefinition(localMessageType: UInt8, to content: inout Data
     content.append(contentsOf: [11, 2, 0x84])
 }
 
+private func appendLapTimingDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(19, to: &content)
+    content.append(4)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [2, 4, 0x86])
+    content.append(contentsOf: [7, 4, 0x86])
+    content.append(contentsOf: [11, 2, 0x84])
+}
+
 private func appendEventDefinition(localMessageType: UInt8, to content: inout Data) {
     content.append(0x40 | localMessageType)
     content.append(0x00)
@@ -422,6 +476,21 @@ private func appendExtendedRecord(_ record: TestRecord, localMessageType: UInt8,
 private func appendLap(timestamp: UInt32, totalCalories: UInt16, localMessageType: UInt8, to content: inout Data) {
     content.append(localMessageType)
     appendUInt32(timestamp, to: &content)
+    appendUInt16(totalCalories, to: &content)
+}
+
+private func appendLapWithTiming(
+    timestamp: UInt32,
+    startTime: UInt32,
+    totalElapsedMilliseconds: UInt32,
+    totalCalories: UInt16,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    appendUInt32(startTime, to: &content)
+    appendUInt32(totalElapsedMilliseconds, to: &content)
     appendUInt16(totalCalories, to: &content)
 }
 
