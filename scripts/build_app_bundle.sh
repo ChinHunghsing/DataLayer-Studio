@@ -88,6 +88,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <string>public.app-category.video</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>LSArchitecturePriority</key>
     <array>
         <string>arm64</string>

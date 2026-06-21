@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Show toolchain
         run: |
@@ -50,7 +50,43 @@ jobs:
       - name: Verify app bundle
         run: scripts/verify_app_bundle.sh
 
-      - name: Package app
+      - name: Install asc
+        run: command -v asc >/dev/null || brew install asc
+
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.MACOS_SIGNING_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CERTIFICATE_BASE64:-}" ]]; then
+            echo "Missing DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 secret" >&2
+            exit 1
+          fi
+
+          keychain_password="${KEYCHAIN_PASSWORD:-temporary-signing-keychain-password}"
+          keychain_path="$RUNNER_TEMP/signing.keychain-db"
+          p12_path="$RUNNER_TEMP/developer-id.p12"
+
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$p12_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$p12_path" -k "$keychain_path" -P "${CERTIFICATE_PASSWORD:-}" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain_path"
+          security list-keychains -d user -s "$keychain_path"
+
+      - name: Sign, notarize, and package app
+        env:
+          DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          APP_STORE_API_KEY_ID: ${{ secrets.APP_STORE_API_KEY_ID }}
+          APP_STORE_API_ISSUER_ID: ${{ secrets.APP_STORE_API_ISSUER_ID }}
+          APP_STORE_API_PRIVATE_KEY: ${{ secrets.APP_STORE_API_PRIVATE_KEY }}
+          ASC_BYPASS_KEYCHAIN: "1"
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
@@ -58,8 +94,7 @@ jobs:
           zip_name="DataLayer-Studio-${tag}-macOS-arm64.zip"
 
           test -d "$app_path"
-          ditto -c -k --sequesterRsrc --keepParent "$app_path" "$zip_name"
-          shasum -a 256 "$zip_name" > "$zip_name.sha256"
+          scripts/sign_notarize_app_bundle.sh "$app_path" "$zip_name"
 
           {
             echo "ZIP_NAME=$zip_name"
