@@ -1,11 +1,15 @@
 # DataLayer Studio
 
-DataLayer Studio is a macOS app and command-line tool for generating a transparent telemetry video layer from:
+DataLayer Studio is a macOS app and command-line tool for turning running
+telemetry into a transparent video overlay layer.
+
+It takes:
 
 - a source video file, used for resolution, frame rate, and duration
 - a standard `.fit` activity file, used for GPS and running metrics
 
-The output is a `.mov` encoded with Apple HEVC/H.265 with alpha, intended to sit on an upper track in Final Cut Pro, DaVinci Resolve, Premiere, or similar editors.
+The output is an alpha-capable `.mov` designed to sit on an upper track in
+Final Cut Pro, DaVinci Resolve, Premiere, or similar editors.
 
 DataLayer Studio is an independent project. It is not affiliated with,
 endorsed by, or sponsored by Telemetry Overlay or its developers. This project
@@ -15,6 +19,30 @@ not include proprietary code or assets from Telemetry Overlay.
 ## App preview / 应用展示
 
 <img src="assets/readme/app-showcase.png" alt="DataLayer Studio macOS app preview with synced video and running telemetry overlay" width="100%">
+
+## Quick start
+
+Run the GUI from source:
+
+```bash
+swift run datalayer-studio
+```
+
+Or build a local app bundle:
+
+```bash
+scripts/build_app_bundle.sh
+open ".build/DataLayer Studio.app"
+```
+
+Run the CLI:
+
+```bash
+swift run overlay \
+  --video /path/to/run-video.mov \
+  --fit /path/to/activity.fit \
+  --output /path/to/overlay.mov
+```
 
 ## Support / 赞助
 
@@ -53,15 +81,31 @@ See [NOTICE.md](NOTICE.md) for project notices and third-party dependency notes.
 
 ## Contributing
 
-Pull requests are welcome when they are compatible with the project license.
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
+Pull requests are welcome when they are focused, testable, and compatible with
+the project license. Start here:
 
-Maintainers and contributors can run the repository readiness check before
-opening or merging PRs:
+1. Read [CONTRIBUTING.md](CONTRIBUTING.md).
+2. Open an issue first for large UI, parser, export, or licensing changes.
+3. Keep PRs small enough to review in one pass.
+4. Do not include private videos, FIT/GPX/TCX files, GPS traces, credentials,
+   generated build output, or local machine state.
+5. Run the checks that match your change.
+
+At minimum, run the repository readiness check:
 
 ```bash
 scripts/verify_source_available_readiness.sh
 ```
+
+For code changes, also run:
+
+```bash
+swift test
+```
+
+The pull request template asks for the exact checks you ran. GUI-visible changes
+should include a short manual verification note, such as the screen or workflow
+you opened after rebuilding.
 
 For vulnerabilities or private data exposure, follow [SECURITY.md](SECURITY.md)
 instead of opening a public issue with sensitive details.
@@ -69,6 +113,17 @@ instead of opening a public issue with sensitive details.
 For local data handling and privacy expectations, see [PRIVACY.md](PRIVACY.md).
 
 For general support expectations, see [SUPPORT.md](SUPPORT.md).
+
+## Issues
+
+Use the issue templates for bug reports, feature requests, and documentation
+fixes. Please keep public issues free of private activity data:
+
+- redact GPS traces, names, account IDs, device IDs, and local file paths
+- avoid attaching real videos or FIT files unless you are comfortable making
+  them public
+- use synthetic or trimmed sample data when possible
+- report security problems privately through [SECURITY.md](SECURITY.md)
 
 ## Build
 
@@ -123,7 +178,7 @@ The GUI supports:
 - choosing whether distance labels render in `m` or `km`
 - setting output bitrate in kbps, codec, and destination
 
-## Usage
+## CLI usage
 
 ```bash
 swift run overlay \

@@ -26,11 +26,26 @@ body:
     id: steps
     attributes:
       label: Steps to reproduce
-      description: List the smallest sequence that triggers the problem.
+      description: List the smallest sequence that triggers the problem. Prefer synthetic or redacted files.
       placeholder: |
         1. Open ...
         2. Select ...
         3. Observe ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - GUI
+        - CLI
+        - FIT parsing
+        - Overlay rendering
+        - Export
+        - Packaging or signing
+        - Documentation
+        - Other
     validations:
       required: true
   - type: textarea
@@ -59,4 +74,4 @@ body:
     id: verification
     attributes:
       label: Verification notes
-      description: Commands run, screenshots, sanitized sample details, or logs.
+      description: Commands run, screenshots, sanitized sample details, or logs. Redact local paths and private data.

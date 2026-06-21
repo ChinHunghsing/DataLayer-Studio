@@ -1,14 +1,20 @@
-## Summary
+## What changed
 
 -
 
-## Verification
+## Why
 
-- [ ] Source-available readiness check passes.
-- [ ] `swift test`
+-
+
+## How to verify
+
+List the commands or manual checks you ran. Mark checks that do not apply.
+
+- [ ] Source-available readiness check passes: `scripts/verify_source_available_readiness.sh`
+- [ ] Tests pass: `swift test`
 - [ ] Release product builds pass, or not applicable
-- [ ] GUI-visible changes were rebuilt and manually checked
-- [ ] Not applicable
+- [ ] GUI-visible changes were rebuilt and manually checked, or not applicable
+- [ ] Documentation-only change
 
 ## License and Data Check
 
@@ -19,3 +25,8 @@
       changes update `PRIVACY.md`, user-facing docs, and readiness checks.
 - [ ] This PR does not include private videos, FIT activity data, GPS traces,
       credentials, local paths, generated build output, or local machine state.
+
+## Notes for reviewers
+
+- Risky area, if any:
+- Follow-up intentionally left out:

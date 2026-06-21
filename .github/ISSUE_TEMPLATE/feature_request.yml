@@ -29,6 +29,15 @@ body:
       description: Describe the smallest useful version of the feature.
     validations:
       required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Example workflow
+      description: How would someone use this in the GUI or CLI?
+      placeholder: |
+        1. Import ...
+        2. Set ...
+        3. Export ...
   - type: dropdown
     id: area
     attributes:
@@ -47,3 +56,4 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
+      description: Existing workaround, external tool, or simpler behavior that would be enough.
