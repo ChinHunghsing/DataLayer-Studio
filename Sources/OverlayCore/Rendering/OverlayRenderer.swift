@@ -482,21 +482,14 @@ public final class OverlayRenderer {
         }
 
         if let current = point(for: sample, in: fitRect, bounds: bounds) {
-            context.setFillColor(valueColor(element, fallback: Colors.white))
-            context.fillEllipse(in: CGRect(
-                x: current.x - 6 * scale,
-                y: current.y - 6 * scale,
-                width: 12 * scale,
-                height: 12 * scale
-            ))
-            context.setStrokeColor(valueColor(element, fallback: accent))
-            context.setLineWidth(max(1, lineWidth(element, scale: scale) * 0.55))
-            context.strokeEllipse(in: CGRect(
-                x: current.x - 12 * scale,
-                y: current.y - 12 * scale,
-                width: 24 * scale,
-                height: 24 * scale
-            ))
+            drawRouteCurrentMarker(
+                at: current,
+                angle: routeDirectionAngle(for: sample, in: fitRect, bounds: bounds),
+                context: context,
+                scale: scale,
+                element: element,
+                accent: accent
+            )
         }
     }
 
@@ -806,6 +799,63 @@ public final class OverlayRenderer {
         let x = rect.minX + CGFloat((longitude - bounds.minLongitude) / lonSpan) * rect.width
         let y = rect.minY + CGFloat((latitude - bounds.minLatitude) / latSpan) * rect.height
         return CGPoint(x: x, y: y)
+    }
+
+    private func routeDirectionAngle(for sample: TelemetrySample, in rect: CGRect, bounds: GeoBounds) -> CGFloat? {
+        let before = point(for: series.sample(at: sample.elapsed - 2), in: rect, bounds: bounds)
+        let after = point(for: series.sample(at: sample.elapsed + 2), in: rect, bounds: bounds)
+        guard let before, let after else { return nil }
+        return Self.routeDirectionAngle(before: before, after: after)
+    }
+
+    static func routeDirectionAngle(before: CGPoint, after: CGPoint) -> CGFloat? {
+        let dx = after.x - before.x
+        let dy = after.y - before.y
+        guard hypot(dx, dy) > 1 else { return nil }
+        return atan2(dy, dx)
+    }
+
+    private func drawRouteCurrentMarker(
+        at current: CGPoint,
+        angle: CGFloat?,
+        context: CGContext,
+        scale: CGFloat,
+        element: OverlayElement,
+        accent: CGColor
+    ) {
+        let color = valueColor(element, fallback: accent)
+
+        context.setFillColor(color.copy(alpha: 0.92) ?? color)
+        context.fillEllipse(in: CGRect(
+            x: current.x - 6 * scale,
+            y: current.y - 6 * scale,
+            width: 12 * scale,
+            height: 12 * scale
+        ))
+        context.setStrokeColor(color)
+        context.setLineWidth(max(1, lineWidth(element, scale: scale) * 0.55))
+        context.strokeEllipse(in: CGRect(
+            x: current.x - 12 * scale,
+            y: current.y - 12 * scale,
+            width: 24 * scale,
+            height: 24 * scale
+        ))
+
+        guard let angle else { return }
+        let length = max(14 * scale, lineWidth(element, scale: scale) * 1.7)
+        let width = length * 0.72
+        let direction = CGPoint(x: cos(angle), y: sin(angle))
+        let perpendicular = CGPoint(x: -direction.y, y: direction.x)
+        let tip = CGPoint(x: current.x + direction.x * length, y: current.y + direction.y * length)
+        let base = CGPoint(x: current.x + direction.x * 2 * scale, y: current.y + direction.y * 2 * scale)
+
+        context.beginPath()
+        context.move(to: tip)
+        context.addLine(to: CGPoint(x: base.x + perpendicular.x * width / 2, y: base.y + perpendicular.y * width / 2))
+        context.addLine(to: CGPoint(x: base.x - perpendicular.x * width / 2, y: base.y - perpendicular.y * width / 2))
+        context.closePath()
+        context.setFillColor(color)
+        context.fillPath()
     }
 
     private func routeFitRect(_ rect: CGRect, bounds: GeoBounds) -> CGRect {

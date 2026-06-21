@@ -160,6 +160,20 @@ final class OverlayRendererTests: XCTestCase {
         XCTAssertEqual(OverlayRenderer.downsample(samples: samples, limit: 20), samples)
     }
 
+    func testRouteDirectionAngleUsesTravelDirection() {
+        XCTAssertEqual(
+            OverlayRenderer.routeDirectionAngle(before: CGPoint(x: 10, y: 10), after: CGPoint(x: 30, y: 10)) ?? -1,
+            0,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            OverlayRenderer.routeDirectionAngle(before: CGPoint(x: 10, y: 10), after: CGPoint(x: 10, y: 30)) ?? -1,
+            .pi / 2,
+            accuracy: 0.0001
+        )
+        XCTAssertNil(OverlayRenderer.routeDirectionAngle(before: CGPoint(x: 10, y: 10), after: CGPoint(x: 10.5, y: 10.2)))
+    }
+
     func testLastFiniteDistanceSkipsMissingAndInvalidDistances() {
         let samples = [
             TelemetrySample(elapsed: 0, distanceMeters: 1_000),
