@@ -204,7 +204,7 @@ Use semantic version tags:
 
 ```bash
 git tag v0.1.0
-git push origin main --tags
+git push origin v0.1.0
 ```
 
 When a `v*` tag is pushed, `.github/workflows/release.yml` will:
