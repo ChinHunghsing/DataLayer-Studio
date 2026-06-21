@@ -20,9 +20,17 @@
 *.mkv
 *.MKV
 *.zip
+*.cer
+*.certSigningRequest
+*.crt
+*.csr
+*.der
+*.key
+*.pem
 *.p8
 *.p12
 *.mobileprovision
+*.provisionprofile
 *.xcarchive
 *.xcarchive/
 .env

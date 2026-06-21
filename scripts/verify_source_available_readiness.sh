@@ -75,9 +75,17 @@ require_gitignore_pattern '^\*\.m4v$'
 require_gitignore_pattern '^\*\.avi$'
 require_gitignore_pattern '^\*\.mkv$'
 require_gitignore_pattern '^\*\.zip$'
+require_gitignore_pattern '^\*\.cer$'
+require_gitignore_pattern '^\*\.certSigningRequest$'
+require_gitignore_pattern '^\*\.crt$'
+require_gitignore_pattern '^\*\.csr$'
+require_gitignore_pattern '^\*\.der$'
+require_gitignore_pattern '^\*\.key$'
+require_gitignore_pattern '^\*\.pem$'
 require_gitignore_pattern '^\*\.p8$'
 require_gitignore_pattern '^\*\.p12$'
 require_gitignore_pattern '^\*\.mobileprovision$'
+require_gitignore_pattern '^\*\.provisionprofile$'
 require_gitignore_pattern '^\*\.xcarchive$'
 require_gitignore_pattern '^\*\.xcarchive/$'
 require_gitignore_pattern '^\.env$'
@@ -91,7 +99,7 @@ fi
 
 while IFS= read -r path; do
     case "$path" in
-        *.fit|*.FIT|*.gpx|*.GPX|*.tcx|*.TCX|*.mov|*.MOV|*.mp4|*.MP4|*.m4v|*.M4V|*.avi|*.AVI|*.mkv|*.MKV|*.p8|*.p12|*.mobileprovision|*.xcarchive/*|*.zip)
+        *.fit|*.FIT|*.gpx|*.GPX|*.tcx|*.TCX|*.mov|*.MOV|*.mp4|*.MP4|*.m4v|*.M4V|*.avi|*.AVI|*.mkv|*.MKV|*.cer|*.certSigningRequest|*.crt|*.csr|*.der|*.key|*.pem|*.p8|*.p12|*.mobileprovision|*.provisionprofile|*.xcarchive/*|*.zip)
             fail "tracked private or generated artifact: $path"
             ;;
         .env|.env.local|.private.env|*.private.env)
