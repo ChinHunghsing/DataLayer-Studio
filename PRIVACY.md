@@ -7,8 +7,16 @@ can contain private location, health, and training data.
 
 The app and command-line tool process input files locally on the Mac where they
 run. The current implementation does not include analytics, telemetry upload,
-account login, cloud sync, or network transfer code for source videos, FIT
-files, exported overlays, layout presets, or rendered preview frames.
+account login, cloud sync, or network transfer code for source videos, exported
+overlays, layout presets, or rendered preview frames.
+
+If you enter an OpenWeather API key, DataLayer Studio can request hourly weather
+from OpenWeather for the selected FIT activity. Those requests use the FIT
+activity's approximate latitude, longitude, activity time, selected language,
+and your OpenWeather API key. Source videos, rendered preview frames, exported
+overlays, layout presets, heart-rate samples, cadence, pace, power, and the FIT
+file itself are not sent to OpenWeather. Weather responses are cached locally to
+avoid repeated requests while previewing or adjusting the timeline.
 
 ## Local Files and Preferences
 
@@ -16,7 +24,9 @@ DataLayer Studio reads the video and FIT files you select, then writes the
 output video to the path you choose. The GUI stores local preferences with
 macOS `UserDefaults`, including layout presets, grid settings, distance unit,
 and similar editor state. These preferences are local machine state and should
-not be posted publicly in issues or pull requests.
+not be posted publicly in issues or pull requests. OpenWeather API keys are
+stored in the macOS Keychain, and cached weather responses are stored in the
+local user cache folder.
 
 ## Public Issues and Pull Requests
 

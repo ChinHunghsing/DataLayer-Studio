@@ -108,9 +108,17 @@ while IFS= read -r path; do
     esac
 done < <(git ls-files)
 
-require_no_pattern_in_paths 'URLSession|URLRequest|NSURLConnection|NWConnection|WKWebView|ASWebAuthenticationSession|^[[:space:]]*import[[:space:]]+Network[[:space:]]*$|https?://' \
-    "source code must not add network transfer APIs without updating privacy policy" \
-    Sources
+network_matches="$(grep -RInE 'URLSession|URLRequest|NSURLConnection|NWConnection|WKWebView|ASWebAuthenticationSession|^[[:space:]]*import[[:space:]]+Network[[:space:]]*$|https?://' Sources 2>/dev/null || true)"
+if [[ -n "$network_matches" ]]; then
+    allowed_network_matches="$(grep -E '^Sources/OverlayStudio/Services/OpenWeatherService.swift:' <<<"$network_matches" || true)"
+    unexpected_network_matches="$(grep -Ev '^Sources/OverlayStudio/Services/OpenWeatherService.swift:' <<<"$network_matches" || true)"
+    if [[ -n "$unexpected_network_matches" ]]; then
+        fail "source code must not add network transfer APIs without updating privacy policy: $unexpected_network_matches"
+    fi
+    if [[ -n "$allowed_network_matches" ]] && ! grep -q 'OpenWeather' PRIVACY.md; then
+        fail "PRIVACY.md must document OpenWeather network transfer behavior"
+    fi
+fi
 require_no_pattern_in_paths 'Sentry|Firebase|Crashlytics|analytics' \
     "source or package metadata must not add analytics/crash reporting dependencies without updating privacy policy" \
     Sources Package.swift
