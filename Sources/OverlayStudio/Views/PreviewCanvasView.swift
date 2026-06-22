@@ -338,7 +338,7 @@ struct PreviewCanvasView: View {
         let baseHeight = base.height * scale
 
         switch element.kind {
-        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power:
+        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
             return metricOutputSize(element: element, baseWidth: baseWidth, baseHeight: baseHeight, scale: scale)
         case .topProgress:
             return progressOutputSize(element: element, baseWidth: baseWidth, baseHeight: baseHeight, scale: scale)
@@ -436,7 +436,7 @@ struct PreviewCanvasView: View {
 
     private func isMetricElement(_ element: OverlayElement) -> Bool {
         switch element.kind {
-        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power:
+        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
             return true
         case .speed, .route, .topProgress, .timeDate:
             return false
@@ -584,6 +584,13 @@ struct PreviewCanvasView: View {
                 sample.powerWatts.map { "\($0)" } ?? "--",
                 element.customization.unit(default: "W"),
                 element.customization.icon(default: "PWR")
+            )
+        case .weather:
+            return (
+                element.customization.label(default: "WEATHER"),
+                formatWeatherTemperature(sample),
+                element.customization.unit(default: formatWeatherUnit(sample)),
+                element.customization.icon(default: "WX")
             )
         default:
             return (
@@ -739,6 +746,17 @@ struct PreviewCanvasView: View {
         guard let metersPerSecond, metersPerSecond > 0.3 else { return "--:--" }
         let secondsPerKm = Int((1000 / metersPerSecond).rounded())
         return String(format: "%d:%02d", secondsPerKm / 60, secondsPerKm % 60)
+    }
+
+    private func formatWeatherTemperature(_ sample: TelemetrySample) -> String {
+        guard let temperature = sample.weatherTemperatureCelsius ?? sample.temperatureCelsius else { return "--°" }
+        return "\(temperature)°"
+    }
+
+    private func formatWeatherUnit(_ sample: TelemetrySample) -> String {
+        let summary = sample.weatherSummary ?? "Weather"
+        guard let humidity = sample.weatherHumidityPercent else { return summary }
+        return "\(summary) \(humidity)%"
     }
 
     private func formatClockDuration(_ elapsed: TimeInterval) -> String {

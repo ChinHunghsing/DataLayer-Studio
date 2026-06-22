@@ -76,6 +76,23 @@ struct SidebarView: View {
                 isLoaded: model.fitURL != nil,
                 action: model.chooseFIT
             )
+
+            Divider()
+                .padding(.vertical, 6)
+
+            SidebarSubsectionHeader(title: localization.string("sidebar.weather.title"), systemImage: "cloud.sun")
+            SecureField(localization.string("sidebar.weather.openWeatherKey"), text: Binding(
+                get: { model.openWeatherAPIKey },
+                set: { model.setOpenWeatherAPIKey($0) }
+            ))
+            .onSubmit {
+                model.refreshOpenWeatherForCurrentFIT()
+            }
+            .textFieldStyle(.roundedBorder)
+            Text(localization.string("sidebar.weather.openWeatherHint"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

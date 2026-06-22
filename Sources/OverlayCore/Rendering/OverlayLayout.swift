@@ -9,6 +9,7 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
     case calories
     case strideLength
     case power
+    case weather
     case distance
     case route
     case topProgress
@@ -32,6 +33,8 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
             return "Stride length"
         case .power:
             return "Power"
+        case .weather:
+            return "Weather"
         case .distance:
             return "Distance value"
         case .route:
@@ -673,6 +676,12 @@ public extension OverlayElement {
                 y: 0.814,
                 style: OverlayComponentStyle(accentColor: .cleanWhite)
             )
+        case .weather:
+            return OverlayComponentFrame(
+                x: 0.631,
+                y: 0.704,
+                style: OverlayComponentStyle(accentColor: .electricBlue)
+            )
         case .route:
             return OverlayComponentFrame(x: 0.776, y: 0.682)
         case .topProgress:
@@ -711,7 +720,7 @@ public extension OverlayElement {
             return OverlayElementCustomization(showsLabel: false, showsPanel: false, showGaugeTicks: false, valueScale: 1.08, unitScale: 1.04)
         case .route:
             return OverlayElementCustomization(lineWidth: 5.5)
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power:
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
             return OverlayElementCustomization(labelScale: 0.92, valueScale: 1.04, unitScale: 0.94)
         }
     }

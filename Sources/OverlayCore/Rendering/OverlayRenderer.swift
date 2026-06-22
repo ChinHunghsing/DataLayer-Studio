@@ -70,7 +70,7 @@ public final class OverlayRenderer {
                 drawTopProgress(context: context, sample: sample, canvas: canvas, element: element)
             case .speed:
                 drawSpeed(context: context, sample: sample, canvas: canvas, element: element)
-            case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power:
+            case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
                 if let content = metricContent(for: element, sample: sample) {
                     drawMetricComponent(
                         element,
@@ -287,6 +287,8 @@ public final class OverlayRenderer {
             return ("STRIDE", formatStrideLength(sample.stepLengthMeters, precision: element.customization.valuePrecision), "m")
         case .power:
             return ("PWR", sample.powerWatts.map { "\($0)" } ?? "--", "W")
+        case .weather:
+            return ("WEATHER", formatWeatherTemperature(sample), formatWeatherUnit(sample))
         default:
             return nil
         }
@@ -941,7 +943,7 @@ public final class OverlayRenderer {
         switch kind {
         case .speed:
             return CGSize(width: 420, height: 238)
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance:
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .weather, .distance:
             return CGSize(width: 160, height: 74)
         case .route:
             return CGSize(width: 382, height: 238)
@@ -1071,6 +1073,8 @@ public final class OverlayRenderer {
             return "STR"
         case .power:
             return "PWR"
+        case .weather:
+            return "WX"
         case .distance:
             return "DIST"
         case .route:
@@ -1271,6 +1275,17 @@ public final class OverlayRenderer {
         guard let metersPerSecond, metersPerSecond > 0.3 else { return "--:--" }
         let secondsPerKm = Int((1000 / metersPerSecond).rounded())
         return String(format: "%d:%02d", secondsPerKm / 60, secondsPerKm % 60)
+    }
+
+    private func formatWeatherTemperature(_ sample: TelemetrySample) -> String {
+        guard let temperature = sample.weatherTemperatureCelsius ?? sample.temperatureCelsius else { return "--°" }
+        return "\(temperature)°"
+    }
+
+    private func formatWeatherUnit(_ sample: TelemetrySample) -> String {
+        let summary = sample.weatherSummary ?? "Weather"
+        guard let humidity = sample.weatherHumidityPercent else { return summary }
+        return "\(summary) \(humidity)%"
     }
 
     private func formatElapsed(_ elapsed: TimeInterval) -> String {

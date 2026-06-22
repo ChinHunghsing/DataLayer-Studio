@@ -14,6 +14,9 @@ public struct TelemetrySample: Equatable {
     public var totalCalories: Double?
     public var stepLengthMeters: Double?
     public var temperatureCelsius: Int?
+    public var weatherTemperatureCelsius: Int?
+    public var weatherHumidityPercent: Int?
+    public var weatherSummary: String?
 
     public init(
         elapsed: TimeInterval,
@@ -28,7 +31,10 @@ public struct TelemetrySample: Equatable {
         powerWatts: Int? = nil,
         totalCalories: Double? = nil,
         stepLengthMeters: Double? = nil,
-        temperatureCelsius: Int? = nil
+        temperatureCelsius: Int? = nil,
+        weatherTemperatureCelsius: Int? = nil,
+        weatherHumidityPercent: Int? = nil,
+        weatherSummary: String? = nil
     ) {
         self.elapsed = elapsed
         self.date = date
@@ -43,5 +49,8 @@ public struct TelemetrySample: Equatable {
         self.totalCalories = totalCalories
         self.stepLengthMeters = stepLengthMeters
         self.temperatureCelsius = temperatureCelsius
+        self.weatherTemperatureCelsius = weatherTemperatureCelsius
+        self.weatherHumidityPercent = weatherHumidityPercent
+        self.weatherSummary = weatherSummary
     }
 }

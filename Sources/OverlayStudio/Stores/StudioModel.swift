@@ -83,10 +83,12 @@ final class StudioModel: ObservableObject {
     @Published var previewWarning: String?
     @Published var isExporting = false
     @Published var exportProgress = 0.0
+    @Published var openWeatherAPIKey = OpenWeatherKeyStore.load()
 
     private var resolvedLanguage = AppLocalizer.resolvedLanguage(for: AppLocalizer.storedSelection())
     private let videoFrameService = VideoFrameService()
     private let previewRenderer = OverlayPreviewRenderer()
+    private let openWeatherService = OpenWeatherService()
     private let layoutPresetStore: LayoutPresetStore
     private let preferenceStore: StudioPreferenceStore
     private var playerTimeObserver: PlayerTimeObserver?
@@ -104,6 +106,7 @@ final class StudioModel: ObservableObject {
     private var pendingScrubOverlayRefreshTask: Task<Void, Never>?
     private var videoLoadTask: Task<Void, Never>?
     private var fitLoadTask: Task<Void, Never>?
+    private var weatherLoadTask: Task<Void, Never>?
     private var pendingOverlayRefreshAfterCurrentRender = false
     private var exportTask: Task<Void, Never>?
     private var exportCancellationToken: ExportCancellationToken?
@@ -133,6 +136,7 @@ final class StudioModel: ObservableObject {
         playerTimeObserver?.remove()
         videoLoadTask?.cancel()
         fitLoadTask?.cancel()
+        weatherLoadTask?.cancel()
         previewRenderTask?.cancel()
         dragRenderTask?.cancel()
         pendingPreviewSizeRefreshTask?.cancel()
@@ -356,6 +360,21 @@ final class StudioModel: ObservableObject {
 
     func setBitRateKbps(_ value: Int) {
         bitRateKbps = Self.sanitizedBitRateKbps(value)
+    }
+
+    func setOpenWeatherAPIKey(_ value: String) {
+        openWeatherAPIKey = value
+        OpenWeatherKeyStore.save(value)
+    }
+
+    func refreshOpenWeatherForCurrentFIT() {
+        guard let currentSeries = series,
+              let fitURL else { return }
+        loadOpenWeatherIfPossible(
+            for: currentSeries,
+            sourceName: fitURL.lastPathComponent,
+            generation: fitLoadGeneration
+        )
     }
 
     func setGridColumns(_ value: Int) {
@@ -658,6 +677,7 @@ final class StudioModel: ObservableObject {
         guard !isExporting else { return }
         cancelPreviewRenderTasks()
         fitLoadTask?.cancel()
+        weatherLoadTask?.cancel()
         previewRenderGeneration += 1
         fitLoadGeneration += 1
         let loadGeneration = fitLoadGeneration
@@ -682,6 +702,11 @@ final class StudioModel: ObservableObject {
                     self.series = parsedSeries
                     self.status = self.localized("status.loadedFit", url.lastPathComponent)
                     self.refreshOverlayOrPreview()
+                    self.loadOpenWeatherIfPossible(
+                        for: parsedSeries,
+                        sourceName: url.lastPathComponent,
+                        generation: loadGeneration
+                    )
                     self.fitLoadTask = nil
                 }
             } catch is CancellationError {
@@ -706,6 +731,51 @@ final class StudioModel: ObservableObject {
                     self.refreshOverlayOnly()
                 }
             }
+        }
+    }
+
+    private func loadOpenWeatherIfPossible(for parsedSeries: TelemetrySeries, sourceName: String, generation: Int) {
+        let apiKey = openWeatherAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else { return }
+
+        let service = openWeatherService
+        let language = openWeatherLanguageCode
+        weatherLoadTask?.cancel()
+        weatherLoadTask = Task { [weak self] in
+            do {
+                let enrichedSeries = try await service.enrichedSeries(parsedSeries, apiKey: apiKey, language: language)
+                guard !Task.isCancelled else { return }
+                await MainActor.run { [weak self] in
+                    guard let self,
+                          self.fitLoadGeneration == generation else { return }
+                    self.series = enrichedSeries
+                    self.status = enrichedSeries.samples.contains(where: { $0.weatherTemperatureCelsius != nil || $0.weatherHumidityPercent != nil || $0.weatherSummary != nil })
+                        ? self.localized("status.loadedFitWithWeather", sourceName)
+                        : self.localized("status.weatherUnavailable", sourceName)
+                    self.refreshOverlayOrPreview()
+                    self.weatherLoadTask = nil
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    guard let self,
+                          self.fitLoadGeneration == generation else { return }
+                    self.status = self.localized("status.weatherUnavailable", sourceName)
+                    self.weatherLoadTask = nil
+                }
+            }
+        }
+    }
+
+    private var openWeatherLanguageCode: String {
+        switch resolvedLanguage {
+        case .simplifiedChinese:
+            return "zh_cn"
+        case .traditionalChinese:
+            return "zh_tw"
+        case .japanese:
+            return "ja"
+        case .english:
+            return "en"
         }
     }
 

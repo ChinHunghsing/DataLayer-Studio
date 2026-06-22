@@ -590,13 +590,13 @@ struct InspectorSettingsPanel: View {
             return 24
         case (.speed, .icon):
             return 13
-        case (.pace, .label), (.distance, .label), (.heartRate, .label), (.cadence, .label), (.calories, .label), (.strideLength, .label), (.power, .label):
+        case (.pace, .label), (.distance, .label), (.heartRate, .label), (.cadence, .label), (.calories, .label), (.strideLength, .label), (.power, .label), (.weather, .label):
             return 10
-        case (.pace, .value), (.distance, .value), (.heartRate, .value), (.cadence, .value), (.calories, .value), (.strideLength, .value), (.power, .value):
+        case (.pace, .value), (.distance, .value), (.heartRate, .value), (.cadence, .value), (.calories, .value), (.strideLength, .value), (.power, .value), (.weather, .value):
             return 23
-        case (.pace, .unit), (.distance, .unit), (.heartRate, .unit), (.cadence, .unit), (.calories, .unit), (.strideLength, .unit), (.power, .unit):
+        case (.pace, .unit), (.distance, .unit), (.heartRate, .unit), (.cadence, .unit), (.calories, .unit), (.strideLength, .unit), (.power, .unit), (.weather, .unit):
             return 10
-        case (.pace, .icon), (.distance, .icon), (.heartRate, .icon), (.cadence, .icon), (.calories, .icon), (.strideLength, .icon), (.power, .icon):
+        case (.pace, .icon), (.distance, .icon), (.heartRate, .icon), (.cadence, .icon), (.calories, .icon), (.strideLength, .icon), (.power, .icon), (.weather, .icon):
             return 10
         case (.route, .label):
             return 13

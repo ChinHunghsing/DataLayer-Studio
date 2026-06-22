@@ -120,13 +120,17 @@ final class OverlayRendererTests: XCTestCase {
                 elapsed: 0,
                 powerWatts: 286,
                 totalCalories: 42,
-                stepLengthMeters: 1.24
+                stepLengthMeters: 1.24,
+                weatherTemperatureCelsius: 22,
+                weatherHumidityPercent: 58,
+                weatherSummary: "Clear"
             )
         ])
         let elements = [
             metricElement(id: "calories", kind: .calories, y: 0.06),
             metricElement(id: "stride", kind: .strideLength, y: 0.16),
-            metricElement(id: "power", kind: .power, y: 0.26)
+            metricElement(id: "power", kind: .power, y: 0.26),
+            metricElement(id: "weather", kind: .weather, y: 0.36)
         ]
         let renderer = OverlayRenderer(
             series: series,

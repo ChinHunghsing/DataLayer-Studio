@@ -119,7 +119,10 @@ public struct TelemetrySeries {
             powerWatts: nearest(a.powerWatts, b.powerWatts, fraction: fraction),
             totalCalories: interpolate(a.totalCalories, b.totalCalories, fraction: fraction),
             stepLengthMeters: interpolate(a.stepLengthMeters, b.stepLengthMeters, fraction: fraction),
-            temperatureCelsius: nearest(a.temperatureCelsius, b.temperatureCelsius, fraction: fraction)
+            temperatureCelsius: nearest(a.temperatureCelsius, b.temperatureCelsius, fraction: fraction),
+            weatherTemperatureCelsius: nearest(a.weatherTemperatureCelsius, b.weatherTemperatureCelsius, fraction: fraction),
+            weatherHumidityPercent: nearest(a.weatherHumidityPercent, b.weatherHumidityPercent, fraction: fraction),
+            weatherSummary: nearest(a.weatherSummary, b.weatherSummary, fraction: fraction)
         )
     }
 
@@ -137,6 +140,10 @@ public struct TelemetrySeries {
     }
 
     private static func nearest(_ a: Int?, _ b: Int?, fraction: Double) -> Int? {
+        fraction < 0.5 ? (a ?? b) : (b ?? a)
+    }
+
+    private static func nearest(_ a: String?, _ b: String?, fraction: Double) -> String? {
         fraction < 0.5 ? (a ?? b) : (b ?? a)
     }
 
