@@ -191,10 +191,15 @@ struct PreviewCanvasView: View {
             .gesture(
                 DragGesture(minimumDistance: 2, coordinateSpace: .named("previewCanvas"))
                     .onChanged { value in
-                        moveElement(element.id, displayRect: displayRect, translation: value.translation)
+                        let targetID = activeDrag?.id ?? hitTestElement(
+                            at: value.startLocation,
+                            displayRect: displayRect,
+                            visibleElements: model.layout.visibleElements
+                        )?.id ?? element.id
+                        moveElement(targetID, displayRect: displayRect, translation: value.translation)
                     }
                     .onEnded { _ in
-                        if let activeDrag, activeDrag.id == element.id {
+                        if let activeDrag {
                             model.updateElement(activeDrag.id, refreshPreview: false) { element in
                                 element.frame.x = activeDrag.currentX
                                 element.frame.y = activeDrag.currentY
@@ -228,6 +233,10 @@ struct PreviewCanvasView: View {
 
     private func hitTestElement(at location: CGPoint, displayRect: CGRect, visibleElements: [OverlayElement]) -> OverlayElement? {
         visibleElements
+            .reversed()
+            .first { element in
+                componentDisplayRect(element: element, displayRect: displayRect).contains(location)
+            } ?? visibleElements
             .reversed()
             .first { element in
                 componentHitRect(element: element, displayRect: displayRect).contains(location)
