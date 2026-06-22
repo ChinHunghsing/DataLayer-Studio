@@ -71,6 +71,18 @@ if [[ "$SIGNED_APP_IDENTIFIER" != "$APP_IDENTIFIER" ]]; then
     exit 1
 fi
 
+for entitlement in \
+    com.apple.security.app-sandbox \
+    com.apple.security.files.user-selected.read-write \
+    com.apple.security.network.client
+do
+    signed_value="$(/usr/libexec/PlistBuddy -c "Print :$entitlement" "$SIGNED_ENTITLEMENTS" 2>/dev/null || true)"
+    if [[ "$signed_value" != "true" ]]; then
+        echo "error: signed app is missing required entitlement: $entitlement" >&2
+        exit 1
+    fi
+done
+
 rm -f "$PKG_PATH"
 productbuild --component "$APP_PATH" /Applications --sign "$INSTALLER_IDENTITY" "$PKG_PATH"
 pkgutil --check-signature "$PKG_PATH"
