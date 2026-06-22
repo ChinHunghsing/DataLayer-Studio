@@ -96,6 +96,7 @@ final class StudioModelTests: XCTestCase {
         model.refreshOpenWeatherForCurrentFIT()
 
         XCTAssertEqual(model.status, AppLocalizer.currentString("status.weatherKeyRequired"))
+        XCTAssertEqual(model.weatherRefreshMessage, model.status)
     }
 
     func testExportReadinessReportsSourceDurationInsteadOfEditableDuration() {

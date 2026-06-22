@@ -405,6 +405,14 @@ struct InspectorSettingsPanel: View {
                         .controlSize(.small)
                         .buttonStyle(.bordered)
                         .padding(.top, 2)
+
+                        if let message = model.weatherRefreshMessage {
+                            Text(message)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 2)
+                        }
                     }
                 }
 

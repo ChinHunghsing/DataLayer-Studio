@@ -84,6 +84,7 @@ final class StudioModel: ObservableObject {
     @Published var isExporting = false
     @Published var exportProgress = 0.0
     @Published var openWeatherAPIKey = OpenWeatherKeyStore.load()
+    @Published var weatherRefreshMessage: String?
 
     private var resolvedLanguage = AppLocalizer.resolvedLanguage(for: AppLocalizer.storedSelection())
     private let videoFrameService = VideoFrameService()
@@ -370,14 +371,17 @@ final class StudioModel: ObservableObject {
     func refreshOpenWeatherForCurrentFIT() {
         guard !openWeatherAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             status = localized("status.weatherKeyRequired")
+            weatherRefreshMessage = status
             return
         }
         guard let currentSeries = series,
               let fitURL else {
             status = localized("status.weatherFitRequired")
+            weatherRefreshMessage = status
             return
         }
         status = localized("status.weatherRefreshing", fitURL.lastPathComponent)
+        weatherRefreshMessage = status
         loadOpenWeatherIfPossible(
             for: currentSeries,
             sourceName: fitURL.lastPathComponent,
@@ -771,6 +775,7 @@ final class StudioModel: ObservableObject {
                     self.status = enrichedSeries.samples.contains(where: { $0.weatherTemperatureCelsius != nil || $0.weatherHumidityPercent != nil || $0.weatherSummary != nil })
                         ? self.localized("status.loadedFitWithWeather", sourceName)
                         : self.localized("status.weatherUnavailable", sourceName)
+                    self.weatherRefreshMessage = self.status
                     self.refreshOverlayOrPreview()
                     self.weatherLoadTask = nil
                 }
@@ -786,6 +791,7 @@ final class StudioModel: ObservableObject {
                         details = error.localizedDescription
                     }
                     self.status = self.localized("status.weatherError", sourceName, details)
+                    self.weatherRefreshMessage = self.status
                     self.weatherLoadTask = nil
                 }
             }
