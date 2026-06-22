@@ -17,6 +17,8 @@ public struct TelemetrySeries {
     private static let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
     private static let maximumStartupPaceSmoothingElapsed: TimeInterval = 10
     private static let startupPaceSmoothingExponent = 1.7
+    private static let startupSegmentConsistencyRatio = 1.6
+    private static let startupSpeedJumpRatio = 1.6
     private static let distanceEpsilon = 0.001
 
     public init(samples: [TelemetrySample]) {
@@ -29,7 +31,8 @@ public struct TelemetrySeries {
 
         let normalized = TelemetrySeries.normalized(samples: sorted)
         let speedEnriched = TelemetrySeries.enrichedWithDistanceDerivedSpeed(samples: normalized)
-        let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(samples: speedEnriched, interval: Self.resampleInterval)
+        let startupSpeedStabilized = TelemetrySeries.stabilizedStartupSpeedJumps(samples: speedEnriched)
+        let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(samples: startupSpeedStabilized, interval: Self.resampleInterval)
         let resampled = TelemetrySeries.resampled(samples: cadenceEnriched, interval: Self.resampleInterval)
         let startupSmoothed = TelemetrySeries.smoothedStartupPace(samples: resampled)
         self.samples = TelemetrySeries.trimmedIncompleteTail(samples: startupSmoothed)
@@ -322,6 +325,56 @@ public struct TelemetrySeries {
             segmentSpeed,
             max(startupRampMinimumSpeedMetersPerSecond, segmentSpeed * startupRampSpeedRatio)
         )
+    }
+
+    private static func stabilizedStartupSpeedJumps(samples: [TelemetrySample]) -> [TelemetrySample] {
+        guard samples.count > 2 else { return samples }
+
+        var output = samples
+        for index in 1..<(samples.count - 1) {
+            let previous = samples[index - 1]
+            let current = samples[index]
+            let next = samples[index + 1]
+            guard current.elapsed <= maximumStartupPaceSmoothingElapsed,
+                  let currentSpeed = current.speedMetersPerSecond,
+                  currentSpeed.isFinite,
+                  let previousDistance = previous.distanceMeters,
+                  let currentDistance = current.distanceMeters,
+                  let nextDistance = next.distanceMeters else {
+                continue
+            }
+
+            let previousSpan = current.elapsed - previous.elapsed
+            let nextSpan = next.elapsed - current.elapsed
+            guard previousSpan > 0,
+                  nextSpan > 0 else {
+                continue
+            }
+
+            let previousSpeed = (currentDistance - previousDistance) / previousSpan
+            let nextSpeed = (nextDistance - currentDistance) / nextSpan
+            guard previousSpeed >= minimumMovingSpeedMetersPerSecond,
+                  nextSpeed >= minimumMovingSpeedMetersPerSecond else {
+                continue
+            }
+
+            let lowSegmentSpeed = min(previousSpeed, nextSpeed)
+            let highSegmentSpeed = max(previousSpeed, nextSpeed)
+            guard highSegmentSpeed / lowSegmentSpeed <= startupSegmentConsistencyRatio else {
+                continue
+            }
+
+            let distanceSpeed = (previousSpeed + nextSpeed) / 2
+            guard distanceSpeed <= maximumPlausibleStartupSpeedMetersPerSecond else {
+                continue
+            }
+
+            let speedRatio = max(currentSpeed, distanceSpeed) / max(min(currentSpeed, distanceSpeed), 0.000_001)
+            if speedRatio >= startupSpeedJumpRatio {
+                output[index].speedMetersPerSecond = distanceSpeed
+            }
+        }
+        return output
     }
 
     private static func enrichedWithStartupCadence(

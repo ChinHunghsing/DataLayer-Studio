@@ -131,6 +131,21 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertGreaterThan(1000 / oneSecondSpeed, 1000 / threeSecondSpeed)
     }
 
+    func testStabilizesStartupSpeedDropWhenDistanceSegmentsAreConsistent() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 0.55),
+            TelemetrySample(elapsed: 1, distanceMeters: 2.2, speedMetersPerSecond: 2.2),
+            TelemetrySample(elapsed: 2, distanceMeters: 4.4, speedMetersPerSecond: 2.2),
+            TelemetrySample(elapsed: 3, distanceMeters: 6.6, speedMetersPerSecond: 1.142),
+            TelemetrySample(elapsed: 4, distanceMeters: 8.8, speedMetersPerSecond: 2.286),
+            TelemetrySample(elapsed: 5, distanceMeters: 11.0, speedMetersPerSecond: 3.408),
+            TelemetrySample(elapsed: 6, distanceMeters: 22.0, speedMetersPerSecond: 4.531)
+        ])
+
+        XCTAssertEqual(series.sample(at: 3).speedMetersPerSecond ?? -1, 2.2, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 5).speedMetersPerSecond ?? -1, 3.408, accuracy: 0.001)
+    }
+
     func testStartupPaceIgnoresSpeedSpikeBeforeDistanceMoves() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0),

@@ -33,4 +33,10 @@ final class OpenWeatherServiceTests: XCTestCase {
         XCTAssertEqual(second.samples.first?.weatherHumidityPercent, 58)
         XCTAssertEqual(second.samples.first?.weatherSummary, "Clear")
     }
+
+    func testUnauthorizedOpenWeatherErrorExplainsOneCallAccess() {
+        let error = OpenWeatherError.requestFailed(statusCode: 401)
+
+        XCTAssertEqual(error.localizedDescription, "OpenWeather key cannot access One Call 4.0.")
+    }
 }

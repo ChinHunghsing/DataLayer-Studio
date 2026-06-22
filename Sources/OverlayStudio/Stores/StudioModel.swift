@@ -759,7 +759,14 @@ final class StudioModel: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self,
                           self.fitLoadGeneration == generation else { return }
-                    self.status = self.localized("status.weatherUnavailable", sourceName)
+                    let details: String
+                    if let weatherError = error as? OpenWeatherError,
+                       case .requestFailed(statusCode: 401) = weatherError {
+                        details = self.localized("status.weatherOneCallAccessDenied")
+                    } else {
+                        details = error.localizedDescription
+                    }
+                    self.status = self.localized("status.weatherError", sourceName, details)
                     self.weatherLoadTask = nil
                 }
             }

@@ -146,9 +146,11 @@ final class OpenWeatherService {
 
     private static func defaultLoadData(from url: URL) async throws -> Data {
         let (data, response) = try await URLSession.shared.data(from: url)
-        guard let httpResponse = response as? HTTPURLResponse,
-              200..<300 ~= httpResponse.statusCode else {
-            throw OpenWeatherError.requestFailed
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw OpenWeatherError.requestFailed(statusCode: -1)
+        }
+        guard 200..<300 ~= httpResponse.statusCode else {
+            throw OpenWeatherError.requestFailed(statusCode: httpResponse.statusCode)
         }
         return data
     }
@@ -216,9 +218,24 @@ final class OpenWeatherService {
     }
 }
 
-private enum OpenWeatherError: Error {
+enum OpenWeatherError: LocalizedError {
     case invalidURL
-    case requestFailed
+    case requestFailed(statusCode: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "OpenWeather request URL was invalid."
+        case .requestFailed(let statusCode):
+            if statusCode == 401 {
+                return "OpenWeather key cannot access One Call 4.0."
+            }
+            if statusCode > 0 {
+                return "OpenWeather request failed (\(statusCode))."
+            }
+            return "OpenWeather request failed."
+        }
+    }
 }
 
 private struct OpenWeatherTimelineResponse: Decodable {
