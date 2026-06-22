@@ -62,6 +62,17 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.bitRateKbps, 1)
     }
 
+    func testSourceVideoBitrateConvertsMetadataBitsPerSecondToKbps() {
+        let metadata = VideoMetadata(
+            size: CGSize(width: 1920, height: 1080),
+            duration: 10,
+            framesPerSecond: 30,
+            bitRateBitsPerSecond: 12_345_678
+        )
+
+        XCTAssertEqual(StudioModel.sourceVideoBitRateKbps(from: metadata), 12_346)
+    }
+
     func testAutoSuggestedOutputStillNeedsExplicitExportSelection() {
         let model = StudioModel()
         XCTAssertTrue(model.needsOutputSelectionBeforeExport)

@@ -524,6 +524,9 @@ final class StudioModel: ObservableObject {
                     self.setOutputWidth(Int(loaded.size.width.rounded()))
                     self.setOutputHeight(Int(loaded.size.height.rounded()))
                     self.setOutputFPS(loaded.framesPerSecond)
+                    if let sourceBitRateKbps = Self.sourceVideoBitRateKbps(from: loaded) {
+                        self.setBitRateKbps(sourceBitRateKbps)
+                    }
                     self.sourceDuration = Self.sanitizedSourceDuration(loaded.duration)
                     self.applySuggestedOutputURLIfNeeded(for: url)
                     self.previewTime = 0
@@ -1416,6 +1419,13 @@ final class StudioModel: ObservableObject {
 
     static func sanitizedBitRateKbps(_ value: Int) -> Int {
         min(1_000_000, max(1, value))
+    }
+
+    static func sourceVideoBitRateKbps(from metadata: VideoMetadata) -> Int? {
+        guard let bitRate = metadata.bitRateBitsPerSecond,
+              bitRate.isFinite,
+              bitRate > 0 else { return nil }
+        return sanitizedBitRateKbps(Int((bitRate / 1000).rounded()))
     }
 
     static func sanitizedGridDivision(_ value: Int) -> Int {

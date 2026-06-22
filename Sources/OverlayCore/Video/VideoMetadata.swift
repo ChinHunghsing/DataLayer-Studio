@@ -6,11 +6,13 @@ public struct VideoMetadata {
     public var size: CGSize
     public var duration: TimeInterval
     public var framesPerSecond: Double
+    public var bitRateBitsPerSecond: Double?
 
-    public init(size: CGSize, duration: TimeInterval, framesPerSecond: Double) {
+    public init(size: CGSize, duration: TimeInterval, framesPerSecond: Double, bitRateBitsPerSecond: Double? = nil) {
         self.size = size
         self.duration = duration
         self.framesPerSecond = framesPerSecond
+        self.bitRateBitsPerSecond = bitRateBitsPerSecond
     }
 
     public static func load(from url: URL) throws -> VideoMetadata {
@@ -52,7 +54,24 @@ public struct VideoMetadata {
         let size = CGSize(width: abs(transformedSize.width), height: abs(transformedSize.height))
         let nominalFrameRate = try await track.load(.nominalFrameRate)
         let fps = nominalFrameRate > 0 ? Double(nominalFrameRate) : 30
-        return VideoMetadata(size: size, duration: duration, framesPerSecond: fps)
+        let estimatedDataRate = try? await track.load(.estimatedDataRate)
+        let trackBitRate = estimatedDataRate.flatMap { rate -> Double? in
+            let bitRate = Double(rate)
+            return bitRate.isFinite && bitRate > 0 ? bitRate : nil
+        }
+        return VideoMetadata(
+            size: size,
+            duration: duration,
+            framesPerSecond: fps,
+            bitRateBitsPerSecond: trackBitRate ?? fileBitRateBitsPerSecond(for: url, duration: duration)
+        )
+    }
+
+    private static func fileBitRateBitsPerSecond(for url: URL, duration: TimeInterval) -> Double? {
+        guard let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              fileSize > 0 else { return nil }
+        let bitRate = Double(fileSize) * 8 / duration
+        return bitRate.isFinite && bitRate > 0 ? bitRate : nil
     }
 }
 
