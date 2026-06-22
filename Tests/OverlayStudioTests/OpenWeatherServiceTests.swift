@@ -27,8 +27,9 @@ final class OpenWeatherServiceTests: XCTestCase {
 
         let first = try await service.enrichedSeries(series, apiKey: "test-key", language: "en")
         let second = try await service.enrichedSeries(series, apiKey: "test-key", language: "en")
+        _ = try await service.enrichedSeries(series, apiKey: "test-key", language: "en", forceRefresh: true)
 
-        XCTAssertEqual(loadCount, 1)
+        XCTAssertEqual(loadCount, 2)
         XCTAssertEqual(first.samples.first?.weatherTemperatureCelsius, 22)
         XCTAssertEqual(second.samples.first?.weatherHumidityPercent, 58)
         XCTAssertEqual(second.samples.first?.weatherSummary, "Clear")

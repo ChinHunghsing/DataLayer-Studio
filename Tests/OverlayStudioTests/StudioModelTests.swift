@@ -87,6 +87,17 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(model.needsOutputSelectionBeforeExport)
     }
 
+    func testWeatherRefreshReportsMissingKey() {
+        let model = StudioModel()
+        model.openWeatherAPIKey = ""
+        model.fitURL = URL(fileURLWithPath: "/tmp/activity.fit")
+        model.series = TelemetrySeries(samples: [TelemetrySample(elapsed: 0)])
+
+        model.refreshOpenWeatherForCurrentFIT()
+
+        XCTAssertEqual(model.status, AppLocalizer.currentString("status.weatherKeyRequired"))
+    }
+
     func testExportReadinessReportsSourceDurationInsteadOfEditableDuration() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/source.mov")

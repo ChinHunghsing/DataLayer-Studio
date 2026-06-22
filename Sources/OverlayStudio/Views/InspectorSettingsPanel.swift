@@ -385,12 +385,29 @@ struct InspectorSettingsPanel: View {
         let id = element.id
         let kind = element.kind
 
-        if kind.supportsValuePrecision || kind == .speed {
+        if kind.supportsValuePrecision || kind == .speed || kind == .weather {
             sectionContainer(
                 section: .data,
                 summary: dataSummary(for: element),
                 expandedSections: $expandedSections
             ) {
+                if kind == .weather {
+                    InspectorMessageBlock(
+                        systemImage: "cloud.sun",
+                        title: localization.string("inspector.weatherRefresh.title"),
+                        message: localization.string("inspector.weatherRefresh.message")
+                    ) {
+                        Button {
+                            model.refreshOpenWeatherForCurrentFIT()
+                        } label: {
+                            Label(localization.string("inspector.weatherRefresh.action"), systemImage: "arrow.clockwise")
+                        }
+                        .controlSize(.small)
+                        .buttonStyle(.bordered)
+                        .padding(.top, 2)
+                    }
+                }
+
                 if kind.supportsValuePrecision {
                     InspectorStepperRow(
                         title: localization.string("inspector.decimalsTitle"),
@@ -549,6 +566,9 @@ struct InspectorSettingsPanel: View {
             let minimum = Int((current.customization.gaugeMinimum ?? 0).rounded())
             let maximum = Int((current.customization.gaugeMaximum ?? 24).rounded())
             parts.append("\(minimum)-\(maximum)")
+        }
+        if current.kind == .weather {
+            parts.append("OpenWeather")
         }
 
         return parts

@@ -67,7 +67,12 @@ final class OpenWeatherService {
         self.dataLoader = dataLoader
     }
 
-    func enrichedSeries(_ series: TelemetrySeries, apiKey: String, language: String) async throws -> TelemetrySeries {
+    func enrichedSeries(
+        _ series: TelemetrySeries,
+        apiKey: String,
+        language: String,
+        forceRefresh: Bool = false
+    ) async throws -> TelemetrySeries {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedKey.isEmpty,
               let anchor = Self.anchor(in: series) else {
@@ -79,7 +84,8 @@ final class OpenWeatherService {
             longitude: anchor.longitude,
             start: Self.hourStart(for: anchor.date),
             apiKey: trimmedKey,
-            language: language
+            language: language,
+            forceRefresh: forceRefresh
         )
         return Self.series(series, applying: records)
     }
@@ -89,10 +95,11 @@ final class OpenWeatherService {
         longitude: Double,
         start: Date,
         apiKey: String,
-        language: String
+        language: String,
+        forceRefresh: Bool
     ) async throws -> [OpenWeatherRecord] {
         let cacheURL = cacheURL(latitude: latitude, longitude: longitude, start: start)
-        if let cached = Self.readCache(cacheURL) {
+        if !forceRefresh, let cached = Self.readCache(cacheURL) {
             return cached
         }
 

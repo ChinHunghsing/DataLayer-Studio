@@ -368,12 +368,21 @@ final class StudioModel: ObservableObject {
     }
 
     func refreshOpenWeatherForCurrentFIT() {
+        guard !openWeatherAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            status = localized("status.weatherKeyRequired")
+            return
+        }
         guard let currentSeries = series,
-              let fitURL else { return }
+              let fitURL else {
+            status = localized("status.weatherFitRequired")
+            return
+        }
+        status = localized("status.weatherRefreshing", fitURL.lastPathComponent)
         loadOpenWeatherIfPossible(
             for: currentSeries,
             sourceName: fitURL.lastPathComponent,
-            generation: fitLoadGeneration
+            generation: fitLoadGeneration,
+            forceRefresh: true
         )
     }
 
@@ -734,7 +743,12 @@ final class StudioModel: ObservableObject {
         }
     }
 
-    private func loadOpenWeatherIfPossible(for parsedSeries: TelemetrySeries, sourceName: String, generation: Int) {
+    private func loadOpenWeatherIfPossible(
+        for parsedSeries: TelemetrySeries,
+        sourceName: String,
+        generation: Int,
+        forceRefresh: Bool = false
+    ) {
         let apiKey = openWeatherAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !apiKey.isEmpty else { return }
 
@@ -743,7 +757,12 @@ final class StudioModel: ObservableObject {
         weatherLoadTask?.cancel()
         weatherLoadTask = Task { [weak self] in
             do {
-                let enrichedSeries = try await service.enrichedSeries(parsedSeries, apiKey: apiKey, language: language)
+                let enrichedSeries = try await service.enrichedSeries(
+                    parsedSeries,
+                    apiKey: apiKey,
+                    language: language,
+                    forceRefresh: forceRefresh
+                )
                 guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in
                     guard let self,
