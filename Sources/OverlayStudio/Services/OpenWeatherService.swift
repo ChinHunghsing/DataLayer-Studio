@@ -83,6 +83,7 @@ final class OpenWeatherService {
             latitude: anchor.latitude,
             longitude: anchor.longitude,
             start: Self.hourStart(for: anchor.date),
+            target: anchor.date,
             apiKey: trimmedKey,
             language: language,
             forceRefresh: forceRefresh
@@ -94,6 +95,7 @@ final class OpenWeatherService {
         latitude: Double,
         longitude: Double,
         start: Date,
+        target: Date,
         apiKey: String,
         language: String,
         forceRefresh: Bool
@@ -103,6 +105,35 @@ final class OpenWeatherService {
             return cached
         }
 
+        var records = try await loadRecords(
+            latitude: latitude,
+            longitude: longitude,
+            start: start,
+            apiKey: apiKey,
+            language: language
+        )
+        if let first = records.first?.timestamp,
+           first.timeIntervalSince(target) > 90 * 60 {
+            let previousStart = first.addingTimeInterval(-20 * 3600)
+            records += try await loadRecords(
+                latitude: latitude,
+                longitude: longitude,
+                start: previousStart,
+                apiKey: apiKey,
+                language: language
+            )
+        }
+        try Self.writeCache(records, to: cacheURL)
+        return records
+    }
+
+    private func loadRecords(
+        latitude: Double,
+        longitude: Double,
+        start: Date,
+        apiKey: String,
+        language: String
+    ) async throws -> [OpenWeatherRecord] {
         let url = try requestURL(
             latitude: latitude,
             longitude: longitude,
@@ -112,9 +143,7 @@ final class OpenWeatherService {
         )
         let data = try await dataLoader(url)
         let response = try JSONDecoder().decode(OpenWeatherTimelineResponse.self, from: data)
-        let records = response.data.map(\.record)
-        try Self.writeCache(records, to: cacheURL)
-        return records
+        return response.data.map(\.record)
     }
 
     private func requestURL(
