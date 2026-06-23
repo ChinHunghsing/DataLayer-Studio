@@ -16,6 +16,7 @@ struct SidebarSyncSection: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
+                .disabled(model.videoURL == nil)
             }
 
             SyncInfoBox(
@@ -26,14 +27,17 @@ struct SidebarSyncSection: View {
 
             SidebarDivider()
 
-            switch model.syncMode {
-            case .syncPoint:
-                matchPointControls
-            case .fitStart:
-                videoStartControls
-            case .offset:
-                manualOffsetControls
+            Group {
+                switch model.syncMode {
+                case .syncPoint:
+                    matchPointControls
+                case .fitStart:
+                    videoStartControls
+                case .offset:
+                    manualOffsetControls
+                }
             }
+            .disabled(model.videoURL == nil)
         }
     }
 

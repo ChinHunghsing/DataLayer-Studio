@@ -222,6 +222,7 @@ final class StudioModel: ObservableObject {
     }
 
     var timeSync: TelemetryTimeSync {
+        guard videoURL != nil else { return .identity }
         switch syncMode {
         case .offset:
             return .legacyOffset(finiteTime(offsetSeconds))
@@ -700,6 +701,8 @@ final class StudioModel: ObservableObject {
             } else {
                 refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
             }
+        } else if series != nil {
+            refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
         } else {
             refreshPreview()
         }

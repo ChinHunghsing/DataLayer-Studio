@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 import OverlayCore
 @testable import OverlayStudio
 
@@ -98,6 +99,18 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(model.canPreview)
         XCTAssertEqual(model.previewDuration, 5)
         XCTAssertNil(model.exportReadinessMessage)
+    }
+
+    func testFitOnlyModeIgnoresOffsetSync() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 5, distanceMeters: 20)
+        ])
+        model.syncMode = .offset
+        model.offsetSeconds = 120
+
+        XCTAssertEqual(model.timeSync.rawFitElapsed(forVideoTime: 3), 3)
     }
 
     func testWeatherRefreshReportsMissingKey() {
@@ -284,6 +297,20 @@ final class StudioModelTests: XCTestCase {
         model.seekPreview(to: 20)
 
         XCTAssertEqual(model.previewTime, 7)
+    }
+
+    func testScrubPreviewWithoutVideoKeepsOverlayVisible() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 7, distanceMeters: 30)
+        ])
+        model.overlayImage = NSImage(size: CGSize(width: 8, height: 8))
+
+        model.scrubPreview(to: 3)
+
+        XCTAssertEqual(model.previewTime, 3)
+        XCTAssertNotNil(model.overlayImage)
     }
 
     func testStepPreviewFrameUsesSourceFrameRateWhenAvailable() {
