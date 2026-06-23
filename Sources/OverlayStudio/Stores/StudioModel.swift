@@ -1317,6 +1317,7 @@ final class StudioModel: ObservableObject {
             status = localized("status.chooseOutputFile")
             return
         }
+        guard confirmOverwriteIfNeeded(outputURL) else { return }
         guard let series else {
             status = localized("status.chooseFitBeforeExport")
             return
@@ -1394,6 +1395,17 @@ final class StudioModel: ObservableObject {
         exportCancellationToken?.cancel()
         exportTask?.cancel()
         status = localized("status.cancellingExport")
+    }
+
+    private func confirmOverwriteIfNeeded(_ url: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else { return true }
+        let alert = NSAlert()
+        alert.messageText = localized("alert.overwriteOutput.title")
+        alert.informativeText = localized("alert.overwriteOutput.message", url.lastPathComponent)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: localized("alert.overwriteOutput.confirm"))
+        alert.addButton(withTitle: localized("common.cancel"))
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     func refreshLocalizedStatus() {

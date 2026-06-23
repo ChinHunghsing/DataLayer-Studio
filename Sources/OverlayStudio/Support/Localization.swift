@@ -606,7 +606,10 @@ enum AppLocalizer {
         "panel.exportLayoutPresets": "Export layout presets",
         "panel.exportLayoutPresets.message": "Save your reusable layout presets as a JSON file.",
         "panel.importLayoutPresets": "Import layout presets",
-        "panel.importLayoutPresets.message": "Choose a layout preset JSON file exported from DataLayer Studio."
+        "panel.importLayoutPresets.message": "Choose a layout preset JSON file exported from DataLayer Studio.",
+        "alert.overwriteOutput.title": "Replace existing file?",
+        "alert.overwriteOutput.message": "\"%@\" already exists. Exporting will replace it.",
+        "alert.overwriteOutput.confirm": "Replace"
     ]
 
     private static let simplifiedChinese: [String: String] = [
@@ -955,7 +958,10 @@ enum AppLocalizer {
         "panel.exportLayoutPresets": "导出布局预设",
         "panel.exportLayoutPresets.message": "把可复用的布局预设保存为 JSON 文件。",
         "panel.importLayoutPresets": "导入布局预设",
-        "panel.importLayoutPresets.message": "选择从 DataLayer Studio 导出的布局预设 JSON 文件。"
+        "panel.importLayoutPresets.message": "选择从 DataLayer Studio 导出的布局预设 JSON 文件。",
+        "alert.overwriteOutput.title": "替换已有文件？",
+        "alert.overwriteOutput.message": "“%@” 已存在。继续导出会替换这个文件。",
+        "alert.overwriteOutput.confirm": "替换"
     ]
 
     private static let traditionalChinese: [String: String] = [
@@ -1304,7 +1310,10 @@ enum AppLocalizer {
         "panel.exportLayoutPresets": "匯出布局預設",
         "panel.exportLayoutPresets.message": "把可重用的布局預設儲存為 JSON 檔案。",
         "panel.importLayoutPresets": "匯入布局預設",
-        "panel.importLayoutPresets.message": "選擇從 DataLayer Studio 匯出的布局預設 JSON 檔案。"
+        "panel.importLayoutPresets.message": "選擇從 DataLayer Studio 匯出的布局預設 JSON 檔案。",
+        "alert.overwriteOutput.title": "取代已有檔案？",
+        "alert.overwriteOutput.message": "「%@」已存在。繼續匯出會取代這個檔案。",
+        "alert.overwriteOutput.confirm": "取代"
     ]
 
     private static let japanese: [String: String] = [
@@ -1653,7 +1662,10 @@ enum AppLocalizer {
         "panel.exportLayoutPresets": "配置プリセットを書き出す",
         "panel.exportLayoutPresets.message": "再利用できる配置プリセットを JSON ファイルとして保存します。",
         "panel.importLayoutPresets": "配置プリセットを読み込む",
-        "panel.importLayoutPresets.message": "DataLayer Studio から書き出した配置プリセット JSON ファイルを選択します。"
+        "panel.importLayoutPresets.message": "DataLayer Studio から書き出した配置プリセット JSON ファイルを選択します。",
+        "alert.overwriteOutput.title": "既存のファイルを置き換えますか？",
+        "alert.overwriteOutput.message": "「%@」はすでに存在します。書き出すとこのファイルを置き換えます。",
+        "alert.overwriteOutput.confirm": "置き換える"
     ]
 }
 
