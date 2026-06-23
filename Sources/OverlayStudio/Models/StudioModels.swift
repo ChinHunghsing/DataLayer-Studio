@@ -85,7 +85,9 @@ struct ComponentBaseSize {
         switch id {
         case .speed:
             return CGSize(width: 420, height: 238)
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .weather, .distance:
+        case .weather:
+            return CGSize(width: 136, height: 76)
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance:
             return CGSize(width: 160, height: 74)
         case .route:
             return CGSize(width: 382, height: 238)

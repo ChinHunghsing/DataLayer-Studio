@@ -372,7 +372,7 @@ struct PreviewCanvasView: View {
         let labelFontSize = labelSize(10, scale: textScale, element: element)
         let valueFontSize = valueSize(23, scale: textScale, element: element)
         let unitFontSize = unitSize(10, scale: textScale, element: element)
-        let iconFontSize = iconSize(10 * textScale, scale: 1, element: element)
+        let iconFontSize = metricIconFontSize(element: element, textScale: textScale)
         let drawsTopRowIcon = element.customization.showsIcon && element.kind != .weather
         let hasTopRow = element.customization.showsLabel || drawsTopRowIcon
         let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
@@ -422,7 +422,7 @@ struct PreviewCanvasView: View {
         let labelFontSize = labelSize(10, scale: textScale, element: element)
         let valueFontSize = valueSize(23, scale: textScale, element: element)
         let unitFontSize = unitSize(10, scale: textScale, element: element)
-        let iconFontSize = iconSize(10 * textScale, scale: 1, element: element)
+        let iconFontSize = metricIconFontSize(element: element, textScale: textScale)
         let text = metricText(for: element)
         let valueWidth = textWidth(text.value, size: valueFontSize, fontName: element.customization.valueFont)
         let unitWidth = metricUnitBlockWidth(element: element, unit: text.unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize)
@@ -442,6 +442,11 @@ struct PreviewCanvasView: View {
     private func metricUnitLines(_ unit: String) -> [String] {
         let lines = unit.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         return lines.isEmpty ? [""] : lines
+    }
+
+    private func metricIconFontSize(element: OverlayElement, textScale: CGFloat) -> CGFloat {
+        let base = element.kind == .weather ? 16 * textScale : 10 * textScale
+        return iconSize(base, scale: 1, element: element)
     }
 
     private func metricUnitBlockWidth(

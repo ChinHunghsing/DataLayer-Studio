@@ -309,7 +309,7 @@ public final class OverlayRenderer {
         let labelFontSize = labelSize(10, scale: textScale, element: element)
         let valueFontSize = valueSize(23, scale: textScale, element: element)
         let unitFontSize = unitSize(10, scale: textScale, element: element)
-        let iconFontSize = iconSize(10 * textScale, scale: 1, element: element)
+        let iconFontSize = metricIconFontSize(element: element, textScale: textScale)
         let drawsWeatherIconInValueRow = element.kind == .weather && element.customization.showsIcon
         let drawsTopRowIcon = element.customization.showsIcon && !drawsWeatherIconInValueRow
         let hasTopRow = element.customization.showsLabel || drawsTopRowIcon
@@ -413,7 +413,7 @@ public final class OverlayRenderer {
                 valueFontSize: valueSize(23, scale: textScale, element: element),
                 unitFontSize: unitSize(10, scale: textScale, element: element),
                 labelFontSize: labelSize(10, scale: textScale, element: element),
-                iconFontSize: iconSize(10 * textScale, scale: 1, element: element)
+                iconFontSize: metricIconFontSize(element: element, textScale: textScale)
             )
         }
         return widths.max()
@@ -450,6 +450,11 @@ public final class OverlayRenderer {
     private func metricUnitLines(_ unit: String) -> [String] {
         let lines = unit.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         return lines.isEmpty ? [""] : lines
+    }
+
+    private func metricIconFontSize(element: OverlayElement, textScale: CGFloat) -> CGFloat {
+        let base = element.kind == .weather ? 16 * textScale : 10 * textScale
+        return iconSize(base, scale: 1, element: element)
     }
 
     private func metricUnitBlockWidth(
@@ -1024,7 +1029,9 @@ public final class OverlayRenderer {
         switch kind {
         case .speed:
             return CGSize(width: 420, height: 238)
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .weather, .distance:
+        case .weather:
+            return CGSize(width: 136, height: 76)
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance:
             return CGSize(width: 160, height: 74)
         case .route:
             return CGSize(width: 382, height: 238)
