@@ -32,7 +32,7 @@ if [[ -z "$APP_IDENTITY" ]]; then
 fi
 
 if [[ -z "$INSTALLER_IDENTITY" ]]; then
-    INSTALLER_IDENTITY="$(security find-certificate -a -c "3rd Party Mac Developer Installer" -p | openssl x509 -noout -subject 2>/dev/null | sed -n 's/.*CN *= *\([^,]*3rd Party Mac Developer Installer[^,]*\).*/\1/p' | head -n 1)"
+    INSTALLER_IDENTITY="$(security find-certificate -a -c "3rd Party Mac Developer Installer" -p | openssl x509 -noout -subject -nameopt RFC2253 2>/dev/null | sed -n 's/.*CN=\([^,]*3rd Party Mac Developer Installer[^,]*\).*/\1/p' | head -n 1)"
 fi
 
 if [[ -z "$APP_IDENTITY" ]]; then
