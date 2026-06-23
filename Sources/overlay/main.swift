@@ -2,7 +2,7 @@ import Foundation
 import OverlayCore
 
 struct CommandLineOptions {
-    var videoURL: URL
+    var videoURL: URL?
     var fitURL: URL
     var outputURL: URL
     var width: Int?
@@ -40,12 +40,11 @@ struct CommandLineOptions {
             }
         }
 
-        guard let video = values["--video"] else { throw CLIError.missingRequired("--video") }
         guard let fit = values["--fit"] else { throw CLIError.missingRequired("--fit") }
         guard let output = values["--output"] else { throw CLIError.missingRequired("--output") }
 
         return CommandLineOptions(
-            videoURL: URL(fileURLWithPath: video),
+            videoURL: values["--video"].map { URL(fileURLWithPath: $0) },
             fitURL: URL(fileURLWithPath: fit),
             outputURL: URL(fileURLWithPath: output),
             width: try optionalInt(values["--width"], name: "--width", minimum: 2, maximum: 16_384, requireEven: true),
@@ -209,17 +208,17 @@ enum CLIError: Error, CustomStringConvertible {
 
     static let help = """
     Usage:
-      overlay --video run.mov --fit activity.fit --output overlay.mov [options]
+      overlay --fit activity.fit --output overlay.mov [options]
 
     Required:
-      --video PATH       Source video. Used for duration, resolution, and frame rate.
       --fit PATH         Standard .FIT activity file.
       --output PATH      Output .mov file encoded as HEVC/H.265 with alpha.
 
     Options:
-      --width PX         Override output width, 2...16384 and even. Defaults to source video width.
-      --height PX        Override output height, 2...16384 and even. Defaults to source video height.
-      --fps N            Override output frame rate, minimum 1. Defaults to source video frame rate.
+      --video PATH       Optional source video. Used for duration, resolution, and frame rate when present.
+      --width PX         Override output width, 2...16384 and even. Defaults to source video width, or 1920 without video.
+      --height PX        Override output height, 2...16384 and even. Defaults to source video height, or 1080 without video.
+      --fps N            Override output frame rate, minimum 1. Defaults to source video frame rate, or 30 without video.
       --fit-start SEC    FIT elapsed time at video 0. Use when recording starts mid-activity.
       --sync-video SEC   Video timestamp for a sync point. Requires --sync-fit.
       --sync-fit SEC     FIT elapsed timestamp for the same sync point. Requires --sync-video.
@@ -304,15 +303,24 @@ func run() async throws {
     let options = try CommandLineOptions.parse(arguments: CommandLine.arguments)
     let parser = FITParser(validateCRC: options.validateFITCRC)
     let series = try parser.parse(url: options.fitURL)
-    let metadata = try await VideoMetadata.loadAsync(from: options.videoURL)
+    let metadata: VideoMetadata?
+    if let videoURL = options.videoURL {
+        metadata = try await VideoMetadata.loadAsync(from: videoURL)
+    } else {
+        metadata = nil
+    }
     let resolvedLayout = try resolveOverlayLayout(presetReference: options.layoutPresetReference)
 
-    let width = options.width ?? Int(metadata.size.width.rounded())
-    let height = options.height ?? Int(metadata.size.height.rounded())
-    let fps = options.framesPerSecond ?? metadata.framesPerSecond
-    let duration = metadata.duration
+    let width = options.width ?? metadata.map { Int($0.size.width.rounded()) } ?? 1920
+    let height = options.height ?? metadata.map { Int($0.size.height.rounded()) } ?? 1080
+    let fps = options.framesPerSecond ?? metadata?.framesPerSecond ?? 30
+    let duration = metadata?.duration ?? series.duration
 
-    print("Video: \(width)x\(height), \(String(format: "%.3f", fps)) fps, \(String(format: "%.2f", duration)) s")
+    if metadata != nil {
+        print("Video: \(width)x\(height), \(String(format: "%.3f", fps)) fps, \(String(format: "%.2f", duration)) s")
+    } else {
+        print("Video: none, \(width)x\(height), \(String(format: "%.3f", fps)) fps, \(String(format: "%.2f", duration)) s")
+    }
     print("FIT: \(series.samples.count) samples, \(String(format: "%.2f", series.duration)) s telemetry")
     print("Codec: \(options.codec.rawValue)")
     print("Bitrate: \(options.averageBitRate / 1000) kbps")

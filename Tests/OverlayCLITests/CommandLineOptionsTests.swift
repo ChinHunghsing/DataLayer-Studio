@@ -3,6 +3,20 @@ import OverlayCore
 @testable import overlay
 
 final class CommandLineOptionsTests: XCTestCase {
+    func testVideoArgumentIsOptionalForFITOnlyExport() throws {
+        let options = try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--fit", "activity.fit",
+            "--output", "overlay.mov",
+            "--width", "1920",
+            "--height", "1080"
+        ])
+
+        XCTAssertNil(options.videoURL)
+        XCTAssertEqual(options.width, 1920)
+        XCTAssertEqual(options.height, 1080)
+    }
+
     func testBitrateArgumentUsesKbpsAtGuiMaximum() throws {
         let options = try CommandLineOptions.parse(arguments: [
             "overlay",

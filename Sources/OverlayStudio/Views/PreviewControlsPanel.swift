@@ -57,8 +57,8 @@ struct PreviewControlsPanel: View {
                     get: { model.previewTime },
                     set: { model.scrubPreview(to: $0) }
                 ),
-                range: 0...max(model.sourceDuration, 1),
-                isEnabled: model.player != nil && !model.isExporting,
+                range: 0...max(model.previewDuration, 1),
+                isEnabled: model.series != nil && !model.isExporting,
                 accessibilityLabel: localization.string("preview.time", formatTimecode(model.previewTime)),
                 onFrameStep: { model.stepPreviewFrame(by: $0) }
             )

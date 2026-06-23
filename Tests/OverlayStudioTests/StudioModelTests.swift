@@ -87,6 +87,19 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(model.needsOutputSelectionBeforeExport)
     }
 
+    func testFitOnlyModeCanExportWithFITDuration() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 5, distanceMeters: 20)
+        ])
+
+        XCTAssertTrue(model.canExport)
+        XCTAssertTrue(model.canPreview)
+        XCTAssertEqual(model.previewDuration, 5)
+        XCTAssertNil(model.exportReadinessMessage)
+    }
+
     func testWeatherRefreshReportsMissingKey() {
         let model = StudioModel()
         model.openWeatherAPIKey = ""
@@ -122,7 +135,7 @@ final class StudioModelTests: XCTestCase {
         let model = StudioModel()
         model.setResolvedLanguage(.simplifiedChinese)
 
-        XCTAssertEqual(model.exportReadinessMessage, "请选择源视频。")
+        XCTAssertEqual(model.exportReadinessMessage, "请选择 FIT 文件。")
 
         model.metadata = VideoMetadata(
             size: CGSize(width: 3840, height: 2160),
@@ -259,6 +272,18 @@ final class StudioModelTests: XCTestCase {
 
         model.seekPreview(to: -5)
         XCTAssertEqual(model.previewTime, 0)
+    }
+
+    func testSeekPreviewClampsToFITDurationWithoutVideo() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 7, distanceMeters: 30)
+        ])
+
+        model.seekPreview(to: 20)
+
+        XCTAssertEqual(model.previewTime, 7)
     }
 
     func testStepPreviewFrameUsesSourceFrameRateWhenAvailable() {

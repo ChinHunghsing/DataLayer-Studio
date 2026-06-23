@@ -119,6 +119,10 @@ struct PreviewCanvasView: View {
                     .frame(width: displayRect.width, height: displayRect.height)
                     .clipped()
                     .position(x: displayRect.midX, y: displayRect.midY)
+            } else if model.series != nil {
+                FitOnlyPreviewBackground()
+                    .frame(width: displayRect.width, height: displayRect.height)
+                    .position(x: displayRect.midX, y: displayRect.midY)
             } else {
                 PlaceholderView()
                     .frame(width: displayRect.width, height: displayRect.height)
@@ -889,6 +893,13 @@ private struct PreviewGridOverlay: Shape {
         }
 
         return path
+    }
+}
+
+private struct FitOnlyPreviewBackground: View {
+    var body: some View {
+        Rectangle()
+            .fill(.black.opacity(0.76))
     }
 }
 
