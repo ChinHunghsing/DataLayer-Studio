@@ -28,6 +28,7 @@ struct OverlayStudioApp: App {
             LanguageCommands(localization: localization)
             PreviewCommands(localization: localization)
             ArrangeCommands(localization: localization)
+            DebugCommands(localization: localization)
         }
     }
 }
@@ -154,6 +155,31 @@ private struct PreviewCommands: Commands {
             }
             .keyboardShortcut("f", modifiers: [.command, .shift])
             .disabled(previewActions == nil)
+        }
+    }
+}
+
+private struct DebugCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
+    @FocusedValue(\.studioCommandActions) private var actions
+
+    var body: some Commands {
+        CommandMenu(localization.string("menu.debug")) {
+            Button(localization.string("menu.showDebugConsole")) {
+                actions?.showDebugConsole()
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+            .disabled(actions == nil)
+
+            Button(localization.string("menu.copyDebugLogs")) {
+                actions?.copyDebugLog()
+            }
+            .disabled(actions?.debugLogCount ?? 0 == 0)
+
+            Button(localization.string("menu.clearDebugLogs")) {
+                actions?.clearDebugLog()
+            }
+            .disabled(actions?.debugLogCount ?? 0 == 0)
         }
     }
 }

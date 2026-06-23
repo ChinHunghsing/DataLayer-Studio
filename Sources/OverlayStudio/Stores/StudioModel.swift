@@ -1670,12 +1670,24 @@ final class StudioModel: ObservableObject {
         studioDebugLogger.info("Debug log cleared")
     }
 
+    func copyDebugLog() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(debugLogText(debugLogEntries), forType: .string)
+    }
+
     private func addDebugLog(_ category: DebugLogCategory, _ message: String) {
         debugLogEntries.append(DebugLogEntry(date: Date(), category: category, message: message))
         if debugLogEntries.count > 200 {
             debugLogEntries.removeFirst(debugLogEntries.count - 200)
         }
         studioDebugLogger.info("[\(category.rawValue, privacy: .public)] \(message, privacy: .public)")
+    }
+
+    private func debugLogText(_ entries: [DebugLogEntry]) -> String {
+        entries.map { entry in
+            "\(entry.date.formatted(date: .numeric, time: .standard)) [\(entry.category.rawValue)] \(entry.message)"
+        }
+        .joined(separator: "\n")
     }
 
     private func redactedKeySummary(_ key: String) -> String {

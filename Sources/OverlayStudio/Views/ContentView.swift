@@ -6,6 +6,7 @@ struct ContentView: View {
     @EnvironmentObject private var localization: LocalizationStore
     @SceneStorage("previewZoom") private var previewZoom = 1.0
     @State private var isPreviewFullscreen = false
+    @State private var isDebugConsolePresented = false
 
     var body: some View {
         Group {
@@ -24,6 +25,11 @@ struct ContentView: View {
         }
         .onDisappear {
             model.shutdown()
+        }
+        .sheet(isPresented: $isDebugConsolePresented) {
+            DebugConsoleView(model: model)
+                .environmentObject(localization)
+                .environment(\.locale, localization.locale)
         }
         .focusedSceneValue(\.studioCommandActions, studioCommandActions)
         .focusedSceneValue(\.previewCommandActions, previewCommandActions)
@@ -73,6 +79,7 @@ struct ContentView: View {
             canExport: model.canExport,
             canPlayPreview: model.player != nil && !model.isExporting,
             isPlayingPreview: model.isPlaying,
+            debugLogCount: model.debugLogEntries.count,
             canMarkSportStart: model.player != nil && !model.isExporting,
             canMoveSelectionForward: canMoveSelectedElementForward,
             canMoveSelectionBackward: canMoveSelectedElementBackward,
@@ -84,7 +91,10 @@ struct ContentView: View {
             togglePlayback: model.togglePlayback,
             markSportStart: model.markSportStart,
             moveSelectionForward: model.moveSelectedElementForward,
-            moveSelectionBackward: model.moveSelectedElementBackward
+            moveSelectionBackward: model.moveSelectedElementBackward,
+            showDebugConsole: { isDebugConsolePresented = true },
+            copyDebugLog: model.copyDebugLog,
+            clearDebugLog: model.clearDebugLog
         )
     }
 

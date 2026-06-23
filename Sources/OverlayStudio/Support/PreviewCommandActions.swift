@@ -5,6 +5,7 @@ struct StudioCommandActions {
     var canExport: Bool
     var canPlayPreview: Bool
     var isPlayingPreview: Bool
+    var debugLogCount: Int
     var canMarkSportStart: Bool
     var canMoveSelectionForward: Bool
     var canMoveSelectionBackward: Bool
@@ -17,6 +18,9 @@ struct StudioCommandActions {
     var markSportStart: () -> Void
     var moveSelectionForward: () -> Void
     var moveSelectionBackward: () -> Void
+    var showDebugConsole: () -> Void
+    var copyDebugLog: () -> Void
+    var clearDebugLog: () -> Void
 }
 
 struct PreviewCommandActions {
