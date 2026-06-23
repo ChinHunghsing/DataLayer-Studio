@@ -254,6 +254,7 @@ struct SidebarView: View {
     private var layoutPresetSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             SidebarSubsectionHeader(title: localization.string("sidebar.presets"), systemImage: "rectangle.3.group")
+            layoutPresetSyncStatusRow
 
             HStack(spacing: 8) {
                 TextField(localization.string("sidebar.presetName"), text: $layoutPresetName)
@@ -307,6 +308,63 @@ struct SidebarView: View {
                 }
             }
         }
+    }
+
+    private var layoutPresetSyncStatusRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: layoutPresetSyncStatusIcon)
+                .foregroundStyle(layoutPresetSyncStatusTint)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(localization.string("sidebar.presetSync.title"))
+                    .font(.caption.weight(.semibold))
+                Text(layoutPresetSyncStatusText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(8)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var layoutPresetSyncStatusIcon: String {
+        switch model.layoutPresetSyncStatus {
+        case .localOnly:
+            return "icloud.slash"
+        case .ready:
+            return "icloud"
+        case .uploadRequested:
+            return "icloud.and.arrow.up"
+        case .receivedUpdate:
+            return "icloud.and.arrow.down"
+        }
+    }
+
+    private var layoutPresetSyncStatusTint: Color {
+        switch model.layoutPresetSyncStatus {
+        case .localOnly:
+            return .secondary
+        default:
+            return .accentColor
+        }
+    }
+
+    private var layoutPresetSyncStatusText: String {
+        switch model.layoutPresetSyncStatus {
+        case .localOnly:
+            return localization.string("sidebar.presetSync.localOnly")
+        case .ready:
+            return localization.string("sidebar.presetSync.ready")
+        case let .uploadRequested(date):
+            return localization.string("sidebar.presetSync.uploadRequested", formatPresetSyncTime(date))
+        case let .receivedUpdate(date):
+            return localization.string("sidebar.presetSync.receivedUpdate", formatPresetSyncTime(date))
+        }
+    }
+
+    private func formatPresetSyncTime(_ date: Date) -> String {
+        date.formatted(.dateTime.hour().minute().second())
     }
 
     private var canvasSection: some View {

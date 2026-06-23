@@ -122,7 +122,7 @@ public struct LayoutPresetStore {
     private let key: String
     private let loadCloudData: (() -> Data?)?
     private let saveCloudData: ((Data) -> Void)?
-    private let synchronizeCloudStore: (() -> Void)?
+    private let synchronizeCloudStore: (() -> Bool)?
 
     public init(defaults: UserDefaults = .standard, key: String = Self.storageKey) {
         let ubiquitousStore = NSUbiquitousKeyValueStore.default
@@ -148,7 +148,7 @@ public struct LayoutPresetStore {
         key: String = Self.storageKey,
         loadCloudData: (() -> Data?)?,
         saveCloudData: ((Data) -> Void)?,
-        synchronizeCloudStore: (() -> Void)?
+        synchronizeCloudStore: (() -> Bool)?
     ) {
         self.defaults = defaults
         self.key = key
@@ -159,6 +159,10 @@ public struct LayoutPresetStore {
 
     public var cloudNotificationKey: String {
         key
+    }
+
+    public var canRequestCloudSync: Bool {
+        synchronizeCloudStore != nil
     }
 
     public func load() -> LayoutPresetState {
@@ -204,8 +208,9 @@ public struct LayoutPresetStore {
         saveCloudData?(data)
     }
 
-    public func synchronizeCloud() {
-        synchronizeCloudStore?()
+    @discardableResult
+    public func synchronizeCloud() -> Bool {
+        synchronizeCloudStore?() ?? false
     }
 
     public static func loadSharedAppState(

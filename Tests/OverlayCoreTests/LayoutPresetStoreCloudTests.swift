@@ -44,6 +44,19 @@ final class LayoutPresetStoreCloudTests: XCTestCase {
         XCTAssertEqual(savedCloudState.presets.first?.id, "local")
     }
 
+    func testSynchronizeCloudReportsStoreResult() throws {
+        let defaults = try makeDefaults()
+        let store = LayoutPresetStore(
+            defaults: defaults,
+            loadCloudData: nil,
+            saveCloudData: nil,
+            synchronizeCloudStore: { true }
+        )
+
+        XCTAssertTrue(store.canRequestCloudSync)
+        XCTAssertTrue(store.synchronizeCloud())
+    }
+
     private func makeDefaults() throws -> UserDefaults {
         let suiteName = "run.libo.datalayer-studio.layout-cloud-tests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

@@ -10,6 +10,13 @@ private let studioDebugLogger = Logger(
     category: "Debug"
 )
 
+enum LayoutPresetSyncStatus: Equatable {
+    case localOnly
+    case ready
+    case uploadRequested(Date)
+    case receivedUpdate(Date)
+}
+
 private final class PlayerTimeObserver {
     private weak var player: AVPlayer?
     private var token: Any?
@@ -71,6 +78,7 @@ final class StudioModel: ObservableObject {
     @Published var selectedElementID: String?
     @Published var layoutPresets: [LayoutPreset]
     @Published var defaultLayoutPresetID: String?
+    @Published var layoutPresetSyncStatus: LayoutPresetSyncStatus = .localOnly
 
     @Published var showGrid = false {
         didSet { persistStudioPreferences() }
@@ -1410,10 +1418,13 @@ final class StudioModel: ObservableObject {
     private func persistLayoutPresets() {
         let state = LayoutPresetState(presets: layoutPresets, defaultPresetID: defaultLayoutPresetID)
         layoutPresetStore.save(state)
+        layoutPresetSyncStatus = layoutPresetStore.synchronizeCloud()
+            ? .uploadRequested(Date())
+            : .localOnly
     }
 
     private func observeLayoutPresetCloudChanges() {
-        layoutPresetStore.synchronizeCloud()
+        layoutPresetSyncStatus = layoutPresetStore.synchronizeCloud() ? .ready : .localOnly
         let key = layoutPresetStore.cloudNotificationKey
         layoutPresetCloudObserver = NotificationCenter.default.addObserver(
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
@@ -1424,6 +1435,7 @@ final class StudioModel: ObservableObject {
             guard changedKeys?.contains(key) ?? true else { return }
             MainActor.assumeIsolated {
                 self?.reloadLayoutPresetsFromStore()
+                self?.layoutPresetSyncStatus = .receivedUpdate(Date())
             }
         }
     }
