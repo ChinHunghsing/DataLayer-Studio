@@ -310,18 +310,22 @@ public final class OverlayRenderer {
         let valueFontSize = valueSize(23, scale: textScale, element: element)
         let unitFontSize = unitSize(10, scale: textScale, element: element)
         let iconFontSize = iconSize(10 * textScale, scale: 1, element: element)
-        let hasTopRow = element.customization.showsLabel || element.customization.showsIcon
+        let drawsWeatherIconInValueRow = element.kind == .weather && element.customization.showsIcon
+        let drawsTopRowIcon = element.customization.showsIcon && !drawsWeatherIconInValueRow
+        let hasTopRow = element.customization.showsLabel || drawsTopRowIcon
         let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
-        let valueRowHeight = max(valueFontSize, element.customization.showsUnit ? unitFontSize : 0)
+        let valueRowHeight = max(
+            valueFontSize,
+            metricUnitBlockHeight(element: element, unit: unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize, scale: scale)
+        )
         let horizontalPadding = 14 * scale
         let topPadding = 9 * scale
         let bottomPadding = 14 * scale
         let rowGap = hasTopRow ? max(6 * scale, valueFontSize * 0.18) : 0
         let desiredHeight = max(rect.height, topPadding + topRowHeight + rowGap + valueRowHeight + bottomPadding)
 
-        let unitWidth = element.customization.showsUnit ? textWidth(unit, size: unitFontSize, fontName: unitFontName(element)) : 0
         let iconText = element.customization.icon(default: defaultIcon(for: element.kind))
-        let iconWidth = element.customization.showsIcon ? textWidth(iconText, size: iconFontSize, fontName: iconFontName(element)) : 0
+        let iconWidth = drawsTopRowIcon ? textWidth(iconText, size: iconFontSize, fontName: iconFontName(element)) : 0
         let desiredWidth = max(
             alignedWidth ?? 0,
             metricTileWidth(
@@ -359,7 +363,7 @@ public final class OverlayRenderer {
                 fontName: labelFontName(element)
             )
         }
-        if element.customization.showsIcon {
+        if drawsTopRowIcon {
             drawText(
                 iconText,
                 context: context,
@@ -380,13 +384,15 @@ public final class OverlayRenderer {
             fontName: valueFontName(element)
         )
         if element.customization.showsUnit {
-            drawText(
-                unit,
+            drawMetricUnitBlock(
+                element: element,
+                unit: unit,
                 context: context,
-                baseline: CGPoint(x: tileRect.maxX - horizontalPadding - unitWidth, y: valueBaselineY),
-                size: unitFontSize,
-                color: unitColor(element),
-                fontName: unitFontName(element)
+                rightX: tileRect.maxX - horizontalPadding,
+                centerBaselineY: valueBaselineY,
+                unitFontSize: unitFontSize,
+                iconFontSize: iconFontSize,
+                scale: scale
             )
         }
     }
@@ -426,18 +432,93 @@ public final class OverlayRenderer {
         iconFontSize: CGFloat
     ) -> CGFloat {
         let valueWidth = textWidth(value, size: valueFontSize, fontName: valueFontName(element))
-        let unitWidth = element.customization.showsUnit ? textWidth(unit, size: unitFontSize, fontName: unitFontName(element)) : 0
+        let unitWidth = metricUnitBlockWidth(element: element, unit: unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize)
         let horizontalPadding = 14 * scale
         let unitGap = element.customization.showsUnit ? 10 * scale : 0
         let labelWidth = element.customization.showsLabel ? textWidth(label, size: labelFontSize, fontName: labelFontName(element)) : 0
         let iconText = element.customization.icon(default: defaultIcon(for: element.kind))
-        let iconWidth = element.customization.showsIcon ? textWidth(iconText, size: iconFontSize, fontName: iconFontName(element)) : 0
-        let iconGap = element.customization.showsIcon ? 12 * scale : 0
+        let drawsTopRowIcon = element.customization.showsIcon && element.kind != .weather
+        let iconWidth = drawsTopRowIcon ? textWidth(iconText, size: iconFontSize, fontName: iconFontName(element)) : 0
+        let iconGap = drawsTopRowIcon ? 12 * scale : 0
         return max(
             rectWidth,
             (horizontalPadding * 2) + valueWidth + unitGap + unitWidth,
             (horizontalPadding * 2) + labelWidth + iconGap + iconWidth
         )
+    }
+
+    private func metricUnitLines(_ unit: String) -> [String] {
+        let lines = unit.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        return lines.isEmpty ? [""] : lines
+    }
+
+    private func metricUnitBlockWidth(
+        element: OverlayElement,
+        unit: String,
+        unitFontSize: CGFloat,
+        iconFontSize: CGFloat
+    ) -> CGFloat {
+        guard element.customization.showsUnit else { return 0 }
+        var widths = metricUnitLines(unit).map { textWidth($0, size: unitFontSize, fontName: unitFontName(element)) }
+        if element.kind == .weather, element.customization.showsIcon {
+            widths[0] = textWidth(weatherIconText(element: element, summary: metricUnitLines(unit).first), size: iconFontSize, fontName: iconFontName(element))
+        }
+        return widths.max() ?? 0
+    }
+
+    private func metricUnitBlockHeight(
+        element: OverlayElement,
+        unit: String,
+        unitFontSize: CGFloat,
+        iconFontSize: CGFloat,
+        scale: CGFloat
+    ) -> CGFloat {
+        guard element.customization.showsUnit else { return 0 }
+        let lines = metricUnitLines(unit)
+        let firstLineHeight = element.kind == .weather && element.customization.showsIcon ? iconFontSize : unitFontSize
+        let remainingHeight = CGFloat(max(0, lines.count - 1)) * unitFontSize
+        let gaps = CGFloat(max(0, lines.count - 1)) * max(2 * scale, unitFontSize * 0.16)
+        return firstLineHeight + remainingHeight + gaps
+    }
+
+    private func drawMetricUnitBlock(
+        element: OverlayElement,
+        unit: String,
+        context: CGContext,
+        rightX: CGFloat,
+        centerBaselineY: CGFloat,
+        unitFontSize: CGFloat,
+        iconFontSize: CGFloat,
+        scale: CGFloat
+    ) {
+        let lines = metricUnitLines(unit)
+        let step = max(unitFontSize, iconFontSize * 0.72) + max(2 * scale, unitFontSize * 0.16)
+        let firstBaselineY = centerBaselineY + CGFloat(lines.count - 1) * step / 2
+        for (index, line) in lines.enumerated() {
+            let drawsIcon = index == 0 && element.kind == .weather && element.customization.showsIcon
+            let text = drawsIcon ? weatherIconText(element: element, summary: line) : line
+            let size = drawsIcon ? iconFontSize : unitFontSize
+            let font = drawsIcon ? iconFontName(element) : unitFontName(element)
+            let color = drawsIcon ? iconColor(element) : unitColor(element)
+            drawRightAlignedText(
+                text,
+                context: context,
+                rightX: rightX,
+                baselineY: firstBaselineY - CGFloat(index) * step,
+                size: size,
+                color: color,
+                fontName: font
+            )
+        }
+    }
+
+    private func weatherIconText(element: OverlayElement, summary: String?) -> String {
+        if let override = element.customization.iconOverride,
+           let icon = OverlayWeatherIcon(rawValue: override),
+           icon != .auto {
+            return icon.symbol
+        }
+        return OverlayWeatherIcon.icon(for: summary).symbol
     }
 
     private func drawRoute(context: CGContext, sample: TelemetrySample, canvas: CGRect, element: OverlayElement) {
@@ -1074,7 +1155,7 @@ public final class OverlayRenderer {
         case .power:
             return "PWR"
         case .weather:
-            return "WX"
+            return OverlayWeatherIcon.clouds.symbol
         case .distance:
             return "DIST"
         case .route:
@@ -1285,7 +1366,7 @@ public final class OverlayRenderer {
     private func formatWeatherUnit(_ sample: TelemetrySample) -> String {
         let summary = sample.weatherSummary ?? "Weather"
         guard let humidity = sample.weatherHumidityPercent else { return summary }
-        return "\(summary) \(humidity)%"
+        return "\(summary)\n\(humidity)%"
     }
 
     private func formatElapsed(_ elapsed: TimeInterval) -> String {

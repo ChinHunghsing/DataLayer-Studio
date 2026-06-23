@@ -166,6 +166,52 @@ public enum OverlayFontFamily: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+public enum OverlayWeatherIcon: String, CaseIterable, Identifiable {
+    case auto
+    case clear
+    case clouds
+    case rain
+    case snow
+    case thunderstorm
+    case fog
+    case wind
+
+    public var id: String { rawValue }
+
+    public var symbol: String {
+        switch self {
+        case .auto:
+            return ""
+        case .clear:
+            return "☀︎"
+        case .clouds:
+            return "☁︎"
+        case .rain:
+            return "☂︎"
+        case .snow:
+            return "❄︎"
+        case .thunderstorm:
+            return "⚡︎"
+        case .fog:
+            return "≋"
+        case .wind:
+            return "≈"
+        }
+    }
+
+    public static func icon(for summary: String?) -> OverlayWeatherIcon {
+        let normalized = (summary ?? "").lowercased()
+        if normalized.contains("thunder") { return .thunderstorm }
+        if normalized.contains("rain") || normalized.contains("drizzle") { return .rain }
+        if normalized.contains("snow") { return .snow }
+        if normalized.contains("mist") || normalized.contains("smoke") || normalized.contains("haze") || normalized.contains("dust") || normalized.contains("fog") { return .fog }
+        if normalized.contains("squall") || normalized.contains("tornado") { return .wind }
+        if normalized.contains("clear") { return .clear }
+        if normalized.contains("cloud") { return .clouds }
+        return .clouds
+    }
+}
+
 public struct OverlayElementCustomization: Codable, Equatable {
     public var labelOverride: String?
     public var unitOverride: String?
@@ -720,7 +766,9 @@ public extension OverlayElement {
             return OverlayElementCustomization(showsLabel: false, showsPanel: false, showGaugeTicks: false, valueScale: 1.08, unitScale: 1.04)
         case .route:
             return OverlayElementCustomization(lineWidth: 5.5)
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
+        case .weather:
+            return OverlayElementCustomization(showsIcon: true, labelScale: 0.92, valueScale: 1.04, unitScale: 0.94, iconScale: 1.12)
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power:
             return OverlayElementCustomization(labelScale: 0.92, valueScale: 1.04, unitScale: 0.94)
         }
     }

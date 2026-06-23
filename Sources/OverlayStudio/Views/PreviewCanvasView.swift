@@ -373,9 +373,13 @@ struct PreviewCanvasView: View {
         let valueFontSize = valueSize(23, scale: textScale, element: element)
         let unitFontSize = unitSize(10, scale: textScale, element: element)
         let iconFontSize = iconSize(10 * textScale, scale: 1, element: element)
-        let hasTopRow = element.customization.showsLabel || element.customization.showsIcon
+        let drawsTopRowIcon = element.customization.showsIcon && element.kind != .weather
+        let hasTopRow = element.customization.showsLabel || drawsTopRowIcon
         let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
-        let valueRowHeight = max(valueFontSize, element.customization.showsUnit ? unitFontSize : 0)
+        let valueRowHeight = max(
+            valueFontSize,
+            metricUnitBlockHeight(element: element, unit: metricText(for: element).unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize, scale: scale)
+        )
         let horizontalPadding = 14 * scale
         let topPadding = 9 * scale
         let bottomPadding = 14 * scale
@@ -384,11 +388,11 @@ struct PreviewCanvasView: View {
 
         let text = metricText(for: element)
         let valueWidth = textWidth(text.value, size: valueFontSize, fontName: element.customization.valueFont)
-        let unitWidth = element.customization.showsUnit ? textWidth(text.unit, size: unitFontSize, fontName: element.customization.unitFont) : 0
+        let unitWidth = metricUnitBlockWidth(element: element, unit: text.unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize)
         let unitGap = element.customization.showsUnit ? 10 * scale : 0
         let labelWidth = element.customization.showsLabel ? textWidth(text.label, size: labelFontSize, fontName: element.customization.labelFont) : 0
-        let iconWidth = element.customization.showsIcon ? textWidth(text.icon, size: iconFontSize, fontName: element.customization.iconFont) : 0
-        let iconGap = element.customization.showsIcon ? 12 * scale : 0
+        let iconWidth = drawsTopRowIcon ? textWidth(text.icon, size: iconFontSize, fontName: element.customization.iconFont) : 0
+        let iconGap = drawsTopRowIcon ? 12 * scale : 0
         let desiredWidth = max(
             alignedMetricOutputWidth() ?? 0,
             baseWidth,
@@ -421,17 +425,61 @@ struct PreviewCanvasView: View {
         let iconFontSize = iconSize(10 * textScale, scale: 1, element: element)
         let text = metricText(for: element)
         let valueWidth = textWidth(text.value, size: valueFontSize, fontName: element.customization.valueFont)
-        let unitWidth = element.customization.showsUnit ? textWidth(text.unit, size: unitFontSize, fontName: element.customization.unitFont) : 0
+        let unitWidth = metricUnitBlockWidth(element: element, unit: text.unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize)
         let horizontalPadding = 14 * scale
         let unitGap = element.customization.showsUnit ? 10 * scale : 0
         let labelWidth = element.customization.showsLabel ? textWidth(text.label, size: labelFontSize, fontName: element.customization.labelFont) : 0
-        let iconWidth = element.customization.showsIcon ? textWidth(text.icon, size: iconFontSize, fontName: element.customization.iconFont) : 0
-        let iconGap = element.customization.showsIcon ? 12 * scale : 0
+        let drawsTopRowIcon = element.customization.showsIcon && element.kind != .weather
+        let iconWidth = drawsTopRowIcon ? textWidth(text.icon, size: iconFontSize, fontName: element.customization.iconFont) : 0
+        let iconGap = drawsTopRowIcon ? 12 * scale : 0
         return max(
             baseWidth,
             (horizontalPadding * 2) + valueWidth + unitGap + unitWidth,
             (horizontalPadding * 2) + labelWidth + iconGap + iconWidth
         )
+    }
+
+    private func metricUnitLines(_ unit: String) -> [String] {
+        let lines = unit.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        return lines.isEmpty ? [""] : lines
+    }
+
+    private func metricUnitBlockWidth(
+        element: OverlayElement,
+        unit: String,
+        unitFontSize: CGFloat,
+        iconFontSize: CGFloat
+    ) -> CGFloat {
+        guard element.customization.showsUnit else { return 0 }
+        var widths = metricUnitLines(unit).map { textWidth($0, size: unitFontSize, fontName: element.customization.unitFont) }
+        if element.kind == .weather, element.customization.showsIcon {
+            widths[0] = textWidth(weatherIconText(element: element, summary: metricUnitLines(unit).first), size: iconFontSize, fontName: element.customization.iconFont)
+        }
+        return widths.max() ?? 0
+    }
+
+    private func metricUnitBlockHeight(
+        element: OverlayElement,
+        unit: String,
+        unitFontSize: CGFloat,
+        iconFontSize: CGFloat,
+        scale: CGFloat
+    ) -> CGFloat {
+        guard element.customization.showsUnit else { return 0 }
+        let lines = metricUnitLines(unit)
+        let firstLineHeight = element.kind == .weather && element.customization.showsIcon ? iconFontSize : unitFontSize
+        let remainingHeight = CGFloat(max(0, lines.count - 1)) * unitFontSize
+        let gaps = CGFloat(max(0, lines.count - 1)) * max(2 * scale, unitFontSize * 0.16)
+        return firstLineHeight + remainingHeight + gaps
+    }
+
+    private func weatherIconText(element: OverlayElement, summary: String?) -> String {
+        if let override = element.customization.iconOverride,
+           let icon = OverlayWeatherIcon(rawValue: override),
+           icon != .auto {
+            return icon.symbol
+        }
+        return OverlayWeatherIcon.icon(for: summary).symbol
     }
 
     private func isMetricElement(_ element: OverlayElement) -> Bool {
@@ -590,7 +638,7 @@ struct PreviewCanvasView: View {
                 element.customization.label(default: "WEATHER"),
                 formatWeatherTemperature(sample),
                 element.customization.unit(default: formatWeatherUnit(sample)),
-                element.customization.icon(default: "WX")
+                element.customization.icon(default: OverlayWeatherIcon.clouds.symbol)
             )
         default:
             return (
@@ -756,7 +804,7 @@ struct PreviewCanvasView: View {
     private func formatWeatherUnit(_ sample: TelemetrySample) -> String {
         let summary = sample.weatherSummary ?? "Weather"
         guard let humidity = sample.weatherHumidityPercent else { return summary }
-        return "\(summary) \(humidity)%"
+        return "\(summary)\n\(humidity)%"
     }
 
     private func formatClockDuration(_ elapsed: TimeInterval) -> String {

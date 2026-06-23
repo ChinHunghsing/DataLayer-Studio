@@ -181,17 +181,24 @@ struct InspectorSettingsPanel: View {
             ))
 
             if currentElement(id)?.customization.showsIcon == true {
-                InspectorTextRow(
-                    title: localization.string("inspector.iconText"),
-                    text: stringBinding(
-                        id: id,
-                        get: { $0.customization.iconOverride ?? "" },
-                        set: { element, value in
-                            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                            element.customization.iconOverride = trimmed.isEmpty ? nil : trimmed
-                        }
+                if kind == .weather {
+                    InspectorWeatherIconRow(
+                        title: localization.string("inspector.weatherIcon"),
+                        selection: weatherIconBinding(id: id)
                     )
-                )
+                } else {
+                    InspectorTextRow(
+                        title: localization.string("inspector.iconText"),
+                        text: stringBinding(
+                            id: id,
+                            get: { $0.customization.iconOverride ?? "" },
+                            set: { element, value in
+                                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                                element.customization.iconOverride = trimmed.isEmpty ? nil : trimmed
+                            }
+                        )
+                    )
+                }
             }
         }
     }
@@ -716,6 +723,20 @@ struct InspectorSettingsPanel: View {
         )
     }
 
+    private func weatherIconBinding(id: String) -> Binding<OverlayWeatherIcon> {
+        Binding(
+            get: {
+                guard let rawValue = currentElement(id)?.customization.iconOverride else { return .auto }
+                return OverlayWeatherIcon(rawValue: rawValue) ?? .auto
+            },
+            set: { newValue in
+                model.updateElement(id) { element in
+                    element.customization.iconOverride = newValue == .auto ? nil : newValue.rawValue
+                }
+            }
+        )
+    }
+
     private func fontBinding(
         id: String,
         get: @escaping (OverlayElement) -> OverlayFontFamily,
@@ -1212,6 +1233,51 @@ private struct InspectorTextRow: View {
         TextField(title, text: $text)
             .textFieldStyle(.roundedBorder)
             .font(.caption)
+    }
+}
+
+private struct InspectorWeatherIconRow: View {
+    var title: String
+    @Binding var selection: OverlayWeatherIcon
+    @EnvironmentObject private var localization: LocalizationStore
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: InspectorFormMetrics.rowGap) {
+                Text(title)
+                    .inspectorControlLabel()
+
+                Spacer(minLength: 8)
+
+                picker
+                    .frame(width: InspectorFormMetrics.textFieldWidth)
+            }
+
+            VStack(alignment: .leading, spacing: InspectorFormMetrics.stackedRowGap) {
+                Text(title)
+                    .inspectorControlLabel(width: nil)
+
+                picker
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .inspectorControlRowSurface()
+    }
+
+    private var picker: some View {
+        Picker(title, selection: $selection) {
+            ForEach(OverlayWeatherIcon.allCases) { icon in
+                Text(label(for: icon)).tag(icon)
+            }
+        }
+        .labelsHidden()
+        .controlSize(.small)
+        .pickerStyle(.menu)
+    }
+
+    private func label(for icon: OverlayWeatherIcon) -> String {
+        let title = localization.string("inspector.weatherIcon.\(icon.rawValue)")
+        return icon == .auto ? title : "\(icon.symbol)  \(title)"
     }
 }
 

@@ -53,6 +53,16 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(layout.elements.filter { $0.kind == .heartRate }.count, 1)
     }
 
+    func testWeatherIconMapsCommonOpenWeatherSummaries() {
+        XCTAssertTrue(OverlayElement.defaultElement(kind: .weather).customization.showsIcon)
+        XCTAssertEqual(OverlayWeatherIcon.icon(for: "Clear"), .clear)
+        XCTAssertEqual(OverlayWeatherIcon.icon(for: "Clouds"), .clouds)
+        XCTAssertEqual(OverlayWeatherIcon.icon(for: "Rain"), .rain)
+        XCTAssertEqual(OverlayWeatherIcon.icon(for: "Snow"), .snow)
+        XCTAssertEqual(OverlayWeatherIcon.icon(for: "Thunderstorm"), .thunderstorm)
+        XCTAssertEqual(OverlayWeatherIcon.icon(for: "Fog"), .fog)
+    }
+
     func testCanMoveElementLayerOrder() {
         var layout = OverlayLayout.default
 
