@@ -99,6 +99,7 @@ final class StudioModel: ObservableObject {
     private let openWeatherService = OpenWeatherService()
     private let layoutPresetStore: LayoutPresetStore
     private let preferenceStore: StudioPreferenceStore
+    private var layoutPresetCloudObserver: NSObjectProtocol?
     private var playerTimeObserver: PlayerTimeObserver?
     private var previewRenderGeneration = 0
     private var videoLoadGeneration = 0
@@ -138,9 +139,13 @@ final class StudioModel: ObservableObject {
         self.gridColumns = preferenceState.gridColumns
         self.gridRows = preferenceState.gridRows
         self.snapGaugeToGrid = preferenceState.snapGaugeToGrid
+        observeLayoutPresetCloudChanges()
     }
 
     deinit {
+        if let layoutPresetCloudObserver {
+            NotificationCenter.default.removeObserver(layoutPresetCloudObserver)
+        }
         playerTimeObserver?.remove()
         videoLoadTask?.cancel()
         fitLoadTask?.cancel()
@@ -1405,6 +1410,31 @@ final class StudioModel: ObservableObject {
     private func persistLayoutPresets() {
         let state = LayoutPresetState(presets: layoutPresets, defaultPresetID: defaultLayoutPresetID)
         layoutPresetStore.save(state)
+    }
+
+    private func observeLayoutPresetCloudChanges() {
+        layoutPresetStore.synchronizeCloud()
+        let key = layoutPresetStore.cloudNotificationKey
+        layoutPresetCloudObserver = NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let changedKeys = notification.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String]
+            guard changedKeys?.contains(key) ?? true else { return }
+            Task { @MainActor in
+                self?.reloadLayoutPresetsFromStore()
+            }
+        }
+    }
+
+    private func reloadLayoutPresetsFromStore() {
+        let presetState = layoutPresetStore.load()
+        let validDefaultPresetID = presetState.presets.contains { $0.id == presetState.defaultPresetID }
+            ? presetState.defaultPresetID
+            : nil
+        layoutPresets = presetState.presets
+        defaultLayoutPresetID = validDefaultPresetID
     }
 
     private func persistStudioPreferences() {

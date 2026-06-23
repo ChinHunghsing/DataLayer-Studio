@@ -120,14 +120,62 @@ public struct LayoutPresetStore {
 
     private let defaults: UserDefaults
     private let key: String
+    private let loadCloudData: (() -> Data?)?
+    private let saveCloudData: ((Data) -> Void)?
+    private let synchronizeCloudStore: (() -> Void)?
 
     public init(defaults: UserDefaults = .standard, key: String = Self.storageKey) {
+        let ubiquitousStore = NSUbiquitousKeyValueStore.default
+        self.init(
+            defaults: defaults,
+            key: key,
+            loadCloudData: {
+                ubiquitousStore.synchronize()
+                return ubiquitousStore.data(forKey: key)
+            },
+            saveCloudData: { data in
+                ubiquitousStore.set(data, forKey: key)
+                ubiquitousStore.synchronize()
+            },
+            synchronizeCloudStore: {
+                ubiquitousStore.synchronize()
+            }
+        )
+    }
+
+    init(
+        defaults: UserDefaults,
+        key: String = Self.storageKey,
+        loadCloudData: (() -> Data?)?,
+        saveCloudData: ((Data) -> Void)?,
+        synchronizeCloudStore: (() -> Void)?
+    ) {
         self.defaults = defaults
         self.key = key
+        self.loadCloudData = loadCloudData
+        self.saveCloudData = saveCloudData
+        self.synchronizeCloudStore = synchronizeCloudStore
+    }
+
+    public var cloudNotificationKey: String {
+        key
     }
 
     public func load() -> LayoutPresetState {
-        Self.decodeState(from: defaults.data(forKey: key))
+        let localState = Self.decodeState(from: defaults.data(forKey: key))
+        let cloudState = Self.decodeState(from: loadCloudData?())
+
+        if !cloudState.presets.isEmpty {
+            if cloudState != localState {
+                saveLocal(cloudState)
+            }
+            return cloudState
+        }
+
+        if !localState.presets.isEmpty {
+            saveCloud(localState)
+        }
+        return localState
     }
 
     public func loadIncludingSharedAppDomains(
@@ -138,32 +186,55 @@ public struct LayoutPresetStore {
             return state
         }
 
-        return Self.loadSharedAppState(defaults: defaults, appDomains: appDomains)
+        for domain in appDomains {
+            let data = defaults.persistentDomain(forName: domain)?[Self.storageKey] as? Data
+            let state = Self.decodeState(from: data)
+            if !state.presets.isEmpty {
+                save(state)
+                return state
+            }
+        }
+
+        return .empty
     }
 
     public func save(_ state: LayoutPresetState) {
-        guard let data = try? JSONEncoder().encode(state.sanitized) else { return }
+        guard let data = Self.encodeState(state) else { return }
         defaults.set(data, forKey: key)
+        saveCloudData?(data)
+    }
+
+    public func synchronizeCloud() {
+        synchronizeCloudStore?()
     }
 
     public static func loadSharedAppState(
         defaults: UserDefaults = .standard,
         appDomains: [String] = DataLayerStudioDefaults.appDomains
     ) -> LayoutPresetState {
-        let standardState = LayoutPresetStore(defaults: defaults).load()
-        if !standardState.presets.isEmpty {
-            return standardState
-        }
+        let store = defaults === UserDefaults.standard
+            ? LayoutPresetStore(defaults: defaults)
+            : LayoutPresetStore(
+                defaults: defaults,
+                loadCloudData: nil,
+                saveCloudData: nil,
+                synchronizeCloudStore: nil
+            )
+        return store.loadIncludingSharedAppDomains(appDomains: appDomains)
+    }
 
-        for domain in appDomains {
-            let data = defaults.persistentDomain(forName: domain)?[storageKey] as? Data
-            let state = decodeState(from: data)
-            if !state.presets.isEmpty {
-                return state
-            }
-        }
+    private func saveLocal(_ state: LayoutPresetState) {
+        guard let data = Self.encodeState(state) else { return }
+        defaults.set(data, forKey: key)
+    }
 
-        return .empty
+    private func saveCloud(_ state: LayoutPresetState) {
+        guard let data = Self.encodeState(state) else { return }
+        saveCloudData?(data)
+    }
+
+    private static func encodeState(_ state: LayoutPresetState) -> Data? {
+        try? JSONEncoder().encode(state.sanitized)
     }
 
     private static func decodeState(from data: Data?) -> LayoutPresetState {

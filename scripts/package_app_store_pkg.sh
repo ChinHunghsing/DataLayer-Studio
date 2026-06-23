@@ -48,9 +48,16 @@ fi
 security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
 APP_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROFILE_PLIST")"
 TEAM_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROFILE_PLIST")"
+KVSTORE_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.ubiquity-kvstore-identifier" "$PROFILE_PLIST" 2>/dev/null || true)"
 
 if [[ -z "$APP_IDENTIFIER" || -z "$TEAM_IDENTIFIER" ]]; then
     echo "error: provisioning profile is missing application identifier entitlements" >&2
+    exit 1
+fi
+
+if [[ -z "$KVSTORE_IDENTIFIER" ]]; then
+    echo "error: provisioning profile is missing iCloud key-value store entitlement" >&2
+    echo "Enable iCloud Key-value storage for $APP_IDENTIFIER and regenerate the Mac App Store profile." >&2
     exit 1
 fi
 
@@ -59,6 +66,7 @@ cp "$ENTITLEMENTS_PATH" "$SIGN_ENTITLEMENTS"
     /usr/libexec/PlistBuddy -c "Set :com.apple.application-identifier $APP_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string $TEAM_IDENTIFIER" "$SIGN_ENTITLEMENTS" 2>/dev/null || \
     /usr/libexec/PlistBuddy -c "Set :com.apple.developer.team-identifier $TEAM_IDENTIFIER" "$SIGN_ENTITLEMENTS"
+/usr/libexec/PlistBuddy -c "Set :com.apple.developer.ubiquity-kvstore-identifier $KVSTORE_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 
 cp "$PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
 codesign --force --deep --options runtime --entitlements "$SIGN_ENTITLEMENTS" --sign "$APP_IDENTITY" "$APP_PATH"
@@ -82,6 +90,12 @@ do
         exit 1
     fi
 done
+
+signed_kvstore_identifier="$(/usr/libexec/PlistBuddy -c "Print :com.apple.developer.ubiquity-kvstore-identifier" "$SIGNED_ENTITLEMENTS" 2>/dev/null || true)"
+if [[ "$signed_kvstore_identifier" != "$KVSTORE_IDENTIFIER" ]]; then
+    echo "error: signed app iCloud key-value store entitlement does not match provisioning profile" >&2
+    exit 1
+fi
 
 rm -f "$PKG_PATH"
 productbuild --component "$APP_PATH" /Applications --sign "$INSTALLER_IDENTITY" "$PKG_PATH"
