@@ -12,6 +12,11 @@ PROFILE_PLIST="$(mktemp "${TMPDIR:-/tmp}/datalayer-profile.XXXXXX.plist")"
 SIGN_ENTITLEMENTS="$(mktemp "${TMPDIR:-/tmp}/datalayer-appstore-entitlements.XXXXXX.plist")"
 SIGNED_ENTITLEMENTS="$(mktemp "${TMPDIR:-/tmp}/datalayer-signed-entitlements.XXXXXX.plist")"
 
+clean_bundle_metadata() {
+    find "$APP_PATH" -name '._*' -type f -delete
+    xattr -cr "$APP_PATH" 2>/dev/null || true
+}
+
 cleanup() {
     rm -f "$PROFILE_PLIST" "$SIGN_ENTITLEMENTS" "$SIGNED_ENTITLEMENTS"
 }
@@ -49,6 +54,7 @@ security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
 APP_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROFILE_PLIST")"
 TEAM_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROFILE_PLIST")"
 KVSTORE_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.ubiquity-kvstore-identifier" "$PROFILE_PLIST" 2>/dev/null || true)"
+BUNDLE_IDENTIFIER="${APP_IDENTIFIER#${TEAM_IDENTIFIER}.}"
 
 if [[ -z "$APP_IDENTIFIER" || -z "$TEAM_IDENTIFIER" ]]; then
     echo "error: provisioning profile is missing application identifier entitlements" >&2
@@ -61,17 +67,32 @@ if [[ -z "$KVSTORE_IDENTIFIER" ]]; then
     exit 1
 fi
 
+SIGN_KVSTORE_IDENTIFIER="$KVSTORE_IDENTIFIER"
+if [[ "$SIGN_KVSTORE_IDENTIFIER" == *"*"* ]]; then
+    if [[ "$BUNDLE_IDENTIFIER" == "$APP_IDENTIFIER" ]]; then
+        echo "error: cannot derive bundle identifier from app identifier: $APP_IDENTIFIER" >&2
+        exit 1
+    fi
+    SIGN_KVSTORE_IDENTIFIER="${SIGN_KVSTORE_IDENTIFIER//\*/$BUNDLE_IDENTIFIER}"
+fi
+
+if [[ "$SIGN_KVSTORE_IDENTIFIER" == *"*"* ]]; then
+    echo "error: signed iCloud key-value store entitlement cannot contain wildcards" >&2
+    exit 1
+fi
+
 cp "$ENTITLEMENTS_PATH" "$SIGN_ENTITLEMENTS"
 /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $APP_IDENTIFIER" "$SIGN_ENTITLEMENTS" 2>/dev/null || \
     /usr/libexec/PlistBuddy -c "Set :com.apple.application-identifier $APP_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 /usr/libexec/PlistBuddy -c "Add :com.apple.developer.team-identifier string $TEAM_IDENTIFIER" "$SIGN_ENTITLEMENTS" 2>/dev/null || \
     /usr/libexec/PlistBuddy -c "Set :com.apple.developer.team-identifier $TEAM_IDENTIFIER" "$SIGN_ENTITLEMENTS"
-/usr/libexec/PlistBuddy -c "Set :com.apple.developer.ubiquity-kvstore-identifier $KVSTORE_IDENTIFIER" "$SIGN_ENTITLEMENTS"
+/usr/libexec/PlistBuddy -c "Set :com.apple.developer.ubiquity-kvstore-identifier $SIGN_KVSTORE_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 
 cp "$PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
+clean_bundle_metadata
 codesign --force --deep --options runtime --entitlements "$SIGN_ENTITLEMENTS" --sign "$APP_IDENTITY" "$APP_PATH"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-codesign -d --entitlements :- "$APP_PATH" > "$SIGNED_ENTITLEMENTS" 2>/dev/null
+codesign -d --xml --entitlements - "$APP_PATH" > "$SIGNED_ENTITLEMENTS" 2>/dev/null
 SIGNED_APP_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :com.apple.application-identifier" "$SIGNED_ENTITLEMENTS")"
 
 if [[ "$SIGNED_APP_IDENTIFIER" != "$APP_IDENTIFIER" ]]; then
@@ -92,7 +113,7 @@ do
 done
 
 signed_kvstore_identifier="$(/usr/libexec/PlistBuddy -c "Print :com.apple.developer.ubiquity-kvstore-identifier" "$SIGNED_ENTITLEMENTS" 2>/dev/null || true)"
-if [[ "$signed_kvstore_identifier" != "$KVSTORE_IDENTIFIER" ]]; then
+if [[ "$signed_kvstore_identifier" != "$SIGN_KVSTORE_IDENTIFIER" ]]; then
     echo "error: signed app iCloud key-value store entitlement does not match provisioning profile" >&2
     exit 1
 fi
