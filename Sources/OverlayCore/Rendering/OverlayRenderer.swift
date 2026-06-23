@@ -482,7 +482,7 @@ public final class OverlayRenderer {
         let lines = metricUnitLines(unit)
         let firstLineHeight = element.kind == .weather && element.customization.showsIcon ? iconFontSize : unitFontSize
         let remainingHeight = CGFloat(max(0, lines.count - 1)) * unitFontSize
-        let gaps = CGFloat(max(0, lines.count - 1)) * max(2 * scale, unitFontSize * 0.16)
+        let gaps = CGFloat(max(0, lines.count - 1)) * metricUnitLineGap(element: element, unitFontSize: unitFontSize, scale: scale)
         return firstLineHeight + remainingHeight + gaps
     }
 
@@ -497,7 +497,7 @@ public final class OverlayRenderer {
         scale: CGFloat
     ) {
         let lines = metricUnitLines(unit)
-        let step = max(unitFontSize, iconFontSize * 0.72) + max(2 * scale, unitFontSize * 0.16)
+        let step = max(unitFontSize, iconFontSize * 0.72) + metricUnitLineGap(element: element, unitFontSize: unitFontSize, scale: scale)
         let firstBaselineY = centerBaselineY + CGFloat(lines.count - 1) * step / 2
         for (index, line) in lines.enumerated() {
             let drawsIcon = index == 0 && element.kind == .weather && element.customization.showsIcon
@@ -515,6 +515,12 @@ public final class OverlayRenderer {
                 fontName: font
             )
         }
+    }
+
+    private func metricUnitLineGap(element: OverlayElement, unitFontSize: CGFloat, scale: CGFloat) -> CGFloat {
+        let baseGap = max(2 * scale, unitFontSize * 0.16)
+        guard element.kind == .weather else { return baseGap }
+        return baseGap * CGFloat(element.customization.weatherIconSpacingScale ?? 1)
     }
 
     private func weatherIconText(element: OverlayElement, summary: String?) -> String {
@@ -1366,8 +1372,8 @@ public final class OverlayRenderer {
     }
 
     private func formatWeatherTemperature(_ sample: TelemetrySample) -> String {
-        guard let temperature = sample.weatherTemperatureCelsius ?? sample.temperatureCelsius else { return "--°" }
-        return "\(temperature)°"
+        guard let temperature = sample.weatherTemperatureCelsius ?? sample.temperatureCelsius else { return "--℃" }
+        return "\(temperature)℃"
     }
 
     private func formatWeatherUnit(_ sample: TelemetrySample) -> String {

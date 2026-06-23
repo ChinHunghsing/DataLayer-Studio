@@ -332,6 +332,24 @@ struct InspectorSettingsPanel: View {
                     )
                 }
             }
+
+            if kind == .weather,
+               currentElement(id)?.customization.showsIcon == true,
+               currentElement(id)?.customization.showsUnit == true {
+                InspectorRule()
+                InspectorSubheading(localization.string("inspector.weatherIcon"))
+
+                LabeledSlider(
+                    title: localization.string("inspector.weatherIconSpacing"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.weatherIconSpacingScale ?? 1 },
+                        set: { $0.customization.weatherIconSpacingScale = $1 }
+                    ),
+                    range: 0...3,
+                    label: "\(Int(((currentElement(id)?.customization.weatherIconSpacingScale ?? 1) * 100).rounded()))%"
+                )
+            }
         }
     }
 

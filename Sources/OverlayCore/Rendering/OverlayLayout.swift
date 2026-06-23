@@ -240,6 +240,7 @@ public struct OverlayElementCustomization: Codable, Equatable {
     public var progressKnobScale: Double?
     public var progressValueMarginScale: Double?
     public var progressTickCount: Int?
+    public var weatherIconSpacingScale: Double?
     public var labelScale: Double
     public var valueScale: Double
     public var unitScale: Double
@@ -273,6 +274,7 @@ public struct OverlayElementCustomization: Codable, Equatable {
         progressKnobScale: Double? = nil,
         progressValueMarginScale: Double? = nil,
         progressTickCount: Int? = nil,
+        weatherIconSpacingScale: Double? = nil,
         labelScale: Double = 1,
         valueScale: Double = 1,
         unitScale: Double = 1,
@@ -305,6 +307,7 @@ public struct OverlayElementCustomization: Codable, Equatable {
         self.progressKnobScale = progressKnobScale
         self.progressValueMarginScale = progressValueMarginScale
         self.progressTickCount = progressTickCount
+        self.weatherIconSpacingScale = weatherIconSpacingScale
         self.labelScale = labelScale
         self.valueScale = valueScale
         self.unitScale = unitScale
@@ -353,6 +356,7 @@ public struct OverlayElementCustomization: Codable, Equatable {
         copy.progressKnobScale = OverlayLayoutSanitizer.sanitize(progressKnobScale, range: 0.25...3)
         copy.progressValueMarginScale = OverlayLayoutSanitizer.sanitize(progressValueMarginScale, range: 0...4)
         copy.progressTickCount = progressTickCount.map { min(160, max(0, $0)) }
+        copy.weatherIconSpacingScale = OverlayLayoutSanitizer.sanitize(weatherIconSpacingScale, range: 0...3)
         copy.labelScale = OverlayLayoutSanitizer.clamp(labelScale, fallback: 1, range: 0.05...20)
         copy.valueScale = OverlayLayoutSanitizer.clamp(valueScale, fallback: 1, range: 0.05...20)
         copy.unitScale = OverlayLayoutSanitizer.clamp(unitScale, fallback: 1, range: 0.05...20)

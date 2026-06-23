@@ -474,8 +474,14 @@ struct PreviewCanvasView: View {
         let lines = metricUnitLines(unit)
         let firstLineHeight = element.kind == .weather && element.customization.showsIcon ? iconFontSize : unitFontSize
         let remainingHeight = CGFloat(max(0, lines.count - 1)) * unitFontSize
-        let gaps = CGFloat(max(0, lines.count - 1)) * max(2 * scale, unitFontSize * 0.16)
+        let gaps = CGFloat(max(0, lines.count - 1)) * metricUnitLineGap(element: element, unitFontSize: unitFontSize, scale: scale)
         return firstLineHeight + remainingHeight + gaps
+    }
+
+    private func metricUnitLineGap(element: OverlayElement, unitFontSize: CGFloat, scale: CGFloat) -> CGFloat {
+        let baseGap = max(2 * scale, unitFontSize * 0.16)
+        guard element.kind == .weather else { return baseGap }
+        return baseGap * CGFloat(element.customization.weatherIconSpacingScale ?? 1)
     }
 
     private func weatherIconText(element: OverlayElement, summary: String?) -> String {
@@ -802,8 +808,8 @@ struct PreviewCanvasView: View {
     }
 
     private func formatWeatherTemperature(_ sample: TelemetrySample) -> String {
-        guard let temperature = sample.weatherTemperatureCelsius ?? sample.temperatureCelsius else { return "--°" }
-        return "\(temperature)°"
+        guard let temperature = sample.weatherTemperatureCelsius ?? sample.temperatureCelsius else { return "--℃" }
+        return "\(temperature)℃"
     }
 
     private func formatWeatherUnit(_ sample: TelemetrySample) -> String {
