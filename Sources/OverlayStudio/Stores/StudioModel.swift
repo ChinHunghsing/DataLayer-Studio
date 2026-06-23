@@ -1422,7 +1422,7 @@ final class StudioModel: ObservableObject {
         ) { [weak self] notification in
             let changedKeys = notification.userInfo?[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String]
             guard changedKeys?.contains(key) ?? true else { return }
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 self?.reloadLayoutPresetsFromStore()
             }
         }
