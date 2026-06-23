@@ -55,6 +55,7 @@ struct OpenWeatherRecord: Codable, Equatable {
 
 final class OpenWeatherService {
     typealias DataLoader = (URL) async throws -> Data
+    private static let maximumWeatherSampleDistance: TimeInterval = 6 * 3600
 
     private let cacheDirectory: URL
     private let dataLoader: DataLoader
@@ -247,7 +248,7 @@ final class OpenWeatherService {
             abs(lhs.timestamp.timeIntervalSince(date)) < abs(rhs.timestamp.timeIntervalSince(date))
         }
         guard let nearest,
-              abs(nearest.timestamp.timeIntervalSince(date)) <= 90 * 60 else {
+              abs(nearest.timestamp.timeIntervalSince(date)) <= maximumWeatherSampleDistance else {
             return nil
         }
         return nearest

@@ -1,8 +1,14 @@
 import AppKit
 import AVFoundation
 import Foundation
+import OSLog
 import OverlayCore
 import UniformTypeIdentifiers
+
+private let studioDebugLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "run.libo.datalayer-studio",
+    category: "Debug"
+)
 
 private final class PlayerTimeObserver {
     private weak var player: AVPlayer?
@@ -85,6 +91,7 @@ final class StudioModel: ObservableObject {
     @Published var exportProgress = 0.0
     @Published var openWeatherAPIKey = OpenWeatherKeyStore.load()
     @Published var weatherRefreshMessage: String?
+    @Published var debugLogEntries: [DebugLogEntry] = []
 
     private var resolvedLanguage = AppLocalizer.resolvedLanguage(for: AppLocalizer.storedSelection())
     private let videoFrameService = VideoFrameService()
@@ -366,22 +373,26 @@ final class StudioModel: ObservableObject {
     func setOpenWeatherAPIKey(_ value: String) {
         openWeatherAPIKey = value
         OpenWeatherKeyStore.save(value)
+        addDebugLog(.weather, "OpenWeather key updated: \(redactedKeySummary(value))")
     }
 
     func refreshOpenWeatherForCurrentFIT() {
         guard !openWeatherAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             status = localized("status.weatherKeyRequired")
             weatherRefreshMessage = status
+            addDebugLog(.weather, "Refresh skipped: missing OpenWeather key")
             return
         }
         guard let currentSeries = series,
               let fitURL else {
             status = localized("status.weatherFitRequired")
             weatherRefreshMessage = status
+            addDebugLog(.weather, "Refresh skipped: missing FIT series")
             return
         }
         status = localized("status.weatherRefreshing", fitURL.lastPathComponent)
         weatherRefreshMessage = status
+        addDebugLog(.weather, "Refresh started: \(fitURL.lastPathComponent), samples=\(currentSeries.samples.count), key=\(redactedKeySummary(openWeatherAPIKey))")
         loadOpenWeatherIfPossible(
             for: currentSeries,
             sourceName: fitURL.lastPathComponent,
@@ -702,6 +713,7 @@ final class StudioModel: ObservableObject {
         dragOverlayImage = nil
         previewWarning = nil
         status = localized("status.loadingFit", url.lastPathComponent)
+        addDebugLog(.input, "Loading FIT: \(url.lastPathComponent)")
 
         fitLoadTask = Task.detached {
             do {
@@ -714,6 +726,7 @@ final class StudioModel: ObservableObject {
                     self.fitURL = url
                     self.series = parsedSeries
                     self.status = self.localized("status.loadedFit", url.lastPathComponent)
+                    self.addDebugLog(.input, "Loaded FIT: \(url.lastPathComponent), samples=\(parsedSeries.samples.count), duration=\(Self.formatDebugSeconds(parsedSeries.duration))")
                     self.refreshOverlayOrPreview()
                     self.loadOpenWeatherIfPossible(
                         for: parsedSeries,
@@ -740,6 +753,7 @@ final class StudioModel: ObservableObject {
                     guard !Task.isCancelled,
                           self.fitLoadGeneration == loadGeneration else { return }
                     self.status = self.localized("status.fitError", message)
+                    self.addDebugLog(.input, "FIT error: \(message)")
                     self.fitLoadTask = nil
                     self.refreshOverlayOnly()
                 }
@@ -759,6 +773,7 @@ final class StudioModel: ObservableObject {
         let service = openWeatherService
         let language = openWeatherLanguageCode
         weatherLoadTask?.cancel()
+        addDebugLog(.weather, "Weather request queued: language=\(language), force=\(forceRefresh)")
         weatherLoadTask = Task { [weak self] in
             do {
                 let enrichedSeries = try await service.enrichedSeries(
@@ -772,10 +787,12 @@ final class StudioModel: ObservableObject {
                     guard let self,
                           self.fitLoadGeneration == generation else { return }
                     self.series = enrichedSeries
-                    self.status = enrichedSeries.samples.contains(where: { $0.weatherTemperatureCelsius != nil || $0.weatherHumidityPercent != nil || $0.weatherSummary != nil })
+                    let weatherSampleCount = enrichedSeries.samples.filter { $0.weatherTemperatureCelsius != nil || $0.weatherHumidityPercent != nil || $0.weatherSummary != nil }.count
+                    self.status = weatherSampleCount > 0
                         ? self.localized("status.loadedFitWithWeather", sourceName)
                         : self.localized("status.weatherUnavailable", sourceName)
                     self.weatherRefreshMessage = self.status
+                    self.addDebugLog(.weather, "Weather request finished: weatherSamples=\(weatherSampleCount)/\(enrichedSeries.samples.count)")
                     self.refreshOverlayOrPreview()
                     self.weatherLoadTask = nil
                 }
@@ -792,6 +809,7 @@ final class StudioModel: ObservableObject {
                     }
                     self.status = self.localized("status.weatherError", sourceName, details)
                     self.weatherRefreshMessage = self.status
+                    self.addDebugLog(.weather, "Weather request failed: \(details)")
                     self.weatherLoadTask = nil
                 }
             }
@@ -882,6 +900,9 @@ final class StudioModel: ObservableObject {
                 self.backgroundImage = background
                 self.overlayImage = overlay
                 self.previewWarning = finalWarningMessage
+                if let finalWarningMessage {
+                    self.addDebugLog(.preview, finalWarningMessage)
+                }
                 self.previewRenderTask = nil
             }
         }
@@ -963,6 +984,9 @@ final class StudioModel: ObservableObject {
                 }
                 self.overlayImage = overlay
                 self.previewWarning = warningMessage
+                if let warningMessage {
+                    self.addDebugLog(.preview, warningMessage)
+                }
                 self.previewRenderTask = nil
             }
         }
@@ -1290,6 +1314,7 @@ final class StudioModel: ObservableObject {
         isExporting = true
         exportProgress = 0
         status = localized("status.exporting")
+        addDebugLog(.export, "Export started: \(outputURL.lastPathComponent), \(exportSettings.width)x\(exportSettings.height), \(Self.formatDebugSeconds(exportSettings.duration))")
         let cancellationToken = ExportCancellationToken()
         exportCancellationToken = cancellationToken
 
@@ -1323,6 +1348,7 @@ final class StudioModel: ObservableObject {
                     self.exportTask = nil
                     self.exportCancellationToken = nil
                     self.status = self.localized("status.wroteFile", outputURL.path)
+                    self.addDebugLog(.export, "Export finished: \(outputURL.lastPathComponent)")
                     self.refreshOverlayOrPreview()
                 }
             } catch OverlayVideoError.cancelled {
@@ -1333,6 +1359,7 @@ final class StudioModel: ObservableObject {
                     self.exportTask = nil
                     self.exportCancellationToken = nil
                     self.status = self.localized("status.exportCancelled")
+                    self.addDebugLog(.export, "Export cancelled")
                     self.refreshOverlayOrPreview()
                 }
             } catch {
@@ -1342,6 +1369,7 @@ final class StudioModel: ObservableObject {
                     self.exportTask = nil
                     self.exportCancellationToken = nil
                     self.status = self.localized("status.exportError", error.localizedDescription)
+                    self.addDebugLog(.export, "Export failed: \(error.localizedDescription)")
                     self.refreshOverlayOrPreview()
                 }
             }
@@ -1593,6 +1621,29 @@ final class StudioModel: ObservableObject {
 
     private func nonNegativeTime(_ time: TimeInterval) -> TimeInterval {
         max(0, finiteTime(time))
+    }
+
+    func clearDebugLog() {
+        debugLogEntries.removeAll()
+        studioDebugLogger.info("Debug log cleared")
+    }
+
+    private func addDebugLog(_ category: DebugLogCategory, _ message: String) {
+        debugLogEntries.append(DebugLogEntry(date: Date(), category: category, message: message))
+        if debugLogEntries.count > 200 {
+            debugLogEntries.removeFirst(debugLogEntries.count - 200)
+        }
+        studioDebugLogger.info("[\(category.rawValue, privacy: .public)] \(message, privacy: .public)")
+    }
+
+    private func redactedKeySummary(_ key: String) -> String {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "empty" }
+        return "configured, \(trimmed.count) chars"
+    }
+
+    private static func formatDebugSeconds(_ seconds: TimeInterval) -> String {
+        String(format: "%.1fs", seconds)
     }
 }
 

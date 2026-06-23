@@ -74,4 +74,27 @@ final class OpenWeatherServiceTests: XCTestCase {
         XCTAssertEqual(enriched.samples.first?.weatherHumidityPercent, 70)
         XCTAssertEqual(enriched.samples.first?.weatherSummary, "Rain")
     }
+
+    func testWeatherUsesNearestRecordAcrossRecentTimelineGap() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(
+                elapsed: 0,
+                date: Date(timeIntervalSince1970: 1_000),
+                latitude: 34.683,
+                longitude: 135.532
+            )
+        ])
+        let enriched = OpenWeatherService.series(series, applying: [
+            OpenWeatherRecord(
+                timestamp: Date(timeIntervalSince1970: 1_000 + 3 * 3600),
+                temperatureCelsius: 24,
+                humidityPercent: 70,
+                summary: "Clouds"
+            )
+        ])
+
+        XCTAssertEqual(enriched.samples.first?.weatherTemperatureCelsius, 24)
+        XCTAssertEqual(enriched.samples.first?.weatherHumidityPercent, 70)
+        XCTAssertEqual(enriched.samples.first?.weatherSummary, "Clouds")
+    }
 }

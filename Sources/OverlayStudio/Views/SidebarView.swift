@@ -5,6 +5,7 @@ struct SidebarView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
     @State private var layoutPresetName = ""
+    @State private var selectedDebugCategory = DebugLogCategory.weather
     @SceneStorage("sidebarWorkflowTab") private var selectedTabRawValue = SidebarWorkflowTab.source.rawValue
 
     var body: some View {
@@ -56,6 +57,8 @@ struct SidebarView: View {
             canvasSection
         case .export:
             exportWorkflowSection
+        case .debug:
+            debugSection
         }
     }
 
@@ -98,6 +101,56 @@ struct SidebarView: View {
 
     private var syncSection: some View {
         SidebarSyncSection(model: model)
+    }
+
+    private var debugSection: some View {
+        let entries = model.debugLogEntries
+            .filter { $0.category == selectedDebugCategory }
+            .suffix(80)
+
+        return VStack(alignment: .leading, spacing: 12) {
+            SidebarControl(title: localization.string("debug.category")) {
+                Picker(localization.string("debug.category"), selection: $selectedDebugCategory) {
+                    ForEach(DebugLogCategory.allCases) { category in
+                        Text(localization.string(category.titleKey)).tag(category)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+
+            Button(role: .destructive) {
+                model.clearDebugLog()
+            } label: {
+                Label(localization.string("debug.clear"), systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+            .disabled(model.debugLogEntries.isEmpty)
+
+            if entries.isEmpty {
+                Text(localization.string("debug.empty"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(entries)) { entry in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(entry.date, style: .time)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                            Text(entry.message)
+                                .font(.caption)
+                                .foregroundStyle(.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(nsColor: .controlBackgroundColor).opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+        }
     }
 
     private var outputSection: some View {
@@ -401,6 +454,7 @@ private enum SidebarWorkflowTab: String, CaseIterable, Identifiable {
     case sync
     case canvas
     case export
+    case debug
 
     var id: String { rawValue }
 
@@ -414,6 +468,8 @@ private enum SidebarWorkflowTab: String, CaseIterable, Identifiable {
             return "3"
         case .export:
             return "4"
+        case .debug:
+            return "5"
         }
     }
 
@@ -427,6 +483,8 @@ private enum SidebarWorkflowTab: String, CaseIterable, Identifiable {
             return "sidebar.canvas.title"
         case .export:
             return "sidebar.export.title"
+        case .debug:
+            return "debug.title"
         }
     }
 
@@ -440,6 +498,8 @@ private enum SidebarWorkflowTab: String, CaseIterable, Identifiable {
             return "sidebar.canvas.subtitle"
         case .export:
             return "sidebar.export.subtitle"
+        case .debug:
+            return "debug.subtitle"
         }
     }
 
@@ -453,6 +513,8 @@ private enum SidebarWorkflowTab: String, CaseIterable, Identifiable {
             return "rectangle.dashed"
         case .export:
             return "paperplane"
+        case .debug:
+            return "ladybug"
         }
     }
 }

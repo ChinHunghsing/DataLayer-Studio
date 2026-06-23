@@ -1,6 +1,26 @@
 import Foundation
 import OverlayCore
 
+enum DebugLogCategory: String, CaseIterable, Identifiable {
+    case input
+    case weather
+    case preview
+    case export
+
+    var id: String { rawValue }
+
+    var titleKey: String {
+        "debug.category.\(rawValue)"
+    }
+}
+
+struct DebugLogEntry: Identifiable, Equatable {
+    let id = UUID()
+    var date: Date
+    var category: DebugLogCategory
+    var message: String
+}
+
 enum SyncMode: String, CaseIterable, Identifiable {
     case offset
     case fitStart
