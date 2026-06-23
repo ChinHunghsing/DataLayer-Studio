@@ -258,7 +258,7 @@ struct PreviewCanvasView: View {
                 sourceOverlay: model.overlayImage,
                 translation: .zero
             )
-            model.beginElementDrag(id: id, previewSize: dragRenderSize(for: displayRect.size))
+            model.beginElementDrag(id: id, previewSize: previewOverlayRenderSize(for: displayRect.size))
         }
         guard var activeDrag else { return }
 
@@ -692,14 +692,6 @@ struct PreviewCanvasView: View {
 
     private func textWidth(_ text: String, size: CGFloat, fontName: OverlayFontFamily) -> CGFloat {
         TextMeasurementCache.width(text, size: size, fontName: fontName)
-    }
-
-    private func dragRenderSize(for displaySize: CGSize) -> CGSize {
-        let maximumDimension: CGFloat = 2200
-        let longestSide = max(displaySize.width, displaySize.height)
-        guard longestSide > maximumDimension else { return displaySize }
-        let scale = maximumDimension / longestSide
-        return CGSize(width: displaySize.width * scale, height: displaySize.height * scale)
     }
 
     private func previewOverlayRenderSize(for displaySize: CGSize) -> CGSize {
