@@ -422,6 +422,21 @@ struct InspectorSettingsPanel: View {
                         title: localization.string("inspector.weatherRefresh.title"),
                         message: localization.string("inspector.weatherRefresh.message")
                     ) {
+                        SecureField(localization.string("sidebar.weather.openWeatherKey"), text: Binding(
+                            get: { model.openWeatherAPIKey },
+                            set: { model.setOpenWeatherAPIKey($0) }
+                        ))
+                        .onSubmit {
+                            model.refreshOpenWeatherForCurrentFIT()
+                        }
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption)
+
+                        Text(localization.string("sidebar.weather.openWeatherHint"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
                         Button {
                             model.refreshOpenWeatherForCurrentFIT()
                         } label: {
