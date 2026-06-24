@@ -170,7 +170,7 @@ struct PreviewCanvasView: View {
             }
 
             ForEach(interactiveElements(visibleElements)) { element in
-                componentHandle(element: element, displayRect: displayRect)
+                componentHandle(element: element, displayRect: displayRect, visibleElements: visibleElements)
             }
         }
         .frame(width: contentSize.width, height: contentSize.height)
@@ -188,7 +188,7 @@ struct PreviewCanvasView: View {
         }
     }
 
-    private func componentHandle(element: OverlayElement, displayRect: CGRect) -> some View {
+    private func componentHandle(element: OverlayElement, displayRect: CGRect, visibleElements: [OverlayElement]) -> some View {
         let dragState = activeDrag?.id == element.id ? activeDrag : nil
         let rect = dragState.map {
             $0.sourceRect.offsetBy(dx: $0.translation.width, dy: $0.translation.height)
@@ -209,7 +209,7 @@ struct PreviewCanvasView: View {
                         let targetID = activeDrag?.id ?? hitTestElement(
                             at: value.startLocation,
                             displayRect: displayRect,
-                            visibleElements: model.layout.visibleElements
+                            visibleElements: visibleElements
                         )?.id ?? element.id
                         moveElement(targetID, displayRect: displayRect, translation: value.translation)
                     }
@@ -237,7 +237,8 @@ struct PreviewCanvasView: View {
 
     private func interactiveElements(_ visibleElements: [OverlayElement]) -> [OverlayElement] {
         guard let activeDrag else { return visibleElements }
-        return visibleElements.filter { $0.id == activeDrag.id }
+        guard let element = visibleElements.first(where: { $0.id == activeDrag.id }) else { return [] }
+        return [element]
     }
 
     private func selectElement(_ id: String) {
