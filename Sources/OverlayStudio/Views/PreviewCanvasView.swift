@@ -129,9 +129,15 @@ struct PreviewCanvasView: View {
                     .position(x: displayRect.midX, y: displayRect.midY)
             }
 
-            if activeDrag != nil {
+            if let activeDrag {
                 if let baseOverlay = model.dragBaseOverlayImage {
                     overlayImage(baseOverlay, displayRect: displayRect)
+                } else if let sourceOverlay = activeDrag.sourceOverlay {
+                    dragBaseSnapshotOverlay(
+                        sourceOverlay,
+                        excluding: activeDrag.sourceRect,
+                        displayRect: displayRect
+                    )
                 }
             } else if let overlay = model.overlayImage {
                 overlayImage(overlay, displayRect: displayRect)
@@ -743,6 +749,64 @@ struct PreviewCanvasView: View {
         .position(x: sourceRect.midX, y: sourceRect.midY)
         .offset(translation)
         .allowsHitTesting(false)
+    }
+
+    private func dragBaseSnapshotOverlay(
+        _ image: NSImage,
+        excluding sourceRect: CGRect,
+        displayRect: CGRect
+    ) -> some View {
+        let cropRects = dragBaseSnapshotRects(displayRect: displayRect, excluding: sourceRect)
+        return ZStack {
+            ForEach(cropRects.indices, id: \.self) { index in
+                croppedOverlayImage(image, cropRect: cropRects[index], displayRect: displayRect)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func croppedOverlayImage(_ image: NSImage, cropRect: CGRect, displayRect: CGRect) -> some View {
+        ZStack(alignment: .topLeading) {
+            Image(nsImage: image)
+                .resizable()
+                .frame(width: displayRect.width, height: displayRect.height)
+                .offset(
+                    x: displayRect.minX - cropRect.minX,
+                    y: displayRect.minY - cropRect.minY
+                )
+        }
+        .frame(width: cropRect.width, height: cropRect.height, alignment: .topLeading)
+        .clipped()
+        .position(x: cropRect.midX, y: cropRect.midY)
+    }
+
+    private func dragBaseSnapshotRects(displayRect: CGRect, excluding sourceRect: CGRect) -> [CGRect] {
+        let excluded = sourceRect.intersection(displayRect)
+        guard !excluded.isNull, !excluded.isEmpty else { return [displayRect] }
+
+        var rects: [CGRect] = []
+        appendSnapshotRect(
+            CGRect(x: displayRect.minX, y: displayRect.minY, width: displayRect.width, height: excluded.minY - displayRect.minY),
+            to: &rects
+        )
+        appendSnapshotRect(
+            CGRect(x: displayRect.minX, y: excluded.maxY, width: displayRect.width, height: displayRect.maxY - excluded.maxY),
+            to: &rects
+        )
+        appendSnapshotRect(
+            CGRect(x: displayRect.minX, y: excluded.minY, width: excluded.minX - displayRect.minX, height: excluded.height),
+            to: &rects
+        )
+        appendSnapshotRect(
+            CGRect(x: excluded.maxX, y: excluded.minY, width: displayRect.maxX - excluded.maxX, height: excluded.height),
+            to: &rects
+        )
+        return rects
+    }
+
+    private func appendSnapshotRect(_ rect: CGRect, to rects: inout [CGRect]) {
+        guard rect.width > 0.5, rect.height > 0.5 else { return }
+        rects.append(rect)
     }
 
     private func overlayImage(_ image: NSImage, displayRect: CGRect) -> some View {
