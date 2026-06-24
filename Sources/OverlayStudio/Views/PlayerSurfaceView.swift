@@ -45,6 +45,7 @@ final class PlayerLayerHostView: NSView {
 
     override func layout() {
         super.layout()
+        guard playerLayer.frame != bounds else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         playerLayer.frame = bounds
