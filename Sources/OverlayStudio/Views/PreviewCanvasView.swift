@@ -139,12 +139,12 @@ struct PreviewCanvasView: View {
 
             if let activeDrag {
                 if let dragOverlay = model.dragOverlayImage {
-                    Image(nsImage: dragOverlay)
-                        .resizable()
-                        .frame(width: displayRect.width, height: displayRect.height)
-                        .position(x: displayRect.midX, y: displayRect.midY)
-                        .offset(activeDrag.translation)
-                        .allowsHitTesting(false)
+                    dragSnapshotOverlay(
+                        dragOverlay,
+                        sourceRect: activeDrag.sourceRect,
+                        displayRect: displayRect,
+                        translation: activeDrag.translation
+                    )
                 } else if let sourceOverlay = activeDrag.sourceOverlay {
                     dragSnapshotOverlay(
                         sourceOverlay,
@@ -163,7 +163,7 @@ struct PreviewCanvasView: View {
                     .allowsHitTesting(false)
             }
 
-            ForEach(visibleElements) { element in
+            ForEach(interactiveElements(visibleElements)) { element in
                 componentHandle(element: element, displayRect: displayRect)
             }
         }
@@ -222,6 +222,11 @@ struct PreviewCanvasView: View {
             .accessibilityAction {
                 selectElement(element.id)
             }
+    }
+
+    private func interactiveElements(_ visibleElements: [OverlayElement]) -> [OverlayElement] {
+        guard let activeDrag else { return visibleElements }
+        return visibleElements.filter { $0.id == activeDrag.id }
     }
 
     private func selectElement(_ id: String) {
