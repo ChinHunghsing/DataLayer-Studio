@@ -23,9 +23,15 @@ struct PreviewTimelineSlider: NSViewRepresentable {
     func updateNSView(_ nsView: FocusableTimelineSlider, context: Context) {
         context.coordinator.value = $value
         context.coordinator.onFrameStep = onFrameStep
-        nsView.minValue = range.lowerBound
-        nsView.maxValue = range.upperBound
-        nsView.isEnabled = isEnabled
+        if nsView.minValue != range.lowerBound {
+            nsView.minValue = range.lowerBound
+        }
+        if nsView.maxValue != range.upperBound {
+            nsView.maxValue = range.upperBound
+        }
+        if nsView.isEnabled != isEnabled {
+            nsView.isEnabled = isEnabled
+        }
         nsView.onFrameStep = { context.coordinator.stepFrame(by: $0) }
         nsView.setAccessibilityLabel(accessibilityLabel)
 
