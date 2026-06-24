@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreGraphics
+import CoreImage
 import CoreMedia
 import CoreVideo
 import Darwin
@@ -170,6 +171,7 @@ public final class TransparentVideoWriter {
         }
         let encoderFrameRate = try encoderFrameRateValue(fps)
 
+        let hardwareProfile = OverlayHardwareProfile.current
         let writer = try AVAssetWriter(outputURL: temporaryOutputURL, fileType: .mov)
         let settings = Self.videoOutputSettings(
             width: width,
@@ -177,11 +179,12 @@ public final class TransparentVideoWriter {
             codec: config.codec,
             averageBitRate: config.averageBitRate,
             encoderFrameRate: encoderFrameRate,
-            hardwareProfile: .current
+            hardwareProfile: hardwareProfile
         )
 
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         input.expectsMediaDataInRealTime = false
+        input.performsMultiPassEncodingIfSupported = false
         guard writer.canAdd(input) else {
             throw OverlayVideoError.unsupportedEncoder(
                 "This macOS installation cannot add a \(config.codec.displayName) video writer input."
@@ -213,6 +216,11 @@ public final class TransparentVideoWriter {
         let renderQueue = DispatchQueue(label: "run.libo.overlay.video-writer")
         let renderFinished = DispatchSemaphore(value: 0)
         let codec = config.codec
+        let alphaContext = codec == .hevcAlpha ? OverlayCIContextFactory.makeContext(profile: hardwareProfile) : nil
+        let alphaColorSpace = CGColorSpaceCreateDeviceRGB()
+        let alphaRenderPool = codec == .hevcAlpha
+            ? try Self.makePixelBufferPool(width: width, height: height, minimumBufferCount: 2)
+            : nil
         let progressHandler = config.progressHandler
         let cancellationHandler = config.cancellationHandler
         var frameIndex = 0
@@ -229,17 +237,28 @@ public final class TransparentVideoWriter {
                     guard let pool = adaptor.pixelBufferPool else {
                         throw OverlayVideoError.cannotCreatePixelBuffer
                     }
-                    var pixelBuffer: CVPixelBuffer?
-                    let status = CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
-                    guard status == kCVReturnSuccess, let pixelBuffer else {
-                        throw OverlayVideoError.cannotCreatePixelBuffer
+                    let appendBuffer = try Self.makePixelBuffer(from: pool)
+                    let renderBuffer: CVPixelBuffer
+                    if let alphaRenderPool {
+                        renderBuffer = try Self.makePixelBuffer(from: alphaRenderPool)
+                    } else {
+                        renderBuffer = appendBuffer
                     }
 
                     let presentationTime = timing.presentationTime(for: frameIndex)
                     let videoTime = CMTimeGetSeconds(presentationTime)
-                    try renderer.render(videoTime: videoTime, into: pixelBuffer)
-                    try Self.prepareAlphaForEncoding(on: pixelBuffer, codec: codec)
-                    guard adaptor.append(pixelBuffer, withPresentationTime: presentationTime) else {
+                    try renderer.render(videoTime: videoTime, into: renderBuffer)
+                    if let alphaContext {
+                        Self.prepareHEVCAlphaForEncoding(
+                            from: renderBuffer,
+                            to: appendBuffer,
+                            context: alphaContext,
+                            colorSpace: alphaColorSpace
+                        )
+                    } else {
+                        Self.preparePremultipliedAlphaForEncoding(on: appendBuffer)
+                    }
+                    guard adaptor.append(appendBuffer, withPresentationTime: presentationTime) else {
                         throw OverlayVideoError.writerFailed(self.describe(error: writer.error, codec: codec))
                     }
 
@@ -328,6 +347,8 @@ public final class TransparentVideoWriter {
                 AVVideoExpectedSourceFrameRateKey: encoderFrameRate,
                 AVVideoMaxKeyFrameIntervalKey: encoderFrameRate,
                 AVVideoAllowFrameReorderingKey: false,
+                kVTCompressionPropertyKey_RealTime as String: true,
+                kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality as String: true,
                 kVTCompressionPropertyKey_AlphaChannelMode as String: kVTAlphaChannelMode_StraightAlpha,
                 kVTCompressionPropertyKey_TargetQualityForAlpha as String: 1.0
             ]
@@ -336,18 +357,25 @@ public final class TransparentVideoWriter {
         return settings
     }
 
-    private static func prepareAlphaForEncoding(on pixelBuffer: CVPixelBuffer, codec: OverlayVideoCodec) throws {
-        if codec == .hevcAlpha {
-            try unpremultiplyAlpha(in: pixelBuffer)
-            CVBufferSetAttachment(
-                pixelBuffer,
-                kCVImageBufferAlphaChannelModeKey,
-                kCVImageBufferAlphaChannelMode_StraightAlpha,
-                .shouldPropagate
-            )
-            return
-        }
+    private static func prepareHEVCAlphaForEncoding(
+        from source: CVPixelBuffer,
+        to destination: CVPixelBuffer,
+        context: CIContext,
+        colorSpace: CGColorSpace
+    ) {
+        let width = CVPixelBufferGetWidth(destination)
+        let height = CVPixelBufferGetHeight(destination)
+        let image = CIImage(cvPixelBuffer: source).unpremultiplyingAlpha()
+        context.render(image, to: destination, bounds: CGRect(x: 0, y: 0, width: width, height: height), colorSpace: colorSpace)
+        CVBufferSetAttachment(
+            destination,
+            kCVImageBufferAlphaChannelModeKey,
+            kCVImageBufferAlphaChannelMode_StraightAlpha,
+            .shouldPropagate
+        )
+    }
 
+    private static func preparePremultipliedAlphaForEncoding(on pixelBuffer: CVPixelBuffer) {
         CVBufferSetAttachment(
             pixelBuffer,
             kCVImageBufferAlphaChannelModeKey,
@@ -356,39 +384,24 @@ public final class TransparentVideoWriter {
         )
     }
 
-    private static func unpremultiplyAlpha(in pixelBuffer: CVPixelBuffer) throws {
-        CVPixelBufferLockBaseAddress(pixelBuffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
-
-        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+    private static func makePixelBufferPool(width: Int, height: Int, minimumBufferCount: Int) throws -> CVPixelBufferPool {
+        let poolAttributes = [kCVPixelBufferPoolMinimumBufferCountKey as String: minimumBufferCount]
+        let attributes = OverlayPixelBufferAttributes.canvas(width: width, height: height)
+        var pool: CVPixelBufferPool?
+        let status = CVPixelBufferPoolCreate(nil, poolAttributes as CFDictionary, attributes as CFDictionary, &pool)
+        guard status == kCVReturnSuccess, let pool else {
             throw OverlayVideoError.cannotCreatePixelBuffer
         }
-
-        let width = CVPixelBufferGetWidth(pixelBuffer)
-        let height = CVPixelBufferGetHeight(pixelBuffer)
-        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-        let bytes = baseAddress.assumingMemoryBound(to: UInt8.self)
-
-        for row in 0..<height {
-            let rowStart = row * bytesPerRow
-            for x in 0..<width {
-                let offset = rowStart + x * 4
-                let alpha = Int(bytes[offset + 3])
-                if alpha == 0 {
-                    bytes[offset] = 0
-                    bytes[offset + 1] = 0
-                    bytes[offset + 2] = 0
-                } else if alpha < 255 {
-                    bytes[offset] = unpremultiplied(bytes[offset], alpha: alpha)
-                    bytes[offset + 1] = unpremultiplied(bytes[offset + 1], alpha: alpha)
-                    bytes[offset + 2] = unpremultiplied(bytes[offset + 2], alpha: alpha)
-                }
-            }
-        }
+        return pool
     }
 
-    private static func unpremultiplied(_ component: UInt8, alpha: Int) -> UInt8 {
-        UInt8(min(255, (Int(component) * 255 + alpha / 2) / alpha))
+    private static func makePixelBuffer(from pool: CVPixelBufferPool) throws -> CVPixelBuffer {
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
+        guard status == kCVReturnSuccess, let pixelBuffer else {
+            throw OverlayVideoError.cannotCreatePixelBuffer
+        }
+        return pixelBuffer
     }
 
     private static func hardwareEncoderSpecification(

@@ -67,6 +67,8 @@ final class OverlayHardwareAccelerationTests: XCTestCase {
         let alphaQuality = compressionProperties?[kVTCompressionPropertyKey_TargetQualityForAlpha as String]
         let alphaQualityValue = (alphaQuality as? NSNumber)?.doubleValue ?? (alphaQuality as? Double)
         XCTAssertEqual(alphaQualityValue, 1.0)
+        XCTAssertEqual(compressionProperties?[kVTCompressionPropertyKey_RealTime as String] as? Bool, true)
+        XCTAssertEqual(compressionProperties?[kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality as String] as? Bool, true)
     }
 
     func testVideoOutputSettingsAllowsHardwareFallbackWhenSpecificEncoderIsUnknown() {
