@@ -213,6 +213,8 @@ final class StudioModelTests: XCTestCase {
         XCTAssertGreaterThan(StudioModel.dragOverlayRenderDelay, 0)
         XCTAssertLessThanOrEqual(StudioModel.dragOverlayRenderDelay, 1.0 / 30.0)
         XCTAssertLessThan(StudioModel.dragOverlayRenderDelay, StudioModel.playbackOverlayRefreshInterval)
+        XCTAssertGreaterThan(StudioModel.dragBaseOverlayRenderDelay, StudioModel.dragOverlayRenderDelay)
+        XCTAssertLessThanOrEqual(StudioModel.dragBaseOverlayRenderDelay, 0.10)
     }
 
     func testSourceFrameRatePresetOnlyAppearsWhenExportable() {

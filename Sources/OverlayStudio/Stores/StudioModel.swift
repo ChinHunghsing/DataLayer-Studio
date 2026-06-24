@@ -46,7 +46,7 @@ final class StudioModel: ObservableObject {
     static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 60.0
     static let scrubInteractionHoldInterval: TimeInterval = 0.16
     static let dragOverlayRenderDelay: TimeInterval = 1.0 / 120.0
-    static let dragBaseOverlayRenderDelay: TimeInterval = 0.12
+    static let dragBaseOverlayRenderDelay: TimeInterval = 0.08
 
     @Published var videoURL: URL?
     @Published var fitURL: URL?
