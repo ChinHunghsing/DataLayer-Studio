@@ -1,5 +1,6 @@
 import OverlayCore
 import SwiftUI
+@preconcurrency import UserNotifications
 
 @main
 struct OverlayStudioApp: App {
@@ -7,6 +8,7 @@ struct OverlayStudioApp: App {
 
     init() {
         TransparentVideoWriter.removeStaleTemporaryOutputs()
+        UNUserNotificationCenter.current().delegate = AppNotificationDelegate.shared
         AppLocalizer.applyStoredProcessLanguagePreference()
         _localization = StateObject(wrappedValue: LocalizationStore())
     }
@@ -30,6 +32,17 @@ struct OverlayStudioApp: App {
             ArrangeCommands(localization: localization)
             DebugCommands(localization: localization)
         }
+    }
+}
+
+private final class AppNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = AppNotificationDelegate()
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
     }
 }
 

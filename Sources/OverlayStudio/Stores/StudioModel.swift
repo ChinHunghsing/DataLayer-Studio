@@ -4,6 +4,7 @@ import Foundation
 import OSLog
 import OverlayCore
 import UniformTypeIdentifiers
+@preconcurrency import UserNotifications
 
 private let studioDebugLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "run.libo.datalayer-studio",
@@ -1367,6 +1368,7 @@ final class StudioModel: ObservableObject {
                     self.exportCancellationToken = nil
                     self.status = self.localized("status.wroteFile", outputURL.path)
                     self.addDebugLog(.export, "Export finished: \(outputURL.lastPathComponent)")
+                    self.notifyExportCompleted(outputURL)
                     self.refreshOverlayOrPreview()
                 }
             } catch OverlayVideoError.cancelled {
@@ -1391,6 +1393,28 @@ final class StudioModel: ObservableObject {
                     self.refreshOverlayOrPreview()
                 }
             }
+        }
+    }
+
+    private func notifyExportCompleted(_ outputURL: URL) {
+        let title = localized("notification.exportCompleted.title")
+        let body = localized("notification.exportCompleted.body", outputURL.lastPathComponent)
+        let center = UNUserNotificationCenter.current()
+
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+
+            let request = UNNotificationRequest(
+                identifier: "datalayer-export-\(UUID().uuidString)",
+                content: content,
+                trigger: nil
+            )
+            center.add(request)
         }
     }
 

@@ -591,6 +591,8 @@ enum AppLocalizer {
         "status.chooseFitBeforeExport": "Choose a FIT file before exporting.",
         "status.exporting": "Exporting...",
         "status.wroteFile": "Wrote %@",
+        "notification.exportCompleted.title": "Export complete",
+        "notification.exportCompleted.body": "%@ is ready.",
         "status.exportError": "Export error: %@",
         "status.cancellingExport": "Cancelling export...",
 
@@ -943,6 +945,8 @@ enum AppLocalizer {
         "status.chooseFitBeforeExport": "导出前请选择 FIT 文件。",
         "status.exporting": "正在导出...",
         "status.wroteFile": "已写入 %@",
+        "notification.exportCompleted.title": "导出完成",
+        "notification.exportCompleted.body": "%@ 已准备好。",
         "status.exportError": "导出错误：%@",
         "status.cancellingExport": "正在取消导出...",
 
@@ -1295,6 +1299,8 @@ enum AppLocalizer {
         "status.chooseFitBeforeExport": "匯出前請選擇 FIT 檔案。",
         "status.exporting": "正在匯出...",
         "status.wroteFile": "已寫入 %@",
+        "notification.exportCompleted.title": "匯出完成",
+        "notification.exportCompleted.body": "%@ 已準備好。",
         "status.exportError": "匯出錯誤：%@",
         "status.cancellingExport": "正在取消匯出...",
 
@@ -1647,6 +1653,8 @@ enum AppLocalizer {
         "status.chooseFitBeforeExport": "書き出し前に FIT ファイルを選択してください。",
         "status.exporting": "書き出し中...",
         "status.wroteFile": "%@ に書き込みました",
+        "notification.exportCompleted.title": "書き出し完了",
+        "notification.exportCompleted.body": "%@ の準備ができました。",
         "status.exportError": "書き出しエラー：%@",
         "status.cancellingExport": "書き出しをキャンセル中...",
 
