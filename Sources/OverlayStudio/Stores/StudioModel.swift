@@ -697,6 +697,9 @@ final class StudioModel: ObservableObject {
     private func seekPreview(to time: TimeInterval, coalesceOverlayRefresh: Bool, isScrubbing: Bool = false) {
         guard !isExporting else { return }
         let clamped = min(max(0, time), max(previewDuration, 0))
+        if isScrubbing, abs(previewTime - clamped) < 0.000_5 {
+            return
+        }
         previewTime = clamped
         if let player {
             if isScrubbing {
