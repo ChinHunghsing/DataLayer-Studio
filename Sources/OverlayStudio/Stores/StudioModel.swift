@@ -1242,7 +1242,7 @@ final class StudioModel: ObservableObject {
         if delay <= 0.001 {
             pendingScrubOverlayRefreshTask?.cancel()
             pendingScrubOverlayRefreshTask = nil
-            refreshOverlayOnly(coalesceIfBusy: false)
+            refreshOverlayOnly(coalesceIfBusy: true)
             return
         }
 
