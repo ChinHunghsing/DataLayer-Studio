@@ -41,10 +41,10 @@ private final class PlayerTimeObserver {
 
 @MainActor
 final class StudioModel: ObservableObject {
-    static let playerTimeObserverInterval: TimeInterval = 0.20
-    static let playbackOverlayRefreshInterval: TimeInterval = 0.50
-    static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 30.0
-    static let dragOverlayRenderDelay: TimeInterval = 0.05
+    static let playerTimeObserverInterval: TimeInterval = 1.0 / 12.0
+    static let playbackOverlayRefreshInterval: TimeInterval = 0.20
+    static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 45.0
+    static let dragOverlayRenderDelay: TimeInterval = 1.0 / 60.0
 
     @Published var videoURL: URL?
     @Published var fitURL: URL?
@@ -692,10 +692,14 @@ final class StudioModel: ObservableObject {
         let clamped = min(max(0, time), max(previewDuration, 0))
         previewTime = clamped
         if let player {
+            let targetTime = CMTime(seconds: clamped, preferredTimescale: 600)
+            if isScrubbing {
+                player.currentItem?.cancelPendingSeeks()
+            }
             player.seek(
-                to: CMTime(seconds: clamped, preferredTimescale: 600),
-                toleranceBefore: .zero,
-                toleranceAfter: .zero
+                to: targetTime,
+                toleranceBefore: isScrubbing ? scrubSeekTolerance : .zero,
+                toleranceAfter: isScrubbing ? scrubSeekTolerance : .zero
             )
             if isScrubbing {
                 scheduleScrubOverlayRefresh()
@@ -707,6 +711,11 @@ final class StudioModel: ObservableObject {
         } else {
             refreshPreview()
         }
+    }
+
+    private var scrubSeekTolerance: CMTime {
+        let seconds = min(0.08, max(1.0 / 120.0, previewFrameDuration))
+        return CMTime(seconds: seconds, preferredTimescale: 600)
     }
 
     func markSportStart() {

@@ -202,12 +202,14 @@ final class StudioModelTests: XCTestCase {
     func testPlaybackOverlayRefreshIsThrottledBelowPlayerTimeUpdates() {
         XCTAssertGreaterThan(StudioModel.playbackOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThan(StudioModel.scrubOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
-        XCTAssertLessThanOrEqual(StudioModel.playerTimeObserverInterval, 0.20)
-        XCTAssertLessThanOrEqual(StudioModel.playbackOverlayRefreshInterval, 0.60)
+        XCTAssertLessThanOrEqual(StudioModel.playerTimeObserverInterval, 0.10)
+        XCTAssertLessThanOrEqual(StudioModel.playbackOverlayRefreshInterval, 0.25)
+        XCTAssertLessThanOrEqual(StudioModel.scrubOverlayRefreshInterval, 1.0 / 40.0)
     }
 
     func testDragOverlayRenderDelayStaysBelowPlaybackRefreshInterval() {
         XCTAssertGreaterThan(StudioModel.dragOverlayRenderDelay, 0)
+        XCTAssertLessThanOrEqual(StudioModel.dragOverlayRenderDelay, 1.0 / 30.0)
         XCTAssertLessThan(StudioModel.dragOverlayRenderDelay, StudioModel.playbackOverlayRefreshInterval)
     }
 
