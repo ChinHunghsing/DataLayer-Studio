@@ -46,6 +46,7 @@ final class StudioModel: ObservableObject {
     static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 45.0
     static let scrubInteractionHoldInterval: TimeInterval = 0.16
     static let dragOverlayRenderDelay: TimeInterval = 1.0 / 120.0
+    static let dragBaseOverlayRenderDelay: TimeInterval = 0.12
 
     @Published var videoURL: URL?
     @Published var fitURL: URL?
@@ -1096,7 +1097,8 @@ final class StudioModel: ObservableObject {
         let baseLayout = OverlayLayout(elements: layout.elements.filter { $0.id != id }, style: layout.style)
         let dragLayout = OverlayLayout(elements: [element], style: layout.style)
         let canUseExistingDragSnapshot = overlayImage != nil
-        let delayNanoseconds = UInt64(max(0, Self.dragOverlayRenderDelay) * 1_000_000_000)
+        let renderDelay = canUseExistingDragSnapshot ? Self.dragBaseOverlayRenderDelay : Self.dragOverlayRenderDelay
+        let delayNanoseconds = UInt64(max(0, renderDelay) * 1_000_000_000)
 
         previewRenderTask?.cancel()
         dragRenderTask?.cancel()
