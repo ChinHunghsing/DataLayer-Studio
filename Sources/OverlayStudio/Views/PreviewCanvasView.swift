@@ -483,9 +483,10 @@ struct PreviewCanvasView: View {
         let drawsTopRowIcon = element.customization.showsIcon && element.kind != .weather
         let hasTopRow = element.customization.showsLabel || drawsTopRowIcon
         let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
+        let text = metricText(for: element)
         let valueRowHeight = max(
             valueFontSize,
-            metricUnitBlockHeight(element: element, unit: metricText(for: element).unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize, scale: scale)
+            metricUnitBlockHeight(element: element, unit: text.unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize, scale: scale)
         )
         let horizontalPadding = 14 * scale
         let topPadding = 9 * scale
@@ -493,7 +494,6 @@ struct PreviewCanvasView: View {
         let rowGap = hasTopRow ? max(6 * scale, valueFontSize * 0.18) : 0
         let desiredHeight = max(baseHeight, topPadding + topRowHeight + rowGap + valueRowHeight + bottomPadding)
 
-        let text = metricText(for: element)
         let valueWidth = textWidth(text.value, size: valueFontSize, fontName: element.customization.valueFont)
         let unitWidth = metricUnitBlockWidth(element: element, unit: text.unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize)
         let unitGap = element.customization.showsUnit ? 10 * scale : 0
