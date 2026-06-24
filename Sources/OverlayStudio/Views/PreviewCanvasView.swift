@@ -334,7 +334,7 @@ struct PreviewCanvasView: View {
         var dragState = activeDrag
         if activeDrag?.id != id, let element = model.layout.elements.first(where: { $0.id == id }) {
             selectElement(id)
-            dragState = ComponentDragState(
+            let initialDragState = ComponentDragState(
                 id: id,
                 startX: element.frame.x,
                 startY: element.frame.y,
@@ -348,6 +348,8 @@ struct PreviewCanvasView: View {
                 sourceOverlay: model.overlayImage,
                 translation: .zero
             )
+            dragState = initialDragState
+            self.activeDrag = initialDragState
             model.beginElementDrag(id: id, previewSize: previewOverlayRenderSize(for: displayRect.size))
         }
         guard var activeDrag = dragState else { return }
