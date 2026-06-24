@@ -217,6 +217,10 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(StudioModel.dragBaseOverlayRenderDelay, 0.10)
     }
 
+    func testPreviewGaugeDragStartsWithMinimalPointerTravel() {
+        XCTAssertLessThanOrEqual(PreviewCanvasView.componentDragMinimumDistance, 1)
+    }
+
     func testSourceFrameRatePresetOnlyAppearsWhenExportable() {
         let model = StudioModel()
 

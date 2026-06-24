@@ -3,6 +3,8 @@ import SwiftUI
 import OverlayCore
 
 struct PreviewCanvasView: View {
+    static let componentDragMinimumDistance: CGFloat = 1
+
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
     @Binding private var zoom: Double
@@ -234,7 +236,7 @@ struct PreviewCanvasView: View {
                 selectElement(element.id)
             }
             .gesture(
-                DragGesture(minimumDistance: 1, coordinateSpace: .named("previewCanvas"))
+                DragGesture(minimumDistance: Self.componentDragMinimumDistance, coordinateSpace: .named("previewCanvas"))
                     .onChanged { value in
                         let targetID = activeDrag?.id ?? hitTestElement(
                             at: value.startLocation,
