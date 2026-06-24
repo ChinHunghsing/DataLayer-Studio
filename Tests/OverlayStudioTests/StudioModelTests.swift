@@ -221,6 +221,10 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(PreviewCanvasView.componentDragMinimumDistance, 1)
     }
 
+    func testPreviewTimelineKeepsScrubInputSensitive() {
+        XCTAssertLessThanOrEqual(PreviewTimelineSlider.valueChangeEpsilon, 0.001)
+    }
+
     func testSourceFrameRatePresetOnlyAppearsWhenExportable() {
         let model = StudioModel()
 
