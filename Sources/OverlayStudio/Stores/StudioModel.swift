@@ -889,7 +889,7 @@ final class StudioModel: ObservableObject {
         let overlayPreviewFailedTitle = localized("status.previewOverlayFailed")
 
         previewRenderTask?.cancel()
-        previewRenderTask = Task.detached { [videoFrameService, previewRenderer] in
+        previewRenderTask = Task.detached(priority: .userInitiated) { [videoFrameService, previewRenderer] in
             guard !Task.isCancelled else { return }
             let background: NSImage?
             var warningMessage: String?
@@ -977,7 +977,7 @@ final class StudioModel: ObservableObject {
         let overlayPreviewFailedTitle = localized("status.previewOverlayFailed")
 
         previewRenderTask?.cancel()
-        previewRenderTask = Task.detached { [previewRenderer] in
+        previewRenderTask = Task.detached(priority: .userInitiated) { [previewRenderer] in
             guard !Task.isCancelled else { return }
             let overlay: NSImage?
             let warningMessage: String?
@@ -1081,7 +1081,7 @@ final class StudioModel: ObservableObject {
         draggedElementID = id
         dragBaseOverlayImage = nil
         dragOverlayImage = nil
-        dragRenderTask = Task.detached { [previewRenderer] in
+        dragRenderTask = Task.detached(priority: .userInitiated) { [previewRenderer] in
             do {
                 try await Task.sleep(nanoseconds: delayNanoseconds)
             } catch {
