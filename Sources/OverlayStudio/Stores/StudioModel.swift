@@ -125,6 +125,7 @@ final class StudioModel: ObservableObject {
     private var pendingPreviewSizeRefreshTask: Task<Void, Never>?
     private var pendingScrubOverlayRefreshTask: Task<Void, Never>?
     private var scrubInteractionTask: Task<Void, Never>?
+    private var scrubInteractionExpiresAt = Date.distantPast
     private var videoLoadTask: Task<Void, Never>?
     private var fitLoadTask: Task<Void, Never>?
     private var weatherLoadTask: Task<Void, Never>?
@@ -731,16 +732,22 @@ final class StudioModel: ObservableObject {
 
     private func beginPreviewScrubInteraction() {
         isScrubbingPreview = true
-        scrubInteractionTask?.cancel()
+        scrubInteractionExpiresAt = Date().addingTimeInterval(Self.scrubInteractionHoldInterval)
+        guard scrubInteractionTask == nil else { return }
         scrubInteractionTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: UInt64(Self.scrubInteractionHoldInterval * 1_000_000_000))
-            } catch {
-                return
+            while let self {
+                let remaining = self.scrubInteractionExpiresAt.timeIntervalSinceNow
+                guard remaining > 0 else {
+                    self.isScrubbingPreview = false
+                    self.scrubInteractionTask = nil
+                    return
+                }
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(max(1, remaining * 1_000_000_000)))
+                } catch {
+                    return
+                }
             }
-
-            self?.isScrubbingPreview = false
-            self?.scrubInteractionTask = nil
         }
     }
 
@@ -1558,6 +1565,7 @@ final class StudioModel: ObservableObject {
         pendingPreviewSizeRefreshTask = nil
         pendingScrubOverlayRefreshTask = nil
         scrubInteractionTask = nil
+        scrubInteractionExpiresAt = .distantPast
         isScrubbingPreview = false
         draggedElementID = nil
         dragBaseOverlayImage = nil
