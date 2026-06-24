@@ -32,7 +32,9 @@ struct PreviewTimelineSlider: NSViewRepresentable {
         if nsView.isEnabled != isEnabled {
             nsView.isEnabled = isEnabled
         }
-        nsView.setAccessibilityLabel(accessibilityLabel)
+        if nsView.accessibilityLabel() != accessibilityLabel {
+            nsView.setAccessibilityLabel(accessibilityLabel)
+        }
 
         if !nsView.isTrackingMouse, abs(nsView.doubleValue - value) > 0.000_001 {
             nsView.doubleValue = value
