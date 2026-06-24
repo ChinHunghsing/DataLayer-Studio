@@ -7,6 +7,7 @@ struct PreviewTimelineSlider: NSViewRepresentable {
     var isEnabled: Bool
     var accessibilityLabel: String
     var onFrameStep: (Int) -> Void
+    private static let valueChangeEpsilon = 0.000_5
 
     func makeCoordinator() -> Coordinator {
         Coordinator(value: $value, onFrameStep: onFrameStep)
@@ -51,6 +52,7 @@ struct PreviewTimelineSlider: NSViewRepresentable {
         }
 
         @objc func valueChanged(_ sender: NSSlider) {
+            guard abs(value.wrappedValue - sender.doubleValue) > PreviewTimelineSlider.valueChangeEpsilon else { return }
             value.wrappedValue = sender.doubleValue
         }
 
