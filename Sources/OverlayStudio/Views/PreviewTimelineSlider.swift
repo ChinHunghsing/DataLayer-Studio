@@ -29,7 +29,7 @@ struct PreviewTimelineSlider: NSViewRepresentable {
         nsView.onFrameStep = { context.coordinator.stepFrame(by: $0) }
         nsView.setAccessibilityLabel(accessibilityLabel)
 
-        if abs(nsView.doubleValue - value) > 0.000_001 {
+        if !nsView.isTrackingMouse, abs(nsView.doubleValue - value) > 0.000_001 {
             nsView.doubleValue = value
         }
     }
@@ -55,11 +55,14 @@ struct PreviewTimelineSlider: NSViewRepresentable {
 
 final class FocusableTimelineSlider: NSSlider {
     var onFrameStep: ((Int) -> Void)?
+    private(set) var isTrackingMouse = false
 
     override var acceptsFirstResponder: Bool { true }
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        isTrackingMouse = true
+        defer { isTrackingMouse = false }
         super.mouseDown(with: event)
     }
 
