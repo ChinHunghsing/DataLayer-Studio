@@ -254,9 +254,9 @@ struct PreviewCanvasView: View {
 
     private func moveElement(_ id: String, displayRect: CGRect, translation: CGSize) {
         guard !model.isExporting else { return }
-        selectElement(id)
 
         if activeDrag?.id != id, let element = model.layout.elements.first(where: { $0.id == id }) {
+            selectElement(id)
             activeDrag = ComponentDragState(
                 id: id,
                 startX: element.frame.x,
