@@ -699,6 +699,9 @@ final class StudioModel: ObservableObject {
         let clamped = min(max(0, time), max(previewDuration, 0))
         previewTime = clamped
         if let player {
+            if isScrubbing {
+                scheduleScrubOverlayRefresh()
+            }
             let targetTime = CMTime(seconds: clamped, preferredTimescale: 600)
             if isScrubbing {
                 player.currentItem?.cancelPendingSeeks()
@@ -708,9 +711,7 @@ final class StudioModel: ObservableObject {
                 toleranceBefore: isScrubbing ? scrubSeekTolerance : .zero,
                 toleranceAfter: isScrubbing ? scrubSeekTolerance : .zero
             )
-            if isScrubbing {
-                scheduleScrubOverlayRefresh()
-            } else {
+            if !isScrubbing {
                 refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
             }
         } else if series != nil {
