@@ -13,7 +13,9 @@ struct PlayerSurfaceView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: PlayerLayerHostView, context: Context) {
-        nsView.player = player
+        if nsView.player !== player {
+            nsView.player = player
+        }
     }
 
     static func dismantleNSView(_ nsView: PlayerLayerHostView, coordinator: ()) {
