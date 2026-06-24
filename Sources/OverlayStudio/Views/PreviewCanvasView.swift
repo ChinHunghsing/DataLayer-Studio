@@ -63,7 +63,12 @@ struct PreviewCanvasView: View {
             let canvasSize = CGSize(width: fitSize.width * zoomFactor, height: fitSize.height * zoomFactor)
             let overlayRenderSize = previewOverlayRenderSize(for: canvasSize)
             let visibleElements = model.layout.visibleElements
-            let overflowInsets = layoutOverflowInsets(canvasSize: canvasSize, visibleElements: visibleElements)
+            let alignedMetricWidth = alignedMetricOutputWidth(for: visibleElements)
+            let overflowInsets = layoutOverflowInsets(
+                canvasSize: canvasSize,
+                visibleElements: visibleElements,
+                alignedMetricWidth: alignedMetricWidth
+            )
             let horizontalSlack = max(0, stageSize.width - canvasSize.width)
             let verticalSlack = max(0, stageSize.height - canvasSize.height)
             let displayRect = CGRect(
@@ -78,7 +83,12 @@ struct PreviewCanvasView: View {
             )
 
             ScrollView([.horizontal, .vertical]) {
-                previewCanvas(displayRect: displayRect, contentSize: contentSize, visibleElements: visibleElements)
+                previewCanvas(
+                    displayRect: displayRect,
+                    contentSize: contentSize,
+                    visibleElements: visibleElements,
+                    alignedMetricWidth: alignedMetricWidth
+                )
             }
             .background(Color(nsColor: .underPageBackgroundColor))
             .onAppear {
@@ -102,7 +112,12 @@ struct PreviewCanvasView: View {
         }
     }
 
-    private func previewCanvas(displayRect: CGRect, contentSize: CGSize, visibleElements: [OverlayElement]) -> some View {
+    private func previewCanvas(
+        displayRect: CGRect,
+        contentSize: CGSize,
+        visibleElements: [OverlayElement],
+        alignedMetricWidth: CGFloat?
+    ) -> some View {
         ZStack {
             Color(nsColor: .underPageBackgroundColor)
 
@@ -170,7 +185,12 @@ struct PreviewCanvasView: View {
             }
 
             ForEach(interactiveElements(visibleElements)) { element in
-                componentHandle(element: element, displayRect: displayRect, visibleElements: visibleElements)
+                componentHandle(
+                    element: element,
+                    displayRect: displayRect,
+                    visibleElements: visibleElements,
+                    alignedMetricWidth: alignedMetricWidth
+                )
             }
         }
         .frame(width: contentSize.width, height: contentSize.height)
@@ -179,7 +199,12 @@ struct PreviewCanvasView: View {
         .highPriorityGesture(
             SpatialTapGesture(coordinateSpace: .named("previewCanvas"))
                 .onEnded { value in
-                    selectElement(at: value.location, displayRect: displayRect, visibleElements: visibleElements)
+                    selectElement(
+                        at: value.location,
+                        displayRect: displayRect,
+                        visibleElements: visibleElements,
+                        alignedMetricWidth: alignedMetricWidth
+                    )
                 }
         )
         .transaction { transaction in
@@ -188,11 +213,16 @@ struct PreviewCanvasView: View {
         }
     }
 
-    private func componentHandle(element: OverlayElement, displayRect: CGRect, visibleElements: [OverlayElement]) -> some View {
+    private func componentHandle(
+        element: OverlayElement,
+        displayRect: CGRect,
+        visibleElements: [OverlayElement],
+        alignedMetricWidth: CGFloat?
+    ) -> some View {
         let dragState = activeDrag?.id == element.id ? activeDrag : nil
         let rect = dragState.map {
             $0.sourceRect.offsetBy(dx: $0.translation.width, dy: $0.translation.height)
-        } ?? componentDisplayRect(element: element, displayRect: displayRect)
+        } ?? componentDisplayRect(element: element, displayRect: displayRect, alignedMetricWidth: alignedMetricWidth)
         let isSelected = model.selectedElementID == element.id
 
         return Rectangle()
@@ -209,9 +239,15 @@ struct PreviewCanvasView: View {
                         let targetID = activeDrag?.id ?? hitTestElement(
                             at: value.startLocation,
                             displayRect: displayRect,
-                            visibleElements: visibleElements
+                            visibleElements: visibleElements,
+                            alignedMetricWidth: alignedMetricWidth
                         )?.id ?? element.id
-                        moveElement(targetID, displayRect: displayRect, translation: value.translation)
+                        moveElement(
+                            targetID,
+                            displayRect: displayRect,
+                            translation: value.translation,
+                            alignedMetricWidth: alignedMetricWidth
+                        )
                     }
                     .onEnded { _ in
                         if let activeDrag {
@@ -247,24 +283,52 @@ struct PreviewCanvasView: View {
         }
     }
 
-    private func selectElement(at location: CGPoint, displayRect: CGRect, visibleElements: [OverlayElement]) {
-        guard let element = hitTestElement(at: location, displayRect: displayRect, visibleElements: visibleElements) else { return }
+    private func selectElement(
+        at location: CGPoint,
+        displayRect: CGRect,
+        visibleElements: [OverlayElement],
+        alignedMetricWidth: CGFloat?
+    ) {
+        guard let element = hitTestElement(
+            at: location,
+            displayRect: displayRect,
+            visibleElements: visibleElements,
+            alignedMetricWidth: alignedMetricWidth
+        ) else { return }
         selectElement(element.id)
     }
 
-    private func hitTestElement(at location: CGPoint, displayRect: CGRect, visibleElements: [OverlayElement]) -> OverlayElement? {
+    private func hitTestElement(
+        at location: CGPoint,
+        displayRect: CGRect,
+        visibleElements: [OverlayElement],
+        alignedMetricWidth: CGFloat?
+    ) -> OverlayElement? {
         visibleElements
             .reversed()
             .first { element in
-                componentDisplayRect(element: element, displayRect: displayRect).contains(location)
+                componentDisplayRect(
+                    element: element,
+                    displayRect: displayRect,
+                    alignedMetricWidth: alignedMetricWidth
+                ).contains(location)
             } ?? visibleElements
             .reversed()
             .first { element in
-                componentHitRect(element: element, displayRect: displayRect).contains(location)
+                componentHitRect(
+                    element: element,
+                    displayRect: displayRect,
+                    alignedMetricWidth: alignedMetricWidth
+                ).contains(location)
             }
     }
 
-    private func moveElement(_ id: String, displayRect: CGRect, translation: CGSize) {
+    private func moveElement(
+        _ id: String,
+        displayRect: CGRect,
+        translation: CGSize,
+        alignedMetricWidth: CGFloat?
+    ) {
         guard !model.isExporting else { return }
 
         var dragState = activeDrag
@@ -276,7 +340,11 @@ struct PreviewCanvasView: View {
                 startY: element.frame.y,
                 currentX: element.frame.x,
                 currentY: element.frame.y,
-                sourceRect: componentDisplayRect(element: element, displayRect: displayRect),
+                sourceRect: componentDisplayRect(
+                    element: element,
+                    displayRect: displayRect,
+                    alignedMetricWidth: alignedMetricWidth
+                ),
                 sourceOverlay: model.overlayImage,
                 translation: .zero
             )
@@ -314,13 +382,13 @@ struct PreviewCanvasView: View {
         return (value * Double(divisions)).rounded() / Double(divisions)
     }
 
-    private func componentHitRect(element: OverlayElement, displayRect: CGRect) -> CGRect {
-        componentDisplayRect(element: element, displayRect: displayRect)
+    private func componentHitRect(element: OverlayElement, displayRect: CGRect, alignedMetricWidth: CGFloat?) -> CGRect {
+        componentDisplayRect(element: element, displayRect: displayRect, alignedMetricWidth: alignedMetricWidth)
             .insetBy(dx: -8, dy: -8)
     }
 
-    private func componentDisplayRect(element: OverlayElement, displayRect: CGRect) -> CGRect {
-        let unitRect = componentUnitRect(element: element)
+    private func componentDisplayRect(element: OverlayElement, displayRect: CGRect, alignedMetricWidth: CGFloat?) -> CGRect {
+        let unitRect = componentUnitRect(element: element, alignedMetricWidth: alignedMetricWidth)
         return CGRect(
             x: displayRect.minX + displayRect.width * unitRect.minX,
             y: displayRect.minY + displayRect.height * unitRect.minY,
@@ -329,10 +397,10 @@ struct PreviewCanvasView: View {
         )
     }
 
-    private func componentUnitRect(element: OverlayElement) -> CGRect {
+    private func componentUnitRect(element: OverlayElement, alignedMetricWidth: CGFloat?) -> CGRect {
         let frame = element.frame
         let base = ComponentBaseSize.size(for: element.kind)
-        let outputSize = componentOutputSize(element: element, base: base)
+        let outputSize = componentOutputSize(element: element, base: base, alignedMetricWidth: alignedMetricWidth)
         let width = outputSize.width / CGFloat(max(1, model.outputWidth))
         let height = outputSize.height / CGFloat(max(1, model.outputHeight))
         let horizontalOffset = componentHorizontalOffset(element: element, base: base, outputWidth: outputSize.width)
@@ -345,12 +413,16 @@ struct PreviewCanvasView: View {
         )
     }
 
-    private func layoutOverflowInsets(canvasSize: CGSize, visibleElements: [OverlayElement]) -> CanvasOverflowInsets {
+    private func layoutOverflowInsets(
+        canvasSize: CGSize,
+        visibleElements: [OverlayElement],
+        alignedMetricWidth: CGFloat?
+    ) -> CanvasOverflowInsets {
         var insets = CanvasOverflowInsets()
         let hitPadding: CGFloat = 18
 
         for element in visibleElements {
-            let rect = componentUnitRect(element: element)
+            let rect = componentUnitRect(element: element, alignedMetricWidth: alignedMetricWidth)
             insets.left = max(insets.left, -rect.minX * canvasSize.width + hitPadding)
             insets.right = max(insets.right, (rect.maxX - 1) * canvasSize.width + hitPadding)
             insets.top = max(insets.top, -rect.minY * canvasSize.height + hitPadding)
@@ -360,14 +432,20 @@ struct PreviewCanvasView: View {
         return insets.roundedUp
     }
 
-    private func componentOutputSize(element: OverlayElement, base: CGSize) -> CGSize {
+    private func componentOutputSize(element: OverlayElement, base: CGSize, alignedMetricWidth: CGFloat?) -> CGSize {
         let scale = rendererLayoutScale() * CGFloat(element.frame.scale)
         let baseWidth = base.width * scale * CGFloat(max(0.1, element.customization.lengthScale))
         let baseHeight = base.height * scale
 
         switch element.kind {
         case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
-            return metricOutputSize(element: element, baseWidth: baseWidth, baseHeight: baseHeight, scale: scale)
+            return metricOutputSize(
+                element: element,
+                baseWidth: baseWidth,
+                baseHeight: baseHeight,
+                scale: scale,
+                alignedMetricWidth: alignedMetricWidth
+            )
         case .topProgress:
             return progressOutputSize(element: element, baseWidth: baseWidth, baseHeight: baseHeight, scale: scale)
         case .timeDate:
@@ -394,7 +472,8 @@ struct PreviewCanvasView: View {
         element: OverlayElement,
         baseWidth: CGFloat,
         baseHeight: CGFloat,
-        scale: CGFloat
+        scale: CGFloat,
+        alignedMetricWidth: CGFloat?
     ) -> CGSize {
         let textScale = scale * CGFloat(element.frame.style.textScale)
         let labelFontSize = labelSize(10, scale: textScale, element: element)
@@ -422,7 +501,7 @@ struct PreviewCanvasView: View {
         let iconWidth = drawsTopRowIcon ? textWidth(text.icon, size: iconFontSize, fontName: element.customization.iconFont) : 0
         let iconGap = drawsTopRowIcon ? 12 * scale : 0
         let desiredWidth = max(
-            alignedMetricOutputWidth() ?? 0,
+            alignedMetricWidth ?? 0,
             baseWidth,
             (horizontalPadding * 2) + valueWidth + unitGap + unitWidth,
             (horizontalPadding * 2) + labelWidth + iconGap + iconWidth
@@ -430,8 +509,8 @@ struct PreviewCanvasView: View {
         return CGSize(width: desiredWidth, height: desiredHeight)
     }
 
-    private func alignedMetricOutputWidth() -> CGFloat? {
-        let widths = model.layout.visibleElements.compactMap { element -> CGFloat? in
+    private func alignedMetricOutputWidth(for visibleElements: [OverlayElement]) -> CGFloat? {
+        let widths = visibleElements.compactMap { element -> CGFloat? in
             guard isMetricElement(element) else { return nil }
             let base = ComponentBaseSize.size(for: element.kind)
             let scale = rendererLayoutScale() * CGFloat(element.frame.scale)
