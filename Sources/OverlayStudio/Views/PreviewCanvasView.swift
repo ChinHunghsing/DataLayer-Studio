@@ -176,6 +176,10 @@ struct PreviewCanvasView: View {
                     selectElement(at: value.location, displayRect: displayRect, visibleElements: visibleElements)
                 }
         )
+        .transaction { transaction in
+            transaction.animation = nil
+            transaction.disablesAnimations = true
+        }
     }
 
     private func componentHandle(element: OverlayElement, displayRect: CGRect) -> some View {
