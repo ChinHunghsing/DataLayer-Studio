@@ -204,7 +204,7 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThan(StudioModel.scrubOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThanOrEqual(StudioModel.playerTimeObserverInterval, 0.10)
         XCTAssertLessThanOrEqual(StudioModel.playbackOverlayRefreshInterval, 0.25)
-        XCTAssertLessThanOrEqual(StudioModel.scrubOverlayRefreshInterval, 1.0 / 40.0)
+        XCTAssertLessThanOrEqual(StudioModel.scrubOverlayRefreshInterval, 1.0 / 55.0)
         XCTAssertGreaterThan(StudioModel.scrubInteractionHoldInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThanOrEqual(StudioModel.scrubInteractionHoldInterval, 0.20)
     }

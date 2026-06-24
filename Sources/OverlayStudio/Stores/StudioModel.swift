@@ -43,7 +43,7 @@ private final class PlayerTimeObserver {
 final class StudioModel: ObservableObject {
     static let playerTimeObserverInterval: TimeInterval = 1.0 / 12.0
     static let playbackOverlayRefreshInterval: TimeInterval = 0.20
-    static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 45.0
+    static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 60.0
     static let scrubInteractionHoldInterval: TimeInterval = 0.16
     static let dragOverlayRenderDelay: TimeInterval = 1.0 / 120.0
     static let dragBaseOverlayRenderDelay: TimeInterval = 0.12
