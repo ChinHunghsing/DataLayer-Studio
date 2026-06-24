@@ -256,9 +256,10 @@ struct PreviewCanvasView: View {
     private func moveElement(_ id: String, displayRect: CGRect, translation: CGSize) {
         guard !model.isExporting else { return }
 
+        var dragState = activeDrag
         if activeDrag?.id != id, let element = model.layout.elements.first(where: { $0.id == id }) {
             selectElement(id)
-            activeDrag = ComponentDragState(
+            dragState = ComponentDragState(
                 id: id,
                 startX: element.frame.x,
                 startY: element.frame.y,
@@ -270,7 +271,7 @@ struct PreviewCanvasView: View {
             )
             model.beginElementDrag(id: id, previewSize: previewOverlayRenderSize(for: displayRect.size))
         }
-        guard var activeDrag else { return }
+        guard var activeDrag = dragState else { return }
 
         let deltaX = Double(translation.width / max(1, displayRect.width))
         let deltaY = Double(translation.height / max(1, displayRect.height))
@@ -288,6 +289,12 @@ struct PreviewCanvasView: View {
         )
         activeDrag.currentX = nextX
         activeDrag.currentY = nextY
+        if let previousDrag = self.activeDrag,
+           previousDrag.id == activeDrag.id,
+           abs(previousDrag.translation.width - activeDrag.translation.width) < 0.25,
+           abs(previousDrag.translation.height - activeDrag.translation.height) < 0.25 {
+            return
+        }
         self.activeDrag = activeDrag
     }
 
