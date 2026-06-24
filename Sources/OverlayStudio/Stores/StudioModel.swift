@@ -1095,6 +1095,7 @@ final class StudioModel: ObservableObject {
         let currentDistanceUnit = distanceUnit
         let baseLayout = OverlayLayout(elements: layout.elements.filter { $0.id != id }, style: layout.style)
         let dragLayout = OverlayLayout(elements: [element], style: layout.style)
+        let canUseExistingDragSnapshot = overlayImage != nil
         let delayNanoseconds = UInt64(max(0, Self.dragOverlayRenderDelay) * 1_000_000_000)
 
         previewRenderTask?.cancel()
@@ -1125,6 +1126,16 @@ final class StudioModel: ObservableObject {
                 guard !Task.isCancelled,
                       self.previewRenderGeneration == generation else { return }
                 self.dragBaseOverlayImage = baseOverlay
+            }
+
+            if canUseExistingDragSnapshot {
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    guard !Task.isCancelled,
+                          self.previewRenderGeneration == generation else { return }
+                    self.dragRenderTask = nil
+                }
+                return
             }
 
             guard !Task.isCancelled else { return }
