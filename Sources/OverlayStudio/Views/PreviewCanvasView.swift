@@ -179,9 +179,10 @@ struct PreviewCanvasView: View {
     }
 
     private func componentHandle(element: OverlayElement, displayRect: CGRect) -> some View {
-        let dragTranslation = activeDrag?.id == element.id ? activeDrag?.translation ?? .zero : .zero
-        let rect = componentDisplayRect(element: element, displayRect: displayRect)
-            .offsetBy(dx: dragTranslation.width, dy: dragTranslation.height)
+        let dragState = activeDrag?.id == element.id ? activeDrag : nil
+        let rect = dragState.map {
+            $0.sourceRect.offsetBy(dx: $0.translation.width, dy: $0.translation.height)
+        } ?? componentDisplayRect(element: element, displayRect: displayRect)
         let isSelected = model.selectedElementID == element.id
 
         return Rectangle()
