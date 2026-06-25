@@ -265,20 +265,26 @@ func drawImage(_ ctx: CGContext, url: URL, rect: CGRect, radius: CGFloat = 0) th
     ctx.restoreGState()
 }
 
-func drawImageCropped(_ ctx: CGContext, url: URL, rect: CGRect, sourceInset: CGFloat) throws {
+func drawImageFitted(_ ctx: CGContext, url: URL, rect: CGRect) throws {
     guard let image = NSImage(contentsOf: url) else {
         throw NSError(domain: "AppStoreAsset", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not load image \(url.path)"])
     }
-    let sourceRect = CGRect(
-        x: sourceInset,
-        y: sourceInset,
-        width: image.size.width - sourceInset * 2,
-        height: image.size.height - sourceInset * 2
+    let scale = min(rect.width / image.size.width, rect.height / image.size.height)
+    let fittedSize = CGSize(
+        width: image.size.width * scale,
+        height: image.size.height * scale
+    )
+    let fittedRect = CGRect(
+        x: rect.midX - fittedSize.width / 2,
+        y: rect.midY - fittedSize.height / 2,
+        width: fittedSize.width,
+        height: fittedSize.height
     )
     ctx.saveGState()
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
-    image.draw(in: rect, from: sourceRect, operation: .sourceOver, fraction: 1)
+    NSBezierPath(roundedRect: fittedRect, xRadius: 8, yRadius: 8).addClip()
+    image.draw(in: fittedRect, from: .zero, operation: .sourceOver, fraction: 1)
     NSGraphicsContext.restoreGraphicsState()
     ctx.restoreGState()
 }
@@ -303,8 +309,9 @@ func drawWindow(_ ctx: CGContext, screenshotURL: URL, frame: CGRect, title: Stri
     }
     drawText(ctx, title, x: frame.minX + 86, y: canvasSize.height - frame.maxY + 13, width: frame.width - 170, height: 20, size: 13, weight: .semibold, color: NSColor(calibratedWhite: 0.76, alpha: 1), alignment: .center)
 
-    let content = CGRect(x: frame.minX + 2, y: frame.minY + 2, width: frame.width - 4, height: frame.height - titlebarHeight - 2)
-    try drawImageCropped(ctx, url: screenshotURL, rect: content, sourceInset: 12)
+    let content = CGRect(x: frame.minX + 10, y: frame.minY + 10, width: frame.width - 20, height: frame.height - titlebarHeight - 10)
+    fillRound(ctx, content, radius: 2, color: color(31, 37, 40))
+    try drawImageFitted(ctx, url: screenshotURL, rect: content)
 }
 
 func makeContext() -> CGContext {
