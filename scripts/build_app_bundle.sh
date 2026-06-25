@@ -114,4 +114,7 @@ STRINGS
 STRINGS
 done
 
+xattr -cr "$APP_DIR" 2>/dev/null || true
+codesign --force --deep --sign - "$APP_DIR"
+
 echo "$APP_DIR"

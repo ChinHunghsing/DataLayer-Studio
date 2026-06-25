@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_PATH="${1:-"$ROOT_DIR/.build/DataLayer Studio.app"}"
+SOURCE_APP_PATH="${1:-"$ROOT_DIR/.build/DataLayer Studio.app"}"
 PROFILE_PATH="${APP_STORE_PROVISIONING_PROFILE:-}"
 PKG_PATH="${2:-"$ROOT_DIR/DataLayer-Studio-AppStore.pkg"}"
 APP_IDENTITY="${APPLE_DISTRIBUTION:-${APP_STORE_APP_IDENTITY:-}}"
@@ -11,6 +11,8 @@ ENTITLEMENTS_PATH="$ROOT_DIR/Resources/AppStore.entitlements"
 PROFILE_PLIST="$(mktemp "${TMPDIR:-/tmp}/datalayer-profile.XXXXXX.plist")"
 SIGN_ENTITLEMENTS="$(mktemp "${TMPDIR:-/tmp}/datalayer-appstore-entitlements.XXXXXX.plist")"
 SIGNED_ENTITLEMENTS="$(mktemp "${TMPDIR:-/tmp}/datalayer-signed-entitlements.XXXXXX.plist")"
+STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/datalayer-appstore-package.XXXXXX")"
+APP_PATH="$STAGING_DIR/$(basename "$SOURCE_APP_PATH")"
 
 clean_bundle_metadata() {
     find "$APP_PATH" -name '._*' -type f -delete
@@ -19,11 +21,12 @@ clean_bundle_metadata() {
 
 cleanup() {
     rm -f "$PROFILE_PLIST" "$SIGN_ENTITLEMENTS" "$SIGNED_ENTITLEMENTS"
+    rm -rf "$STAGING_DIR"
 }
 trap cleanup EXIT
 
-if [[ ! -d "$APP_PATH" ]]; then
-    echo "error: missing app bundle: $APP_PATH" >&2
+if [[ ! -d "$SOURCE_APP_PATH" ]]; then
+    echo "error: missing app bundle: $SOURCE_APP_PATH" >&2
     exit 1
 fi
 
@@ -88,6 +91,7 @@ cp "$ENTITLEMENTS_PATH" "$SIGN_ENTITLEMENTS"
     /usr/libexec/PlistBuddy -c "Set :com.apple.developer.team-identifier $TEAM_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 /usr/libexec/PlistBuddy -c "Set :com.apple.developer.ubiquity-kvstore-identifier $SIGN_KVSTORE_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 
+ditto "$SOURCE_APP_PATH" "$APP_PATH"
 cp "$PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
 clean_bundle_metadata
 codesign --force --deep --options runtime --entitlements "$SIGN_ENTITLEMENTS" --sign "$APP_IDENTITY" "$APP_PATH"
