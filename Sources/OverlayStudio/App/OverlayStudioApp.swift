@@ -15,7 +15,9 @@ struct OverlayStudioApp: App {
 
     var body: some Scene {
         WindowGroup(localization.string("app.name"), id: "studio") {
-            StudioWindowView()
+            PurchaseAuthorizationGate {
+                StudioWindowView()
+            }
                 .environmentObject(localization)
                 .environment(\.locale, localization.locale)
         }
