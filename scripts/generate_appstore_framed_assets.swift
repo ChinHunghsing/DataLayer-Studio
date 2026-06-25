@@ -4,13 +4,17 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-let canvasWidth = 1440
-let canvasHeight = 900
-let canvasSize = CGSize(width: canvasWidth, height: canvasHeight)
+let outputScale: CGFloat = 2
+let logicalCanvasWidth: CGFloat = 1440
+let logicalCanvasHeight: CGFloat = 900
+let canvasWidth = Int(CGFloat(logicalCanvasWidth) * outputScale)
+let canvasHeight = Int(CGFloat(logicalCanvasHeight) * outputScale)
+let canvasSize = CGSize(width: logicalCanvasWidth, height: logicalCanvasHeight)
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let inputDir = root.appendingPathComponent("assets/appstore/v0.1.1/desktop")
 let outputRootDir = root.appendingPathComponent("assets/appstore/v0.1.1/framed")
 let iconURL = root.appendingPathComponent("Resources/AppIcon.png")
+let heroScreenshotURL = root.appendingPathComponent("assets/readme/app-showcase.png")
 
 try FileManager.default.createDirectory(at: outputRootDir, withIntermediateDirectories: true)
 
@@ -20,7 +24,6 @@ struct HeroCopy {
     let pills: [String]
     let sourceLabel: String
     let sourceSubhead: String
-    let windowTitle: String
 }
 
 struct PageCopy {
@@ -43,11 +46,10 @@ let localizedCopies: [LocaleCopy] = [
             subtitle: "Turn running data into cinematic video overlays.",
             pills: ["Transparent video export", "Custom gauges", "FIT, weather, power", "Reusable layouts"],
             sourceLabel: "Video + FIT",
-            sourceSubhead: "to editor-ready overlays",
-            windowTitle: "Live overlay preview"
+            sourceSubhead: "to editor-ready overlays"
         ),
         pages: [
-            PageCopy(fileName: "02-live-preview.png", source: "01-source-preview.png", title: "Preview every overlay before export", subtitle: "Scrub the video, tune gauge positions, and verify timing against FIT data.", accent: color(96, 210, 255)),
+            PageCopy(fileName: "02-live-preview.png", source: "app-showcase.png", title: "Preview every overlay before export", subtitle: "Scrub the video, tune gauge positions, and verify timing against FIT data.", accent: color(96, 210, 255)),
             PageCopy(fileName: "03-layout-presets.png", source: "02-canvas-presets.png", title: "Build reusable telemetry layouts", subtitle: "Save presets, sync them with iCloud, and keep consistent visuals across edits.", accent: color(132, 255, 178)),
             PageCopy(fileName: "04-export-settings.png", source: "03-export-settings.png", title: "Export transparent overlays", subtitle: "Choose resolution, frame rate, bitrate, and alpha-friendly formats for editors.", accent: color(255, 197, 93))
         ]
@@ -58,11 +60,10 @@ let localizedCopies: [LocaleCopy] = [
             subtitle: "把跑步数据做成专业视频浮层。",
             pills: ["透明视频导出", "自定义仪表", "FIT、天气、功率", "可复用布局"],
             sourceLabel: "视频 + FIT",
-            sourceSubhead: "生成剪辑可用的浮层",
-            windowTitle: "实时浮层预览"
+            sourceSubhead: "生成剪辑可用的浮层"
         ),
         pages: [
-            PageCopy(fileName: "02-live-preview.png", source: "01-source-preview.png", title: "导出前预览每一个浮层", subtitle: "拖动进度条，调整仪表位置，并用 FIT 数据校准时间。", accent: color(96, 210, 255)),
+            PageCopy(fileName: "02-live-preview.png", source: "app-showcase.png", title: "导出前预览每一个浮层", subtitle: "拖动进度条，调整仪表位置，并用 FIT 数据校准时间。", accent: color(96, 210, 255)),
             PageCopy(fileName: "03-layout-presets.png", source: "02-canvas-presets.png", title: "建立可复用的运动数据布局", subtitle: "保存预设、通过 iCloud 同步，并让每条视频保持一致风格。", accent: color(132, 255, 178)),
             PageCopy(fileName: "04-export-settings.png", source: "03-export-settings.png", title: "导出透明背景浮层", subtitle: "选择分辨率、帧率、码率和适合剪辑软件的透明格式。", accent: color(255, 197, 93))
         ]
@@ -73,11 +74,10 @@ let localizedCopies: [LocaleCopy] = [
             subtitle: "把跑步資料做成專業影片浮層。",
             pills: ["透明影片輸出", "自訂儀表", "FIT、天氣、功率", "可重用版面"],
             sourceLabel: "影片 + FIT",
-            sourceSubhead: "產生剪輯可用的浮層",
-            windowTitle: "即時浮層預覽"
+            sourceSubhead: "產生剪輯可用的浮層"
         ),
         pages: [
-            PageCopy(fileName: "02-live-preview.png", source: "01-source-preview.png", title: "輸出前預覽每一個浮層", subtitle: "拖動進度條、調整儀表位置，並用 FIT 資料校準時間。", accent: color(96, 210, 255)),
+            PageCopy(fileName: "02-live-preview.png", source: "app-showcase.png", title: "輸出前預覽每一個浮層", subtitle: "拖動進度條、調整儀表位置，並用 FIT 資料校準時間。", accent: color(96, 210, 255)),
             PageCopy(fileName: "03-layout-presets.png", source: "02-canvas-presets.png", title: "建立可重用的運動資料版面", subtitle: "儲存預設、透過 iCloud 同步，讓每段影片保持一致風格。", accent: color(132, 255, 178)),
             PageCopy(fileName: "04-export-settings.png", source: "03-export-settings.png", title: "輸出透明背景浮層", subtitle: "選擇解析度、影格率、位元率和適合剪輯軟體的透明格式。", accent: color(255, 197, 93))
         ]
@@ -88,11 +88,10 @@ let localizedCopies: [LocaleCopy] = [
             subtitle: "ランニングデータを映像用オーバーレイに。",
             pills: ["透明ビデオ書き出し", "カスタムゲージ", "FIT・天気・パワー", "再利用できるレイアウト"],
             sourceLabel: "動画 + FIT",
-            sourceSubhead: "編集で使えるオーバーレイへ",
-            windowTitle: "ライブオーバーレイプレビュー"
+            sourceSubhead: "編集で使えるオーバーレイへ"
         ),
         pages: [
-            PageCopy(fileName: "02-live-preview.png", source: "01-source-preview.png", title: "書き出し前にすべてのオーバーレイを確認", subtitle: "動画をスクラブし、ゲージ位置を調整して、FIT データとタイミングを合わせられます。", accent: color(96, 210, 255)),
+            PageCopy(fileName: "02-live-preview.png", source: "app-showcase.png", title: "書き出し前にすべてのオーバーレイを確認", subtitle: "動画をスクラブし、ゲージ位置を調整して、FIT データとタイミングを合わせられます。", accent: color(96, 210, 255)),
             PageCopy(fileName: "03-layout-presets.png", source: "02-canvas-presets.png", title: "再利用できるテレメトリレイアウト", subtitle: "プリセットを保存し、iCloud で同期して、編集ごとの見た目をそろえられます。", accent: color(132, 255, 178)),
             PageCopy(fileName: "04-export-settings.png", source: "03-export-settings.png", title: "透明オーバーレイを書き出し", subtitle: "解像度、フレームレート、ビットレート、編集向けの透明形式を選べます。", accent: color(255, 197, 93))
         ]
@@ -265,11 +264,11 @@ func drawImage(_ ctx: CGContext, url: URL, rect: CGRect, radius: CGFloat = 0) th
     ctx.restoreGState()
 }
 
-func drawImageFitted(_ ctx: CGContext, url: URL, rect: CGRect) throws {
+func drawImageCover(_ ctx: CGContext, url: URL, rect: CGRect, overscan: CGFloat = 1) throws {
     guard let image = NSImage(contentsOf: url) else {
         throw NSError(domain: "AppStoreAsset", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not load image \(url.path)"])
     }
-    let scale = min(rect.width / image.size.width, rect.height / image.size.height)
+    let scale = max(rect.width / image.size.width, rect.height / image.size.height) * overscan
     let fittedSize = CGSize(
         width: image.size.width * scale,
         height: image.size.height * scale
@@ -283,41 +282,52 @@ func drawImageFitted(_ ctx: CGContext, url: URL, rect: CGRect) throws {
     ctx.saveGState()
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
-    NSBezierPath(roundedRect: fittedRect, xRadius: 8, yRadius: 8).addClip()
     image.draw(in: fittedRect, from: .zero, operation: .sourceOver, fraction: 1)
     NSGraphicsContext.restoreGraphicsState()
     ctx.restoreGState()
 }
 
-func drawWindow(_ ctx: CGContext, screenshotURL: URL, frame: CGRect, title: String) throws {
-    ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -24), blur: 46, color: color(0, 0, 0, 0.52))
-    fillRound(ctx, frame, radius: 24, color: color(12, 17, 23, 0.96))
-    ctx.restoreGState()
+func drawScrim(_ ctx: CGContext, topAlpha: CGFloat = 0.58, leftAlpha: CGFloat = 0.56) {
+    let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
+    let topGradient = CGGradient(
+        colorsSpace: colorSpace,
+        colors: [color(4, 8, 12, topAlpha), color(4, 8, 12, 0)] as CFArray,
+        locations: [0, 1]
+    )!
+    ctx.drawLinearGradient(
+        topGradient,
+        start: CGPoint(x: 0, y: canvasSize.height),
+        end: CGPoint(x: 0, y: canvasSize.height - 320),
+        options: []
+    )
 
-    strokeRound(ctx, frame, radius: 24, color: color(255, 255, 255, 0.14), width: 1)
-    let titlebarHeight: CGFloat = 46
-    let titlebar = CGRect(x: frame.minX, y: frame.maxY - titlebarHeight, width: frame.width, height: titlebarHeight)
-    fillRound(ctx, titlebar, radius: 24, color: color(34, 43, 52, 0.94))
-    ctx.setFillColor(color(34, 43, 52, 0.94))
-    ctx.fill(CGRect(x: frame.minX, y: frame.maxY - titlebarHeight, width: frame.width, height: titlebarHeight / 2))
+    let leftGradient = CGGradient(
+        colorsSpace: colorSpace,
+        colors: [color(4, 8, 12, leftAlpha), color(4, 8, 12, 0)] as CFArray,
+        locations: [0, 1]
+    )!
+    ctx.drawLinearGradient(
+        leftGradient,
+        start: CGPoint(x: 0, y: canvasSize.height / 2),
+        end: CGPoint(x: 520, y: canvasSize.height / 2),
+        options: []
+    )
+}
 
-    let dotY = frame.maxY - 28
-    for (index, dotColor) in [color(255, 95, 86), color(255, 190, 48), color(39, 201, 63)].enumerated() {
-        ctx.setFillColor(dotColor)
-        ctx.fillEllipse(in: CGRect(x: frame.minX + 20 + CGFloat(index) * 18, y: dotY, width: 11, height: 11))
-    }
-    drawText(ctx, title, x: frame.minX + 86, y: canvasSize.height - frame.maxY + 13, width: frame.width - 170, height: 20, size: 13, weight: .semibold, color: NSColor(calibratedWhite: 0.76, alpha: 1), alignment: .center)
-
-    let content = CGRect(x: frame.minX + 10, y: frame.minY + 10, width: frame.width - 20, height: frame.height - titlebarHeight - 10)
-    fillRound(ctx, content, radius: 2, color: color(31, 37, 40))
-    try drawImageFitted(ctx, url: screenshotURL, rect: content)
+func drawCaptionCard(_ ctx: CGContext, title: String, subtitle: String, accent: CGColor) {
+    let card = topRect(48, 48, 700, 130)
+    fillRound(ctx, card, radius: 22, color: color(9, 15, 21, 0.76))
+    strokeRound(ctx, card, radius: 22, color: color(255, 255, 255, 0.12), width: 1)
+    ctx.setFillColor(accent.copy(alpha: 0.9)!)
+    ctx.fill(CGRect(x: card.minX + 24, y: card.maxY - 42, width: 54, height: 5))
+    drawFittedText(ctx, title, x: 72, y: 70, width: 640, height: 48, size: 36, minSize: 27, weight: .bold)
+    drawText(ctx, subtitle, x: 74, y: 122, width: 612, height: 42, size: 18, weight: .semibold, color: NSColor(calibratedWhite: 0.82, alpha: 1), lineSpacing: 3)
 }
 
 func makeContext() -> CGContext {
     let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
     let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.noneSkipLast.rawValue
-    return CGContext(
+    let context = CGContext(
         data: nil,
         width: canvasWidth,
         height: canvasHeight,
@@ -326,6 +336,8 @@ func makeContext() -> CGContext {
         space: colorSpace,
         bitmapInfo: bitmapInfo
     )!
+    context.scaleBy(x: outputScale, y: outputScale)
+    return context
 }
 
 func save(_ ctx: CGContext, to url: URL) throws {
@@ -342,9 +354,11 @@ func save(_ ctx: CGContext, to url: URL) throws {
 func renderHero(_ copy: HeroCopy, outputDir: URL) throws {
     let ctx = makeContext()
     drawBackground(ctx, accent: color(96, 210, 255))
+    try drawImageCover(ctx, url: heroScreenshotURL, rect: CGRect(origin: .zero, size: canvasSize), overscan: 1.005)
+    drawScrim(ctx, topAlpha: 0.55, leftAlpha: 0.64)
 
     try drawImage(ctx, url: iconURL, rect: topRect(84, 90, 66, 66), radius: 16)
-    drawText(ctx, "DataLayer Studio", x: 84, y: 176, width: 330, height: 58, size: 42, weight: .bold)
+    drawText(ctx, "DataLayer Studio", x: 84, y: 176, width: 420, height: 58, size: 42, weight: .bold)
     drawText(ctx, copy.subtitle, x: 86, y: 244, width: 336, height: 84, size: 21, weight: .medium, color: NSColor(calibratedWhite: 0.80, alpha: 1), lineSpacing: 5)
     for (index, pill) in copy.pills.enumerated() {
         let width = max(CGFloat(148), CGFloat(pill.count) * 15 + 42)
@@ -353,20 +367,22 @@ func renderHero(_ copy: HeroCopy, outputDir: URL) throws {
 
     drawMonoText(ctx, copy.sourceLabel, x: 94, y: 678, width: 236, height: 32, size: 19, color: NSColor(calibratedRed: 0.55, green: 0.86, blue: 1.0, alpha: 1))
     drawText(ctx, copy.sourceSubhead, x: 94, y: 710, width: 286, height: 34, size: 17, weight: .semibold, color: NSColor(calibratedWhite: 0.76, alpha: 1))
-
-    let source = inputDir.appendingPathComponent("01-source-preview.png")
-    try drawWindow(ctx, screenshotURL: source, frame: topRect(410, 126, 940, 634), title: copy.windowTitle)
     try save(ctx, to: outputDir.appendingPathComponent("01-hero.png"))
 }
 
 func renderFramed(page: PageCopy, outputDir: URL) throws {
     let ctx = makeContext()
     drawBackground(ctx, accent: page.accent)
-    drawFittedText(ctx, page.title, x: 92, y: 58, width: 1060, height: 52, size: 39, minSize: 30, weight: .bold)
-    drawText(ctx, page.subtitle, x: 94, y: 112, width: 920, height: 48, size: 18, weight: .medium, color: NSColor(calibratedWhite: 0.72, alpha: 1))
-    let screenshot = inputDir.appendingPathComponent(page.source)
-    try drawWindow(ctx, screenshotURL: screenshot, frame: topRect(180, 154, 1080, 722), title: "DataLayer Studio")
+    let screenshot = sourceURL(for: page.source)
+    let overscan: CGFloat = page.source == "app-showcase.png" ? 1.005 : 1.025
+    try drawImageCover(ctx, url: screenshot, rect: CGRect(origin: .zero, size: canvasSize), overscan: overscan)
+    drawScrim(ctx, topAlpha: 0.22, leftAlpha: 0.08)
+    drawCaptionCard(ctx, title: page.title, subtitle: page.subtitle, accent: page.accent)
     try save(ctx, to: outputDir.appendingPathComponent(page.fileName))
+}
+
+func sourceURL(for source: String) -> URL {
+    source == "app-showcase.png" ? heroScreenshotURL : inputDir.appendingPathComponent(source)
 }
 
 for copy in localizedCopies {
