@@ -9,6 +9,7 @@ public final class OverlayRenderer {
     private let config: OverlayRenderConfig
     private let routePoints: [RoutePoint]
     private let totalDistanceMeters: Double
+    private let colorSpace = CGColorSpaceCreateDeviceRGB()
     private let fontCacheLock = NSLock()
     private var fontCache: [TextFontKey: CTFont] = [:]
     private static let textWidthCacheLock = NSLock()
@@ -39,7 +40,6 @@ public final class OverlayRenderer {
         let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
         memset(baseAddress, 0, bytesPerRow * height)
 
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(
             data: baseAddress,
             width: width,
@@ -54,7 +54,6 @@ public final class OverlayRenderer {
         }
 
         let canvas = CGRect(x: 0, y: 0, width: width, height: height)
-        context.clear(canvas)
         context.setShouldAntialias(true)
         context.setAllowsAntialiasing(true)
 
