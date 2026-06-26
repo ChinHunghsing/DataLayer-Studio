@@ -53,7 +53,8 @@ if [[ -z "$INSTALLER_IDENTITY" ]]; then
     exit 1
 fi
 
-security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST" 2>/dev/null || \
+    openssl cms -inform DER -verify -noverify -in "$PROFILE_PATH" -out "$PROFILE_PLIST" >/dev/null 2>&1
 APP_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.application-identifier" "$PROFILE_PLIST")"
 TEAM_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.team-identifier" "$PROFILE_PLIST")"
 KVSTORE_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :Entitlements:com.apple.developer.ubiquity-kvstore-identifier" "$PROFILE_PLIST" 2>/dev/null || true)"
@@ -91,10 +92,11 @@ cp "$ENTITLEMENTS_PATH" "$SIGN_ENTITLEMENTS"
     /usr/libexec/PlistBuddy -c "Set :com.apple.developer.team-identifier $TEAM_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 /usr/libexec/PlistBuddy -c "Set :com.apple.developer.ubiquity-kvstore-identifier $SIGN_KVSTORE_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 
-ditto "$SOURCE_APP_PATH" "$APP_PATH"
+COPYFILE_DISABLE=1 ditto "$SOURCE_APP_PATH" "$APP_PATH"
 cp "$PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
 clean_bundle_metadata
 codesign --force --deep --options runtime --entitlements "$SIGN_ENTITLEMENTS" --sign "$APP_IDENTITY" "$APP_PATH"
+clean_bundle_metadata
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 codesign -d --xml --entitlements - "$APP_PATH" > "$SIGNED_ENTITLEMENTS" 2>/dev/null
 SIGNED_APP_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :com.apple.application-identifier" "$SIGNED_ENTITLEMENTS")"
@@ -123,7 +125,7 @@ if [[ "$signed_kvstore_identifier" != "$SIGN_KVSTORE_IDENTIFIER" ]]; then
 fi
 
 rm -f "$PKG_PATH"
-productbuild --component "$APP_PATH" /Applications --sign "$INSTALLER_IDENTITY" "$PKG_PATH"
+COPYFILE_DISABLE=1 productbuild --component "$APP_PATH" /Applications --sign "$INSTALLER_IDENTITY" "$PKG_PATH"
 pkgutil --check-signature "$PKG_PATH"
 
 echo "$PKG_PATH"
