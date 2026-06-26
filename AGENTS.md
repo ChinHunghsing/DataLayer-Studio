@@ -11,6 +11,7 @@
 ## App Store Server Notifications
 
 - 未来涉及 App Store Connect（ASC）的提交、元数据、TestFlight、构建、IAP、审核信息等操作时，优先使用已安装的 `asc` 操作，并先查找/加载对应的 `app-store-connect` skill；除非用户明确要求其它方式，不要默认走网页手工流程。
+- App Store / TestFlight 构建号统一使用 `yyyyMMddNN` 格式，其中 `NN` 是当天从 `01` 开始的顺序号；例如 `2026062601` 表示 2026 年 6 月 26 日的第 1 个构建。
 - App Store Server API / Server Notification 的 `JWSTransactionDecodedPayload.price` 是货币的 milliunits，展示价格前必须除以 1000。
 - `currency` 是 ISO 4217 三字母货币代码；通知里优先展示为 `金额 CODE（中文货币名称）`，例如 `38 CNY（人民币元）`。
 - 不要用 `currency` 推断 storefront；需要地区时读取交易里的 `storefront`。
