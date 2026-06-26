@@ -88,6 +88,19 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(model.needsOutputSelectionBeforeExport)
     }
 
+    func testNewVideoRefreshesSuggestedOutputNameInExistingDirectory() {
+        let model = StudioModel()
+        model.outputURL = URL(fileURLWithPath: "/tmp/exports/old.mov")
+
+        model.applySuggestedOutputURLIfNeeded(
+            for: URL(fileURLWithPath: "/tmp/videos/new-run.mp4"),
+            replacingManualSelection: true
+        )
+
+        XCTAssertEqual(model.outputURL?.path, "/tmp/exports/new-run_overlay.mov")
+        XCTAssertTrue(model.needsOutputSelectionBeforeExport)
+    }
+
     func testFitOnlyModeCanExportWithFITDuration() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [
