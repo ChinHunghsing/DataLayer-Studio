@@ -145,6 +145,18 @@ final class TransparentVideoWriterTests: XCTestCase {
         )
     }
 
+    func testWriterRejectsPlainVideoCodecBeforeExport() {
+        assertWriterRejectsInvalidConfiguration(
+            config: TransparentVideoWriterConfig(
+                width: 2,
+                height: 2,
+                framesPerSecond: 1,
+                duration: 1,
+                codec: .hevc
+            )
+        )
+    }
+
     func testWriterRejectsMissingOutputDirectoryBeforeExport() {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("missing-output-dir-\(UUID().uuidString)")

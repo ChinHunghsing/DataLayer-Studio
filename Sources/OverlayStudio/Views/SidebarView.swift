@@ -88,6 +88,17 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 12) {
             SidebarSubsectionHeader(title: localization.string("sidebar.videoSettings"), systemImage: "slider.horizontal.3")
 
+            SidebarControl(title: localization.string("sidebar.exportMode")) {
+                Picker(localization.string("sidebar.exportMode"), selection: $model.exportMode) {
+                    ForEach(OverlayExportMode.allCases) { mode in
+                        Text(localization.string(mode.localizationKey)).tag(mode)
+                            .disabled(mode == .video && model.videoURL == nil)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+            }
+
             SidebarControl(title: localization.string("sidebar.resolution")) {
                 Picker(localization.string("sidebar.resolution"), selection: resolutionPresetSelection) {
                     if let sourceTitle = model.sourceResolutionPresetTitle {
@@ -153,7 +164,7 @@ struct SidebarView: View {
 
             SidebarControl(title: localization.string("sidebar.codec")) {
                 Picker(localization.string("sidebar.codec"), selection: $model.codec) {
-                    ForEach(OverlayVideoCodec.allCases) { codec in
+                    ForEach(model.availableCodecs) { codec in
                         Text(localization.string(codec.localizationKey)).tag(codec)
                     }
                 }
@@ -381,7 +392,7 @@ struct SidebarView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ProgressView(value: clampedExportProgress)
                     HStack {
-                        Text(localization.string("sidebar.exportingOverlay"))
+                        Text(localization.string(model.exportMode == .video ? "sidebar.exportingVideo" : "sidebar.exportingOverlay"))
                         Spacer()
                         Text(clampedExportProgress.percentString)
                             .monospacedDigit()
@@ -421,13 +432,13 @@ struct SidebarView: View {
                 Button {
                     model.export()
                 } label: {
-                    Label(localization.string("sidebar.exportOverlay"), systemImage: "play.fill")
+                    Label(localization.string(model.exportMode == .video ? "sidebar.exportVideo" : "sidebar.exportOverlay"), systemImage: "play.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
                 .disabled(!model.canExport)
-                .help(model.exportReadinessMessage ?? localization.string("help.exportTransparentOverlay"))
+                .help(model.exportReadinessMessage ?? localization.string(model.exportMode == .video ? "help.exportCompositedVideo" : "help.exportTransparentOverlay"))
             }
         }
     }

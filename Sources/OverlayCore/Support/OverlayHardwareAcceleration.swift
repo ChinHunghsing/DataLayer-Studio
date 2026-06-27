@@ -164,6 +164,10 @@ public struct OverlayHardwareProfile: Equatable, Sendable {
             return .hevcAlpha
         case kCMVideoCodecType_AppleProRes4444:
             return .proRes4444
+        case kCMVideoCodecType_HEVC:
+            return .hevc
+        case kCMVideoCodecType_H264:
+            return .h264
         default:
             return nil
         }

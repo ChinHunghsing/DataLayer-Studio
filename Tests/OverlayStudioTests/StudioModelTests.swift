@@ -101,6 +101,26 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(model.needsOutputSelectionBeforeExport)
     }
 
+    func testExportModeRefreshesCodecAndSuggestedOutputName() {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/videos/new-run.mp4")
+        model.videoURL = videoURL
+        model.applySuggestedOutputURLIfNeeded(for: videoURL)
+
+        XCTAssertEqual(model.outputURL?.lastPathComponent, "new-run_overlay.mov")
+        XCTAssertEqual(model.codec, .hevcAlpha)
+
+        model.exportMode = .video
+
+        XCTAssertEqual(model.outputURL?.lastPathComponent, "new-run_with_overlay.mov")
+        XCTAssertEqual(model.codec, .hevc)
+
+        model.exportMode = .overlay
+
+        XCTAssertEqual(model.outputURL?.lastPathComponent, "new-run_overlay.mov")
+        XCTAssertEqual(model.codec, .hevcAlpha)
+    }
+
     func testFitOnlyModeCanExportWithFITDuration() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [
@@ -112,6 +132,22 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(model.canPreview)
         XCTAssertEqual(model.previewDuration, 5)
         XCTAssertNil(model.exportReadinessMessage)
+    }
+
+    func testFitOnlyModeCannotExportCompositedVideo() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 5, distanceMeters: 20)
+        ])
+
+        model.exportMode = .video
+
+        XCTAssertFalse(model.canExport)
+        XCTAssertEqual(
+            model.exportReadinessMessage,
+            AppLocalizer.currentString("status.chooseVideoForCompositedExport")
+        )
     }
 
     func testFitOnlyModeIgnoresOffsetSync() {

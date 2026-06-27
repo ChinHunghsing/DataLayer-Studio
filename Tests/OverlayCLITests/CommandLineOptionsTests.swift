@@ -15,6 +15,66 @@ final class CommandLineOptionsTests: XCTestCase {
         XCTAssertNil(options.videoURL)
         XCTAssertEqual(options.width, 1920)
         XCTAssertEqual(options.height, 1080)
+        XCTAssertEqual(options.exportMode, .overlay)
+        XCTAssertEqual(options.codec, .hevcAlpha)
+    }
+
+    func testCompositedVideoExportRequiresSourceVideo() {
+        XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--fit", "activity.fit",
+            "--output", "video.mov",
+            "--export-mode", "video"
+        ])) { error in
+            guard case CLIError.missingRequired("--video") = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    func testCompositedVideoExportDefaultsToPlainHEVC() throws {
+        let options = try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--video", "run.mov",
+            "--fit", "activity.fit",
+            "--output", "video.mov",
+            "--export-mode", "video"
+        ])
+
+        XCTAssertEqual(options.exportMode, .video)
+        XCTAssertEqual(options.codec, .hevc)
+    }
+
+    func testAlphaCodecCannotBeUsedForCompositedVideoExport() {
+        XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--video", "run.mov",
+            "--fit", "activity.fit",
+            "--output", "video.mov",
+            "--export-mode", "video",
+            "--codec", "hevc-alpha"
+        ])) { error in
+            guard case CLIError.conflictingArguments(let message) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertTrue(message.contains("hevc-alpha"))
+            XCTAssertTrue(message.contains("video"))
+        }
+    }
+
+    func testPlainVideoCodecCannotBeUsedForOverlayExport() {
+        XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--fit", "activity.fit",
+            "--output", "overlay.mov",
+            "--codec", "hevc"
+        ])) { error in
+            guard case CLIError.conflictingArguments(let message) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertTrue(message.contains("hevc"))
+            XCTAssertTrue(message.contains("overlay"))
+        }
     }
 
     func testBitrateArgumentUsesKbpsAtGuiMaximum() throws {

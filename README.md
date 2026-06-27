@@ -175,6 +175,7 @@ The GUI supports:
 - saving, importing, exporting, and setting default layout presets
 - setting output resolution and frame rate through presets or manual input
 - choosing whether distance labels render in `m` or `km`
+- exporting either a transparent alpha overlay or a source video with the overlay burned in
 - setting output bitrate in kbps, codec, and destination
 
 ## CLI usage
@@ -198,7 +199,10 @@ Useful options:
 --offset 2.5        # legacy shorthand: video starts 2.5s before FIT
 --bitrate 12000     # HEVC average bitrate in kbps
 --bitrate-bps 12000000 # legacy explicit bitrate in bps
---codec hevc-alpha  # default; use prores-4444 as an alpha-capable intermediate
+--export-mode overlay # default; transparent alpha overlay
+--export-mode video # export source video with overlay burned in; requires --video
+--codec hevc-alpha  # overlay mode default; use prores-4444 as an alpha-capable intermediate
+--codec hevc        # video mode default; h264 is also available
 --distance-unit km  # distance labels: km (default) or m
 --layout-preset "Race Layout" # use a saved GUI layout preset by name or ID
 --layout-preset presets.json # use a GUI-exported layout preset JSON file

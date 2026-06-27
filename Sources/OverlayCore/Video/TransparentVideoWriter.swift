@@ -7,9 +7,27 @@ import Darwin
 import Foundation
 import VideoToolbox
 
+public enum OverlayExportMode: String, CaseIterable, Hashable, Identifiable, Sendable {
+    case overlay
+    case video
+
+    public var id: String { rawValue }
+
+    public var defaultCodec: OverlayVideoCodec {
+        switch self {
+        case .overlay:
+            return .hevcAlpha
+        case .video:
+            return .hevc
+        }
+    }
+}
+
 public enum OverlayVideoCodec: String, CaseIterable, Hashable, Identifiable, Sendable {
     case hevcAlpha = "hevc-alpha"
     case proRes4444 = "prores-4444"
+    case hevc = "hevc"
+    case h264 = "h264"
 
     public var id: String { rawValue }
 
@@ -19,6 +37,19 @@ public enum OverlayVideoCodec: String, CaseIterable, Hashable, Identifiable, Sen
             return .hevcWithAlpha
         case .proRes4444:
             return .proRes4444
+        case .hevc:
+            return .hevc
+        case .h264:
+            return .h264
+        }
+    }
+
+    public var exportMode: OverlayExportMode {
+        switch self {
+        case .hevcAlpha, .proRes4444:
+            return .overlay
+        case .hevc, .h264:
+            return .video
         }
     }
 
@@ -28,6 +59,10 @@ public enum OverlayVideoCodec: String, CaseIterable, Hashable, Identifiable, Sen
             return "HEVC/H.265 with alpha"
         case .proRes4444:
             return "Apple ProRes 4444"
+        case .hevc:
+            return "HEVC/H.265"
+        case .h264:
+            return "H.264"
         }
     }
 }
@@ -317,6 +352,9 @@ public final class TransparentVideoWriter {
         guard config.averageBitRate <= 1_000_000_000 else {
             throw OverlayVideoError.invalidConfiguration("Output bitrate must be 1,000,000 kbps or lower.")
         }
+        guard config.codec.exportMode == .overlay else {
+            throw OverlayVideoError.invalidConfiguration("\(config.codec.displayName) cannot be used for transparent overlay export.")
+        }
         try validateOutputURL()
     }
 
@@ -384,7 +422,7 @@ public final class TransparentVideoWriter {
         )
     }
 
-    private static func makePixelBufferPool(width: Int, height: Int, minimumBufferCount: Int) throws -> CVPixelBufferPool {
+    static func makePixelBufferPool(width: Int, height: Int, minimumBufferCount: Int) throws -> CVPixelBufferPool {
         let poolAttributes = [kCVPixelBufferPoolMinimumBufferCountKey as String: minimumBufferCount]
         let attributes = OverlayPixelBufferAttributes.canvas(width: width, height: height)
         var pool: CVPixelBufferPool?
@@ -395,7 +433,7 @@ public final class TransparentVideoWriter {
         return pool
     }
 
-    private static func makePixelBuffer(from pool: CVPixelBufferPool) throws -> CVPixelBuffer {
+    static func makePixelBuffer(from pool: CVPixelBufferPool) throws -> CVPixelBuffer {
         var pixelBuffer: CVPixelBuffer?
         let status = CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
         guard status == kCVReturnSuccess, let pixelBuffer else {
@@ -404,7 +442,7 @@ public final class TransparentVideoWriter {
         return pixelBuffer
     }
 
-    private static func hardwareEncoderSpecification(
+    static func hardwareEncoderSpecification(
         codec: OverlayVideoCodec,
         hardwareProfile: OverlayHardwareProfile
     ) -> [String: Any]? {

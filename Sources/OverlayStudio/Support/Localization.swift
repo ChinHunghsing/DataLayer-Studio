@@ -307,6 +307,7 @@ enum AppLocalizer {
         "toolbar.export": "Export",
         "help.cancelExport": "Cancel export",
         "help.exportTransparentOverlay": "Export transparent overlay video",
+        "help.exportCompositedVideo": "Export source video with overlay burned in",
 
         "sidebar.workflowTabs": "Workflow steps",
         "sidebar.source.title": "Source",
@@ -366,6 +367,9 @@ enum AppLocalizer {
         "sidebar.canvas.title": "Canvas",
         "sidebar.canvas.subtitle": "Preview grid and reusable gauge layouts",
         "sidebar.videoSettings": "Video",
+        "sidebar.exportMode": "Export type",
+        "exportMode.overlay": "Overlay",
+        "exportMode.video": "Video",
         "sidebar.resolution": "Resolution",
         "sidebar.sourceResolutionPreset": "Source %@×%@",
         "sidebar.custom": "Custom",
@@ -408,9 +412,11 @@ enum AppLocalizer {
         "sidebar.export.subtitle": "Transparent overlay render settings",
         "sidebar.render": "Render",
         "sidebar.exportingOverlay": "Exporting overlay",
+        "sidebar.exportingVideo": "Exporting video",
         "sidebar.exportProgress": "Export progress",
         "sidebar.exportDisabled": "Export disabled",
         "sidebar.exportOverlay": "Export Overlay",
+        "sidebar.exportVideo": "Export Video",
 
         "preset.default": "Default",
         "preset.gaugeCount": "%d gauges",
@@ -552,6 +558,8 @@ enum AppLocalizer {
 
         "codec.hevcAlpha": "HEVC/H.265 with alpha",
         "codec.proRes4444": "Apple ProRes 4444",
+        "codec.hevc": "HEVC/H.265",
+        "codec.h264": "H.264",
         "unit.meters": "Meters (m)",
         "unit.kilometers": "Kilometers (km)",
 
@@ -598,6 +606,8 @@ enum AppLocalizer {
         "status.checkOutputSettings": "Check output settings: width/height, fps, and bitrate must be in range.",
         "status.chooseOutputFile": "Choose an output file to export.",
         "status.chooseFitBeforeExport": "Choose a FIT file before exporting.",
+        "status.chooseVideoForCompositedExport": "Choose a source video before exporting composited video.",
+        "status.codecExportModeMismatch": "Choose a codec that matches the export type.",
         "status.exporting": "Exporting...",
         "status.wroteFile": "Wrote %@",
         "notification.exportCompleted.title": "Export complete",
@@ -614,6 +624,8 @@ enum AppLocalizer {
         "panel.chooseFitActivity.message": "Select the FIT file that contains the activity telemetry.",
         "panel.saveOverlayVideo": "Save transparent overlay video",
         "panel.saveOverlayVideo.message": "Choose where to save the transparent overlay movie.",
+        "panel.saveCompositedVideo": "Save video with overlay",
+        "panel.saveCompositedVideo.message": "Choose where to save the source video with the overlay burned in.",
         "panel.exportLayoutPresets": "Export layout presets",
         "panel.exportLayoutPresets.message": "Save your reusable layout presets as a JSON file.",
         "panel.importLayoutPresets": "Import layout presets",
@@ -670,6 +682,7 @@ enum AppLocalizer {
         "toolbar.export": "导出",
         "help.cancelExport": "取消导出",
         "help.exportTransparentOverlay": "导出透明浮层视频",
+        "help.exportCompositedVideo": "导出已叠加数据层的视频",
 
         "sidebar.workflowTabs": "工作流步骤",
         "sidebar.source.title": "素材",
@@ -729,6 +742,9 @@ enum AppLocalizer {
         "sidebar.canvas.title": "画布",
         "sidebar.canvas.subtitle": "预览网格和可复用浮层布局",
         "sidebar.videoSettings": "视频",
+        "sidebar.exportMode": "导出类型",
+        "exportMode.overlay": "浮层",
+        "exportMode.video": "视频",
         "sidebar.resolution": "分辨率",
         "sidebar.sourceResolutionPreset": "源视频 %@×%@",
         "sidebar.custom": "自定义",
@@ -771,9 +787,11 @@ enum AppLocalizer {
         "sidebar.export.subtitle": "透明浮层渲染设置",
         "sidebar.render": "渲染",
         "sidebar.exportingOverlay": "正在导出浮层",
+        "sidebar.exportingVideo": "正在导出视频",
         "sidebar.exportProgress": "导出进度",
         "sidebar.exportDisabled": "导出不可用",
         "sidebar.exportOverlay": "导出浮层",
+        "sidebar.exportVideo": "导出视频",
 
         "preset.default": "默认",
         "preset.gaugeCount": "%d 个浮层",
@@ -915,6 +933,8 @@ enum AppLocalizer {
 
         "codec.hevcAlpha": "带透明通道的 HEVC/H.265",
         "codec.proRes4444": "Apple ProRes 4444",
+        "codec.hevc": "HEVC/H.265",
+        "codec.h264": "H.264",
         "unit.meters": "米 (m)",
         "unit.kilometers": "公里 (km)",
 
@@ -961,6 +981,8 @@ enum AppLocalizer {
         "status.checkOutputSettings": "请检查输出设置：宽高、帧率和码率都需要在有效范围内。",
         "status.chooseOutputFile": "请选择导出文件。",
         "status.chooseFitBeforeExport": "导出前请选择 FIT 文件。",
+        "status.chooseVideoForCompositedExport": "导出合成视频前请选择源视频。",
+        "status.codecExportModeMismatch": "请选择与导出类型匹配的编码。",
         "status.exporting": "正在导出...",
         "status.wroteFile": "已写入 %@",
         "notification.exportCompleted.title": "导出完成",
@@ -977,6 +999,8 @@ enum AppLocalizer {
         "panel.chooseFitActivity.message": "选择包含运动遥测数据的 FIT 文件。",
         "panel.saveOverlayVideo": "保存透明浮层视频",
         "panel.saveOverlayVideo.message": "选择透明浮层视频的保存位置。",
+        "panel.saveCompositedVideo": "保存合成视频",
+        "panel.saveCompositedVideo.message": "选择已叠加数据层视频的保存位置。",
         "panel.exportLayoutPresets": "导出布局预设",
         "panel.exportLayoutPresets.message": "把可复用的布局预设保存为 JSON 文件。",
         "panel.importLayoutPresets": "导入布局预设",
@@ -1033,6 +1057,7 @@ enum AppLocalizer {
         "toolbar.export": "匯出",
         "help.cancelExport": "取消匯出",
         "help.exportTransparentOverlay": "匯出透明浮層影片",
+        "help.exportCompositedVideo": "匯出已疊加資料層的影片",
 
         "sidebar.workflowTabs": "工作流程步驟",
         "sidebar.source.title": "素材",
@@ -1092,6 +1117,9 @@ enum AppLocalizer {
         "sidebar.canvas.title": "畫布",
         "sidebar.canvas.subtitle": "預覽網格和可重用浮層布局",
         "sidebar.videoSettings": "影片",
+        "sidebar.exportMode": "匯出類型",
+        "exportMode.overlay": "浮層",
+        "exportMode.video": "影片",
         "sidebar.resolution": "解析度",
         "sidebar.sourceResolutionPreset": "來源影片 %@×%@",
         "sidebar.custom": "自訂",
@@ -1134,9 +1162,11 @@ enum AppLocalizer {
         "sidebar.export.subtitle": "透明浮層渲染設定",
         "sidebar.render": "渲染",
         "sidebar.exportingOverlay": "正在匯出浮層",
+        "sidebar.exportingVideo": "正在匯出影片",
         "sidebar.exportProgress": "匯出進度",
         "sidebar.exportDisabled": "匯出不可用",
         "sidebar.exportOverlay": "匯出浮層",
+        "sidebar.exportVideo": "匯出影片",
 
         "preset.default": "預設",
         "preset.gaugeCount": "%d 個浮層",
@@ -1278,6 +1308,8 @@ enum AppLocalizer {
 
         "codec.hevcAlpha": "帶透明通道的 HEVC/H.265",
         "codec.proRes4444": "Apple ProRes 4444",
+        "codec.hevc": "HEVC/H.265",
+        "codec.h264": "H.264",
         "unit.meters": "公尺 (m)",
         "unit.kilometers": "公里 (km)",
 
@@ -1324,6 +1356,8 @@ enum AppLocalizer {
         "status.checkOutputSettings": "請檢查輸出設定：寬高、影格率和位元率都需要在有效範圍內。",
         "status.chooseOutputFile": "請選擇匯出檔案。",
         "status.chooseFitBeforeExport": "匯出前請選擇 FIT 檔案。",
+        "status.chooseVideoForCompositedExport": "匯出合成影片前請選擇來源影片。",
+        "status.codecExportModeMismatch": "請選擇與匯出類型相符的編碼。",
         "status.exporting": "正在匯出...",
         "status.wroteFile": "已寫入 %@",
         "notification.exportCompleted.title": "匯出完成",
@@ -1340,6 +1374,8 @@ enum AppLocalizer {
         "panel.chooseFitActivity.message": "選擇包含運動遙測資料的 FIT 檔案。",
         "panel.saveOverlayVideo": "儲存透明浮層影片",
         "panel.saveOverlayVideo.message": "選擇透明浮層影片的儲存位置。",
+        "panel.saveCompositedVideo": "儲存合成影片",
+        "panel.saveCompositedVideo.message": "選擇已疊加資料層影片的儲存位置。",
         "panel.exportLayoutPresets": "匯出布局預設",
         "panel.exportLayoutPresets.message": "把可重用的布局預設儲存為 JSON 檔案。",
         "panel.importLayoutPresets": "匯入布局預設",
@@ -1396,6 +1432,7 @@ enum AppLocalizer {
         "toolbar.export": "書き出し",
         "help.cancelExport": "書き出しをキャンセル",
         "help.exportTransparentOverlay": "透明オーバーレイ動画を書き出す",
+        "help.exportCompositedVideo": "オーバーレイを焼き込んだ動画を書き出す",
 
         "sidebar.workflowTabs": "ワークフロー手順",
         "sidebar.source.title": "ソース",
@@ -1455,6 +1492,9 @@ enum AppLocalizer {
         "sidebar.canvas.title": "キャンバス",
         "sidebar.canvas.subtitle": "プレビューグリッドと再利用できるゲージ配置",
         "sidebar.videoSettings": "動画",
+        "sidebar.exportMode": "書き出し形式",
+        "exportMode.overlay": "オーバーレイ",
+        "exportMode.video": "動画",
         "sidebar.resolution": "解像度",
         "sidebar.sourceResolutionPreset": "ソース動画 %@×%@",
         "sidebar.custom": "カスタム",
@@ -1497,9 +1537,11 @@ enum AppLocalizer {
         "sidebar.export.subtitle": "透明オーバーレイのレンダー設定",
         "sidebar.render": "レンダー",
         "sidebar.exportingOverlay": "オーバーレイを書き出し中",
+        "sidebar.exportingVideo": "動画を書き出し中",
         "sidebar.exportProgress": "書き出しの進行状況",
         "sidebar.exportDisabled": "書き出し不可",
         "sidebar.exportOverlay": "オーバーレイを書き出す",
+        "sidebar.exportVideo": "動画を書き出す",
 
         "preset.default": "既定",
         "preset.gaugeCount": "%d 個のゲージ",
@@ -1641,6 +1683,8 @@ enum AppLocalizer {
 
         "codec.hevcAlpha": "アルファ付き HEVC/H.265",
         "codec.proRes4444": "Apple ProRes 4444",
+        "codec.hevc": "HEVC/H.265",
+        "codec.h264": "H.264",
         "unit.meters": "メートル (m)",
         "unit.kilometers": "キロメートル (km)",
 
@@ -1687,6 +1731,8 @@ enum AppLocalizer {
         "status.checkOutputSettings": "出力設定を確認してください：幅/高さ、fps、ビットレートは有効範囲内である必要があります。",
         "status.chooseOutputFile": "書き出し先ファイルを選択してください。",
         "status.chooseFitBeforeExport": "書き出し前に FIT ファイルを選択してください。",
+        "status.chooseVideoForCompositedExport": "合成動画を書き出す前にソース動画を選択してください。",
+        "status.codecExportModeMismatch": "書き出し形式に合うコーデックを選択してください。",
         "status.exporting": "書き出し中...",
         "status.wroteFile": "%@ に書き込みました",
         "notification.exportCompleted.title": "書き出し完了",
@@ -1703,6 +1749,8 @@ enum AppLocalizer {
         "panel.chooseFitActivity.message": "アクティビティのテレメトリを含む FIT ファイルを選択します。",
         "panel.saveOverlayVideo": "透明オーバーレイ動画を保存",
         "panel.saveOverlayVideo.message": "透明オーバーレイ動画の保存先を選択します。",
+        "panel.saveCompositedVideo": "合成動画を保存",
+        "panel.saveCompositedVideo.message": "オーバーレイを焼き込んだ動画の保存先を選択します。",
         "panel.exportLayoutPresets": "配置プリセットを書き出す",
         "panel.exportLayoutPresets.message": "再利用できる配置プリセットを JSON ファイルとして保存します。",
         "panel.importLayoutPresets": "配置プリセットを読み込む",
@@ -1764,6 +1812,21 @@ extension OverlayVideoCodec {
             return "codec.hevcAlpha"
         case .proRes4444:
             return "codec.proRes4444"
+        case .hevc:
+            return "codec.hevc"
+        case .h264:
+            return "codec.h264"
+        }
+    }
+}
+
+extension OverlayExportMode {
+    var localizationKey: String {
+        switch self {
+        case .overlay:
+            return "exportMode.overlay"
+        case .video:
+            return "exportMode.video"
         }
     }
 }

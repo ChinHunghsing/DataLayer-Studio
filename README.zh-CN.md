@@ -154,6 +154,7 @@ open ".build/DataLayer Studio.app"
 - 保存、导入、导出布局预设，并设置默认预设
 - 通过预设或手动输入设置输出分辨率和帧率
 - 选择距离标签显示为 `m` 或 `km`
+- 导出透明 Alpha 浮层，或导出已叠加数据层的原视频成片
 - 设置输出码率（kbps）、编码器和目标文件
 
 ## 命令行用法
@@ -177,7 +178,10 @@ swift run overlay \
 --offset 2.5        # 旧版简写：视频比 FIT 早开始 2.5 秒
 --bitrate 12000     # HEVC 平均码率，单位 kbps
 --bitrate-bps 12000000 # 旧版显式 bps 码率
---codec hevc-alpha  # 默认；也可用 prores-4444 作为支持 alpha 的中间格式
+--export-mode overlay # 默认；导出透明 Alpha 浮层
+--export-mode video # 导出已叠加数据层的原视频成片；必须提供 --video
+--codec hevc-alpha  # overlay 模式默认；也可用 prores-4444 作为支持 alpha 的中间格式
+--codec hevc        # video 模式默认；也可用 h264
 --distance-unit km  # 距离标签：km（默认）或 m
 --layout-preset "Race Layout" # 按名称或 ID 使用保存的 GUI 布局预设
 --layout-preset presets.json # 使用 GUI 导出的布局预设 JSON 文件

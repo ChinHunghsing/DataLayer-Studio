@@ -59,6 +59,13 @@ final class StudioModel: ObservableObject {
     @Published var outputFPS = 30.0
     @Published var sourceDuration: TimeInterval = 0
     @Published var bitRateKbps = 12_000
+    @Published var exportMode: OverlayExportMode = .overlay {
+        didSet {
+            guard oldValue != exportMode else { return }
+            normalizeCodecForExportMode()
+            refreshSuggestedOutputURLForCurrentSource()
+        }
+    }
     @Published var codec: OverlayVideoCodec = .hevcAlpha
     @Published var distanceUnit: OverlayDistanceUnit = .kilometers {
         didSet { persistStudioPreferences() }
@@ -196,6 +203,12 @@ final class StudioModel: ObservableObject {
         if series == nil {
             return localized("status.chooseFitFile")
         }
+        if exportMode == .video, videoURL == nil {
+            return localized("status.chooseVideoForCompositedExport")
+        }
+        if codec.exportMode != exportMode {
+            return localized("status.codecExportModeMismatch")
+        }
         if outputWidth < 2 || outputWidth > 16_384 {
             return localized("status.outputWidthRange")
         }
@@ -221,6 +234,10 @@ final class StudioModel: ObservableObject {
             return localized("status.bitrateTooLarge")
         }
         return nil
+    }
+
+    var availableCodecs: [OverlayVideoCodec] {
+        OverlayVideoCodec.allCases.filter { $0.exportMode == exportMode }
     }
 
     var selectedElement: OverlayElement? {
@@ -331,8 +348,8 @@ final class StudioModel: ObservableObject {
     func chooseOutput() {
         guard !isExporting else { return }
         let panel = NSSavePanel()
-        panel.title = localized("panel.saveOverlayVideo")
-        panel.message = localized("panel.saveOverlayVideo.message")
+        panel.title = localized(exportMode == .video ? "panel.saveCompositedVideo" : "panel.saveOverlayVideo")
+        panel.message = localized(exportMode == .video ? "panel.saveCompositedVideo.message" : "panel.saveOverlayVideo.message")
         panel.prompt = localized("panel.export")
         panel.allowedContentTypes = [.quickTimeMovie]
         let suggestedOutputURL = suggestedOutputURL()
@@ -1391,29 +1408,62 @@ final class StudioModel: ObservableObject {
         let cancellationToken = ExportCancellationToken()
         exportCancellationToken = cancellationToken
 
-        let config = TransparentVideoWriterConfig(
-            width: exportSettings.width,
-            height: exportSettings.height,
-            framesPerSecond: exportSettings.framesPerSecond,
-            duration: exportSettings.duration,
-            averageBitRate: exportSettings.averageBitRate,
-            timeSync: timeSync,
-            codec: codec,
-            overlayLayout: layout,
-            distanceUnit: distanceUnit,
-            progressHandler: { [weak self] completed, total in
-                Task { @MainActor in
-                    self?.exportProgress = total > 0 ? Double(completed) / Double(total) : 0
-                }
-            },
-            cancellationHandler: {
-                cancellationToken.isCancelled
+        let currentExportMode = exportMode
+        let currentCodec = codec
+        let currentTimeSync = timeSync
+        let currentLayout = layout
+        let currentDistanceUnit = distanceUnit
+        let sourceVideoURL = videoURL
+        let progressHandler: (Int, Int) -> Void = { [weak self] completed, total in
+            Task { @MainActor in
+                self?.exportProgress = total > 0 ? Double(completed) / Double(total) : 0
             }
-        )
+        }
 
         exportTask = Task.detached {
             do {
-                try TransparentVideoWriter(outputURL: outputURL, series: series, config: config).write()
+                switch currentExportMode {
+                case .overlay:
+                    try TransparentVideoWriter(
+                        outputURL: outputURL,
+                        series: series,
+                        config: TransparentVideoWriterConfig(
+                            width: exportSettings.width,
+                            height: exportSettings.height,
+                            framesPerSecond: exportSettings.framesPerSecond,
+                            duration: exportSettings.duration,
+                            averageBitRate: exportSettings.averageBitRate,
+                            timeSync: currentTimeSync,
+                            codec: currentCodec,
+                            overlayLayout: currentLayout,
+                            distanceUnit: currentDistanceUnit,
+                            progressHandler: progressHandler,
+                            cancellationHandler: { cancellationToken.isCancelled }
+                        )
+                    ).write()
+                case .video:
+                    guard let sourceVideoURL else {
+                        throw OverlayVideoError.invalidConfiguration("Choose a source video before exporting composited video.")
+                    }
+                    try CompositedVideoWriter(
+                        outputURL: outputURL,
+                        sourceVideoURL: sourceVideoURL,
+                        series: series,
+                        config: CompositedVideoWriterConfig(
+                            width: exportSettings.width,
+                            height: exportSettings.height,
+                            framesPerSecond: exportSettings.framesPerSecond,
+                            duration: exportSettings.duration,
+                            averageBitRate: exportSettings.averageBitRate,
+                            timeSync: currentTimeSync,
+                            codec: currentCodec,
+                            overlayLayout: currentLayout,
+                            distanceUnit: currentDistanceUnit,
+                            progressHandler: progressHandler,
+                            cancellationHandler: { cancellationToken.isCancelled }
+                        )
+                    ).write()
+                }
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     self.isExporting = false
@@ -1752,10 +1802,25 @@ final class StudioModel: ObservableObject {
 
     private func suggestedOutputURL(for sourceURL: URL, directory: URL? = nil) -> URL {
         let baseName = sourceURL.deletingPathExtension().lastPathComponent
-        let outputName = baseName.isEmpty ? "datalayer-overlay" : "\(baseName)_overlay"
+        let suffix = exportMode == .video ? "with_overlay" : "overlay"
+        let outputName = baseName.isEmpty ? "datalayer-\(suffix)" : "\(baseName)_\(suffix)"
         return (directory ?? sourceURL.deletingLastPathComponent())
             .appendingPathComponent(outputName)
             .appendingPathExtension("mov")
+    }
+
+    private func normalizeCodecForExportMode() {
+        if codec.exportMode != exportMode {
+            codec = exportMode.defaultCodec
+        }
+    }
+
+    private func refreshSuggestedOutputURLForCurrentSource() {
+        if let videoURL {
+            applySuggestedOutputURLIfNeeded(for: videoURL)
+        } else if let fitURL {
+            applySuggestedOutputURLIfNeeded(for: fitURL)
+        }
     }
 
     private func finiteTime(_ time: TimeInterval) -> TimeInterval {

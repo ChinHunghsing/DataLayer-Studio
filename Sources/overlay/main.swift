@@ -10,6 +10,7 @@ struct CommandLineOptions {
     var framesPerSecond: Double?
     var timeSync: TelemetryTimeSync
     var averageBitRate: Int
+    var exportMode: OverlayExportMode
     var codec: OverlayVideoCodec
     var distanceUnit: OverlayDistanceUnit
     var layoutPresetReference: String?
@@ -29,7 +30,7 @@ struct CommandLineOptions {
             case "--skip-fit-crc", "--inspect":
                 flags.insert(argument)
                 index += 1
-            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--codec", "--distance-unit", "--layout-preset":
+            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--export-mode", "--codec", "--distance-unit", "--layout-preset":
                 guard index + 1 < arguments.count else {
                     throw CLIError.missingValue(argument)
                 }
@@ -42,9 +43,15 @@ struct CommandLineOptions {
 
         guard let fit = values["--fit"] else { throw CLIError.missingRequired("--fit") }
         guard let output = values["--output"] else { throw CLIError.missingRequired("--output") }
+        let exportMode = try parseExportMode(values["--export-mode"])
+        let codec = try parseCodec(values["--codec"], exportMode: exportMode)
+        let videoURL = values["--video"].map { URL(fileURLWithPath: $0) }
+        if exportMode == .video, videoURL == nil {
+            throw CLIError.missingRequired("--video")
+        }
 
         return CommandLineOptions(
-            videoURL: values["--video"].map { URL(fileURLWithPath: $0) },
+            videoURL: videoURL,
             fitURL: URL(fileURLWithPath: fit),
             outputURL: URL(fileURLWithPath: output),
             width: try optionalInt(values["--width"], name: "--width", minimum: 2, maximum: 16_384, requireEven: true),
@@ -52,7 +59,8 @@ struct CommandLineOptions {
             framesPerSecond: try optionalDouble(values["--fps"], name: "--fps", minimum: 1),
             timeSync: try parseTimeSync(values: values),
             averageBitRate: try parseAverageBitRate(values: values),
-            codec: try parseCodec(values["--codec"]),
+            exportMode: exportMode,
+            codec: codec,
             distanceUnit: try parseDistanceUnit(values["--distance-unit"]),
             layoutPresetReference: values["--layout-preset"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             validateFITCRC: !flags.contains("--skip-fit-crc"),
@@ -152,10 +160,21 @@ struct CommandLineOptions {
         return value
     }
 
-    private static func parseCodec(_ raw: String?) throws -> OverlayVideoCodec {
-        guard let raw else { return .hevcAlpha }
+    private static func parseExportMode(_ raw: String?) throws -> OverlayExportMode {
+        guard let raw else { return .overlay }
+        guard let mode = OverlayExportMode(rawValue: raw) else {
+            throw CLIError.invalidValue("--export-mode", raw)
+        }
+        return mode
+    }
+
+    private static func parseCodec(_ raw: String?, exportMode: OverlayExportMode) throws -> OverlayVideoCodec {
+        guard let raw else { return exportMode.defaultCodec }
         guard let codec = OverlayVideoCodec(rawValue: raw) else {
             throw CLIError.invalidValue("--codec", raw)
+        }
+        guard codec.exportMode == exportMode else {
+            throw CLIError.conflictingArguments("\(codec.rawValue) cannot be used with --export-mode \(exportMode.rawValue)")
         }
         return codec
     }
@@ -212,10 +231,11 @@ enum CLIError: Error, CustomStringConvertible {
 
     Required:
       --fit PATH         Standard .FIT activity file.
-      --output PATH      Output .mov file encoded as HEVC/H.265 with alpha.
+      --output PATH      Output .mov file.
 
     Options:
-      --video PATH       Optional source video. Used for duration, resolution, and frame rate when present.
+      --video PATH       Optional source video for overlay mode. Required for video mode.
+      --export-mode M    overlay (default) for transparent alpha video, or video for source video with overlay burned in.
       --width PX         Override output width, 2...16384 and even. Defaults to source video width, or 1920 without video.
       --height PX        Override output height, 2...16384 and even. Defaults to source video height, or 1080 without video.
       --fps N            Override output frame rate, minimum 1. Defaults to source video frame rate, or 30 without video.
@@ -226,7 +246,7 @@ enum CLIError: Error, CustomStringConvertible {
       --bitrate KBPS     Average HEVC bitrate in kbps. Default: 12000.
                          Existing values above 1000000 are accepted as legacy bps.
       --bitrate-bps BPS  Legacy explicit bps bitrate.
-      --codec NAME       hevc-alpha (default) or prores-4444.
+      --codec NAME       overlay mode: hevc-alpha (default), prores-4444. video mode: hevc (default), h264.
       --distance-unit U  Distance unit for overlay labels: km (default) or m.
       --layout-preset P  Use a saved GUI layout preset by name/ID, or a GUI-exported JSON file.
       --skip-fit-crc     Parse FIT even if CRC validation fails.
@@ -322,6 +342,7 @@ func run() async throws {
         print("Video: none, \(width)x\(height), \(String(format: "%.3f", fps)) fps, \(String(format: "%.2f", duration)) s")
     }
     print("FIT: \(series.samples.count) samples, \(String(format: "%.2f", series.duration)) s telemetry")
+    print("Export mode: \(options.exportMode.rawValue)")
     print("Codec: \(options.codec.rawValue)")
     print("Bitrate: \(options.averageBitRate / 1000) kbps")
     print("Distance unit: \(options.distanceUnit.rawValue)")
@@ -338,26 +359,51 @@ func run() async throws {
     }
     try validateOutputDimensions(width: width, height: height)
 
-    let writer = TransparentVideoWriter(
-        outputURL: options.outputURL,
-        series: series,
-        config: TransparentVideoWriterConfig(
-            width: width,
-            height: height,
-            framesPerSecond: fps,
-            duration: duration,
-            averageBitRate: options.averageBitRate,
-            timeSync: options.timeSync,
-            codec: options.codec,
-            overlayLayout: resolvedLayout.layout,
-            distanceUnit: options.distanceUnit,
-            progressHandler: { completed, total in
-                let percent = Double(completed) / Double(total) * 100
-                print(String(format: "Rendered %d/%d frames (%.0f%%)", completed, total, percent))
-            }
-        )
-    )
-    try writer.write()
+    let progressHandler: (Int, Int) -> Void = { completed, total in
+        let percent = Double(completed) / Double(total) * 100
+        print(String(format: "Rendered %d/%d frames (%.0f%%)", completed, total, percent))
+    }
+
+    switch options.exportMode {
+    case .overlay:
+        try TransparentVideoWriter(
+            outputURL: options.outputURL,
+            series: series,
+            config: TransparentVideoWriterConfig(
+                width: width,
+                height: height,
+                framesPerSecond: fps,
+                duration: duration,
+                averageBitRate: options.averageBitRate,
+                timeSync: options.timeSync,
+                codec: options.codec,
+                overlayLayout: resolvedLayout.layout,
+                distanceUnit: options.distanceUnit,
+                progressHandler: progressHandler
+            )
+        ).write()
+    case .video:
+        guard let videoURL = options.videoURL else {
+            throw CLIError.missingRequired("--video")
+        }
+        try CompositedVideoWriter(
+            outputURL: options.outputURL,
+            sourceVideoURL: videoURL,
+            series: series,
+            config: CompositedVideoWriterConfig(
+                width: width,
+                height: height,
+                framesPerSecond: fps,
+                duration: duration,
+                averageBitRate: options.averageBitRate,
+                timeSync: options.timeSync,
+                codec: options.codec,
+                overlayLayout: resolvedLayout.layout,
+                distanceUnit: options.distanceUnit,
+                progressHandler: progressHandler
+            )
+        ).write()
+    }
     print("Wrote \(options.outputURL.path)")
 }
 
