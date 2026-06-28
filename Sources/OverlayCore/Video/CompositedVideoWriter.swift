@@ -172,48 +172,52 @@ public final class CompositedVideoWriter {
         let overlayPool = try TransparentVideoWriter.makePixelBufferPool(width: width, height: height, minimumBufferCount: 2)
         var frameIndex = 0
 
-        while frameIndex < timing.frameCount, let sampleBuffer = readerOutput.copyNextSampleBuffer() {
-            if config.cancellationHandler?() == true {
-                reader.cancelReading()
-                writer.cancelWriting()
-                throw OverlayVideoError.cancelled
+        while frameIndex < timing.frameCount {
+            var didReadFrame = false
+            try autoreleasepool {
+                guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else { return }
+                didReadFrame = true
+
+                if config.cancellationHandler?() == true {
+                    reader.cancelReading()
+                    writer.cancelWriting()
+                    throw OverlayVideoError.cancelled
+                }
+
+                try waitUntilReady(input)
+                guard let pool = adaptor.pixelBufferPool else {
+                    throw OverlayVideoError.cannotCreatePixelBuffer
+                }
+                guard let sourceBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                    throw OverlayVideoError.cannotCreatePixelBuffer
+                }
+
+                let outputBuffer = try TransparentVideoWriter.makePixelBuffer(from: pool)
+                let overlayBuffer = try TransparentVideoWriter.makePixelBuffer(from: overlayPool)
+                let presentationTime = timing.presentationTime(for: frameIndex)
+                let videoTime = CMTimeGetSeconds(presentationTime)
+
+                try renderer.render(videoTime: videoTime, into: overlayBuffer)
+                let composed = CIImage(cvPixelBuffer: overlayBuffer)
+                    .composited(over: CIImage(cvPixelBuffer: sourceBuffer))
+                ciContext.render(
+                    composed,
+                    to: outputBuffer,
+                    bounds: CGRect(x: 0, y: 0, width: width, height: height),
+                    colorSpace: colorSpace
+                )
+
+                guard adaptor.append(outputBuffer, withPresentationTime: presentationTime) else {
+                    throw OverlayVideoError.writerFailed(describe(error: writer.error, codec: config.codec))
+                }
+
+                frameIndex += 1
+                if frameIndex == timing.frameCount || frameIndex % Int(max(1, timing.framesPerSecond)) == 0 {
+                    config.progressHandler?(frameIndex, timing.frameCount)
+                }
             }
-
-            try waitUntilReady(input)
-            guard let pool = adaptor.pixelBufferPool else {
-                throw OverlayVideoError.cannotCreatePixelBuffer
-            }
-            guard let sourceBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                throw OverlayVideoError.cannotCreatePixelBuffer
-            }
-
-            let outputBuffer = try TransparentVideoWriter.makePixelBuffer(from: pool)
-            let overlayBuffer = try TransparentVideoWriter.makePixelBuffer(from: overlayPool)
-            let presentationTime = timing.presentationTime(for: frameIndex)
-            let videoTime = CMTimeGetSeconds(presentationTime)
-
-            ciContext.render(
-                CIImage(cvPixelBuffer: sourceBuffer),
-                to: outputBuffer,
-                bounds: CGRect(x: 0, y: 0, width: width, height: height),
-                colorSpace: colorSpace
-            )
-            try renderer.render(videoTime: videoTime, into: overlayBuffer)
-            let composed = CIImage(cvPixelBuffer: overlayBuffer).composited(over: CIImage(cvPixelBuffer: outputBuffer))
-            ciContext.render(
-                composed,
-                to: outputBuffer,
-                bounds: CGRect(x: 0, y: 0, width: width, height: height),
-                colorSpace: colorSpace
-            )
-
-            guard adaptor.append(outputBuffer, withPresentationTime: presentationTime) else {
-                throw OverlayVideoError.writerFailed(describe(error: writer.error, codec: config.codec))
-            }
-
-            frameIndex += 1
-            if frameIndex == timing.frameCount || frameIndex % Int(max(1, timing.framesPerSecond)) == 0 {
-                config.progressHandler?(frameIndex, timing.frameCount)
+            if !didReadFrame {
+                break
             }
         }
 
