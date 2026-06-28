@@ -88,17 +88,6 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 12) {
             SidebarSubsectionHeader(title: localization.string("sidebar.videoSettings"), systemImage: "slider.horizontal.3")
 
-            SidebarControl(title: localization.string("sidebar.exportMode")) {
-                Picker(localization.string("sidebar.exportMode"), selection: $model.exportMode) {
-                    ForEach(OverlayExportMode.allCases) { mode in
-                        Text(localization.string(mode.localizationKey)).tag(mode)
-                            .disabled(mode == .video && model.videoURL == nil)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-            }
-
             SidebarControl(title: localization.string("sidebar.resolution")) {
                 Picker(localization.string("sidebar.resolution"), selection: resolutionPresetSelection) {
                     if let sourceTitle = model.sourceResolutionPresetTitle {
@@ -418,6 +407,18 @@ struct SidebarView: View {
                     .accessibilityLabel(localization.string("sidebar.exportDisabled"))
                     .accessibilityValue(exportReadinessMessage)
             }
+
+            SidebarControl(title: localization.string("sidebar.exportMode")) {
+                Picker(localization.string("sidebar.exportMode"), selection: $model.exportMode) {
+                    ForEach(OverlayExportMode.allCases) { mode in
+                        Text(localization.string(mode.localizationKey)).tag(mode)
+                            .disabled(mode == .video && model.videoURL == nil)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+            }
+            .disabled(model.isExporting)
 
             if model.isExporting {
                 Button(role: .destructive) {
