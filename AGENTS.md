@@ -2,6 +2,7 @@
 
 - 对外名称统一写 `DataLayer Studio`。
 - Git 提交信息必须使用简体中文。
+- 每次做修改前和提交前，都要先确认本地仓库已同步到远端最新 Git 版本；多人协作时至少执行 `git fetch` 并检查当前分支与上游分支没有落后。
 - 完成代码或项目文件修改后，判断是否适合单独提交；适合就 `git commit` 并 `git push`。
 - 涉及 CI 配置、CI 脚本、release workflow，或为修复 CI 而做的提交，推送后必须用 `gh run list` / `gh run watch` 确认对应 CI 成功。
 - 修改会影响本地 App 可见行为时，完成后运行 `scripts/build_app_bundle.sh`。
