@@ -37,7 +37,11 @@ final class CompositedVideoWriterTests: XCTestCase {
             )
         )
 
-        try writer.write()
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableCompositedTestEncoder {
+            throw XCTSkip("Composited video encoder is unavailable on this Mac: \(error.description)")
+        }
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
         do {
@@ -137,5 +141,22 @@ final class CompositedVideoWriterTests: XCTestCase {
             }
         }
         return pixelBuffer
+    }
+}
+
+private extension OverlayVideoError {
+    var isUnavailableCompositedTestEncoder: Bool {
+        switch self {
+        case .unsupportedEncoder, .cannotStartWriter:
+            return true
+        case let .writerFailed(message):
+            return message.localizedCaseInsensitiveContains("encoder") || message.contains("-12903")
+        case .unreadableVideo,
+             .cannotCreatePixelBuffer,
+             .cannotCreateBitmapContext,
+             .invalidConfiguration,
+             .cancelled:
+            return false
+        }
     }
 }
