@@ -13,8 +13,8 @@ final class CompositedVideoWriterTests: XCTestCase {
             .appendingPathComponent("composited-output-\(UUID().uuidString)")
             .appendingPathExtension("mov")
         defer {
-            try? FileManager.default.removeItem(at: sourceURL)
-            try? FileManager.default.removeItem(at: outputURL)
+            Self.removeTemporaryFile(sourceURL)
+            Self.removeTemporaryFile(outputURL)
         }
 
         try makeTinySourceVideo(at: sourceURL)
@@ -40,9 +40,16 @@ final class CompositedVideoWriterTests: XCTestCase {
         try writer.write()
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
-        let asset = AVURLAsset(url: outputURL)
-        let tracks = try await asset.loadTracks(withMediaType: .video)
-        XCTAssertEqual(tracks.count, 1)
+        do {
+            let asset = AVURLAsset(url: outputURL)
+            let tracks = try await asset.loadTracks(withMediaType: .video)
+            XCTAssertEqual(tracks.count, 1)
+        }
+    }
+
+    private static func removeTemporaryFile(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
 
     private func makeTinySourceVideo(at url: URL) throws {
