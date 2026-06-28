@@ -100,6 +100,16 @@ final class OverlayRendererTests: XCTestCase {
         element.customization.progressTickCount = 64
         element.customization.lineWidth = 24
         element.customization.lengthScale = 0.8
+        element.customization.progressBarColor = OverlayColor(red: 0.9, green: 0.2, blue: 0.2)
+        element.customization.progressStartColor = OverlayColor(red: 1, green: 1, blue: 1)
+        element.customization.progressCurrentColor = OverlayColor(red: 0.2, green: 0.8, blue: 1)
+        element.customization.progressEndColor = OverlayColor(red: 0.8, green: 0.8, blue: 0.8)
+        element.customization.progressStartFont = .helveticaNeueBold
+        element.customization.progressCurrentFont = .menloBold
+        element.customization.progressEndFont = .helveticaNeueBold
+        element.customization.progressStartScale = 1.1
+        element.customization.progressCurrentScale = 1.35
+        element.customization.progressEndScale = 0.9
 
         let renderer = OverlayRenderer(
             series: series,

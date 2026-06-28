@@ -234,6 +234,16 @@ public struct OverlayElementCustomization: Codable, Equatable {
     public var unitColor: OverlayColor?
     public var iconColor: OverlayColor?
     public var trackColor: OverlayColor?
+    public var progressBarColor: OverlayColor?
+    public var progressStartColor: OverlayColor?
+    public var progressCurrentColor: OverlayColor?
+    public var progressEndColor: OverlayColor?
+    public var progressStartFont: OverlayFontFamily?
+    public var progressCurrentFont: OverlayFontFamily?
+    public var progressEndFont: OverlayFontFamily?
+    public var progressStartScale: Double?
+    public var progressCurrentScale: Double?
+    public var progressEndScale: Double?
     public var lineWidth: Double
     public var lengthScale: Double
     public var progressInsetScale: Double?
@@ -268,6 +278,16 @@ public struct OverlayElementCustomization: Codable, Equatable {
         unitColor: OverlayColor? = nil,
         iconColor: OverlayColor? = nil,
         trackColor: OverlayColor? = nil,
+        progressBarColor: OverlayColor? = nil,
+        progressStartColor: OverlayColor? = nil,
+        progressCurrentColor: OverlayColor? = nil,
+        progressEndColor: OverlayColor? = nil,
+        progressStartFont: OverlayFontFamily? = nil,
+        progressCurrentFont: OverlayFontFamily? = nil,
+        progressEndFont: OverlayFontFamily? = nil,
+        progressStartScale: Double? = nil,
+        progressCurrentScale: Double? = nil,
+        progressEndScale: Double? = nil,
         lineWidth: Double = 1,
         lengthScale: Double = 1,
         progressInsetScale: Double? = nil,
@@ -301,6 +321,16 @@ public struct OverlayElementCustomization: Codable, Equatable {
         self.unitColor = unitColor
         self.iconColor = iconColor
         self.trackColor = trackColor
+        self.progressBarColor = progressBarColor
+        self.progressStartColor = progressStartColor
+        self.progressCurrentColor = progressCurrentColor
+        self.progressEndColor = progressEndColor
+        self.progressStartFont = progressStartFont
+        self.progressCurrentFont = progressCurrentFont
+        self.progressEndFont = progressEndFont
+        self.progressStartScale = progressStartScale
+        self.progressCurrentScale = progressCurrentScale
+        self.progressEndScale = progressEndScale
         self.lineWidth = lineWidth
         self.lengthScale = lengthScale
         self.progressInsetScale = progressInsetScale
@@ -350,6 +380,10 @@ public struct OverlayElementCustomization: Codable, Equatable {
         copy.unitColor = OverlayLayoutSanitizer.sanitizeColor(unitColor)
         copy.iconColor = OverlayLayoutSanitizer.sanitizeColor(iconColor)
         copy.trackColor = OverlayLayoutSanitizer.sanitizeColor(trackColor)
+        copy.progressBarColor = OverlayLayoutSanitizer.sanitizeColor(progressBarColor)
+        copy.progressStartColor = OverlayLayoutSanitizer.sanitizeColor(progressStartColor)
+        copy.progressCurrentColor = OverlayLayoutSanitizer.sanitizeColor(progressCurrentColor)
+        copy.progressEndColor = OverlayLayoutSanitizer.sanitizeColor(progressEndColor)
         copy.lineWidth = OverlayLayoutSanitizer.clamp(lineWidth, fallback: 1, range: 0.25...64)
         copy.lengthScale = OverlayLayoutSanitizer.clamp(lengthScale, fallback: 1, range: 0.1...4)
         copy.progressInsetScale = OverlayLayoutSanitizer.sanitize(progressInsetScale, range: 0...2)
@@ -361,6 +395,9 @@ public struct OverlayElementCustomization: Codable, Equatable {
         copy.valueScale = OverlayLayoutSanitizer.clamp(valueScale, fallback: 1, range: 0.05...20)
         copy.unitScale = OverlayLayoutSanitizer.clamp(unitScale, fallback: 1, range: 0.05...20)
         copy.iconScale = OverlayLayoutSanitizer.clamp(iconScale, fallback: 1, range: 0.05...20)
+        copy.progressStartScale = OverlayLayoutSanitizer.sanitize(progressStartScale, range: 0.05...20)
+        copy.progressCurrentScale = OverlayLayoutSanitizer.sanitize(progressCurrentScale, range: 0.05...20)
+        copy.progressEndScale = OverlayLayoutSanitizer.sanitize(progressEndScale, range: 0.05...20)
         return copy
     }
 

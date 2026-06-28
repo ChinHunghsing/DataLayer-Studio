@@ -710,9 +710,9 @@ public final class OverlayRenderer {
         let accent = componentAccent(element)
 
         let trackHeight = lineWidth(element, scale: scale)
-        let startLabelSize = labelSize(15, scale: textScale, element: element)
-        let currentLabelSize = valueSize(12, scale: textScale, element: element)
-        let endLabelSize = unitSize(15, scale: textScale, element: element)
+        let startLabelSize = progressStartSize(15, scale: textScale, element: element)
+        let currentLabelSize = progressCurrentSize(12, scale: textScale, element: element)
+        let endLabelSize = progressEndSize(15, scale: textScale, element: element)
         let iconFontSize = iconSize(12 * textScale, scale: 1, element: element)
         let topRowHeight = max(
             element.customization.showsLabel ? startLabelSize : 0,
@@ -758,7 +758,7 @@ public final class OverlayRenderer {
         var filled = track
         filled.size.width *= CGFloat(progress)
         if filled.width > 0 {
-            fillRoundedRect(context, filled, radius: trackHeight / 2, color: valueColor(element, fallback: accent))
+            fillRoundedRect(context, filled, radius: trackHeight / 2, color: progressBarColor(element, fallback: accent))
         }
 
         drawTopProgressTicks(context: context, track: track, scale: scale, element: element)
@@ -771,14 +771,14 @@ public final class OverlayRenderer {
             width: outerRadius * 2,
             height: outerRadius * 2
         ))
-        context.setFillColor(valueColor(element, fallback: Colors.white))
+        context.setFillColor(progressBarColor(element, fallback: Colors.white))
         context.fillEllipse(in: CGRect(
             x: knobX - knobRadius,
             y: track.midY - knobRadius,
             width: knobRadius * 2,
             height: knobRadius * 2
         ))
-        context.setStrokeColor(valueColor(element, fallback: accent))
+        context.setStrokeColor(progressBarColor(element, fallback: accent))
         context.setLineWidth(max(1, trackHeight * 0.18))
         context.strokeEllipse(in: CGRect(
             x: knobX - outerRadius,
@@ -795,12 +795,12 @@ public final class OverlayRenderer {
                 context: context,
                 baseline: CGPoint(x: track.minX, y: topBaselineY),
                 size: startLabelSize,
-                color: labelColor(element),
-                fontName: labelFontName(element)
+                color: progressStartColor(element),
+                fontName: progressStartFontName(element)
             )
 
             let currentLabel = distanceLabel(currentDistance, element: element)
-            let currentWidth = textWidth(currentLabel, size: currentLabelSize, fontName: valueFontName(element))
+            let currentWidth = textWidth(currentLabel, size: currentLabelSize, fontName: progressCurrentFontName(element))
             drawText(
                 currentLabel,
                 context: context,
@@ -809,20 +809,20 @@ public final class OverlayRenderer {
                     y: trackCenterY - trackDownExtent - bottomGap - currentLabelSize * 0.78
                 ),
                 size: currentLabelSize,
-                color: valueColor(element, fallback: accent),
-                fontName: valueFontName(element)
+                color: progressCurrentColor(element, fallback: accent),
+                fontName: progressCurrentFontName(element)
             )
         }
         if element.customization.showsUnit {
             let endLabel = distanceLabel(displayedTotalDistance, element: element)
-            let endWidth = textWidth(endLabel, size: endLabelSize, fontName: unitFontName(element))
+            let endWidth = textWidth(endLabel, size: endLabelSize, fontName: progressEndFontName(element))
             drawText(
                 endLabel,
                 context: context,
                 baseline: CGPoint(x: track.maxX - endWidth, y: progressRect.maxY - topPadding - topRowHeight * 0.78),
                 size: endLabelSize,
-                color: unitColor(element),
-                fontName: unitFontName(element)
+                color: progressEndColor(element),
+                fontName: progressEndFontName(element)
             )
         }
         drawIconIfNeeded(
@@ -1088,6 +1088,22 @@ public final class OverlayRenderer {
         element.customization.valueColor?.cgColor ?? fallback ?? componentAccent(element)
     }
 
+    private func progressBarColor(_ element: OverlayElement, fallback: CGColor? = nil) -> CGColor {
+        element.customization.progressBarColor?.cgColor ?? element.customization.valueColor?.cgColor ?? fallback ?? componentAccent(element)
+    }
+
+    private func progressStartColor(_ element: OverlayElement) -> CGColor {
+        (element.customization.progressStartColor ?? element.customization.labelColor ?? .label).cgColor
+    }
+
+    private func progressCurrentColor(_ element: OverlayElement, fallback: CGColor? = nil) -> CGColor {
+        element.customization.progressCurrentColor?.cgColor ?? element.customization.valueColor?.cgColor ?? fallback ?? componentAccent(element)
+    }
+
+    private func progressEndColor(_ element: OverlayElement) -> CGColor {
+        (element.customization.progressEndColor ?? element.customization.unitColor ?? .muted).cgColor
+    }
+
     private func unitColor(_ element: OverlayElement) -> CGColor {
         (element.customization.unitColor ?? .muted).cgColor
     }
@@ -1112,6 +1128,18 @@ public final class OverlayRenderer {
         element.customization.unitFont.postScriptName as CFString
     }
 
+    private func progressStartFontName(_ element: OverlayElement) -> CFString {
+        (element.customization.progressStartFont ?? element.customization.labelFont).postScriptName as CFString
+    }
+
+    private func progressCurrentFontName(_ element: OverlayElement) -> CFString {
+        (element.customization.progressCurrentFont ?? element.customization.valueFont).postScriptName as CFString
+    }
+
+    private func progressEndFontName(_ element: OverlayElement) -> CFString {
+        (element.customization.progressEndFont ?? element.customization.unitFont).postScriptName as CFString
+    }
+
     private func iconFontName(_ element: OverlayElement) -> CFString {
         element.customization.iconFont.postScriptName as CFString
     }
@@ -1126,6 +1154,18 @@ public final class OverlayRenderer {
 
     private func unitSize(_ base: CGFloat, scale: CGFloat, element: OverlayElement) -> CGFloat {
         base * scale * CGFloat(element.customization.unitScale)
+    }
+
+    private func progressStartSize(_ base: CGFloat, scale: CGFloat, element: OverlayElement) -> CGFloat {
+        base * scale * CGFloat(element.customization.progressStartScale ?? element.customization.labelScale)
+    }
+
+    private func progressCurrentSize(_ base: CGFloat, scale: CGFloat, element: OverlayElement) -> CGFloat {
+        base * scale * CGFloat(element.customization.progressCurrentScale ?? element.customization.valueScale)
+    }
+
+    private func progressEndSize(_ base: CGFloat, scale: CGFloat, element: OverlayElement) -> CGFloat {
+        base * scale * CGFloat(element.customization.progressEndScale ?? element.customization.unitScale)
     }
 
     private func iconSize(_ base: CGFloat, scale: CGFloat, element: OverlayElement) -> CGFloat {
