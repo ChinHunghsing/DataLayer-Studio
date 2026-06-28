@@ -496,7 +496,7 @@ struct InspectorSettingsPanel: View {
 
                         Link(
                             localization.string("inspector.weatherKeyGuide.accountLink"),
-                            destination: URL(string: "https://home.openweathermap.org/api_keys")!
+                            destination: OpenWeatherService.apiKeyPageURL
                         )
                         .font(.caption2)
 

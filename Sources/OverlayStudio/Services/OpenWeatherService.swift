@@ -55,6 +55,8 @@ struct OpenWeatherRecord: Codable, Equatable {
 
 final class OpenWeatherService {
     typealias DataLoader = (URL) async throws -> Data
+    static let apiKeyPageURL = URL(string: "https://home.openweathermap.org/api_keys")!
+
     private static let maximumWeatherSampleDistance: TimeInterval = 6 * 3600
 
     private let cacheDirectory: URL
