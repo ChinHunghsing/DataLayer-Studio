@@ -3,6 +3,7 @@
 - 对外名称统一写 `DataLayer Studio`。
 - Git 提交信息必须使用简体中文。
 - 完成代码或项目文件修改后，判断是否适合单独提交；适合就 `git commit` 并 `git push`。
+- 涉及 CI 配置、CI 脚本、release workflow，或为修复 CI 而做的提交，推送后必须用 `gh run list` / `gh run watch` 确认对应 CI 成功。
 - 修改会影响本地 App 可见行为时，完成后运行 `scripts/build_app_bundle.sh`。
 - 涉及 App Store Connect、TestFlight、审核、元数据、构建上传时，优先加载 `app-store-connect` skill 并使用已安装的 `asc`/脚本，不默认走网页手工流程。
 - App Store / TestFlight 构建号使用 `yyyyMMddNN`，例如 `2026062601`。
