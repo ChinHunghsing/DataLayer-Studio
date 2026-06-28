@@ -113,6 +113,15 @@ For local data handling and privacy expectations, see [PRIVACY.md](PRIVACY.md).
 
 For general support expectations, see [SUPPORT.md](SUPPORT.md).
 
+## Monitoring
+
+DataLayer Studio does not include a third-party analytics SDK or custom in-app
+event tracking. App usage is monitored with Apple's built-in
+[App Store Connect Analytics](https://developer.apple.com/app-store-connect/analytics/)
+and crash metrics, which provide aggregate data such as downloads, sessions,
+active devices, retention, sales, and crash rate for users who share analytics
+with developers.
+
 ## Issues
 
 Use the issue templates for bug reports, feature requests, and documentation

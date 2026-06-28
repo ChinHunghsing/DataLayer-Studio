@@ -6,9 +6,10 @@ can contain private location, health, and training data.
 ## App and CLI Data Flow
 
 The app and command-line tool process input files locally on the Mac where they
-run. The current implementation does not include analytics, telemetry upload,
-account login, cloud sync, or network transfer code for source videos, exported
-overlays, layout presets, or rendered preview frames.
+run. The current implementation does not include analytics SDKs, custom in-app
+event tracking, telemetry upload, account login, cloud sync, or network transfer code.
+Source videos, exported overlays, layout presets, and rendered preview frames
+are not uploaded.
 
 If you enter an OpenWeather API key, DataLayer Studio can request hourly weather
 from OpenWeather for the selected FIT activity. Those requests use the FIT
@@ -17,6 +18,15 @@ and your OpenWeather API key. Source videos, rendered preview frames, exported
 overlays, layout presets, heart-rate samples, cadence, pace, power, and the FIT
 file itself are not sent to OpenWeather. Weather responses are cached locally to
 avoid repeated requests while previewing or adjusting the timeline.
+
+## Apple App Analytics
+
+For App Store distribution, DataLayer Studio relies on Apple's
+[App Store Connect Analytics](https://developer.apple.com/app-store-connect/analytics/)
+and crash metrics to monitor aggregate app usage and stability. DataLayer Studio
+does not add an analytics SDK or send custom analytics events. Apple's analytics
+data is provided by Apple and is limited to users who have agreed to share
+analytics with app developers.
 
 ## Local Files and Preferences
 

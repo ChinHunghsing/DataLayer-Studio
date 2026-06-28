@@ -95,6 +95,12 @@ Pull Request 模板会要求填写你运行过的检查。影响 GUI 的改动�
 
 一般支持预期见 [SUPPORT.md](SUPPORT.md)。
 
+## 使用情况监控
+
+DataLayer Studio 不包含第三方分析 SDK，也不做自定义应用内事件埋点。使用情况监控依赖 Apple 内置的
+[App Store Connect Analytics](https://developer.apple.com/app-store-connect/analytics/)
+和崩溃指标，用于查看下载、会话、活跃设备、留存、销售和崩溃率等聚合数据；这些使用数据只来自同意向开发者共享分析数据的用户。
+
 ## Issue
 
 请使用 bug、功能请求和文档修复的 issue 模板。公开 issue 中请避免包含私人运动数据：
