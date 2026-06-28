@@ -489,6 +489,17 @@ struct InspectorSettingsPanel: View {
                         title: localization.string("inspector.weatherRefresh.title"),
                         message: localization.string("inspector.weatherRefresh.message")
                     ) {
+                        Text(localization.string("inspector.weatherKeyGuide.message"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Link(
+                            localization.string("inspector.weatherKeyGuide.accountLink"),
+                            destination: URL(string: "https://home.openweathermap.org/api_keys")!
+                        )
+                        .font(.caption2)
+
                         SecureField(localization.string("sidebar.weather.openWeatherKey"), text: Binding(
                             get: { model.openWeatherAPIKey },
                             set: { model.setOpenWeatherAPIKey($0) }
@@ -498,6 +509,7 @@ struct InspectorSettingsPanel: View {
                         }
                         .textFieldStyle(.roundedBorder)
                         .font(.caption)
+                        .help(localization.string("sidebar.weather.openWeatherHelp"))
 
                         Text(localization.string("sidebar.weather.openWeatherHint"))
                             .font(.caption2)
