@@ -38,8 +38,9 @@ private struct WindowCenterTitle: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSView, context: Context) {
+        guard !context.coordinator.update(centerTitle: centerTitle, windowTitle: windowTitle, from: view) else { return }
         DispatchQueue.main.async {
-            context.coordinator.update(centerTitle: centerTitle, windowTitle: windowTitle, from: view)
+            _ = context.coordinator.update(centerTitle: centerTitle, windowTitle: windowTitle, from: view)
         }
     }
 
@@ -50,16 +51,31 @@ private struct WindowCenterTitle: NSViewRepresentable {
     final class Coordinator {
         private weak var label: NSTextField?
         private weak var installedSuperview: NSView?
+        private weak var installedWindow: NSWindow?
+        private var lastCenterTitle: String?
+        private var lastWindowTitle: String?
 
-        func update(centerTitle: String, windowTitle: String, from view: NSView) {
-            guard let window = view.window else { return }
+        @discardableResult
+        func update(centerTitle: String, windowTitle: String, from view: NSView) -> Bool {
+            guard let window = view.window else { return false }
+            if installedWindow === window,
+               lastCenterTitle == centerTitle,
+               lastWindowTitle == windowTitle,
+               label != nil || centerTitle.isEmpty {
+                return true
+            }
+
             window.title = windowTitle
             window.titleVisibility = centerTitle.isEmpty ? .visible : .hidden
+            installedWindow = window
+            lastCenterTitle = centerTitle
+            lastWindowTitle = windowTitle
 
-            guard let titlebar = window.standardWindowButton(.closeButton)?.superview else { return }
+            guard let titlebar = window.standardWindowButton(.closeButton)?.superview else { return true }
             let label = label(in: titlebar, closeButton: window.standardWindowButton(.closeButton))
             label.stringValue = centerTitle
             label.isHidden = centerTitle.isEmpty
+            return true
         }
 
         private func label(in titlebar: NSView, closeButton: NSView?) -> NSTextField {

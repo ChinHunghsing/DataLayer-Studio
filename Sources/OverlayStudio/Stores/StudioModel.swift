@@ -45,6 +45,7 @@ final class StudioModel: ObservableObject {
     static let playbackOverlayRefreshInterval: TimeInterval = 0.20
     static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 60.0
     static let scrubInteractionHoldInterval: TimeInterval = 0.16
+    static let previewResizeRefreshDelay: TimeInterval = 0.16
     static let dragOverlayRenderDelay: TimeInterval = 1.0 / 120.0
     static let dragBaseOverlayRenderDelay: TimeInterval = 0.08
 
@@ -124,7 +125,6 @@ final class StudioModel: ObservableObject {
     private var fitLoadGeneration = 0
     private var previewOverlayRenderSize: CGSize?
     private var lastOverlayRefresh = Date.distantPast
-    private let previewResizeRefreshInterval: TimeInterval = 0.08
     private let maximumPreviewRenderDimension: CGFloat = 3_200
     private var draggedElementID: String?
     private var previewRenderTask: Task<Void, Never>?
@@ -1223,16 +1223,9 @@ final class StudioModel: ObservableObject {
     private func schedulePreviewSizeRefresh(_ size: CGSize) {
         pendingPreviewSizeRefreshTask?.cancel()
 
-        let delay = max(0, previewResizeRefreshInterval - Date().timeIntervalSince(lastOverlayRefresh))
-        if delay <= 0.001 {
-            pendingPreviewSizeRefreshTask = nil
-            refreshOverlayOnly(previewSize: size)
-            return
-        }
-
         pendingPreviewSizeRefreshTask = Task { @MainActor [weak self] in
             do {
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                try await Task.sleep(nanoseconds: UInt64(Self.previewResizeRefreshDelay * 1_000_000_000))
             } catch {
                 return
             }

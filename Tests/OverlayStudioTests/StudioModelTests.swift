@@ -256,6 +256,8 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(StudioModel.scrubOverlayRefreshInterval, 1.0 / 55.0)
         XCTAssertGreaterThan(StudioModel.scrubInteractionHoldInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThanOrEqual(StudioModel.scrubInteractionHoldInterval, 0.20)
+        XCTAssertGreaterThan(StudioModel.previewResizeRefreshDelay, StudioModel.playerTimeObserverInterval)
+        XCTAssertLessThanOrEqual(StudioModel.previewResizeRefreshDelay, 0.20)
     }
 
     func testDragOverlayRenderDelayStaysBelowPlaybackRefreshInterval() {
