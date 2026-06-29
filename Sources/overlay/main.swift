@@ -227,10 +227,10 @@ enum CLIError: Error, CustomStringConvertible {
 
     static let help = """
     Usage:
-      overlay --fit activity.fit --output overlay.mov [options]
+      overlay --fit activity.fit|activity.gpx --output overlay.mov [options]
 
     Required:
-      --fit PATH         Standard .FIT activity file.
+      --fit PATH         Standard .FIT or .GPX activity file.
       --output PATH      Output .mov file.
 
     Options:
@@ -239,7 +239,7 @@ enum CLIError: Error, CustomStringConvertible {
       --width PX         Override output width, 2...16384 and even. Defaults to source video width, or 1920 without video.
       --height PX        Override output height, 2...16384 and even. Defaults to source video height, or 1080 without video.
       --fps N            Override output frame rate, minimum 1. Defaults to source video frame rate, or 30 without video.
-      --fit-start SEC    FIT elapsed time at video 0. Use when recording starts mid-activity.
+      --fit-start SEC    Activity elapsed time at video 0. Use when recording starts mid-activity.
       --sync-video SEC   Video timestamp for a sync point. Requires --sync-fit.
       --sync-fit SEC     FIT elapsed timestamp for the same sync point. Requires --sync-video.
       --offset SEC       Legacy shorthand: video starts SEC seconds before FIT. Negative starts mid-FIT.
@@ -249,8 +249,8 @@ enum CLIError: Error, CustomStringConvertible {
       --codec NAME       overlay mode: hevc-alpha (default), prores-4444. video mode: hevc (default), h264.
       --distance-unit U  Distance unit for overlay labels: km (default) or m.
       --layout-preset P  Use a saved GUI layout preset by name/ID, or a GUI-exported JSON file.
-      --skip-fit-crc     Parse FIT even if CRC validation fails.
-      --inspect          Parse video and FIT, print metadata, do not render.
+      --skip-fit-crc     Parse FIT even if CRC validation fails. Ignored for GPX.
+      --inspect          Parse video and activity data, print metadata, do not render.
       -h, --help         Show this help.
     """
 }
@@ -321,7 +321,7 @@ private func resolveOverlayLayout(fromPresetFile fileURL: URL) throws -> Resolve
 func run() async throws {
     TransparentVideoWriter.removeStaleTemporaryOutputs()
     let options = try CommandLineOptions.parse(arguments: CommandLine.arguments)
-    let parser = FITParser(validateCRC: options.validateFITCRC)
+    let parser = TelemetryFileParser(validateFITCRC: options.validateFITCRC)
     let series = try parser.parse(url: options.fitURL)
     let metadata: VideoMetadata?
     if let videoURL = options.videoURL {
@@ -341,7 +341,7 @@ func run() async throws {
     } else {
         print("Video: none, \(width)x\(height), \(String(format: "%.3f", fps)) fps, \(String(format: "%.2f", duration)) s")
     }
-    print("FIT: \(series.samples.count) samples, \(String(format: "%.2f", series.duration)) s telemetry")
+    print("Activity: \(series.samples.count) samples, \(String(format: "%.2f", series.duration)) s telemetry")
     print("Export mode: \(options.exportMode.rawValue)")
     print("Codec: \(options.codec.rawValue)")
     print("Bitrate: \(options.averageBitRate / 1000) kbps")
@@ -443,6 +443,12 @@ struct OverlayCLI {
             exit(2)
         } catch let error as FITError {
             fputs("FIT error: \(error.description)\n", stderr)
+            exit(1)
+        } catch let error as GPXError {
+            fputs("GPX error: \(error.description)\n", stderr)
+            exit(1)
+        } catch let error as TelemetryFileError {
+            fputs("Activity file error: \(error.description)\n", stderr)
             exit(1)
         } catch let error as OverlayVideoError {
             fputs("Video error: \(error.description)\n", stderr)

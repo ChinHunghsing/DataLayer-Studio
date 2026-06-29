@@ -338,9 +338,7 @@ final class StudioModel: ObservableObject {
         panel.prompt = localized("panel.open")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        if let fitType = UTType(filenameExtension: "fit") {
-            panel.allowedContentTypes = [fitType]
-        }
+        panel.allowedContentTypes = ["fit", "gpx"].compactMap { UTType(filenameExtension: $0) }
         guard panel.runModal() == .OK, let url = panel.url else { return }
         setFIT(url)
     }
@@ -793,11 +791,11 @@ final class StudioModel: ObservableObject {
         dragOverlayImage = nil
         previewWarning = nil
         status = localized("status.loadingFit", url.lastPathComponent)
-        addDebugLog(.input, "Loading FIT: \(url.lastPathComponent)")
+        addDebugLog(.input, "Loading activity file: \(url.lastPathComponent)")
 
         fitLoadTask = Task.detached {
             do {
-                let parsedSeries = try FITParser().parse(url: url)
+                let parsedSeries = try TelemetryFileParser().parse(url: url)
                 guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in
                     guard let self else { return }
@@ -809,7 +807,7 @@ final class StudioModel: ObservableObject {
                         self.applySuggestedOutputURLIfNeeded(for: url)
                     }
                     self.status = self.localized("status.loadedFit", url.lastPathComponent)
-                    self.addDebugLog(.input, "Loaded FIT: \(url.lastPathComponent), samples=\(parsedSeries.samples.count), duration=\(Self.formatDebugSeconds(parsedSeries.duration))")
+                    self.addDebugLog(.input, "Loaded activity file: \(url.lastPathComponent), samples=\(parsedSeries.samples.count), duration=\(Self.formatDebugSeconds(parsedSeries.duration))")
                     self.refreshOverlayOrPreview()
                     self.loadOpenWeatherIfPossible(
                         for: parsedSeries,
@@ -828,6 +826,10 @@ final class StudioModel: ObservableObject {
                 let message: String
                 if let fitError = error as? FITError {
                     message = fitError.description
+                } else if let gpxError = error as? GPXError {
+                    message = gpxError.description
+                } else if let telemetryFileError = error as? TelemetryFileError {
+                    message = telemetryFileError.description
                 } else {
                     message = error.localizedDescription
                 }
@@ -836,7 +838,7 @@ final class StudioModel: ObservableObject {
                     guard !Task.isCancelled,
                           self.fitLoadGeneration == loadGeneration else { return }
                     self.status = self.localized("status.fitError", message)
-                    self.addDebugLog(.input, "FIT error: \(message)")
+                    self.addDebugLog(.input, "Activity file error: \(message)")
                     self.fitLoadTask = nil
                     self.refreshOverlayOnly()
                 }

@@ -197,7 +197,7 @@ final class StudioModelTests: XCTestCase {
         let model = StudioModel()
         model.setResolvedLanguage(.simplifiedChinese)
 
-        XCTAssertEqual(model.exportReadinessMessage, "请选择 FIT 文件。")
+        XCTAssertEqual(model.exportReadinessMessage, "请选择 FIT 或 GPX 文件。")
 
         model.metadata = VideoMetadata(
             size: CGSize(width: 3840, height: 2160),
