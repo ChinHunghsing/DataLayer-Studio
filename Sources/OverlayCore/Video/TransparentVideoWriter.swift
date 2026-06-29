@@ -218,6 +218,7 @@ public final class TransparentVideoWriter {
         )
 
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.mediaTimeScale = TransparentVideoFrameTiming.preferredTimescale
         input.expectsMediaDataInRealTime = false
         input.performsMultiPassEncodingIfSupported = false
         guard writer.canAdd(input) else {

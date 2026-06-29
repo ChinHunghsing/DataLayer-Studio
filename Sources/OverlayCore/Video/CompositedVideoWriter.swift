@@ -136,6 +136,7 @@ public final class CompositedVideoWriter {
                 hardwareProfile: hardwareProfile
             )
         )
+        input.mediaTimeScale = TransparentVideoFrameTiming.preferredTimescale
         input.expectsMediaDataInRealTime = false
         input.performsMultiPassEncodingIfSupported = false
         guard writer.canAdd(input) else {

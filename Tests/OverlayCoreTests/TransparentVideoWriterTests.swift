@@ -290,6 +290,8 @@ final class TransparentVideoWriterTests: XCTestCase {
         let asset = AVURLAsset(url: outputURL)
         let tracks = try await asset.loadTracks(withMediaType: .video)
         XCTAssertEqual(tracks.count, 1)
+        let timeScale = try await tracks[0].load(.naturalTimeScale)
+        XCTAssertEqual(timeScale, TransparentVideoFrameTiming.preferredTimescale)
     }
 
     func testHEVCAlphaKeepsEmptyPixelsTransparent() async throws {
