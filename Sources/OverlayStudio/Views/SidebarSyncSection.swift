@@ -215,32 +215,28 @@ private struct TimecodeField: View {
     private var hoursControl: some View {
         TimecodeUnitStepper(
             label: localization.string("sidebar.sync.time.hours"),
-            value: componentBinding(.hours),
-            range: 0...maxHours
+            value: componentBinding(.hours)
         )
     }
 
     private var minutesControl: some View {
         TimecodeUnitStepper(
             label: localization.string("sidebar.sync.time.minutes"),
-            value: componentBinding(.minutes),
-            range: 0...59
+            value: componentBinding(.minutes)
         )
     }
 
     private var secondsControl: some View {
         TimecodeUnitStepper(
             label: localization.string("sidebar.sync.time.seconds"),
-            value: componentBinding(.seconds),
-            range: 0...59
+            value: componentBinding(.seconds)
         )
     }
 
     private var millisecondsControl: some View {
         TimecodeUnitStepper(
             label: localization.string("sidebar.sync.time.milliseconds"),
-            value: componentBinding(.milliseconds),
-            range: 0...999
+            value: componentBinding(.milliseconds)
         )
     }
 
@@ -267,17 +263,12 @@ private struct TimecodeField: View {
         return zeroSign
     }
 
-    private var maxHours: Int {
-        max(0, Int(abs(range.upperBound).rounded(.down)) / 3_600)
-    }
-
     private func componentBinding(_ component: TimecodeComponent) -> Binding<Int> {
         Binding(
             get: { components[keyPath: component.keyPath] },
             set: { newValue in
-                var next = components
-                next[keyPath: component.keyPath] = newValue
-                setSeconds(Double(currentSign) * Double(next.totalMilliseconds) / 1_000)
+                let milliseconds = components.totalMilliseconds(replacing: component, with: newValue)
+                setSeconds(Double(currentSign) * Double(milliseconds) / 1_000)
             }
         )
     }
@@ -298,7 +289,6 @@ private struct TimecodeField: View {
 private struct TimecodeUnitStepper: View {
     var label: String
     @Binding var value: Int
-    var range: ClosedRange<Int>
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -308,27 +298,20 @@ private struct TimecodeUnitStepper: View {
                 .lineLimit(1)
 
             HStack(spacing: 2) {
-                TextField(label, value: clampedValue, format: .number)
+                TextField(label, value: $value, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.trailing)
                     .monospacedDigit()
                     .frame(minWidth: 34)
-                Stepper(label, value: clampedValue, in: range)
+                Stepper(label, value: $value)
                     .labelsHidden()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-
-    private var clampedValue: Binding<Int> {
-        Binding(
-            get: { min(range.upperBound, max(range.lowerBound, value)) },
-            set: { value = min(range.upperBound, max(range.lowerBound, $0)) }
-        )
-    }
 }
 
-private enum TimecodeComponent {
+enum TimecodeComponent {
     case hours
     case minutes
     case seconds
@@ -348,7 +331,7 @@ private enum TimecodeComponent {
     }
 }
 
-private struct TimecodeComponents {
+struct TimecodeComponents {
     var hours: Int
     var minutes: Int
     var seconds: Int
@@ -364,6 +347,12 @@ private struct TimecodeComponents {
 
     var totalMilliseconds: Int {
         hours * 3_600_000 + minutes * 60_000 + seconds * 1_000 + milliseconds
+    }
+
+    func totalMilliseconds(replacing component: TimecodeComponent, with value: Int) -> Int {
+        var next = self
+        next[keyPath: component.keyPath] = value
+        return next.totalMilliseconds
     }
 }
 
