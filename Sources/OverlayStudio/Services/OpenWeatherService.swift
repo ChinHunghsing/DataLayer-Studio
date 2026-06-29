@@ -103,7 +103,7 @@ final class OpenWeatherService {
         language: String,
         forceRefresh: Bool
     ) async throws -> [OpenWeatherRecord] {
-        let cacheURL = cacheURL(latitude: latitude, longitude: longitude, start: start)
+        let cacheURL = cacheURL(latitude: latitude, longitude: longitude, start: start, language: language)
         if !forceRefresh, let cached = Self.readCache(cacheURL) {
             return cached
         }
@@ -172,13 +172,17 @@ final class OpenWeatherService {
         return url
     }
 
-    private func cacheURL(latitude: Double, longitude: Double, start: Date) -> URL {
+    private func cacheURL(latitude: Double, longitude: Double, start: Date, language: String) -> URL {
+        let safeLanguage = language
+            .replacingOccurrences(of: "[^A-Za-z0-9_-]", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
         let fileName = String(
-            format: "%.3f_%.3f_%lld.json",
+            format: "%.3f_%.3f_%lld_%@.json",
             locale: Locale(identifier: "en_US_POSIX"),
             Self.rounded(latitude),
             Self.rounded(longitude),
-            Int64(start.timeIntervalSince1970)
+            Int64(start.timeIntervalSince1970),
+            safeLanguage.isEmpty ? "default" : safeLanguage
         )
         return cacheDirectory.appendingPathComponent(fileName, isDirectory: false)
     }

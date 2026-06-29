@@ -41,6 +41,34 @@ final class OpenWeatherServiceTests: XCTestCase {
         XCTAssertEqual(error.localizedDescription, "OpenWeather key cannot access One Call 4.0.")
     }
 
+    func testWeatherCacheIsSeparatedByLanguage() async throws {
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenWeatherServiceTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+
+        var summaries = ["Clouds", "多云"]
+        let service = OpenWeatherService(cacheDirectory: cacheDirectory) { _ in
+            let summary = summaries.removeFirst()
+            return Data("""
+            {"data":[{"dt":3600,"temp":22,"humidity":58,"weather":[{"main":"\(summary)"}]}]}
+            """.utf8)
+        }
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(
+                elapsed: 0,
+                date: Date(timeIntervalSince1970: 3900),
+                latitude: 35.6812,
+                longitude: 139.7671
+            )
+        ])
+
+        let english = try await service.enrichedSeries(series, apiKey: "test-key", language: "en")
+        let chinese = try await service.enrichedSeries(series, apiKey: "test-key", language: "zh_cn")
+
+        XCTAssertEqual(english.samples.first?.weatherSummary, "Clouds")
+        XCTAssertEqual(chinese.samples.first?.weatherSummary, "多云")
+    }
+
     func testWeatherFetchesPreviousPageWhenFirstPageStartsAfterActivity() async throws {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("OpenWeatherServiceTests-\(UUID().uuidString)", isDirectory: true)
