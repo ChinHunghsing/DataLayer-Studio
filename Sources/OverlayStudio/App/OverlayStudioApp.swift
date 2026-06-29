@@ -5,6 +5,7 @@ import SwiftUI
 @main
 struct OverlayStudioApp: App {
     @StateObject private var localization: LocalizationStore
+    @AppStorage(AppAppearanceSelection.defaultsKey) private var appearanceRawValue = AppAppearanceSelection.system.rawValue
 
     init() {
         TransparentVideoWriter.removeStaleTemporaryOutputs()
@@ -20,12 +21,14 @@ struct OverlayStudioApp: App {
             }
                 .environmentObject(localization)
                 .environment(\.locale, localization.locale)
+                .preferredColorScheme(preferredColorScheme)
         }
 
         Settings {
             SettingsView()
                 .environmentObject(localization)
                 .environment(\.locale, localization.locale)
+                .preferredColorScheme(preferredColorScheme)
         }
         .commands {
             StudioFileCommands(localization: localization)
@@ -34,6 +37,10 @@ struct OverlayStudioApp: App {
             ArrangeCommands(localization: localization)
             DebugCommands(localization: localization)
         }
+    }
+
+    private var preferredColorScheme: ColorScheme? {
+        AppAppearanceSelection.selection(from: appearanceRawValue).colorScheme
     }
 }
 

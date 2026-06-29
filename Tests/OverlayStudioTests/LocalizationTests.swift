@@ -157,6 +157,13 @@ final class LocalizationTests: XCTestCase {
         )
     }
 
+    func testAppearanceSelectionMapsToColorScheme() {
+        XCTAssertNil(AppAppearanceSelection.system.colorScheme)
+        XCTAssertEqual(AppAppearanceSelection.light.colorScheme, .light)
+        XCTAssertEqual(AppAppearanceSelection.dark.colorScheme, .dark)
+        XCTAssertEqual(AppAppearanceSelection.selection(from: "unknown"), .system)
+    }
+
     func testExportResolutionPresetTitlesAreLocalized() {
         XCTAssertEqual(
             AppLocalizer.string("resolutionPreset.vertical-1080", language: .simplifiedChinese),
