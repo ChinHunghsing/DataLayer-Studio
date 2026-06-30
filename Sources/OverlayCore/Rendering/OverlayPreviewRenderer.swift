@@ -27,6 +27,9 @@ public final class OverlayPreviewRenderer {
     private let pixelBufferPoolLock = NSLock()
     private var pixelBufferPoolSize: PixelBufferPoolSize?
     private var pixelBufferPool: CVPixelBufferPool?
+    private let rendererCacheLock = NSLock()
+    private var rendererCacheKey: PreviewRendererCacheKey?
+    private var rendererCache: OverlayRenderer?
 
     public init(hardwareProfile: OverlayHardwareProfile = .current) {
         self.hardwareProfile = hardwareProfile
@@ -53,15 +56,13 @@ public final class OverlayPreviewRenderer {
         let height = max(2, Int(size.height.rounded()))
         let pixelBuffer = try makePixelBuffer(width: width, height: height)
 
-        let renderer = OverlayRenderer(
-            series: series,
-            config: OverlayRenderConfig(
-                size: CGSize(width: width, height: height),
-                timeSync: timeSync,
-                layout: layout,
-                distanceUnit: distanceUnit
-            )
+        let config = OverlayRenderConfig(
+            size: CGSize(width: width, height: height),
+            timeSync: timeSync,
+            layout: layout,
+            distanceUnit: distanceUnit
         )
+        let renderer = reusableRenderer(series: series, config: config, width: width, height: height)
         try renderer.render(videoTime: videoTime, into: pixelBuffer)
 
         let image = CIImage(cvPixelBuffer: pixelBuffer)
@@ -106,9 +107,48 @@ public final class OverlayPreviewRenderer {
         pixelBufferPool = newPool
         return newPool
     }
+
+    private func reusableRenderer(
+        series: TelemetrySeries,
+        config: OverlayRenderConfig,
+        width: Int,
+        height: Int
+    ) -> OverlayRenderer {
+        let key = PreviewRendererCacheKey(
+            seriesID: series.renderIdentity,
+            width: width,
+            height: height,
+            timeSync: config.timeSync,
+            routePointLimit: config.routePointLimit,
+            layout: config.layout,
+            distanceUnit: config.distanceUnit
+        )
+
+        rendererCacheLock.lock()
+        defer { rendererCacheLock.unlock() }
+
+        if rendererCacheKey == key, let rendererCache {
+            return rendererCache
+        }
+
+        let renderer = OverlayRenderer(series: series, config: config)
+        rendererCacheKey = key
+        rendererCache = renderer
+        return renderer
+    }
 }
 
 private struct PixelBufferPoolSize: Equatable {
     var width: Int
     var height: Int
+}
+
+private struct PreviewRendererCacheKey: Equatable {
+    var seriesID: UUID
+    var width: Int
+    var height: Int
+    var timeSync: TelemetryTimeSync
+    var routePointLimit: Int
+    var layout: OverlayLayout
+    var distanceUnit: OverlayDistanceUnit
 }

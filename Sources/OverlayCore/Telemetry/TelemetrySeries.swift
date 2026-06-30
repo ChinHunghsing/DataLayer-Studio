@@ -10,6 +10,7 @@ public struct GeoBounds: Equatable {
 public struct TelemetrySeries {
     public private(set) var samples: [TelemetrySample]
     public let bounds: GeoBounds?
+    let renderIdentity: UUID
     private static let resampleInterval: TimeInterval = 1
     private static let minimumMovingSpeedMetersPerSecond = 0.3
     private static let startupRampMinimumSpeedMetersPerSecond = 0.35
@@ -37,6 +38,7 @@ public struct TelemetrySeries {
         let startupSmoothed = TelemetrySeries.smoothedStartupPace(samples: resampled)
         self.samples = TelemetrySeries.trimmedIncompleteTail(samples: startupSmoothed)
         self.bounds = TelemetrySeries.computeBounds(samples: self.samples)
+        self.renderIdentity = UUID()
     }
 
     public var duration: TimeInterval {

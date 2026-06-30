@@ -140,6 +140,7 @@ final class StudioModel: ObservableObject {
     private var fitLoadTask: Task<Void, Never>?
     private var weatherLoadTask: Task<Void, Never>?
     private var pendingOverlayRefreshAfterCurrentRender = false
+    private var pendingOverlayRefreshPreviewSize: CGSize?
     private var isScrubbingPreview = false
     private var exportTask: Task<Void, Never>?
     private var exportCancellationToken: ExportCancellationToken?
@@ -933,6 +934,7 @@ final class StudioModel: ObservableObject {
         dragBaseOverlayImage = nil
         dragOverlayImage = nil
         pendingOverlayRefreshAfterCurrentRender = false
+        pendingOverlayRefreshPreviewSize = nil
         previewRenderGeneration += 1
         let generation = previewRenderGeneration
         let time = previewTime
@@ -1013,9 +1015,11 @@ final class StudioModel: ObservableObject {
         }
         if coalesceIfBusy, previewRenderTask != nil {
             pendingOverlayRefreshAfterCurrentRender = true
+            pendingOverlayRefreshPreviewSize = previewSize
             return
         }
         pendingOverlayRefreshAfterCurrentRender = false
+        pendingOverlayRefreshPreviewSize = nil
 
         let now = Date()
         if minimumInterval > 0, now.timeIntervalSince(lastOverlayRefresh) < minimumInterval {
@@ -1061,9 +1065,11 @@ final class StudioModel: ObservableObject {
                 guard !Task.isCancelled,
                       self.previewRenderGeneration == generation else { return }
                 if self.pendingOverlayRefreshAfterCurrentRender {
+                    let pendingPreviewSize = self.pendingOverlayRefreshPreviewSize
                     self.pendingOverlayRefreshAfterCurrentRender = false
+                    self.pendingOverlayRefreshPreviewSize = nil
                     self.previewRenderTask = nil
-                    self.refreshOverlayOnly(coalesceIfBusy: true)
+                    self.refreshOverlayOnly(previewSize: pendingPreviewSize, coalesceIfBusy: true)
                     return
                 }
                 self.overlayImage = overlay
@@ -1289,7 +1295,7 @@ final class StudioModel: ObservableObject {
 
     private func scheduleScrubOverlayRefresh() {
         guard !isExporting else { return }
-        guard videoURL != nil, series != nil else {
+        guard series != nil else {
             refreshOverlayOnly(coalesceIfBusy: true)
             return
         }
@@ -1300,7 +1306,7 @@ final class StudioModel: ObservableObject {
             pendingScrubOverlayRefreshTask = nil
             refreshOverlayOnly(
                 previewSize: scrubPreviewOverlayRenderSize(),
-                coalesceIfBusy: false
+                coalesceIfBusy: true
             )
             return
         }
@@ -1317,14 +1323,14 @@ final class StudioModel: ObservableObject {
             self.pendingScrubOverlayRefreshTask = nil
             self.refreshOverlayOnly(
                 previewSize: self.scrubPreviewOverlayRenderSize(),
-                coalesceIfBusy: false
+                coalesceIfBusy: true
             )
         }
     }
 
     private func requestScrubOverlayRefresh() {
         guard !isExporting else { return }
-        guard videoURL != nil, series != nil else {
+        guard series != nil else {
             refreshOverlayOnly(coalesceIfBusy: true)
             return
         }
@@ -1676,6 +1682,7 @@ final class StudioModel: ObservableObject {
         dragBaseOverlayImage = nil
         dragOverlayImage = nil
         pendingOverlayRefreshAfterCurrentRender = false
+        pendingOverlayRefreshPreviewSize = nil
     }
 
     private func cancelLoadTasks() {
