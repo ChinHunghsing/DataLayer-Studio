@@ -42,7 +42,8 @@ public final class OverlayPreviewRenderer {
         videoTime: TimeInterval,
         timeSync: TelemetryTimeSync = .identity,
         layout: OverlayLayout = .default,
-        distanceUnit: OverlayDistanceUnit = .kilometers
+        distanceUnit: OverlayDistanceUnit = .kilometers,
+        routePointLimit: Int = 900
     ) throws -> CGImage {
         guard size.width.isFinite,
               size.height.isFinite,
@@ -59,6 +60,7 @@ public final class OverlayPreviewRenderer {
         let config = OverlayRenderConfig(
             size: CGSize(width: width, height: height),
             timeSync: timeSync,
+            routePointLimit: routePointLimit,
             layout: layout,
             distanceUnit: distanceUnit
         )

@@ -5,6 +5,8 @@ import OverlayCore
 
 struct PreviewCanvasView: View {
     static let componentDragMinimumDistance: CGFloat = 1
+    private static let liveScrubMaximumRenderDimension: CGFloat = 960
+    private static let liveScrubRoutePointLimit = 180
 
     let model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
@@ -15,6 +17,7 @@ struct PreviewCanvasView: View {
     @State private var magnificationStartZoom: Double?
     @State private var liveScrubTime: TimeInterval?
     @State private var liveScrubController = PreviewLiveScrubController()
+    @State private var liveScrubRenderer = OverlayPreviewRenderer()
 
     init(
         model: StudioModel,
@@ -902,7 +905,10 @@ struct PreviewCanvasView: View {
     }
 
     private func previewOverlayRenderSize(for displaySize: CGSize) -> CGSize {
-        let maximumDimension: CGFloat = 3200
+        previewOverlayRenderSize(for: displaySize, maximumDimension: 3200)
+    }
+
+    private func previewOverlayRenderSize(for displaySize: CGSize, maximumDimension: CGFloat) -> CGSize {
         let longestSide = max(displaySize.width, displaySize.height)
         guard longestSide > maximumDimension else { return displaySize }
         let scale = maximumDimension / longestSide
@@ -1035,459 +1041,35 @@ struct PreviewCanvasView: View {
             cachedOverlay: cachedOverlay,
             contentSize: contentSize,
             displayRect: displayRect,
-            liveContent: { videoTime in
-                AnyView(
-                    liveScrubOverlay(
-                        displayRect: displayRect,
-                        visibleElements: visibleElements,
-                        alignedMetricWidth: alignedMetricWidth,
-                        videoTime: videoTime
-                    )
-                    .frame(width: contentSize.width, height: contentSize.height)
-                    .allowsHitTesting(false)
-                )
+            liveOverlayImage: { videoTime in
+                renderLiveOverlayImage(videoTime: videoTime, displaySize: displayRect.size)
             }
         )
         .frame(width: contentSize.width, height: contentSize.height)
         .allowsHitTesting(false)
     }
 
-    private func liveScrubOverlay(
-        displayRect: CGRect,
-        visibleElements: [OverlayElement],
-        alignedMetricWidth: CGFloat?,
-        videoTime: TimeInterval
-    ) -> some View {
-        ZStack {
-            ForEach(visibleElements) { element in
-                let rect = componentDisplayRect(
-                    element: element,
-                    displayRect: displayRect,
-                    alignedMetricWidth: alignedMetricWidth
-                )
-                switch element.kind {
-                case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
-                    liveMetricOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
-                case .topProgress:
-                    liveTopProgressOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
-                case .timeDate:
-                    liveTimeDateOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
-                case .route:
-                    liveRouteMarkerOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
-                case .speed:
-                    liveSpeedOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
-                }
-            }
-        }
-        .transaction { transaction in
-            transaction.animation = nil
-            transaction.disablesAnimations = true
-        }
-    }
-
-    private func liveMetricOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
-        let text = metricText(for: element, sample: telemetrySample(videoTime: videoTime))
-        let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
-        let textScale = outputScale * CGFloat(element.frame.style.textScale)
-        let displayScale = displayScale(for: displayRect)
-        let labelFontSize = labelSize(10, scale: textScale, element: element) * displayScale
-        let valueFontSize = valueSize(23, scale: textScale, element: element) * displayScale
-        let unitFontSize = unitSize(10, scale: textScale, element: element) * displayScale
-        let iconFontSize = metricIconFontSize(element: element, textScale: textScale) * displayScale
-        let horizontalPadding = 14 * outputScale * displayScale
-        let verticalPadding = 9 * outputScale * displayScale
-        let cornerRadius = max(6, 12 * outputScale * displayScale)
-        let labelColor = (element.customization.labelColor ?? .label).swiftUIColor
-        let valueColor = (element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
-        let unitColor = (element.customization.unitColor ?? .muted).swiftUIColor
-        let iconColor = (element.customization.iconColor ?? element.customization.labelColor ?? .label).swiftUIColor
-        let unitLines = metricUnitLines(text.unit)
-
-        return ZStack {
-            if element.customization.showsPanel {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.black.opacity(componentPanelOpacity(element)))
-                    .overlay {
-                        if element.customization.panelBorderIsVisible {
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .stroke(Color.white.opacity(0.14), lineWidth: max(0.5, displayScale))
-                        }
-                    }
-            }
-
-            VStack(alignment: .leading, spacing: max(2, 5 * outputScale * displayScale)) {
-                if element.customization.showsLabel || (element.customization.showsIcon && element.kind != .weather) {
-                    HStack(spacing: max(3, 8 * outputScale * displayScale)) {
-                        if element.customization.showsLabel {
-                            Text(text.label)
-                                .font(liveFont(element.customization.labelFont, size: labelFontSize))
-                                .foregroundStyle(labelColor)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.55)
-                        }
-                        Spacer(minLength: 0)
-                        if element.customization.showsIcon, element.kind != .weather {
-                            Text(text.icon)
-                                .font(liveFont(element.customization.iconFont, size: iconFontSize))
-                                .foregroundStyle(iconColor)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.55)
-                        }
-                    }
-                }
-
-                HStack(alignment: .lastTextBaseline, spacing: max(4, 10 * outputScale * displayScale)) {
-                    Text(text.value)
-                        .font(liveFont(element.customization.valueFont, size: valueFontSize))
-                        .foregroundStyle(valueColor)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-
-                    Spacer(minLength: 0)
-
-                    if element.customization.showsUnit {
-                        VStack(alignment: .trailing, spacing: max(1, metricUnitLineGap(element: element, unitFontSize: unitFontSize / max(displayScale, 0.001), scale: outputScale) * displayScale)) {
-                            ForEach(unitLines.indices, id: \.self) { index in
-                                if element.kind == .weather, index == 0, element.customization.showsIcon {
-                                    Text(weatherIconText(element: element, summary: unitLines.first))
-                                        .font(liveFont(element.customization.iconFont, size: iconFontSize))
-                                        .foregroundStyle(iconColor)
-                                        .lineLimit(1)
-                                } else {
-                                    Text(unitLines[index])
-                                        .font(liveFont(element.customization.unitFont, size: unitFontSize))
-                                        .foregroundStyle(unitColor)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.55)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.vertical, verticalPadding)
-        }
-        .frame(width: rect.width, height: rect.height)
-        .position(x: rect.midX, y: rect.midY)
-    }
-
-    private func liveTimeDateOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
-        let sample = telemetrySample(videoTime: videoTime)
-        let text = timeDateText(for: element, sample: sample, videoTime: videoTime)
-        let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
-        let textScale = outputScale * CGFloat(element.frame.style.textScale)
-        let displayScale = displayScale(for: displayRect)
-        let labelFontSize = labelSize(11, scale: textScale, element: element) * displayScale
-        let valueFontSize = valueSize(24, scale: textScale, element: element) * displayScale
-        let unitFontSize = unitSize(18, scale: textScale, element: element) * displayScale
-        let labelColor = (element.customization.labelColor ?? .label).swiftUIColor
-        let valueColor = (element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
-        let unitColor = (element.customization.unitColor ?? .muted).swiftUIColor
-        let cornerRadius = max(5, 10 * outputScale * displayScale)
-
-        return ZStack {
-            if element.customization.showsPanel {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.black.opacity(componentPanelOpacity(element)))
-            }
-
-            VStack(alignment: .trailing, spacing: max(2, 5 * outputScale * displayScale)) {
-                if element.customization.showsLabel {
-                    Text(text.label)
-                        .font(liveFont(element.customization.labelFont, size: labelFontSize))
-                        .foregroundStyle(labelColor)
-                        .lineLimit(1)
-                }
-                Text(text.elapsed)
-                    .font(liveFont(element.customization.valueFont, size: valueFontSize))
-                    .foregroundStyle(valueColor)
-                    .lineLimit(1)
-                if element.customization.showsUnit {
-                    Text(text.clock)
-                        .font(liveFont(element.customization.unitFont, size: unitFontSize))
-                        .foregroundStyle(unitColor)
-                        .lineLimit(1)
-                    Text(text.date)
-                        .font(liveFont(element.customization.unitFont, size: unitFontSize * 0.82))
-                        .foregroundStyle(unitColor)
-                        .lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(max(2, 10 * outputScale * displayScale))
-        }
-        .frame(width: rect.width, height: rect.height)
-        .position(x: rect.midX, y: rect.midY)
-    }
-
-    private func liveSpeedOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
-        let sample = telemetrySample(videoTime: videoTime)
-        let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
-        let textScale = outputScale * CGFloat(element.frame.style.textScale)
-        let displayScale = displayScale(for: displayRect)
-        let gaugeMinimum = element.customization.gaugeMinimum ?? 0
-        let gaugeMaximum = max(gaugeMinimum + 1, element.customization.gaugeMaximum ?? 24)
-        let speedKmh = max(0, sample.speedMetersPerSecond ?? 0) * 3.6
-        let speedText: String = {
-            guard let speed = sample.speedMetersPerSecond, speed.isFinite else { return "--.-" }
-            let digits = min(2, max(0, element.customization.valuePrecision ?? 1))
-            return String(format: "%0\(digits + 3).\(digits)f", speed * 3.6)
-        }()
-        let progress = min(1, max(0, (speedKmh - gaugeMinimum) / (gaugeMaximum - gaugeMinimum)))
-        let accent = (element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
-        let trackColor = (element.customization.trackColor ?? .track).swiftUIColor
-        let labelColor = (element.customization.labelColor ?? .label).swiftUIColor
-        let valueColor = (element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
-        let unitColor = (element.customization.unitColor ?? .muted).swiftUIColor
-        let labelFontSize = labelSize(15, scale: textScale, element: element) * displayScale
-        let elapsedFontSize = unitSize(24, scale: textScale, element: element) * displayScale
-        let valueFontSize = valueSize(76, scale: textScale, element: element) * displayScale
-        let unitFontSize = unitSize(17, scale: textScale, element: element) * displayScale
-        let lineWidth = max(1, self.lineWidth(element, scale: outputScale) * displayScale)
-        let gaugeSize = min(rect.height * 0.76, rect.width * 0.36)
-        let gaugeFrame = CGRect(
-            x: 78 * outputScale * displayScale,
-            y: rect.height / 2 - gaugeSize / 2,
-            width: gaugeSize,
-            height: gaugeSize
+    private func renderLiveOverlayImage(videoTime: TimeInterval, displaySize: CGSize) -> NSImage? {
+        guard let series = model.series else { return nil }
+        let renderSize = previewOverlayRenderSize(
+            for: displaySize,
+            maximumDimension: Self.liveScrubMaximumRenderDimension
         )
-
-        return ZStack {
-            if element.customization.showsPanel {
-                RoundedRectangle(cornerRadius: max(8, 20 * outputScale * displayScale), style: .continuous)
-                    .fill(Color.black.opacity(componentPanelOpacity(element)))
-                    .overlay {
-                        if element.customization.panelBorderIsVisible {
-                            RoundedRectangle(cornerRadius: max(8, 20 * outputScale * displayScale), style: .continuous)
-                                .stroke(Color.white.opacity(0.14), lineWidth: max(0.5, displayScale))
-                        }
-                    }
-            }
-
-            if element.customization.showsLabel {
-                Text(element.customization.label(default: "RUN"))
-                    .font(liveFont(element.customization.labelFont, size: labelFontSize))
-                    .foregroundStyle(labelColor)
-                    .position(x: 58 * outputScale * displayScale, y: 33 * outputScale * displayScale)
-            }
-
-            Text(formatClockDuration(sample.elapsed))
-                .font(liveFont(element.customization.unitFont, size: elapsedFontSize))
-                .foregroundStyle(unitColor)
-                .position(x: 92 * outputScale * displayScale, y: 66 * outputScale * displayScale)
-
-            SpeedGaugeArc(progress: progress)
-                .stroke(trackColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .frame(width: gaugeFrame.width, height: gaugeFrame.height)
-                .position(x: gaugeFrame.midX, y: gaugeFrame.midY)
-            SpeedGaugeArc(progress: progress)
-                .trim(from: 0, to: progress)
-                .stroke(accent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .frame(width: gaugeFrame.width, height: gaugeFrame.height)
-                .position(x: gaugeFrame.midX, y: gaugeFrame.midY)
-
-            Text(speedText)
-                .font(liveFont(element.customization.valueFont, size: valueFontSize))
-                .foregroundStyle(valueColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.45)
-                .position(x: 258 * outputScale * displayScale, y: rect.height / 2 + 14 * outputScale * displayScale)
-
-            if element.customization.showsUnit {
-                Text(element.customization.unit(default: "KM/H"))
-                    .font(liveFont(element.customization.unitFont, size: unitFontSize))
-                    .foregroundStyle(unitColor)
-                    .lineLimit(1)
-                    .position(x: 286 * outputScale * displayScale, y: rect.height - 65 * outputScale * displayScale)
-            }
+        guard renderSize.width > 0, renderSize.height > 0 else { return nil }
+        do {
+            let image = try liveScrubRenderer.renderOverlayImage(
+                series: series,
+                size: renderSize,
+                videoTime: videoTime,
+                timeSync: model.timeSync,
+                layout: model.layout,
+                distanceUnit: model.distanceUnit,
+                routePointLimit: Self.liveScrubRoutePointLimit
+            )
+            return NSImage(cgImage: image, size: NSSize(width: renderSize.width, height: renderSize.height))
+        } catch {
+            return nil
         }
-        .frame(width: rect.width, height: rect.height)
-        .position(x: rect.midX, y: rect.midY)
-    }
-
-    private func liveTopProgressOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
-        let sample = telemetrySample(videoTime: videoTime)
-        let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
-        let displayScale = displayScale(for: displayRect)
-        let trackHeight = max(1, lineWidth(element, scale: outputScale) * displayScale)
-        let sidePadding = min(
-            rect.width * 0.42,
-            max(0, 72 * outputScale * CGFloat(element.customization.progressInsetScale ?? 1) * displayScale)
-        )
-        let topInset = max(3, 18 * outputScale * displayScale)
-        let trackWidth = max(1, rect.width - sidePadding * 2)
-        let trackRect = CGRect(
-            x: rect.minX + sidePadding,
-            y: rect.minY + topInset,
-            width: trackWidth,
-            height: trackHeight
-        )
-        let totalDistance = max(totalDistanceMeters(), sample.distanceMeters ?? 0)
-        let progress = totalDistance > 0 ? min(1, max(0, (sample.distanceMeters ?? 0) / totalDistance)) : 0
-        let knobRadius = max(4, trackHeight * 0.82 * progressKnobScale(element))
-        let knobX = trackRect.minX + trackRect.width * CGFloat(progress)
-        let textScale = outputScale * CGFloat(element.frame.style.textScale)
-        let labelFontSize = labelSize(15, scale: textScale, element: element) * displayScale
-        let currentFontSize = valueSize(12, scale: textScale, element: element) * displayScale
-        let trackColor = (element.customization.trackColor ?? .track).swiftUIColor
-        let progressColor = (element.customization.progressBarColor ?? element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
-        let startColor = (element.customization.progressStartColor ?? element.customization.labelColor ?? .label).swiftUIColor
-        let currentColor = (element.customization.progressCurrentColor ?? element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
-        let endColor = (element.customization.progressEndColor ?? element.customization.unitColor ?? .muted).swiftUIColor
-
-        return ZStack(alignment: .topLeading) {
-            if element.customization.showsPanel {
-                RoundedRectangle(cornerRadius: max(5, 12 * outputScale * displayScale), style: .continuous)
-                    .fill(Color.black.opacity(componentPanelOpacity(element)))
-                    .frame(width: rect.width, height: rect.height)
-                    .position(x: rect.midX, y: rect.midY)
-            }
-
-            if element.customization.showsLabel {
-                Text(distanceLabel(0, element: element))
-                    .font(liveFont(element.customization.progressStartFont ?? element.customization.labelFont, size: labelFontSize))
-                    .foregroundStyle(startColor)
-                    .position(x: trackRect.minX, y: rect.minY + max(6, labelFontSize * 0.5))
-                    .fixedSize()
-                Text(distanceLabel(sample.distanceMeters, element: element))
-                    .font(liveFont(element.customization.progressCurrentFont ?? element.customization.valueFont, size: currentFontSize))
-                    .foregroundStyle(currentColor)
-                    .position(x: knobX, y: trackRect.maxY + max(5, progressValueMargin(element, scale: outputScale, trackHeight: trackHeight / max(displayScale, 0.001)) * displayScale))
-                    .fixedSize()
-            }
-
-            if element.customization.showsUnit {
-                Text(distanceLabel(totalDistance, element: element))
-                    .font(liveFont(element.customization.progressEndFont ?? element.customization.unitFont, size: labelFontSize))
-                    .foregroundStyle(endColor)
-                    .position(x: trackRect.maxX, y: rect.minY + max(6, labelFontSize * 0.5))
-                    .fixedSize()
-            }
-
-            Capsule()
-                .fill(trackColor)
-                .frame(width: trackRect.width, height: trackRect.height)
-                .position(x: trackRect.midX, y: trackRect.midY)
-            Capsule()
-                .fill(progressColor)
-                .frame(width: max(0, trackRect.width * CGFloat(progress)), height: trackRect.height)
-                .position(
-                    x: trackRect.minX + max(0, trackRect.width * CGFloat(progress)) / 2,
-                    y: trackRect.midY
-                )
-            Circle()
-                .fill(progressColor)
-                .overlay(Circle().stroke(progressColor.opacity(0.72), lineWidth: max(1, trackHeight * 0.18)))
-                .shadow(color: .black.opacity(0.28), radius: max(1, knobRadius * 0.28))
-                .frame(width: knobRadius * 2, height: knobRadius * 2)
-                .position(x: knobX, y: trackRect.midY)
-        }
-        .frame(width: rect.width, height: rect.height)
-        .position(x: rect.midX, y: rect.midY)
-    }
-
-    private func liveRouteMarkerOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
-        let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
-        let displayScale = displayScale(for: displayRect)
-        let mapRect = routeFitDisplayRect(rect, element: element, outputScale: outputScale, displayScale: displayScale)
-        let marker = routeMarkerPoint(in: mapRect, videoTime: videoTime)
-        let before = routeMarkerPoint(in: mapRect, videoTime: videoTime, elapsedOffset: -2)
-        let after = routeMarkerPoint(in: mapRect, videoTime: videoTime, elapsedOffset: 2)
-        let angle = routeDirectionAngle(before: before, after: after)
-        let color = (element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
-        let radius = max(3, 6 * outputScale * displayScale)
-
-        return ZStack {
-            if let marker {
-                Circle()
-                    .fill(color.opacity(0.92))
-                    .frame(width: radius * 2, height: radius * 2)
-                    .position(x: marker.x, y: marker.y)
-                Circle()
-                    .stroke(color, lineWidth: max(1, 2 * outputScale * displayScale))
-                    .frame(width: radius * 4, height: radius * 4)
-                    .position(x: marker.x, y: marker.y)
-                if let angle {
-                    RouteArrowShape(angle: angle)
-                        .fill(color)
-                        .frame(width: radius * 4.4, height: radius * 4.4)
-                        .position(x: marker.x, y: marker.y)
-                }
-            }
-        }
-        .frame(width: rect.width, height: rect.height)
-        .position(x: rect.midX, y: rect.midY)
-    }
-
-    private func displayScale(for displayRect: CGRect) -> CGFloat {
-        displayRect.width / CGFloat(max(1, model.outputWidth))
-    }
-
-    private func componentPanelOpacity(_ element: OverlayElement) -> Double {
-        element.frame.style.panelOpacity ?? model.layout.style.panelOpacity
-    }
-
-    private func liveFont(_ family: OverlayFontFamily, size: CGFloat) -> Font {
-        .custom(family.postScriptName, size: max(4, size))
-    }
-
-    private func distanceLabel(_ meters: Double?, element: OverlayElement) -> String {
-        "\(formatDistance(meters, element: element)) \(element.customization.unit(default: model.distanceUnit.symbol))"
-    }
-
-    private func totalDistanceMeters() -> Double {
-        model.series?.samples.reversed().first { sample in
-            guard let distance = sample.distanceMeters else { return false }
-            return distance.isFinite
-        }?.distanceMeters ?? 0
-    }
-
-    private func routeFitDisplayRect(
-        _ rect: CGRect,
-        element: OverlayElement,
-        outputScale: CGFloat,
-        displayScale: CGFloat
-    ) -> CGRect {
-        let insetX = 26 * outputScale * displayScale
-        let insetY = 34 * outputScale * displayScale
-        let mapRect = rect.insetBy(dx: min(rect.width * 0.42, insetX), dy: min(rect.height * 0.42, insetY))
-        guard let bounds = model.series?.bounds else { return mapRect }
-        return routeFitRect(mapRect, bounds: bounds)
-    }
-
-    private func routeFitRect(_ rect: CGRect, bounds: GeoBounds) -> CGRect {
-        let latSpan = max(bounds.maxLatitude - bounds.minLatitude, 0.000_001)
-        let lonSpan = max(bounds.maxLongitude - bounds.minLongitude, 0.000_001)
-        let routeAspect = CGFloat(lonSpan / latSpan)
-        let rectAspect = rect.width / max(1, rect.height)
-        if routeAspect > rectAspect {
-            let height = rect.width / max(routeAspect, 0.000_001)
-            return CGRect(x: rect.minX, y: rect.midY - height / 2, width: rect.width, height: height)
-        }
-        let width = rect.height * routeAspect
-        return CGRect(x: rect.midX - width / 2, y: rect.minY, width: width, height: rect.height)
-    }
-
-    private func routeMarkerPoint(in rect: CGRect, videoTime: TimeInterval, elapsedOffset: TimeInterval = 0) -> CGPoint? {
-        guard let series = model.series, let bounds = series.bounds else { return nil }
-        let elapsed = model.timeSync.fitElapsed(forVideoTime: videoTime) + elapsedOffset
-        let sample = series.sample(at: elapsed)
-        guard let latitude = sample.latitude, let longitude = sample.longitude else { return nil }
-        let latSpan = max(bounds.maxLatitude - bounds.minLatitude, 0.000_001)
-        let lonSpan = max(bounds.maxLongitude - bounds.minLongitude, 0.000_001)
-        return CGPoint(
-            x: rect.minX + CGFloat((longitude - bounds.minLongitude) / lonSpan) * rect.width,
-            y: rect.minY + CGFloat((latitude - bounds.minLatitude) / latSpan) * rect.height
-        )
-    }
-
-    private func routeDirectionAngle(before: CGPoint?, after: CGPoint?) -> Angle? {
-        guard let before, let after else { return nil }
-        let dx = after.x - before.x
-        let dy = after.y - before.y
-        guard hypot(dx, dy) > 1 else { return nil }
-        return Angle(radians: Double(atan2(dy, dx)))
     }
 
     private func rendererLayoutScale() -> CGFloat {

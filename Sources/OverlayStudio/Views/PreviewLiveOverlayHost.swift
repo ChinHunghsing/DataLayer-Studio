@@ -22,7 +22,7 @@ struct PreviewLiveOverlayHost: NSViewRepresentable {
     let cachedOverlay: NSImage?
     let contentSize: CGSize
     let displayRect: CGRect
-    let liveContent: (TimeInterval) -> AnyView
+    let liveOverlayImage: (TimeInterval) -> NSImage?
 
     func makeNSView(context: Context) -> PreviewLiveOverlayView {
         let view = PreviewLiveOverlayView()
@@ -30,7 +30,7 @@ struct PreviewLiveOverlayHost: NSViewRepresentable {
             cachedOverlay: cachedOverlay,
             contentSize: contentSize,
             displayRect: displayRect,
-            liveContent: liveContent
+            liveOverlayImage: liveOverlayImage
         )
         controller.attach(view)
         return view
@@ -41,35 +41,24 @@ struct PreviewLiveOverlayHost: NSViewRepresentable {
             cachedOverlay: cachedOverlay,
             contentSize: contentSize,
             displayRect: displayRect,
-            liveContent: liveContent
+            liveOverlayImage: liveOverlayImage
         )
         controller.attach(view)
     }
 }
 
 final class PreviewLiveOverlayView: NSView {
-    private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
     private var cachedOverlay: NSImage?
+    private var liveOverlay: NSImage?
     private var displayRect: CGRect = .zero
     private var contentSize: CGSize = .zero
-    private var liveContent: ((TimeInterval) -> AnyView)?
+    private var liveOverlayImage: ((TimeInterval) -> NSImage?)?
     private var liveTime: TimeInterval?
     override var isFlipped: Bool { true }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        hostingView.wantsLayer = true
-        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
-        hostingView.isHidden = true
-        addSubview(hostingView)
-        NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: bottomAnchor)
-        ])
     }
 
     required init?(coder: NSCoder) {
@@ -80,15 +69,15 @@ final class PreviewLiveOverlayView: NSView {
         cachedOverlay: NSImage?,
         contentSize: CGSize,
         displayRect: CGRect,
-        liveContent: @escaping (TimeInterval) -> AnyView
+        liveOverlayImage: @escaping (TimeInterval) -> NSImage?
     ) {
         self.cachedOverlay = cachedOverlay
         self.contentSize = contentSize
         self.displayRect = displayRect
-        self.liveContent = liveContent
+        self.liveOverlayImage = liveOverlayImage
         frame.size = contentSize
         if let liveTime {
-            renderLive(time: liveTime)
+            liveOverlay = liveOverlayImage(liveTime)
         }
         needsDisplay = true
     }
@@ -96,33 +85,18 @@ final class PreviewLiveOverlayView: NSView {
     func setLiveTime(_ time: TimeInterval?) {
         liveTime = time
         if let time {
-            renderLive(time: time)
+            liveOverlay = liveOverlayImage?(time)
         } else {
-            hostingView.rootView = AnyView(EmptyView())
-            hostingView.isHidden = true
+            liveOverlay = nil
         }
-        needsDisplay = true
-        hostingView.needsLayout = true
-        hostingView.needsDisplay = true
-        hostingView.layoutSubtreeIfNeeded()
-        displayIfNeeded()
-        hostingView.displayIfNeeded()
-        layer?.displayIfNeeded()
-        hostingView.layer?.displayIfNeeded()
+        display()
         CATransaction.flush()
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        guard liveTime == nil,
-              let cachedOverlay,
+        guard let overlay = liveOverlay ?? cachedOverlay,
               !displayRect.isEmpty else { return }
-        cachedOverlay.draw(in: displayRect)
-    }
-
-    private func renderLive(time: TimeInterval) {
-        guard let liveContent else { return }
-        hostingView.rootView = liveContent(time)
-        hostingView.isHidden = false
+        overlay.draw(in: displayRect)
     }
 }
