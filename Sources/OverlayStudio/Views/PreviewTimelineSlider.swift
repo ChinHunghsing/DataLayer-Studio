@@ -69,10 +69,21 @@ final class FocusableTimelineSlider: NSSlider {
     override var acceptsFirstResponder: Bool { true }
 
     override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
         window?.makeFirstResponder(self)
         isTrackingMouse = true
-        defer { isTrackingMouse = false }
-        super.mouseDown(with: event)
+        updateValue(with: event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard isTrackingMouse else { return }
+        updateValue(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard isTrackingMouse else { return }
+        updateValue(with: event)
+        isTrackingMouse = false
     }
 
     override func keyDown(with event: NSEvent) {
@@ -84,5 +95,22 @@ final class FocusableTimelineSlider: NSSlider {
         default:
             super.keyDown(with: event)
         }
+    }
+
+    private func updateValue(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        doubleValue = Self.value(
+            forX: location.x,
+            width: bounds.width,
+            minValue: minValue,
+            maxValue: maxValue
+        )
+        _ = sendAction(action, to: target)
+    }
+
+    static func value(forX x: CGFloat, width: CGFloat, minValue: Double, maxValue: Double) -> Double {
+        guard width > 0, maxValue > minValue else { return minValue }
+        let fraction = min(1, max(0, Double(x / width)))
+        return minValue + (maxValue - minValue) * fraction
     }
 }
