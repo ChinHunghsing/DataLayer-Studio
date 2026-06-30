@@ -1,5 +1,6 @@
 import XCTest
 import AppKit
+import AVFoundation
 import OverlayCore
 @testable import OverlayStudio
 
@@ -437,6 +438,24 @@ final class StudioModelTests: XCTestCase {
 
         model.scrubPreview(to: 3)
 
+        XCTAssertEqual(model.previewTime, 3)
+        XCTAssertNotNil(model.overlayImage)
+    }
+
+    func testScrubPreviewWithPlayerRefreshesOverlayDuringScrub() async throws {
+        let model = StudioModel()
+        model.videoURL = URL(fileURLWithPath: "/tmp/source.mov")
+        model.player = AVPlayer()
+        model.outputWidth = 320
+        model.outputHeight = 180
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 7, distanceMeters: 30)
+        ])
+
+        model.scrubPreview(to: 3)
+
+        try await waitForOverlayImage(in: model)
         XCTAssertEqual(model.previewTime, 3)
         XCTAssertNotNil(model.overlayImage)
     }

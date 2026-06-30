@@ -55,7 +55,7 @@ struct PreviewControlsPanel: View {
 
             PreviewTimelineSlider(
                 value: Binding(
-                    get: { state.previewTime },
+                    get: { model.previewTime },
                     set: { model.scrubPreview(to: $0) }
                 ),
                 range: 0...max(state.previewDuration, 1),

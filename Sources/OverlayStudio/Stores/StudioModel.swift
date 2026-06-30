@@ -721,7 +721,7 @@ final class StudioModel: ObservableObject {
         previewTime = clamped
         if let player {
             if isScrubbing {
-                scheduleScrubOverlayRefresh()
+                requestScrubOverlayRefresh()
             }
             let targetTime = CMTime(seconds: clamped, preferredTimescale: 600)
             if isScrubbing {
@@ -1301,6 +1301,20 @@ final class StudioModel: ObservableObject {
             self.pendingScrubOverlayRefreshTask = nil
             self.scheduleScrubOverlayRefresh()
         }
+    }
+
+    private func requestScrubOverlayRefresh() {
+        guard !isExporting else { return }
+        guard videoURL != nil, series != nil else {
+            refreshOverlayOnly(coalesceIfBusy: true)
+            return
+        }
+
+        refreshOverlayOnly(
+            minimumInterval: Self.scrubOverlayRefreshInterval,
+            coalesceIfBusy: true
+        )
+        scheduleScrubOverlayRefresh()
     }
 
     nonisolated private static func renderOverlayImage(
