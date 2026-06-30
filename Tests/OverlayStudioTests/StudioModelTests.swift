@@ -294,6 +294,22 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(PreviewCanvasState(model: model), initialState)
     }
 
+    func testPreviewCanvasStateTracksScrubTime() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, distanceMeters: 40)
+        ])
+        let initialState = PreviewCanvasState(model: model)
+
+        model.scrubPreview(to: 3.25)
+        let scrubbedState = PreviewCanvasState(model: model)
+
+        XCTAssertNotEqual(scrubbedState, initialState)
+        XCTAssertEqual(scrubbedState.previewTime, 3.25, accuracy: 0.001)
+        XCTAssertTrue(scrubbedState.isScrubbingPreview)
+    }
+
     func testPreviewControlsStateIgnoresUnrelatedDebugLogChanges() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [TelemetrySample(elapsed: 0, distanceMeters: 0)])
