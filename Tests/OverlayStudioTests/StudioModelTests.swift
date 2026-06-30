@@ -363,9 +363,9 @@ final class StudioModelTests: XCTestCase {
     }
 
     func testPreviewTimelineMapsPointerPositionToClampedValue() {
-        XCTAssertEqual(FocusableTimelineSlider.value(forX: 50, width: 100, minValue: 10, maxValue: 20), 15)
-        XCTAssertEqual(FocusableTimelineSlider.value(forX: -20, width: 100, minValue: 10, maxValue: 20), 10)
-        XCTAssertEqual(FocusableTimelineSlider.value(forX: 120, width: 100, minValue: 10, maxValue: 20), 20)
+        XCTAssertEqual(PreviewTimelineSlider.value(forX: 50, width: 100, minValue: 10, maxValue: 20), 15)
+        XCTAssertEqual(PreviewTimelineSlider.value(forX: -20, width: 100, minValue: 10, maxValue: 20), 10)
+        XCTAssertEqual(PreviewTimelineSlider.value(forX: 120, width: 100, minValue: 10, maxValue: 20), 20)
     }
 
     func testSourceFrameRatePresetOnlyAppearsWhenExportable() {
