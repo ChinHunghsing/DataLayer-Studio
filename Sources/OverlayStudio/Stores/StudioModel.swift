@@ -44,6 +44,7 @@ final class StudioModel: ObservableObject {
     static let playerTimeObserverInterval: TimeInterval = 1.0 / 12.0
     static let playbackOverlayRefreshInterval: TimeInterval = 0.20
     static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 60.0
+    static let scrubPreviewMaximumRenderDimension: CGFloat = 960
     static let scrubInteractionHoldInterval: TimeInterval = 0.16
     static let previewResizeRefreshDelay: TimeInterval = 0.16
     static let dragOverlayRenderDelay: TimeInterval = 1.0 / 120.0
@@ -757,6 +758,7 @@ final class StudioModel: ObservableObject {
                 guard remaining > 0 else {
                     self.isScrubbingPreview = false
                     self.scrubInteractionTask = nil
+                    self.refreshOverlayOnly(coalesceIfBusy: true)
                     return
                 }
                 do {
@@ -1235,17 +1237,28 @@ final class StudioModel: ObservableObject {
     }
 
     private func sanitizedPreviewSize(_ size: CGSize) -> CGSize {
+        sanitizedPreviewSize(size, maximumDimension: maximumPreviewRenderDimension)
+    }
+
+    private func sanitizedPreviewSize(_ size: CGSize, maximumDimension: CGFloat) -> CGSize {
         var width = sanitizedPreviewDimension(size.width, fallback: CGFloat(outputWidth))
         var height = sanitizedPreviewDimension(size.height, fallback: CGFloat(outputHeight))
 
         let longestSide = max(width, height)
-        if longestSide > maximumPreviewRenderDimension {
-            let scale = maximumPreviewRenderDimension / longestSide
+        if longestSide > maximumDimension {
+            let scale = maximumDimension / longestSide
             width *= scale
             height *= scale
         }
 
         return CGSize(width: max(2, width.rounded()), height: max(2, height.rounded()))
+    }
+
+    private func scrubPreviewOverlayRenderSize() -> CGSize {
+        sanitizedPreviewSize(
+            currentPreviewOverlayRenderSize(),
+            maximumDimension: Self.scrubPreviewMaximumRenderDimension
+        )
     }
 
     private func sanitizedPreviewDimension(_ value: CGFloat, fallback: CGFloat) -> CGFloat {
@@ -1285,7 +1298,10 @@ final class StudioModel: ObservableObject {
         if delay <= 0.001 {
             pendingScrubOverlayRefreshTask?.cancel()
             pendingScrubOverlayRefreshTask = nil
-            refreshOverlayOnly(coalesceIfBusy: true)
+            refreshOverlayOnly(
+                previewSize: scrubPreviewOverlayRenderSize(),
+                coalesceIfBusy: false
+            )
             return
         }
 
@@ -1299,7 +1315,10 @@ final class StudioModel: ObservableObject {
 
             guard let self else { return }
             self.pendingScrubOverlayRefreshTask = nil
-            self.scheduleScrubOverlayRefresh()
+            self.refreshOverlayOnly(
+                previewSize: self.scrubPreviewOverlayRenderSize(),
+                coalesceIfBusy: false
+            )
         }
     }
 
@@ -1310,10 +1329,6 @@ final class StudioModel: ObservableObject {
             return
         }
 
-        refreshOverlayOnly(
-            minimumInterval: Self.scrubOverlayRefreshInterval,
-            coalesceIfBusy: true
-        )
         scheduleScrubOverlayRefresh()
     }
 
