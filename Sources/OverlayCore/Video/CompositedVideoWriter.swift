@@ -116,7 +116,7 @@ public final class CompositedVideoWriter {
             videoTracks: [videoTrack],
             videoSettings: OverlayPixelBufferAttributes.canvas(width: width, height: height)
         )
-        readerOutput.videoComposition = makeVideoComposition(track: videoTrack, width: width, height: height)
+        readerOutput.videoComposition = makeVideoComposition(track: videoTrack, width: width, height: height, timing: timing)
         readerOutput.alwaysCopiesSampleData = false
         guard reader.canAdd(readerOutput) else {
             throw OverlayVideoError.unreadableVideo("Could not read composited video frames from \(sourceVideoURL.path).")
@@ -125,6 +125,7 @@ public final class CompositedVideoWriter {
 
         let hardwareProfile = OverlayHardwareProfile.current
         let writer = try AVAssetWriter(outputURL: temporaryOutputURL, fileType: .mov)
+        writer.movieTimeScale = timing.mediaTimeScale
         let input = AVAssetWriterInput(
             mediaType: .video,
             outputSettings: videoOutputSettings(
@@ -133,10 +134,11 @@ public final class CompositedVideoWriter {
                 codec: config.codec,
                 averageBitRate: config.averageBitRate,
                 encoderFrameRate: encoderFrameRate,
+                expectedSourceFrameRate: timing.framesPerSecond,
                 hardwareProfile: hardwareProfile
             )
         )
-        input.mediaTimeScale = TransparentVideoFrameTiming.preferredTimescale
+        input.mediaTimeScale = timing.mediaTimeScale
         input.expectsMediaDataInRealTime = false
         input.performsMultiPassEncodingIfSupported = false
         guard writer.canAdd(input) else {
@@ -208,7 +210,12 @@ public final class CompositedVideoWriter {
                     colorSpace: colorSpace
                 )
 
-                guard adaptor.append(outputBuffer, withPresentationTime: presentationTime) else {
+                guard try TransparentVideoWriter.appendPixelBuffer(
+                    outputBuffer,
+                    to: input,
+                    at: presentationTime,
+                    duration: timing.frameDuration
+                ) else {
                     throw OverlayVideoError.writerFailed(describe(error: writer.error, codec: config.codec))
                 }
 
@@ -222,6 +229,7 @@ public final class CompositedVideoWriter {
             }
         }
 
+        writer.endSession(atSourceTime: timing.outputDuration)
         input.markAsFinished()
         if reader.status == .failed {
             writer.cancelWriting()
@@ -269,7 +277,12 @@ public final class CompositedVideoWriter {
         try validateOutputURL()
     }
 
-    private func makeVideoComposition(track: AVAssetTrack, width: Int, height: Int) -> AVMutableVideoComposition {
+    private func makeVideoComposition(
+        track: AVAssetTrack,
+        width: Int,
+        height: Int,
+        timing: TransparentVideoFrameTiming
+    ) -> AVMutableVideoComposition {
         let outputSize = CGSize(width: width, height: height)
         let naturalSize = track.naturalSize
         let preferredTransform = track.preferredTransform
@@ -288,17 +301,14 @@ public final class CompositedVideoWriter {
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = CMTimeRange(
             start: .zero,
-            duration: CMTime(seconds: config.duration, preferredTimescale: TransparentVideoFrameTiming.preferredTimescale)
+            duration: timing.outputDuration
         )
         instruction.layerInstructions = [layer]
 
         let composition = AVMutableVideoComposition()
         composition.instructions = [instruction]
         composition.renderSize = outputSize
-        composition.frameDuration = CMTime(
-            seconds: 1.0 / max(1, config.framesPerSecond),
-            preferredTimescale: TransparentVideoFrameTiming.preferredTimescale
-        )
+        composition.frameDuration = timing.frameDuration
         composition.renderScale = 1
         return composition
     }
@@ -316,7 +326,10 @@ public final class CompositedVideoWriter {
         }
 
         let composition = AVMutableComposition()
-        let duration = CMTime(seconds: config.duration, preferredTimescale: TransparentVideoFrameTiming.preferredTimescale)
+        let duration = TransparentVideoFrameTiming(
+            framesPerSecond: config.framesPerSecond,
+            duration: config.duration
+        ).outputDuration
         let timeRange = CMTimeRange(start: .zero, duration: duration)
 
         guard let compositionVideo = composition.addMutableTrack(
@@ -394,6 +407,7 @@ public final class CompositedVideoWriter {
         codec: OverlayVideoCodec,
         averageBitRate: Int,
         encoderFrameRate: Int,
+        expectedSourceFrameRate: Double,
         hardwareProfile: OverlayHardwareProfile
     ) -> [String: Any] {
         var settings: [String: Any] = [
@@ -409,7 +423,7 @@ public final class CompositedVideoWriter {
         }
         settings[AVVideoCompressionPropertiesKey] = [
             AVVideoAverageBitRateKey: averageBitRate,
-            AVVideoExpectedSourceFrameRateKey: encoderFrameRate,
+            AVVideoExpectedSourceFrameRateKey: expectedSourceFrameRate,
             AVVideoMaxKeyFrameIntervalKey: encoderFrameRate,
             AVVideoAllowFrameReorderingKey: false,
             kVTCompressionPropertyKey_RealTime as String: true,

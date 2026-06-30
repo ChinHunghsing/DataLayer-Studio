@@ -18,6 +18,17 @@ final class TransparentVideoWriterTests: XCTestCase {
         XCTAssertEqual(CMTimeGetSeconds(timing.presentationTime(for: 17_982)), 600, accuracy: 0.00001)
     }
 
+    func testNTSCTimingMatchesSourceFrameBoundary() {
+        let fps = 30_000.0 / 1_001.0
+        let duration = Double(10_049 * 1_001) / 30_000
+        let timing = TransparentVideoFrameTiming(framesPerSecond: fps, duration: duration)
+
+        XCTAssertEqual(timing.frameCount, 10_049)
+        XCTAssertEqual(timing.mediaTimeScale, 30_000)
+        XCTAssertEqual(timing.presentationTime(for: 10_048), CMTime(value: 10_048 * 1_001, timescale: 30_000))
+        XCTAssertEqual(CMTimeGetSeconds(timing.outputDuration), duration, accuracy: 0.000000001)
+    }
+
     func testFrameTimingSanitizesInvalidValues() {
         let timing = TransparentVideoFrameTiming(framesPerSecond: .nan, duration: -.infinity)
 
@@ -292,6 +303,49 @@ final class TransparentVideoWriterTests: XCTestCase {
         XCTAssertEqual(tracks.count, 1)
         let timeScale = try await tracks[0].load(.naturalTimeScale)
         XCTAssertEqual(timeScale, TransparentVideoFrameTiming.preferredTimescale)
+    }
+
+    func testWriterKeepsNTSCTrackTimeScaleWhenSourceRateIsExact() async throws {
+        guard OverlayHardwareProfile.current.canUseHardwareEncoder(for: .hevcAlpha) else {
+            throw XCTSkip("This Mac does not list a hardware HEVC-with-alpha encoder.")
+        }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("overlay-ntsc-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        defer {
+            if FileManager.default.fileExists(atPath: outputURL.path) {
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+        }
+
+        let fps = 30_000.0 / 1_001.0
+        let writer = TransparentVideoWriter(
+            outputURL: outputURL,
+            series: TelemetrySeries(samples: [
+                TelemetrySample(elapsed: 0, distanceMeters: 0)
+            ]),
+            config: TransparentVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: fps,
+                duration: Double(2 * 1_001) / 30_000
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableHEVCAlphaTestEncoder {
+            throw XCTSkip("HEVC-with-alpha encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let asset = AVURLAsset(url: outputURL)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        XCTAssertEqual(tracks.count, 1)
+        let timeScale = try await tracks[0].load(.naturalTimeScale)
+        let duration = try await tracks[0].load(.timeRange).duration
+        XCTAssertEqual(timeScale, 30_000)
+        XCTAssertEqual(CMTimeGetSeconds(duration), Double(2 * 1_001) / 30_000, accuracy: 0.000000001)
     }
 
     func testHEVCAlphaKeepsEmptyPixelsTransparent() async throws {

@@ -112,16 +112,30 @@ public struct TransparentVideoFrameTiming {
 
     public let framesPerSecond: Double
     public let duration: TimeInterval
+    public let frameDuration: CMTime
     public let frameCount: Int
     public let frameCountWasClamped: Bool
+    private let usesExactFrameDuration: Bool
+    public var mediaTimeScale: CMTimeScale { frameDuration.timescale }
+    public var outputDuration: CMTime { presentationTime(for: frameCount) }
 
     public init(framesPerSecond: Double, duration: TimeInterval) {
         let fps = framesPerSecond.isFinite ? framesPerSecond : 1
         let duration = duration.isFinite ? duration : 0
         self.framesPerSecond = max(1, fps)
         self.duration = max(0, duration)
+        if let exactFrameDuration = Self.exactFrameDuration(framesPerSecond: self.framesPerSecond) {
+            self.frameDuration = exactFrameDuration
+            self.usesExactFrameDuration = true
+        } else {
+            self.frameDuration = CMTime(
+                seconds: 1.0 / self.framesPerSecond,
+                preferredTimescale: Self.preferredTimescale
+            )
+            self.usesExactFrameDuration = false
+        }
 
-        let rawFrameCount = ceil(self.duration * self.framesPerSecond)
+        let rawFrameCount = ceil(self.duration * self.framesPerSecond - 0.000_000_1)
         if rawFrameCount.isFinite, rawFrameCount < Double(Int.max) {
             self.frameCount = max(1, Int(rawFrameCount))
             self.frameCountWasClamped = false
@@ -136,10 +150,33 @@ public struct TransparentVideoFrameTiming {
 
     public func presentationTime(for frameIndex: Int) -> CMTime {
         let safeFrameIndex = max(0, frameIndex)
-        return CMTime(
-            seconds: Double(safeFrameIndex) / framesPerSecond,
-            preferredTimescale: Self.preferredTimescale
-        )
+        guard usesExactFrameDuration else {
+            return CMTime(
+                seconds: Double(safeFrameIndex) / framesPerSecond,
+                preferredTimescale: Self.preferredTimescale
+            )
+        }
+        let multiplied = CMTimeValue(safeFrameIndex).multipliedReportingOverflow(by: frameDuration.value)
+        if multiplied.overflow {
+            return CMTime(
+                seconds: Double(safeFrameIndex) * CMTimeGetSeconds(frameDuration),
+                preferredTimescale: frameDuration.timescale
+            )
+        }
+        return CMTime(value: multiplied.partialValue, timescale: frameDuration.timescale)
+    }
+
+    private static func exactFrameDuration(framesPerSecond: Double) -> CMTime? {
+        let ntscRates: [(fps: Double, frameTicks: CMTimeValue, timeScale: CMTimeScale)] = [
+            (24_000.0 / 1_001.0, 1_001, 24_000),
+            (30_000.0 / 1_001.0, 1_001, 30_000),
+            (60_000.0 / 1_001.0, 1_001, 60_000),
+            (120_000.0 / 1_001.0, 1_001, 120_000)
+        ]
+        if let exact = ntscRates.first(where: { abs(framesPerSecond - $0.fps) < 0.000_001 }) {
+            return CMTime(value: exact.frameTicks, timescale: exact.timeScale)
+        }
+        return nil
     }
 }
 
@@ -208,17 +245,19 @@ public final class TransparentVideoWriter {
 
         let hardwareProfile = OverlayHardwareProfile.current
         let writer = try AVAssetWriter(outputURL: temporaryOutputURL, fileType: .mov)
+        writer.movieTimeScale = timing.mediaTimeScale
         let settings = Self.videoOutputSettings(
             width: width,
             height: height,
             codec: config.codec,
             averageBitRate: config.averageBitRate,
             encoderFrameRate: encoderFrameRate,
+            expectedSourceFrameRate: fps,
             hardwareProfile: hardwareProfile
         )
 
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
-        input.mediaTimeScale = TransparentVideoFrameTiming.preferredTimescale
+        input.mediaTimeScale = timing.mediaTimeScale
         input.expectsMediaDataInRealTime = false
         input.performsMultiPassEncodingIfSupported = false
         guard writer.canAdd(input) else {
@@ -294,7 +333,12 @@ public final class TransparentVideoWriter {
                     } else {
                         Self.preparePremultipliedAlphaForEncoding(on: appendBuffer)
                     }
-                    guard adaptor.append(appendBuffer, withPresentationTime: presentationTime) else {
+                    guard try Self.appendPixelBuffer(
+                        appendBuffer,
+                        to: input,
+                        at: presentationTime,
+                        duration: timing.frameDuration
+                    ) else {
                         throw OverlayVideoError.writerFailed(self.describe(error: writer.error, codec: codec))
                     }
 
@@ -309,6 +353,7 @@ public final class TransparentVideoWriter {
 
             if (frameIndex >= frameCount || renderError != nil), !didFinishInput {
                 didFinishInput = true
+                writer.endSession(atSourceTime: timing.outputDuration)
                 input.markAsFinished()
                 renderFinished.signal()
             }
@@ -365,6 +410,7 @@ public final class TransparentVideoWriter {
         codec: OverlayVideoCodec,
         averageBitRate: Int,
         encoderFrameRate: Int,
+        expectedSourceFrameRate: Double? = nil,
         hardwareProfile: OverlayHardwareProfile
     ) -> [String: Any] {
         var settings: [String: Any] = [
@@ -381,9 +427,8 @@ public final class TransparentVideoWriter {
         }
 
         if codec == .hevcAlpha {
-            settings[AVVideoCompressionPropertiesKey] = [
+            var compressionProperties: [String: Any] = [
                 AVVideoAverageBitRateKey: averageBitRate,
-                AVVideoExpectedSourceFrameRateKey: encoderFrameRate,
                 AVVideoMaxKeyFrameIntervalKey: encoderFrameRate,
                 AVVideoAllowFrameReorderingKey: false,
                 kVTCompressionPropertyKey_RealTime as String: true,
@@ -391,6 +436,11 @@ public final class TransparentVideoWriter {
                 kVTCompressionPropertyKey_AlphaChannelMode as String: kVTAlphaChannelMode_StraightAlpha,
                 kVTCompressionPropertyKey_TargetQualityForAlpha as String: 1.0
             ]
+            let expectedRate = expectedSourceFrameRate ?? Double(encoderFrameRate)
+            if abs(expectedRate.rounded() - expectedRate) < 0.000_001 {
+                compressionProperties[AVVideoExpectedSourceFrameRateKey] = expectedRate
+            }
+            settings[AVVideoCompressionPropertiesKey] = compressionProperties
         }
 
         return settings
@@ -441,6 +491,41 @@ public final class TransparentVideoWriter {
             throw OverlayVideoError.cannotCreatePixelBuffer
         }
         return pixelBuffer
+    }
+
+    static func appendPixelBuffer(
+        _ pixelBuffer: CVPixelBuffer,
+        to input: AVAssetWriterInput,
+        at presentationTime: CMTime,
+        duration: CMTime
+    ) throws -> Bool {
+        var formatDescription: CMVideoFormatDescription?
+        let formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: pixelBuffer,
+            formatDescriptionOut: &formatDescription
+        )
+        guard formatStatus == noErr, let formatDescription else {
+            throw OverlayVideoError.cannotCreatePixelBuffer
+        }
+
+        var timing = CMSampleTimingInfo(
+            duration: duration,
+            presentationTimeStamp: presentationTime,
+            decodeTimeStamp: .invalid
+        )
+        var sampleBuffer: CMSampleBuffer?
+        let sampleStatus = CMSampleBufferCreateReadyWithImageBuffer(
+            allocator: kCFAllocatorDefault,
+            imageBuffer: pixelBuffer,
+            formatDescription: formatDescription,
+            sampleTiming: &timing,
+            sampleBufferOut: &sampleBuffer
+        )
+        guard sampleStatus == noErr, let sampleBuffer else {
+            throw OverlayVideoError.cannotCreatePixelBuffer
+        }
+        return input.append(sampleBuffer)
     }
 
     static func hardwareEncoderSpecification(
