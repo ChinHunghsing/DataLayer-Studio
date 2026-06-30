@@ -696,6 +696,14 @@ final class StudioModel: ObservableObject {
         seekPreview(to: time, coalesceOverlayRefresh: true, isScrubbing: true)
     }
 
+    func scrubPreviewLive(to time: TimeInterval) {
+        guard !isExporting else { return }
+        let clamped = min(max(0, time), max(previewDuration, 0))
+        beginPreviewScrubInteraction()
+        guard player != nil else { return }
+        scheduleScrubPlayerSeek(to: clamped)
+    }
+
     func stepPreviewFrame(by frameOffset: Int) {
         guard frameOffset != 0 else { return }
         scrubPreview(to: previewTime + Double(frameOffset) * previewFrameDuration)
@@ -747,7 +755,9 @@ final class StudioModel: ObservableObject {
     }
 
     private func beginPreviewScrubInteraction() {
-        isScrubbingPreview = true
+        if !isScrubbingPreview {
+            isScrubbingPreview = true
+        }
         scrubInteractionExpiresAt = Date().addingTimeInterval(Self.scrubInteractionHoldInterval)
         guard scrubInteractionTask == nil else { return }
         scrubInteractionTask = Task { @MainActor [weak self] in

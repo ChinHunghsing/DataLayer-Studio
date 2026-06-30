@@ -60,7 +60,7 @@ struct PreviewControlsPanel: View {
                     get: { liveScrubTime ?? model.previewTime },
                     set: {
                         liveScrubTime = $0
-                        model.scrubPreview(to: $0)
+                        model.seekPreview(to: $0)
                     }
                 ),
                 range: 0...max(state.previewDuration, 1),
@@ -70,7 +70,10 @@ struct PreviewControlsPanel: View {
                     model.stepPreviewFrame(by: $0)
                     liveScrubTime = model.previewTime
                 },
-                onLiveChange: { liveScrubTime = $0 }
+                onLiveChange: {
+                    liveScrubTime = $0
+                    model.scrubPreviewLive(to: $0)
+                }
             )
             .frame(minWidth: 140)
 

@@ -38,7 +38,12 @@ struct PreviewTimelineSlider: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { update(locationX: $0.location.x, width: width) }
-                    .onEnded { _ in dragValue = nil }
+                    .onEnded { _ in
+                        if let dragValue {
+                            value = dragValue
+                        }
+                        dragValue = nil
+                    }
             )
         }
         .frame(height: 22)
@@ -68,7 +73,6 @@ struct PreviewTimelineSlider: View {
         let nextValue = Self.value(forX: locationX, width: width, minValue: range.lowerBound, maxValue: range.upperBound)
         guard abs((dragValue ?? value) - nextValue) > Self.valueChangeEpsilon else { return }
         dragValue = nextValue
-        value = nextValue
         onLiveChange(nextValue)
     }
 

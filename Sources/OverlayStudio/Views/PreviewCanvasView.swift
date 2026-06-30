@@ -133,7 +133,9 @@ struct PreviewCanvasView: View {
         alignedMetricWidth: CGFloat?,
         state: PreviewCanvasState
     ) -> some View {
-        ZStack {
+        let isLiveScrubbing = (state.isScrubbingPreview || liveScrubTime != nil) && state.hasSeries && activeDrag == nil
+
+        return ZStack {
             Color(nsColor: .underPageBackgroundColor)
 
             if let player = state.player {
@@ -171,7 +173,7 @@ struct PreviewCanvasView: View {
                         displayRect: displayRect
                     )
                 }
-            } else if let overlay = state.overlayImage {
+            } else if let overlay = state.overlayImage, !isLiveScrubbing {
                 overlayImage(overlay, displayRect: displayRect)
             }
 
@@ -199,7 +201,7 @@ struct PreviewCanvasView: View {
                 }
             }
 
-            if (state.isScrubbingPreview || liveScrubTime != nil), state.hasSeries, activeDrag == nil {
+            if isLiveScrubbing {
                 liveScrubOverlay(
                     displayRect: displayRect,
                     visibleElements: visibleElements,

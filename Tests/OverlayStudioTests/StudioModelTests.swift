@@ -312,6 +312,20 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(liveState.previewTime, 4.5, accuracy: 0.001)
     }
 
+    func testLivePreviewScrubDoesNotPublishPreviewTime() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, distanceMeters: 40)
+        ])
+
+        model.previewTime = 1
+        model.scrubPreviewLive(to: 4.5)
+
+        XCTAssertEqual(model.previewTime, 1, accuracy: 0.001)
+        XCTAssertTrue(model.isScrubbingPreview)
+    }
+
     func testPreviewControlsStateIgnoresUnrelatedDebugLogChanges() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [TelemetrySample(elapsed: 0, distanceMeters: 0)])
