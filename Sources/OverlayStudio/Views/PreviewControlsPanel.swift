@@ -78,8 +78,8 @@ struct PreviewControlsPanel: View {
                     liveScrubController.setTime(model.previewTime)
                 },
                 onLiveChange: {
-                    liveStatusTime = $0
                     liveScrubController.setTime($0)
+                    liveStatusTime = $0
                     model.scrubPreviewLive(to: $0)
                 }
             )

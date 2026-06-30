@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 final class PreviewLiveScrubController {
@@ -108,6 +109,7 @@ final class PreviewLiveOverlayView: NSView {
         hostingView.displayIfNeeded()
         layer?.displayIfNeeded()
         hostingView.layer?.displayIfNeeded()
+        CATransaction.flush()
     }
 
     override func draw(_ dirtyRect: NSRect) {
