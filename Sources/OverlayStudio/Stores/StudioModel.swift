@@ -1111,14 +1111,27 @@ final class StudioModel: ObservableObject {
         return previewOverlayRenderSize
     }
 
-    func beginElementDrag(id: String, previewSize: CGSize) {
-        guard let currentSeries = series,
-              let element = layout.elements.first(where: { $0.id == id }) else {
+    func beginElementDrag(
+        id: String,
+        previewSize: CGSize,
+        renderFallbackSnapshots: Bool = true
+    ) {
+        guard let element = layout.elements.first(where: { $0.id == id }) else {
             return
         }
 
         previewRenderGeneration += 1
         let generation = previewRenderGeneration
+
+        previewRenderTask?.cancel()
+        dragRenderTask?.cancel()
+        draggedElementID = id
+        dragBaseOverlayImage = nil
+        dragOverlayImage = nil
+        guard renderFallbackSnapshots, let currentSeries = series else {
+            dragRenderTask = nil
+            return
+        }
 
         let time = previewTime
         let renderSize = sanitizedPreviewSize(previewSize)
@@ -1130,11 +1143,6 @@ final class StudioModel: ObservableObject {
         let renderDelay = canUseExistingDragSnapshot ? Self.dragBaseOverlayRenderDelay : Self.dragOverlayRenderDelay
         let delayNanoseconds = UInt64(max(0, renderDelay) * 1_000_000_000)
 
-        previewRenderTask?.cancel()
-        dragRenderTask?.cancel()
-        draggedElementID = id
-        dragBaseOverlayImage = nil
-        dragOverlayImage = nil
         dragRenderTask = Task.detached(priority: .userInitiated) { [previewRenderer] in
             do {
                 try await Task.sleep(nanoseconds: delayNanoseconds)

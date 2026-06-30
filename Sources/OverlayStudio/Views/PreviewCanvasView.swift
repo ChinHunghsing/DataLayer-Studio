@@ -361,8 +361,9 @@ struct PreviewCanvasView: View {
             let sourceElementSnapshot = sourceOverlay.flatMap {
                 PreviewSnapshotSlicer.sliceImage($0, cropRect: sourceRect, displayRect: displayRect)
             }
+            let baseSnapshotRects = dragBaseSnapshotRects(displayRect: displayRect, excluding: sourceRect)
             let baseSnapshots = sourceOverlay.map { overlay in
-                dragBaseSnapshotRects(displayRect: displayRect, excluding: sourceRect).compactMap { rect in
+                baseSnapshotRects.compactMap { rect in
                     PreviewSnapshotSlicer.slice(
                         image: overlay,
                         cropRect: rect,
@@ -392,7 +393,11 @@ struct PreviewCanvasView: View {
             )
             dragState = initialDragState
             self.activeDrag = initialDragState
-            model.beginElementDrag(id: id, previewSize: previewOverlayRenderSize(for: displayRect.size))
+            model.beginElementDrag(
+                id: id,
+                previewSize: previewOverlayRenderSize(for: displayRect.size),
+                renderFallbackSnapshots: sourceElementSnapshot == nil || baseSnapshots.count != baseSnapshotRects.count
+            )
         }
         guard var activeDrag = dragState else { return }
 
@@ -1119,19 +1124,26 @@ enum PreviewSnapshotSlicer {
             return nil
         }
 
-        let scaleX = image.size.width / displayRect.width
-        let scaleY = image.size.height / displayRect.height
+        var proposedRect = CGRect(origin: .zero, size: image.size)
+        guard let cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) else {
+            return nil
+        }
+
+        let imageSize = CGSize(width: cgImage.width, height: cgImage.height)
+        let scaleX = imageSize.width / displayRect.width
+        let scaleY = imageSize.height / displayRect.height
         let sourceRect = CGRect(
             x: (cropRect.minX - displayRect.minX) * scaleX,
-            y: image.size.height - ((cropRect.maxY - displayRect.minY) * scaleY),
+            y: (cropRect.minY - displayRect.minY) * scaleY,
             width: cropRect.width * scaleX,
             height: cropRect.height * scaleY
         )
-        let imageBounds = CGRect(origin: .zero, size: image.size)
+        let imageBounds = CGRect(origin: .zero, size: imageSize)
         let clippedSourceRect = sourceRect.integral.intersection(imageBounds)
         guard !clippedSourceRect.isNull,
               clippedSourceRect.width > 0,
-              clippedSourceRect.height > 0 else {
+              clippedSourceRect.height > 0,
+              let croppedImage = cgImage.cropping(to: clippedSourceRect) else {
             return nil
         }
 
@@ -1139,16 +1151,7 @@ enum PreviewSnapshotSlicer {
             width: clippedSourceRect.width / scaleX,
             height: clippedSourceRect.height / scaleY
         )
-        let output = NSImage(size: outputSize)
-        output.lockFocus()
-        image.draw(
-            in: CGRect(origin: .zero, size: outputSize),
-            from: clippedSourceRect,
-            operation: .copy,
-            fraction: 1
-        )
-        output.unlockFocus()
-        return output
+        return NSImage(cgImage: croppedImage, size: outputSize)
     }
 }
 
