@@ -14,6 +14,7 @@ struct PreviewCanvasView: View {
     @State private var activeDrag: ComponentDragState?
     @State private var magnificationStartZoom: Double?
     @State private var liveScrubTime: TimeInterval?
+    @State private var liveScrubController = PreviewLiveScrubController()
 
     init(
         model: StudioModel,
@@ -39,6 +40,7 @@ struct PreviewCanvasView: View {
                     state: controlsState,
                     zoom: $zoom,
                     liveScrubTime: $liveScrubTime,
+                    liveScrubController: liveScrubController,
                     isFullscreen: isFullscreen,
                     onToggleFullscreen: onToggleFullscreen
                 )
@@ -51,6 +53,7 @@ struct PreviewCanvasView: View {
                     state: controlsState,
                     zoom: $zoom,
                     liveScrubTime: $liveScrubTime,
+                    liveScrubController: liveScrubController,
                     isFullscreen: isFullscreen,
                     onToggleFullscreen: onToggleFullscreen
                 )
@@ -173,8 +176,14 @@ struct PreviewCanvasView: View {
                         displayRect: displayRect
                     )
                 }
-            } else if let overlay = state.overlayImage, !isLiveScrubbing {
-                overlayImage(overlay, displayRect: displayRect)
+            } else if state.hasSeries {
+                previewLiveOverlayHost(
+                    cachedOverlay: state.overlayImage,
+                    displayRect: displayRect,
+                    contentSize: contentSize,
+                    visibleElements: visibleElements,
+                    alignedMetricWidth: alignedMetricWidth
+                )
             }
 
             if let activeDrag {
@@ -199,15 +208,6 @@ struct PreviewCanvasView: View {
                         translation: activeDrag.translation
                     )
                 }
-            }
-
-            if isLiveScrubbing {
-                liveScrubOverlay(
-                    displayRect: displayRect,
-                    visibleElements: visibleElements,
-                    alignedMetricWidth: alignedMetricWidth
-                )
-                .allowsHitTesting(false)
             }
 
             if state.showGrid {
@@ -252,6 +252,7 @@ struct PreviewCanvasView: View {
         .onChange(of: state.isScrubbingPreview) { isScrubbing in
             if !isScrubbing {
                 liveScrubTime = nil
+                liveScrubController.setTime(nil)
             }
         }
     }
@@ -1022,10 +1023,40 @@ struct PreviewCanvasView: View {
             .allowsHitTesting(false)
     }
 
+    private func previewLiveOverlayHost(
+        cachedOverlay: NSImage?,
+        displayRect: CGRect,
+        contentSize: CGSize,
+        visibleElements: [OverlayElement],
+        alignedMetricWidth: CGFloat?
+    ) -> some View {
+        PreviewLiveOverlayHost(
+            controller: liveScrubController,
+            cachedOverlay: cachedOverlay,
+            contentSize: contentSize,
+            displayRect: displayRect,
+            liveContent: { videoTime in
+                AnyView(
+                    liveScrubOverlay(
+                        displayRect: displayRect,
+                        visibleElements: visibleElements,
+                        alignedMetricWidth: alignedMetricWidth,
+                        videoTime: videoTime
+                    )
+                    .frame(width: contentSize.width, height: contentSize.height)
+                    .allowsHitTesting(false)
+                )
+            }
+        )
+        .frame(width: contentSize.width, height: contentSize.height)
+        .allowsHitTesting(false)
+    }
+
     private func liveScrubOverlay(
         displayRect: CGRect,
         visibleElements: [OverlayElement],
-        alignedMetricWidth: CGFloat?
+        alignedMetricWidth: CGFloat?,
+        videoTime: TimeInterval
     ) -> some View {
         ZStack {
             ForEach(visibleElements) { element in
@@ -1036,15 +1067,15 @@ struct PreviewCanvasView: View {
                 )
                 switch element.kind {
                 case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
-                    liveMetricOverlay(element: element, rect: rect, displayRect: displayRect)
+                    liveMetricOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
                 case .topProgress:
-                    liveTopProgressOverlay(element: element, rect: rect, displayRect: displayRect)
+                    liveTopProgressOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
                 case .timeDate:
-                    liveTimeDateOverlay(element: element, rect: rect, displayRect: displayRect)
+                    liveTimeDateOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
                 case .route:
-                    liveRouteMarkerOverlay(element: element, rect: rect, displayRect: displayRect)
+                    liveRouteMarkerOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
                 case .speed:
-                    liveSpeedOverlay(element: element, rect: rect, displayRect: displayRect)
+                    liveSpeedOverlay(element: element, rect: rect, displayRect: displayRect, videoTime: videoTime)
                 }
             }
         }
@@ -1054,8 +1085,8 @@ struct PreviewCanvasView: View {
         }
     }
 
-    private func liveMetricOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect) -> some View {
-        let text = metricText(for: element)
+    private func liveMetricOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
+        let text = metricText(for: element, sample: telemetrySample(videoTime: videoTime))
         let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
         let textScale = outputScale * CGFloat(element.frame.style.textScale)
         let displayScale = displayScale(for: displayRect)
@@ -1141,8 +1172,9 @@ struct PreviewCanvasView: View {
         .position(x: rect.midX, y: rect.midY)
     }
 
-    private func liveTimeDateOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect) -> some View {
-        let text = timeDateText(for: element)
+    private func liveTimeDateOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
+        let sample = telemetrySample(videoTime: videoTime)
+        let text = timeDateText(for: element, sample: sample, videoTime: videoTime)
         let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
         let textScale = outputScale * CGFloat(element.frame.style.textScale)
         let displayScale = displayScale(for: displayRect)
@@ -1189,8 +1221,8 @@ struct PreviewCanvasView: View {
         .position(x: rect.midX, y: rect.midY)
     }
 
-    private func liveSpeedOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect) -> some View {
-        let sample = currentTelemetrySample()
+    private func liveSpeedOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
+        let sample = telemetrySample(videoTime: videoTime)
         let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
         let textScale = outputScale * CGFloat(element.frame.style.textScale)
         let displayScale = displayScale(for: displayRect)
@@ -1274,8 +1306,8 @@ struct PreviewCanvasView: View {
         .position(x: rect.midX, y: rect.midY)
     }
 
-    private func liveTopProgressOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect) -> some View {
-        let sample = currentTelemetrySample()
+    private func liveTopProgressOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
+        let sample = telemetrySample(videoTime: videoTime)
         let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
         let displayScale = displayScale(for: displayRect)
         let trackHeight = max(1, lineWidth(element, scale: outputScale) * displayScale)
@@ -1355,13 +1387,13 @@ struct PreviewCanvasView: View {
         .position(x: rect.midX, y: rect.midY)
     }
 
-    private func liveRouteMarkerOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect) -> some View {
+    private func liveRouteMarkerOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect, videoTime: TimeInterval) -> some View {
         let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
         let displayScale = displayScale(for: displayRect)
         let mapRect = routeFitDisplayRect(rect, element: element, outputScale: outputScale, displayScale: displayScale)
-        let marker = routeMarkerPoint(in: mapRect)
-        let before = routeMarkerPoint(in: mapRect, elapsedOffset: -2)
-        let after = routeMarkerPoint(in: mapRect, elapsedOffset: 2)
+        let marker = routeMarkerPoint(in: mapRect, videoTime: videoTime)
+        let before = routeMarkerPoint(in: mapRect, videoTime: videoTime, elapsedOffset: -2)
+        let after = routeMarkerPoint(in: mapRect, videoTime: videoTime, elapsedOffset: 2)
         let angle = routeDirectionAngle(before: before, after: after)
         let color = (element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
         let radius = max(3, 6 * outputScale * displayScale)
@@ -1437,9 +1469,9 @@ struct PreviewCanvasView: View {
         return CGRect(x: rect.midX - width / 2, y: rect.minY, width: width, height: rect.height)
     }
 
-    private func routeMarkerPoint(in rect: CGRect, elapsedOffset: TimeInterval = 0) -> CGPoint? {
+    private func routeMarkerPoint(in rect: CGRect, videoTime: TimeInterval, elapsedOffset: TimeInterval = 0) -> CGPoint? {
         guard let series = model.series, let bounds = series.bounds else { return nil }
-        let elapsed = model.timeSync.fitElapsed(forVideoTime: effectivePreviewTime) + elapsedOffset
+        let elapsed = model.timeSync.fitElapsed(forVideoTime: videoTime) + elapsedOffset
         let sample = series.sample(at: elapsed)
         guard let latitude = sample.latitude, let longitude = sample.longitude else { return nil }
         let latSpan = max(bounds.maxLatitude - bounds.minLatitude, 0.000_001)

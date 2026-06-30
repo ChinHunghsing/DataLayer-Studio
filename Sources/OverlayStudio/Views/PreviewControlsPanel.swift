@@ -5,6 +5,7 @@ struct PreviewControlsPanel: View {
     let state: PreviewControlsState
     @Binding var zoom: Double
     @Binding var liveScrubTime: TimeInterval?
+    let liveScrubController: PreviewLiveScrubController
     let isFullscreen: Bool
     let onToggleFullscreen: () -> Void
     @EnvironmentObject private var localization: LocalizationStore
@@ -46,6 +47,7 @@ struct PreviewControlsPanel: View {
         HStack(spacing: 8) {
             Button {
                 liveScrubTime = nil
+                liveScrubController.setTime(nil)
                 model.togglePlayback()
             } label: {
                 Label(
@@ -69,8 +71,10 @@ struct PreviewControlsPanel: View {
                 onFrameStep: {
                     model.stepPreviewFrame(by: $0)
                     liveScrubTime = model.previewTime
+                    liveScrubController.setTime(model.previewTime)
                 },
                 onLiveChange: {
+                    liveScrubController.setTime($0)
                     liveScrubTime = $0
                     model.scrubPreviewLive(to: $0)
                 }
