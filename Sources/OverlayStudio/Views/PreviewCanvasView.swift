@@ -64,9 +64,10 @@ struct PreviewCanvasView: View {
             let zoomFactor = CGFloat(clampedZoom(zoom))
             let canvasSize = CGSize(width: fitSize.width * zoomFactor, height: fitSize.height * zoomFactor)
             let overlayRenderSize = previewOverlayRenderSize(for: canvasSize)
-            let visibleElements = model.layout.visibleElements
-            let alignedMetricWidth = alignedMetricOutputWidth(for: visibleElements)
-            let overflowInsets = layoutOverflowInsets(
+            let dragState = activeDrag
+            let visibleElements = dragState?.visibleElements ?? model.layout.visibleElements
+            let alignedMetricWidth = dragState?.alignedMetricWidth ?? alignedMetricOutputWidth(for: visibleElements)
+            let overflowInsets = dragState?.overflowInsets ?? layoutOverflowInsets(
                 canvasSize: canvasSize,
                 visibleElements: visibleElements,
                 alignedMetricWidth: alignedMetricWidth
@@ -79,10 +80,11 @@ struct PreviewCanvasView: View {
                 width: canvasSize.width,
                 height: canvasSize.height
             )
-            let contentSize = CGSize(
+            let computedContentSize = CGSize(
                 width: max(viewportSize.width, displayRect.maxX + overflowInsets.right + stageInsets.trailing),
                 height: max(viewportSize.height, displayRect.maxY + overflowInsets.bottom + stageInsets.bottom)
             )
+            let contentSize = dragState?.contentSize ?? computedContentSize
 
             ScrollView([.horizontal, .vertical]) {
                 previewCanvas(
@@ -149,6 +151,8 @@ struct PreviewCanvasView: View {
             if let activeDrag {
                 if let baseOverlay = model.dragBaseOverlayImage {
                     overlayImage(baseOverlay, displayRect: displayRect)
+                } else if !activeDrag.baseSnapshots.isEmpty {
+                    dragBaseSnapshotSlices(activeDrag.baseSnapshots)
                 } else if let sourceOverlay = activeDrag.sourceOverlay {
                     dragBaseSnapshotOverlay(
                         sourceOverlay,
@@ -161,7 +165,13 @@ struct PreviewCanvasView: View {
             }
 
             if let activeDrag {
-                if let dragOverlay = model.dragOverlayImage {
+                if let sourceElementSnapshot = activeDrag.sourceElementSnapshot {
+                    dragSnapshotImage(
+                        sourceElementSnapshot,
+                        sourceRect: activeDrag.sourceRect,
+                        translation: activeDrag.translation
+                    )
+                } else if let dragOverlay = model.dragOverlayImage {
                     dragSnapshotOverlay(
                         dragOverlay,
                         sourceRect: activeDrag.sourceRect,
@@ -190,6 +200,7 @@ struct PreviewCanvasView: View {
                 componentHandle(
                     element: element,
                     displayRect: displayRect,
+                    contentSize: contentSize,
                     visibleElements: visibleElements,
                     alignedMetricWidth: alignedMetricWidth
                 )
@@ -218,6 +229,7 @@ struct PreviewCanvasView: View {
     private func componentHandle(
         element: OverlayElement,
         displayRect: CGRect,
+        contentSize: CGSize,
         visibleElements: [OverlayElement],
         alignedMetricWidth: CGFloat?
     ) -> some View {
@@ -247,7 +259,9 @@ struct PreviewCanvasView: View {
                         moveElement(
                             targetID,
                             displayRect: displayRect,
+                            contentSize: contentSize,
                             translation: value.translation,
+                            visibleElements: visibleElements,
                             alignedMetricWidth: alignedMetricWidth
                         )
                     }
@@ -328,7 +342,9 @@ struct PreviewCanvasView: View {
     private func moveElement(
         _ id: String,
         displayRect: CGRect,
+        contentSize: CGSize,
         translation: CGSize,
+        visibleElements: [OverlayElement],
         alignedMetricWidth: CGFloat?
     ) {
         guard !model.isExporting else { return }
@@ -336,18 +352,42 @@ struct PreviewCanvasView: View {
         var dragState = activeDrag
         if activeDrag?.id != id, let element = model.layout.elements.first(where: { $0.id == id }) {
             selectElement(id)
+            let sourceRect = componentDisplayRect(
+                element: element,
+                displayRect: displayRect,
+                alignedMetricWidth: alignedMetricWidth
+            )
+            let sourceOverlay = model.overlayImage
+            let sourceElementSnapshot = sourceOverlay.flatMap {
+                PreviewSnapshotSlicer.sliceImage($0, cropRect: sourceRect, displayRect: displayRect)
+            }
+            let baseSnapshots = sourceOverlay.map { overlay in
+                dragBaseSnapshotRects(displayRect: displayRect, excluding: sourceRect).compactMap { rect in
+                    PreviewSnapshotSlicer.slice(
+                        image: overlay,
+                        cropRect: rect,
+                        displayRect: displayRect
+                    )
+                }
+            } ?? []
             let initialDragState = ComponentDragState(
                 id: id,
                 startX: element.frame.x,
                 startY: element.frame.y,
                 currentX: element.frame.x,
                 currentY: element.frame.y,
-                sourceRect: componentDisplayRect(
-                    element: element,
-                    displayRect: displayRect,
+                sourceRect: sourceRect,
+                sourceOverlay: sourceOverlay,
+                sourceElementSnapshot: sourceElementSnapshot,
+                baseSnapshots: baseSnapshots,
+                visibleElements: [element],
+                alignedMetricWidth: alignedMetricWidth,
+                overflowInsets: layoutOverflowInsets(
+                    canvasSize: displayRect.size,
+                    visibleElements: visibleElements,
                     alignedMetricWidth: alignedMetricWidth
                 ),
-                sourceOverlay: model.overlayImage,
+                contentSize: contentSize,
                 translation: .zero
             )
             dragState = initialDragState
@@ -835,6 +875,32 @@ struct PreviewCanvasView: View {
         .allowsHitTesting(false)
     }
 
+    private func dragSnapshotImage(
+        _ image: NSImage,
+        sourceRect: CGRect,
+        translation: CGSize
+    ) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .frame(width: sourceRect.width, height: sourceRect.height)
+            .position(x: sourceRect.midX, y: sourceRect.midY)
+            .offset(translation)
+            .allowsHitTesting(false)
+    }
+
+    private func dragBaseSnapshotSlices(_ slices: [DragSnapshotSlice]) -> some View {
+        ZStack {
+            ForEach(slices.indices, id: \.self) { index in
+                let slice = slices[index]
+                Image(nsImage: slice.image)
+                    .resizable()
+                    .frame(width: slice.rect.width, height: slice.rect.height)
+                    .position(x: slice.rect.midX, y: slice.rect.midY)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
     private func dragBaseSnapshotOverlay(
         _ image: NSImage,
         excluding sourceRect: CGRect,
@@ -1013,7 +1079,77 @@ private struct ComponentDragState {
     var currentY: Double
     let sourceRect: CGRect
     let sourceOverlay: NSImage?
+    let sourceElementSnapshot: NSImage?
+    let baseSnapshots: [DragSnapshotSlice]
+    let visibleElements: [OverlayElement]
+    let alignedMetricWidth: CGFloat?
+    let overflowInsets: CanvasOverflowInsets
+    let contentSize: CGSize
     var translation: CGSize
+}
+
+struct DragSnapshotSlice {
+    let rect: CGRect
+    let image: NSImage
+}
+
+enum PreviewSnapshotSlicer {
+    static func slice(
+        image: NSImage,
+        cropRect: CGRect,
+        displayRect: CGRect
+    ) -> DragSnapshotSlice? {
+        guard let slicedImage = sliceImage(image, cropRect: cropRect, displayRect: displayRect) else {
+            return nil
+        }
+        return DragSnapshotSlice(rect: cropRect, image: slicedImage)
+    }
+
+    static func sliceImage(
+        _ image: NSImage,
+        cropRect: CGRect,
+        displayRect: CGRect
+    ) -> NSImage? {
+        guard cropRect.width > 0,
+              cropRect.height > 0,
+              displayRect.width > 0,
+              displayRect.height > 0,
+              image.size.width > 0,
+              image.size.height > 0 else {
+            return nil
+        }
+
+        let scaleX = image.size.width / displayRect.width
+        let scaleY = image.size.height / displayRect.height
+        let sourceRect = CGRect(
+            x: (cropRect.minX - displayRect.minX) * scaleX,
+            y: image.size.height - ((cropRect.maxY - displayRect.minY) * scaleY),
+            width: cropRect.width * scaleX,
+            height: cropRect.height * scaleY
+        )
+        let imageBounds = CGRect(origin: .zero, size: image.size)
+        let clippedSourceRect = sourceRect.integral.intersection(imageBounds)
+        guard !clippedSourceRect.isNull,
+              clippedSourceRect.width > 0,
+              clippedSourceRect.height > 0 else {
+            return nil
+        }
+
+        let outputSize = CGSize(
+            width: clippedSourceRect.width / scaleX,
+            height: clippedSourceRect.height / scaleY
+        )
+        let output = NSImage(size: outputSize)
+        output.lockFocus()
+        image.draw(
+            in: CGRect(origin: .zero, size: outputSize),
+            from: clippedSourceRect,
+            operation: .copy,
+            fraction: 1
+        )
+        output.unlockFocus()
+        return output
+    }
 }
 
 private struct CanvasOverflowInsets {
