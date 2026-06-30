@@ -218,15 +218,17 @@ struct PreviewCanvasView: View {
                     .allowsHitTesting(false)
             }
 
-            ForEach(interactiveElements(visibleElements)) { element in
-                componentHandle(
-                    element: element,
-                    displayRect: displayRect,
-                    contentSize: contentSize,
-                    visibleElements: visibleElements,
-                    alignedMetricWidth: alignedMetricWidth,
-                    state: state
-                )
+            if !isLiveScrubbing {
+                ForEach(interactiveElements(visibleElements)) { element in
+                    componentHandle(
+                        element: element,
+                        displayRect: displayRect,
+                        contentSize: contentSize,
+                        visibleElements: visibleElements,
+                        alignedMetricWidth: alignedMetricWidth,
+                        state: state
+                    )
+                }
             }
         }
         .frame(width: contentSize.width, height: contentSize.height)
@@ -561,7 +563,7 @@ struct PreviewCanvasView: View {
         let drawsTopRowIcon = element.customization.showsIcon && element.kind != .weather
         let hasTopRow = element.customization.showsLabel || drawsTopRowIcon
         let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
-        let text = metricText(for: element)
+        let text = metricText(for: element, sample: layoutTelemetrySample())
         let valueRowHeight = max(
             valueFontSize,
             metricUnitBlockHeight(element: element, unit: text.unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize, scale: scale)
@@ -608,7 +610,7 @@ struct PreviewCanvasView: View {
         let valueFontSize = valueSize(23, scale: textScale, element: element)
         let unitFontSize = unitSize(10, scale: textScale, element: element)
         let iconFontSize = metricIconFontSize(element: element, textScale: textScale)
-        let text = metricText(for: element)
+        let text = metricText(for: element, sample: layoutTelemetrySample())
         let valueWidth = textWidth(text.value, size: valueFontSize, fontName: element.customization.valueFont)
         let unitWidth = metricUnitBlockWidth(element: element, unit: text.unit, unitFontSize: unitFontSize, iconFontSize: iconFontSize)
         let horizontalPadding = 14 * scale
@@ -760,7 +762,7 @@ struct PreviewCanvasView: View {
                 + bottomPadding
         )
 
-        let text = timeDateText(for: element)
+        let text = timeDateText(for: element, sample: layoutTelemetrySample(), videoTime: model.previewTime)
         let textWidth = max(
             self.textWidth(text.elapsed, size: valueFontSize, fontName: element.customization.valueFont),
             element.customization.showsUnit ? self.textWidth(text.clock, size: clockFontSize, fontName: element.customization.unitFont) : 0,
@@ -773,12 +775,23 @@ struct PreviewCanvasView: View {
     }
 
     private func currentTelemetrySample() -> TelemetrySample {
-        let elapsed = model.timeSync.fitElapsed(forVideoTime: effectivePreviewTime)
+        telemetrySample(videoTime: effectivePreviewTime)
+    }
+
+    private func layoutTelemetrySample() -> TelemetrySample {
+        telemetrySample(videoTime: model.previewTime)
+    }
+
+    private func telemetrySample(videoTime: TimeInterval) -> TelemetrySample {
+        let elapsed = model.timeSync.fitElapsed(forVideoTime: videoTime)
         return model.series?.sample(at: elapsed) ?? TelemetrySample(elapsed: elapsed)
     }
 
-    private func metricText(for element: OverlayElement) -> (label: String, value: String, unit: String, icon: String) {
-        let sample = currentTelemetrySample()
+    private func metricText(
+        for element: OverlayElement,
+        sample: TelemetrySample? = nil
+    ) -> (label: String, value: String, unit: String, icon: String) {
+        let sample = sample ?? currentTelemetrySample()
         switch element.kind {
         case .pace:
             return (
@@ -846,9 +859,13 @@ struct PreviewCanvasView: View {
         }
     }
 
-    private func timeDateText(for element: OverlayElement) -> (label: String, elapsed: String, clock: String, date: String, icon: String) {
-        let sample = currentTelemetrySample()
-        let rawElapsed = model.timeSync.rawFitElapsed(forVideoTime: effectivePreviewTime)
+    private func timeDateText(
+        for element: OverlayElement,
+        sample: TelemetrySample? = nil,
+        videoTime: TimeInterval? = nil
+    ) -> (label: String, elapsed: String, clock: String, date: String, icon: String) {
+        let sample = sample ?? currentTelemetrySample()
+        let rawElapsed = model.timeSync.rawFitElapsed(forVideoTime: videoTime ?? effectivePreviewTime)
         let absoluteDate = model.series?.date(atElapsed: rawElapsed) ?? sample.date
         return (
             element.customization.label(default: "TIME"),
