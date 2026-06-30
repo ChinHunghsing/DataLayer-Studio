@@ -27,6 +27,16 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.date(atElapsed: -3)?.timeIntervalSince1970 ?? -1, startDate.addingTimeInterval(-3).timeIntervalSince1970, accuracy: 0.001)
     }
 
+    func testDateAtElapsedUsesSampleDatesAcrossPausedTimerGaps() {
+        let startDate = Date(timeIntervalSince1970: 1_787_000_000)
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: startDate, distanceMeters: 0),
+            TelemetrySample(elapsed: 1_249, date: startDate.addingTimeInterval(1_903), distanceMeters: 3_034)
+        ])
+
+        XCTAssertEqual(series.date(atElapsed: 1_249)?.timeIntervalSince1970 ?? -1, startDate.addingTimeInterval(1_903).timeIntervalSince1970, accuracy: 0.001)
+    }
+
     func testResamplesSparseRecordsAtOneSecondIntervals() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 3),

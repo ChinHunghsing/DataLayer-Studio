@@ -70,6 +70,36 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(firstRecordTime.cadence, 168)
     }
 
+    func testTimerStopEventsKeepElapsedOnActiveTimerAndDatesOnWallClock() throws {
+        var content = Data()
+        appendEventDefinition(localMessageType: 1, to: &content)
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendTimerStartEvent(timestamp: 1_000, localMessageType: 1, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 151, cadence: 84),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_010, latitude: 35.0002, longitude: 139.0004, distanceMeters: 30, speed: 3.0, heartRate: 152, cadence: 85),
+            localMessageType: 0,
+            to: &content
+        )
+        appendTimerStopEvent(timestamp: 1_010, localMessageType: 1, to: &content)
+        appendTimerStartEvent(timestamp: 1_020, localMessageType: 1, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_025, latitude: 35.0003, longitude: 139.0005, distanceMeters: 45, speed: 3.0, heartRate: 153, cadence: 86),
+            localMessageType: 0,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.duration, 15, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 15).heartRate, 153)
+        XCTAssertEqual(series.date(atElapsed: 15)?.timeIntervalSince1970 ?? -1, 631_066_625, accuracy: 0.001)
+    }
+
     func testDerivesPaceImmediatelyFromStartupDistanceBeforeFirstRecord() throws {
         var content = Data()
         appendEventDefinition(localMessageType: 1, to: &content)
@@ -435,6 +465,13 @@ private func appendTimerStartEvent(timestamp: UInt32, localMessageType: UInt8, t
     appendUInt32(timestamp, to: &content)
     content.append(0)
     content.append(0)
+}
+
+private func appendTimerStopEvent(timestamp: UInt32, localMessageType: UInt8, to content: inout Data) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    content.append(0)
+    content.append(4)
 }
 
 private func appendSession(timestamp: UInt32, startTime: UInt32, localMessageType: UInt8, to content: inout Data) {

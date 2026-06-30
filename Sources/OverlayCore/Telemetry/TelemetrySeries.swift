@@ -58,7 +58,20 @@ public struct TelemetrySeries {
 
     public func date(atElapsed elapsed: TimeInterval) -> Date? {
         guard elapsed.isFinite else { return nil }
-        guard let activityStartDate else { return sample(at: elapsed).date }
+        if let first = samples.first,
+           elapsed < first.elapsed,
+           let date = first.date {
+            return date.addingTimeInterval(elapsed - first.elapsed)
+        }
+        if let last = samples.last,
+           elapsed > last.elapsed,
+           let date = last.date {
+            return date.addingTimeInterval(elapsed - last.elapsed)
+        }
+        if let date = sample(at: elapsed).date {
+            return date
+        }
+        guard let activityStartDate else { return nil }
         return activityStartDate.addingTimeInterval(elapsed)
     }
 
