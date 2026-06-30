@@ -3,7 +3,8 @@ import SwiftUI
 import OverlayCore
 
 struct InspectorSettingsPanel: View {
-    @ObservedObject var model: StudioModel
+    let model: StudioModel
+    let selectedElement: OverlayElement?
     @Binding var expandedSections: Set<InspectorSection>
     var focusedSection: InspectorSection?
     @EnvironmentObject private var localization: LocalizationStore
@@ -14,7 +15,7 @@ struct InspectorSettingsPanel: View {
 
     @ViewBuilder
     private var selectedElementSettings: some View {
-        if let element = model.selectedElement {
+        if let element = selectedElement {
             VStack(alignment: .leading, spacing: 12) {
                 if !element.frame.isVisible {
                     InspectorInlineStatusBar(

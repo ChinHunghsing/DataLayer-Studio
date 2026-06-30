@@ -260,6 +260,48 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(StudioModel.previewResizeRefreshDelay, 0.20)
     }
 
+    func testPreviewLiveResizeDefersOverlayRefreshUntilResizeEnds() async throws {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 5, distanceMeters: 20)
+        ])
+
+        model.setPreviewLiveResizing(true)
+        model.updatePreviewOverlayRenderSize(CGSize(width: 640, height: 360))
+        model.updatePreviewOverlayRenderSize(CGSize(width: 1_280, height: 720))
+        try await Task.sleep(nanoseconds: UInt64((StudioModel.previewResizeRefreshDelay + 0.08) * 1_000_000_000))
+
+        XCTAssertNil(model.overlayImage)
+
+        model.setPreviewLiveResizing(false)
+        try await waitForOverlayImage(in: model)
+
+        XCTAssertNotNil(model.overlayImage)
+        XCTAssertEqual(model.overlayImage?.size.width ?? 0, 1_280, accuracy: 1)
+        XCTAssertEqual(model.overlayImage?.size.height ?? 0, 720, accuracy: 1)
+    }
+
+    func testPreviewCanvasStateIgnoresUnrelatedDebugLogChanges() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [TelemetrySample(elapsed: 0, distanceMeters: 0)])
+        let initialState = PreviewCanvasState(model: model)
+
+        model.debugLogEntries.append(DebugLogEntry(date: Date(), category: .preview, message: "noise"))
+
+        XCTAssertEqual(PreviewCanvasState(model: model), initialState)
+    }
+
+    func testPreviewControlsStateIgnoresUnrelatedDebugLogChanges() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [TelemetrySample(elapsed: 0, distanceMeters: 0)])
+        let initialState = PreviewControlsState(model: model)
+
+        model.debugLogEntries.append(DebugLogEntry(date: Date(), category: .preview, message: "noise"))
+
+        XCTAssertEqual(PreviewControlsState(model: model), initialState)
+    }
+
     func testDragOverlayRenderDelayStaysBelowPlaybackRefreshInterval() {
         XCTAssertGreaterThan(StudioModel.dragOverlayRenderDelay, 0)
         XCTAssertLessThanOrEqual(StudioModel.dragOverlayRenderDelay, 1.0 / 30.0)
@@ -430,5 +472,12 @@ final class StudioModelTests: XCTestCase {
         model.seekPreview(to: 1)
         model.stepPreviewFrame(by: 1)
         XCTAssertEqual(model.previewTime, 1)
+    }
+
+    private func waitForOverlayImage(in model: StudioModel, timeout: TimeInterval = 1) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while model.overlayImage == nil && Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
     }
 }

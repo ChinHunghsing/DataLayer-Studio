@@ -1,11 +1,12 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 import OverlayCore
 
 struct PreviewCanvasView: View {
     static let componentDragMinimumDistance: CGFloat = 1
 
-    @ObservedObject var model: StudioModel
+    let model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
     @Binding private var zoom: Double
     let isFullscreen: Bool
@@ -26,11 +27,15 @@ struct PreviewCanvasView: View {
     }
 
     var body: some View {
+        let canvasState = PreviewCanvasState(model: model)
+        let controlsState = PreviewControlsState(model: model)
+
         if isFullscreen {
             ZStack(alignment: .bottom) {
-                previewViewport
+                previewViewport(state: canvasState)
                 PreviewControlsPanel(
                     model: model,
+                    state: controlsState,
                     zoom: $zoom,
                     isFullscreen: isFullscreen,
                     onToggleFullscreen: onToggleFullscreen
@@ -38,9 +43,10 @@ struct PreviewCanvasView: View {
             }
         } else {
             VStack(spacing: 0) {
-                previewViewport
+                previewViewport(state: canvasState)
                 PreviewControlsPanel(
                     model: model,
+                    state: controlsState,
                     zoom: $zoom,
                     isFullscreen: isFullscreen,
                     onToggleFullscreen: onToggleFullscreen
@@ -49,7 +55,7 @@ struct PreviewCanvasView: View {
         }
     }
 
-    private var previewViewport: some View {
+    private func previewViewport(state: PreviewCanvasState) -> some View {
         GeometryReader { proxy in
             let viewportSize = proxy.size
             let stageInsets = previewStageInsets(for: viewportSize)
@@ -59,13 +65,13 @@ struct PreviewCanvasView: View {
             )
             let fitSize = aspectFitSize(
                 container: stageSize,
-                aspectRatio: CGFloat(model.outputWidth) / CGFloat(max(1, model.outputHeight))
+                aspectRatio: CGFloat(state.outputWidth) / CGFloat(max(1, state.outputHeight))
             )
             let zoomFactor = CGFloat(clampedZoom(zoom))
             let canvasSize = CGSize(width: fitSize.width * zoomFactor, height: fitSize.height * zoomFactor)
             let overlayRenderSize = previewOverlayRenderSize(for: canvasSize)
             let dragState = activeDrag
-            let visibleElements = dragState?.visibleElements ?? model.layout.visibleElements
+            let visibleElements = dragState?.visibleElements ?? state.layout.visibleElements
             let alignedMetricWidth = dragState?.alignedMetricWidth ?? alignedMetricOutputWidth(for: visibleElements)
             let overflowInsets = dragState?.overflowInsets ?? layoutOverflowInsets(
                 canvasSize: canvasSize,
@@ -91,7 +97,8 @@ struct PreviewCanvasView: View {
                     displayRect: displayRect,
                     contentSize: contentSize,
                     visibleElements: visibleElements,
-                    alignedMetricWidth: alignedMetricWidth
+                    alignedMetricWidth: alignedMetricWidth,
+                    state: state
                 )
             }
             .background(Color(nsColor: .underPageBackgroundColor))
@@ -120,25 +127,26 @@ struct PreviewCanvasView: View {
         displayRect: CGRect,
         contentSize: CGSize,
         visibleElements: [OverlayElement],
-        alignedMetricWidth: CGFloat?
+        alignedMetricWidth: CGFloat?,
+        state: PreviewCanvasState
     ) -> some View {
         ZStack {
             Color(nsColor: .underPageBackgroundColor)
 
-            if let player = model.player {
+            if let player = state.player {
                 PlayerSurfaceView(player: player)
                     .frame(width: displayRect.width, height: displayRect.height)
                     .clipped()
                     .position(x: displayRect.midX, y: displayRect.midY)
                     .allowsHitTesting(false)
-            } else if let background = model.backgroundImage {
+            } else if let background = state.backgroundImage {
                 Image(nsImage: background)
                     .resizable()
                     .scaledToFill()
                     .frame(width: displayRect.width, height: displayRect.height)
                     .clipped()
                     .position(x: displayRect.midX, y: displayRect.midY)
-            } else if model.series != nil {
+            } else if state.hasSeries {
                 FitOnlyPreviewBackground()
                     .frame(width: displayRect.width, height: displayRect.height)
                     .position(x: displayRect.midX, y: displayRect.midY)
@@ -149,7 +157,7 @@ struct PreviewCanvasView: View {
             }
 
             if let activeDrag {
-                if let baseOverlay = model.dragBaseOverlayImage {
+                if let baseOverlay = state.dragBaseOverlayImage {
                     overlayImage(baseOverlay, displayRect: displayRect)
                 } else if !activeDrag.baseSnapshots.isEmpty {
                     dragBaseSnapshotSlices(activeDrag.baseSnapshots)
@@ -160,7 +168,7 @@ struct PreviewCanvasView: View {
                         displayRect: displayRect
                     )
                 }
-            } else if let overlay = model.overlayImage {
+            } else if let overlay = state.overlayImage {
                 overlayImage(overlay, displayRect: displayRect)
             }
 
@@ -171,7 +179,7 @@ struct PreviewCanvasView: View {
                         sourceRect: activeDrag.sourceRect,
                         translation: activeDrag.translation
                     )
-                } else if let dragOverlay = model.dragOverlayImage {
+                } else if let dragOverlay = state.dragOverlayImage {
                     dragSnapshotOverlay(
                         dragOverlay,
                         sourceRect: activeDrag.sourceRect,
@@ -188,8 +196,8 @@ struct PreviewCanvasView: View {
                 }
             }
 
-            if model.showGrid {
-                PreviewGridOverlay(columns: model.gridColumns, rows: model.gridRows)
+            if state.showGrid {
+                PreviewGridOverlay(columns: state.gridColumns, rows: state.gridRows)
                     .stroke(Color.white.opacity(0.34), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
                     .frame(width: displayRect.width, height: displayRect.height)
                     .position(x: displayRect.midX, y: displayRect.midY)
@@ -202,7 +210,8 @@ struct PreviewCanvasView: View {
                     displayRect: displayRect,
                     contentSize: contentSize,
                     visibleElements: visibleElements,
-                    alignedMetricWidth: alignedMetricWidth
+                    alignedMetricWidth: alignedMetricWidth,
+                    state: state
                 )
             }
         }
@@ -231,13 +240,14 @@ struct PreviewCanvasView: View {
         displayRect: CGRect,
         contentSize: CGSize,
         visibleElements: [OverlayElement],
-        alignedMetricWidth: CGFloat?
+        alignedMetricWidth: CGFloat?,
+        state: PreviewCanvasState
     ) -> some View {
         let dragState = activeDrag?.id == element.id ? activeDrag : nil
         let rect = dragState.map {
             $0.sourceRect.offsetBy(dx: $0.translation.width, dy: $0.translation.height)
         } ?? componentDisplayRect(element: element, displayRect: displayRect, alignedMetricWidth: alignedMetricWidth)
-        let isSelected = model.selectedElementID == element.id
+        let isSelected = state.selectedElementID == element.id
 
         return Rectangle()
             .fill(Color.white.opacity(0.001))
@@ -1073,6 +1083,55 @@ enum PreviewZoomLimits {
 
     static func clamp(_ value: Double) -> Double {
         min(range.upperBound, max(range.lowerBound, value.isFinite ? value : 1))
+    }
+}
+
+struct PreviewCanvasState: Equatable {
+    var player: AVPlayer?
+    var backgroundImage: NSImage?
+    var overlayImage: NSImage?
+    var dragBaseOverlayImage: NSImage?
+    var dragOverlayImage: NSImage?
+    var layout: OverlayLayout
+    var selectedElementID: String?
+    var showGrid: Bool
+    var gridColumns: Int
+    var gridRows: Int
+    var hasSeries: Bool
+    var outputWidth: Int
+    var outputHeight: Int
+
+    @MainActor
+    init(model: StudioModel) {
+        player = model.player
+        backgroundImage = model.backgroundImage
+        overlayImage = model.overlayImage
+        dragBaseOverlayImage = model.dragBaseOverlayImage
+        dragOverlayImage = model.dragOverlayImage
+        layout = model.layout
+        selectedElementID = model.selectedElementID
+        showGrid = model.showGrid
+        gridColumns = model.gridColumns
+        gridRows = model.gridRows
+        hasSeries = model.series != nil
+        outputWidth = model.outputWidth
+        outputHeight = model.outputHeight
+    }
+
+    static func == (lhs: PreviewCanvasState, rhs: PreviewCanvasState) -> Bool {
+        lhs.player === rhs.player
+            && lhs.backgroundImage === rhs.backgroundImage
+            && lhs.overlayImage === rhs.overlayImage
+            && lhs.dragBaseOverlayImage === rhs.dragBaseOverlayImage
+            && lhs.dragOverlayImage === rhs.dragOverlayImage
+            && lhs.layout == rhs.layout
+            && lhs.selectedElementID == rhs.selectedElementID
+            && lhs.showGrid == rhs.showGrid
+            && lhs.gridColumns == rhs.gridColumns
+            && lhs.gridRows == rhs.gridRows
+            && lhs.hasSeries == rhs.hasSeries
+            && lhs.outputWidth == rhs.outputWidth
+            && lhs.outputHeight == rhs.outputHeight
     }
 }
 

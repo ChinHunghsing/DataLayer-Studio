@@ -8,8 +8,10 @@ struct InspectorView: View {
     private static let topAnchorID = "inspector-top"
 
     var body: some View {
+        let selectedElement = model.selectedElement
+
         VStack(spacing: 0) {
-            if model.selectedElement != nil {
+            if selectedElement != nil {
                 InspectorSelectionHeader(model: model)
                     .padding(.horizontal, 18)
                     .padding(.top, 14)
@@ -35,11 +37,12 @@ struct InspectorView: View {
 
                     InspectorSettingsPanel(
                         model: model,
+                        selectedElement: selectedElement,
                         expandedSections: expandedSectionsBinding,
                         focusedSection: selectedScope.section
                     )
                         .padding(.horizontal, 18)
-                        .padding(.top, model.selectedElement == nil ? 18 : 14)
+                        .padding(.top, selectedElement == nil ? 18 : 14)
                         .padding(.bottom, 14)
                 }
                 .onChange(of: inspectorScrollIdentity) { _ in

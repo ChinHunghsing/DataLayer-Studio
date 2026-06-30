@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct PreviewControlsPanel: View {
-    @ObservedObject var model: StudioModel
+    let model: StudioModel
+    let state: PreviewControlsState
     @Binding var zoom: Double
     let isFullscreen: Bool
     let onToggleFullscreen: () -> Void
@@ -46,20 +47,20 @@ struct PreviewControlsPanel: View {
                 model.togglePlayback()
             } label: {
                 Label(
-                    model.isPlaying ? localization.string("preview.pause") : localization.string("preview.play"),
-                    systemImage: model.isPlaying ? "pause.fill" : "play.fill"
+                    state.isPlaying ? localization.string("preview.pause") : localization.string("preview.play"),
+                    systemImage: state.isPlaying ? "pause.fill" : "play.fill"
                 )
             }
-            .disabled(model.player == nil || model.isExporting)
+            .disabled(!state.hasPlayer || state.isExporting)
 
             PreviewTimelineSlider(
                 value: Binding(
-                    get: { model.previewTime },
+                    get: { state.previewTime },
                     set: { model.scrubPreview(to: $0) }
                 ),
-                range: 0...max(model.previewDuration, 1),
-                isEnabled: model.series != nil && !model.isExporting,
-                accessibilityLabel: localization.string("preview.time", formatTimecode(model.previewTime)),
+                range: 0...max(state.previewDuration, 1),
+                isEnabled: state.hasSeries && !state.isExporting,
+                accessibilityLabel: localization.string("preview.time", formatTimecode(state.previewTime)),
                 onFrameStep: { model.stepPreviewFrame(by: $0) }
             )
             .frame(minWidth: 140)
@@ -69,7 +70,7 @@ struct PreviewControlsPanel: View {
             } label: {
                 Label(localization.string("toolbar.sportStart"), systemImage: "figure.run.circle")
             }
-            .disabled(model.player == nil || model.isExporting)
+            .disabled(!state.hasPlayer || state.isExporting)
         }
         .frame(maxWidth: .infinity)
     }
@@ -129,14 +130,14 @@ struct PreviewControlsPanel: View {
 
     private var statusRow: some View {
         HStack {
-            Text(formatTimecode(model.previewTime))
+            Text(formatTimecode(state.previewTime))
             Spacer()
-            if model.syncMode == .syncPoint, model.syncFITSeconds == 0 {
-                Text(localization.string("preview.sportStartAt", formatTimecode(model.syncVideoSeconds)))
+            if state.syncMode == .syncPoint, state.syncFITSeconds == 0 {
+                Text(localization.string("preview.sportStartAt", formatTimecode(state.syncVideoSeconds)))
                     .foregroundStyle(.tint)
             }
             Spacer()
-            Text("\(model.outputWidth)x\(model.outputHeight)")
+            Text("\(state.outputWidth)x\(state.outputHeight)")
         }
         .font(.caption.monospacedDigit())
         .foregroundStyle(.secondary)
@@ -144,7 +145,7 @@ struct PreviewControlsPanel: View {
 
     @ViewBuilder
     private var warningRow: some View {
-        if let previewWarning = model.previewWarning {
+        if let previewWarning = state.previewWarning {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle")
                 Text(previewWarning)
@@ -168,7 +169,7 @@ struct PreviewControlsPanel: View {
     }
 
     private func formatTimecode(_ time: TimeInterval) -> String {
-        let frameRate = max(1, Int(model.previewFrameRate.rounded()))
+        let frameRate = max(1, Int(state.previewFrameRate.rounded()))
         let safeTime = max(0, time.isFinite ? time : 0)
         let wholeSeconds = Int(safeTime.rounded(.down))
         let fractionalSecond = safeTime - Double(wholeSeconds)
@@ -180,5 +181,38 @@ struct PreviewControlsPanel: View {
             wholeSeconds % 60,
             frame
         )
+    }
+}
+
+struct PreviewControlsState: Equatable {
+    var previewTime: TimeInterval
+    var previewDuration: TimeInterval
+    var previewFrameRate: Double
+    var isPlaying: Bool
+    var hasPlayer: Bool
+    var isExporting: Bool
+    var hasSeries: Bool
+    var syncMode: SyncMode
+    var syncFITSeconds: Double
+    var syncVideoSeconds: Double
+    var outputWidth: Int
+    var outputHeight: Int
+    var previewWarning: String?
+
+    @MainActor
+    init(model: StudioModel) {
+        previewTime = model.previewTime
+        previewDuration = model.previewDuration
+        previewFrameRate = model.previewFrameRate
+        isPlaying = model.isPlaying
+        hasPlayer = model.player != nil
+        isExporting = model.isExporting
+        hasSeries = model.series != nil
+        syncMode = model.syncMode
+        syncFITSeconds = model.syncFITSeconds
+        syncVideoSeconds = model.syncVideoSeconds
+        outputWidth = model.outputWidth
+        outputHeight = model.outputHeight
+        previewWarning = model.previewWarning
     }
 }

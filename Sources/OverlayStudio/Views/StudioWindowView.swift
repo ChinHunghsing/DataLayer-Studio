@@ -10,6 +10,7 @@ struct StudioWindowView: View {
         ContentView(model: model)
             .frame(minWidth: 1320, minHeight: 760)
             .background(WindowCenterTitle(centerTitle: centerTitle, windowTitle: windowTitle))
+            .background(WindowLiveResizeObserver { model.setPreviewLiveResizing($0) })
             .onAppear(perform: applyLaunchOptionsIfNeeded)
     }
 
@@ -103,6 +104,34 @@ private struct WindowCenterTitle: NSViewRepresentable {
             self.label = label
             installedSuperview = titlebar
             return label
+        }
+    }
+}
+
+private struct WindowLiveResizeObserver: NSViewRepresentable {
+    var onLiveResizeChange: (Bool) -> Void
+
+    func makeNSView(context: Context) -> LiveResizeObserverView {
+        let view = LiveResizeObserverView(frame: .zero)
+        view.onLiveResizeChange = onLiveResizeChange
+        return view
+    }
+
+    func updateNSView(_ nsView: LiveResizeObserverView, context: Context) {
+        nsView.onLiveResizeChange = onLiveResizeChange
+    }
+
+    final class LiveResizeObserverView: NSView {
+        var onLiveResizeChange: ((Bool) -> Void)?
+
+        override func viewWillStartLiveResize() {
+            super.viewWillStartLiveResize()
+            onLiveResizeChange?(true)
+        }
+
+        override func viewDidEndLiveResize() {
+            super.viewDidEndLiveResize()
+            onLiveResizeChange?(false)
         }
     }
 }

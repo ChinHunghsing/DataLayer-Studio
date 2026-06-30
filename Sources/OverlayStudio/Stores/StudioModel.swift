@@ -132,6 +132,8 @@ final class StudioModel: ObservableObject {
     private var pendingPreviewSizeRefreshTask: Task<Void, Never>?
     private var pendingScrubOverlayRefreshTask: Task<Void, Never>?
     private var scrubInteractionTask: Task<Void, Never>?
+    private var isPreviewLiveResizing = false
+    private var pendingPreviewLiveResizeSize: CGSize?
     private var scrubInteractionExpiresAt = Date.distantPast
     private var videoLoadTask: Task<Void, Never>?
     private var fitLoadTask: Task<Void, Never>?
@@ -1096,7 +1098,28 @@ final class StudioModel: ObservableObject {
         }
         previewOverlayRenderSize = sanitized
         guard !isExporting else { return }
+        if isPreviewLiveResizing {
+            pendingPreviewLiveResizeSize = sanitized
+            pendingPreviewSizeRefreshTask?.cancel()
+            pendingPreviewSizeRefreshTask = nil
+            return
+        }
         schedulePreviewSizeRefresh(sanitized)
+    }
+
+    func setPreviewLiveResizing(_ isResizing: Bool) {
+        guard isPreviewLiveResizing != isResizing else { return }
+        isPreviewLiveResizing = isResizing
+        if isResizing {
+            pendingPreviewSizeRefreshTask?.cancel()
+            pendingPreviewSizeRefreshTask = nil
+            return
+        }
+
+        guard let size = pendingPreviewLiveResizeSize else { return }
+        pendingPreviewLiveResizeSize = nil
+        guard !isExporting else { return }
+        schedulePreviewSizeRefresh(size)
     }
 
     private func currentPreviewOverlayRenderSize() -> CGSize {
