@@ -251,11 +251,10 @@ final class StudioModelTests: XCTestCase {
 
     func testPlaybackOverlayRefreshIsThrottledBelowPlayerTimeUpdates() {
         XCTAssertGreaterThan(StudioModel.playbackOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
-        XCTAssertLessThan(StudioModel.scrubOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
+        XCTAssertLessThan(StudioModel.scrubPlayerSeekInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThanOrEqual(StudioModel.playerTimeObserverInterval, 0.10)
         XCTAssertLessThanOrEqual(StudioModel.playbackOverlayRefreshInterval, 0.25)
-        XCTAssertLessThanOrEqual(StudioModel.scrubOverlayRefreshInterval, 1.0 / 55.0)
-        XCTAssertLessThanOrEqual(StudioModel.scrubPreviewMaximumRenderDimension, 1_000)
+        XCTAssertLessThanOrEqual(StudioModel.scrubPlayerSeekInterval, 1.0 / 24.0)
         XCTAssertGreaterThan(StudioModel.scrubInteractionHoldInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThanOrEqual(StudioModel.scrubInteractionHoldInterval, 0.20)
         XCTAssertGreaterThan(StudioModel.previewResizeRefreshDelay, StudioModel.playerTimeObserverInterval)
@@ -308,6 +307,9 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNotEqual(scrubbedState, initialState)
         XCTAssertEqual(scrubbedState.previewTime, 3.25, accuracy: 0.001)
         XCTAssertTrue(scrubbedState.isScrubbingPreview)
+
+        let liveState = PreviewCanvasState(model: model, previewTimeOverride: 4.5)
+        XCTAssertEqual(liveState.previewTime, 4.5, accuracy: 0.001)
     }
 
     func testPreviewControlsStateIgnoresUnrelatedDebugLogChanges() {
@@ -318,6 +320,9 @@ final class StudioModelTests: XCTestCase {
         model.debugLogEntries.append(DebugLogEntry(date: Date(), category: .preview, message: "noise"))
 
         XCTAssertEqual(PreviewControlsState(model: model), initialState)
+
+        let liveState = PreviewControlsState(model: model, previewTimeOverride: 4.5)
+        XCTAssertEqual(liveState.previewTime, 4.5, accuracy: 0.001)
     }
 
     func testDragOverlayRenderDelayStaysBelowPlaybackRefreshInterval() {
@@ -465,7 +470,7 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNotNil(model.overlayImage)
     }
 
-    func testScrubPreviewWithPlayerRefreshesOverlayDuringScrub() async throws {
+    func testScrubPreviewWithPlayerKeepsOverlayVisibleDuringScrub() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/source.mov")
         model.player = AVPlayer()
@@ -475,12 +480,13 @@ final class StudioModelTests: XCTestCase {
             TelemetrySample(elapsed: 0, distanceMeters: 0),
             TelemetrySample(elapsed: 7, distanceMeters: 30)
         ])
+        model.overlayImage = NSImage(size: CGSize(width: 8, height: 8))
 
         model.scrubPreview(to: 3)
 
-        try await waitForOverlayImage(in: model)
         XCTAssertEqual(model.previewTime, 3)
         XCTAssertNotNil(model.overlayImage)
+        XCTAssertTrue(model.isScrubbingPreview)
     }
 
     func testStepPreviewFrameUsesSourceFrameRateWhenAvailable() {

@@ -4,6 +4,7 @@ struct PreviewControlsPanel: View {
     let model: StudioModel
     let state: PreviewControlsState
     @Binding var zoom: Double
+    @Binding var liveScrubTime: TimeInterval?
     let isFullscreen: Bool
     let onToggleFullscreen: () -> Void
     @EnvironmentObject private var localization: LocalizationStore
@@ -44,6 +45,7 @@ struct PreviewControlsPanel: View {
     private var transportControls: some View {
         HStack(spacing: 8) {
             Button {
+                liveScrubTime = nil
                 model.togglePlayback()
             } label: {
                 Label(
@@ -55,13 +57,20 @@ struct PreviewControlsPanel: View {
 
             PreviewTimelineSlider(
                 value: Binding(
-                    get: { model.previewTime },
-                    set: { model.scrubPreview(to: $0) }
+                    get: { liveScrubTime ?? model.previewTime },
+                    set: {
+                        liveScrubTime = $0
+                        model.scrubPreview(to: $0)
+                    }
                 ),
                 range: 0...max(state.previewDuration, 1),
                 isEnabled: state.hasSeries && !state.isExporting,
                 accessibilityLabel: localization.string("preview.time", formatTimecode(state.previewTime)),
-                onFrameStep: { model.stepPreviewFrame(by: $0) }
+                onFrameStep: {
+                    model.stepPreviewFrame(by: $0)
+                    liveScrubTime = model.previewTime
+                },
+                onLiveChange: { liveScrubTime = $0 }
             )
             .frame(minWidth: 140)
 
@@ -200,8 +209,8 @@ struct PreviewControlsState: Equatable {
     var previewWarning: String?
 
     @MainActor
-    init(model: StudioModel) {
-        previewTime = model.previewTime
+    init(model: StudioModel, previewTimeOverride: TimeInterval? = nil) {
+        previewTime = previewTimeOverride ?? model.previewTime
         previewDuration = model.previewDuration
         previewFrameRate = model.previewFrameRate
         isPlaying = model.isPlaying

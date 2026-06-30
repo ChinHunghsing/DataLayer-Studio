@@ -7,10 +7,11 @@ struct PreviewTimelineSlider: NSViewRepresentable {
     var isEnabled: Bool
     var accessibilityLabel: String
     var onFrameStep: (Int) -> Void
+    var onLiveChange: (Double) -> Void = { _ in }
     static let valueChangeEpsilon = 0.000_5
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(value: $value, onFrameStep: onFrameStep)
+        Coordinator(value: $value, onFrameStep: onFrameStep, onLiveChange: onLiveChange)
     }
 
     func makeNSView(context: Context) -> FocusableTimelineSlider {
@@ -24,6 +25,7 @@ struct PreviewTimelineSlider: NSViewRepresentable {
     func updateNSView(_ nsView: FocusableTimelineSlider, context: Context) {
         context.coordinator.value = $value
         context.coordinator.onFrameStep = onFrameStep
+        context.coordinator.onLiveChange = onLiveChange
         if nsView.minValue != range.lowerBound {
             nsView.minValue = range.lowerBound
         }
@@ -45,14 +47,17 @@ struct PreviewTimelineSlider: NSViewRepresentable {
     final class Coordinator: NSObject {
         var value: Binding<Double>
         var onFrameStep: (Int) -> Void
+        var onLiveChange: (Double) -> Void
 
-        init(value: Binding<Double>, onFrameStep: @escaping (Int) -> Void) {
+        init(value: Binding<Double>, onFrameStep: @escaping (Int) -> Void, onLiveChange: @escaping (Double) -> Void) {
             self.value = value
             self.onFrameStep = onFrameStep
+            self.onLiveChange = onLiveChange
         }
 
         @objc func valueChanged(_ sender: NSSlider) {
             guard abs(value.wrappedValue - sender.doubleValue) > PreviewTimelineSlider.valueChangeEpsilon else { return }
+            onLiveChange(sender.doubleValue)
             value.wrappedValue = sender.doubleValue
         }
 
@@ -99,13 +104,16 @@ final class FocusableTimelineSlider: NSSlider {
 
     private func updateValue(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
-        doubleValue = Self.value(
+        let nextValue = Self.value(
             forX: location.x,
             width: bounds.width,
             minValue: minValue,
             maxValue: maxValue
         )
+        guard abs(doubleValue - nextValue) > PreviewTimelineSlider.valueChangeEpsilon else { return }
+        doubleValue = nextValue
         _ = sendAction(action, to: target)
+        window?.displayIfNeeded()
     }
 
     static func value(forX x: CGFloat, width: CGFloat, minValue: Double, maxValue: Double) -> Double {

@@ -43,8 +43,7 @@ private final class PlayerTimeObserver {
 final class StudioModel: ObservableObject {
     static let playerTimeObserverInterval: TimeInterval = 1.0 / 12.0
     static let playbackOverlayRefreshInterval: TimeInterval = 0.20
-    static let scrubOverlayRefreshInterval: TimeInterval = 1.0 / 60.0
-    static let scrubPreviewMaximumRenderDimension: CGFloat = 960
+    static let scrubPlayerSeekInterval: TimeInterval = 1.0 / 30.0
     static let scrubInteractionHoldInterval: TimeInterval = 0.16
     static let previewResizeRefreshDelay: TimeInterval = 0.16
     static let dragOverlayRenderDelay: TimeInterval = 1.0 / 120.0
@@ -131,11 +130,13 @@ final class StudioModel: ObservableObject {
     private var previewRenderTask: Task<Void, Never>?
     private var dragRenderTask: Task<Void, Never>?
     private var pendingPreviewSizeRefreshTask: Task<Void, Never>?
-    private var pendingScrubOverlayRefreshTask: Task<Void, Never>?
     private var scrubInteractionTask: Task<Void, Never>?
+    private var scrubPlayerSeekTask: Task<Void, Never>?
     private var isPreviewLiveResizing = false
     private var pendingPreviewLiveResizeSize: CGSize?
     private var scrubInteractionExpiresAt = Date.distantPast
+    private var lastScrubPlayerSeek = Date.distantPast
+    private var pendingScrubPlayerSeekTime: TimeInterval?
     private var videoLoadTask: Task<Void, Never>?
     private var fitLoadTask: Task<Void, Never>?
     private var weatherLoadTask: Task<Void, Never>?
@@ -178,8 +179,8 @@ final class StudioModel: ObservableObject {
         previewRenderTask?.cancel()
         dragRenderTask?.cancel()
         pendingPreviewSizeRefreshTask?.cancel()
-        pendingScrubOverlayRefreshTask?.cancel()
         scrubInteractionTask?.cancel()
+        scrubPlayerSeekTask?.cancel()
         exportCancellationToken?.cancel()
         exportTask?.cancel()
         videoFrameService.clearCache()
@@ -682,6 +683,7 @@ final class StudioModel: ObservableObject {
         pausePlayback()
         playerTimeObserver?.remove()
         playerTimeObserver = nil
+        cancelScrubPlayerSeek()
         self.player = nil
     }
 
@@ -723,22 +725,17 @@ final class StudioModel: ObservableObject {
         previewTime = clamped
         if let player {
             if isScrubbing {
-                requestScrubOverlayRefresh()
-            }
-            let targetTime = CMTime(seconds: clamped, preferredTimescale: 600)
-            if isScrubbing {
-                player.currentItem?.cancelPendingSeeks()
-            }
-            player.seek(
-                to: targetTime,
-                toleranceBefore: isScrubbing ? scrubSeekTolerance : .zero,
-                toleranceAfter: isScrubbing ? scrubSeekTolerance : .zero
-            )
-            if !isScrubbing {
+                scheduleScrubPlayerSeek(to: clamped)
+            } else {
+                cancelScrubPlayerSeek()
+                let targetTime = CMTime(seconds: clamped, preferredTimescale: 600)
+                player.seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero)
                 refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
             }
         } else if series != nil {
-            refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
+            if !isScrubbing {
+                refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
+            }
         } else {
             refreshPreview()
         }
@@ -757,6 +754,7 @@ final class StudioModel: ObservableObject {
             while let self {
                 let remaining = self.scrubInteractionExpiresAt.timeIntervalSinceNow
                 guard remaining > 0 else {
+                    self.flushScrubPlayerSeek()
                     self.isScrubbingPreview = false
                     self.scrubInteractionTask = nil
                     self.refreshOverlayOnly(coalesceIfBusy: true)
@@ -769,6 +767,58 @@ final class StudioModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private func scheduleScrubPlayerSeek(to time: TimeInterval) {
+        pendingScrubPlayerSeekTime = time
+        let delay = max(0, Self.scrubPlayerSeekInterval - Date().timeIntervalSince(lastScrubPlayerSeek))
+        if delay <= 0.001 {
+            scrubPlayerSeekTask?.cancel()
+            scrubPlayerSeekTask = nil
+            pendingScrubPlayerSeekTime = nil
+            performScrubPlayerSeek(to: time)
+            return
+        }
+
+        guard scrubPlayerSeekTask == nil else { return }
+        scrubPlayerSeekTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            } catch {
+                return
+            }
+
+            guard let self else { return }
+            self.scrubPlayerSeekTask = nil
+            guard let time = self.pendingScrubPlayerSeekTime else { return }
+            self.pendingScrubPlayerSeekTime = nil
+            self.performScrubPlayerSeek(to: time)
+        }
+    }
+
+    private func flushScrubPlayerSeek() {
+        scrubPlayerSeekTask?.cancel()
+        scrubPlayerSeekTask = nil
+        guard let time = pendingScrubPlayerSeekTime else { return }
+        pendingScrubPlayerSeekTime = nil
+        performScrubPlayerSeek(to: time)
+    }
+
+    private func cancelScrubPlayerSeek() {
+        scrubPlayerSeekTask?.cancel()
+        scrubPlayerSeekTask = nil
+        pendingScrubPlayerSeekTime = nil
+    }
+
+    private func performScrubPlayerSeek(to time: TimeInterval) {
+        guard let player else { return }
+        lastScrubPlayerSeek = Date()
+        player.currentItem?.cancelPendingSeeks()
+        player.seek(
+            to: CMTime(seconds: time, preferredTimescale: 600),
+            toleranceBefore: scrubSeekTolerance,
+            toleranceAfter: scrubSeekTolerance
+        )
     }
 
     func markSportStart() {
@@ -1260,13 +1310,6 @@ final class StudioModel: ObservableObject {
         return CGSize(width: max(2, width.rounded()), height: max(2, height.rounded()))
     }
 
-    private func scrubPreviewOverlayRenderSize() -> CGSize {
-        sanitizedPreviewSize(
-            currentPreviewOverlayRenderSize(),
-            maximumDimension: Self.scrubPreviewMaximumRenderDimension
-        )
-    }
-
     private func sanitizedPreviewDimension(_ value: CGFloat, fallback: CGFloat) -> CGFloat {
         let resolved = value.isFinite && value > 0 ? value : fallback
         return max(2, resolved.isFinite ? resolved : 2)
@@ -1291,51 +1334,6 @@ final class StudioModel: ObservableObject {
             }
             self.refreshOverlayOnly(previewSize: size)
         }
-    }
-
-    private func scheduleScrubOverlayRefresh() {
-        guard !isExporting else { return }
-        guard series != nil else {
-            refreshOverlayOnly(coalesceIfBusy: true)
-            return
-        }
-
-        let delay = max(0, Self.scrubOverlayRefreshInterval - Date().timeIntervalSince(lastOverlayRefresh))
-        if delay <= 0.001 {
-            pendingScrubOverlayRefreshTask?.cancel()
-            pendingScrubOverlayRefreshTask = nil
-            refreshOverlayOnly(
-                previewSize: scrubPreviewOverlayRenderSize(),
-                coalesceIfBusy: true
-            )
-            return
-        }
-
-        guard pendingScrubOverlayRefreshTask == nil else { return }
-        pendingScrubOverlayRefreshTask = Task { @MainActor [weak self] in
-            do {
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            } catch {
-                return
-            }
-
-            guard let self else { return }
-            self.pendingScrubOverlayRefreshTask = nil
-            self.refreshOverlayOnly(
-                previewSize: self.scrubPreviewOverlayRenderSize(),
-                coalesceIfBusy: true
-            )
-        }
-    }
-
-    private func requestScrubOverlayRefresh() {
-        guard !isExporting else { return }
-        guard series != nil else {
-            refreshOverlayOnly(coalesceIfBusy: true)
-            return
-        }
-
-        scheduleScrubOverlayRefresh()
     }
 
     nonisolated private static func renderOverlayImage(
@@ -1669,13 +1667,14 @@ final class StudioModel: ObservableObject {
         previewRenderTask?.cancel()
         dragRenderTask?.cancel()
         pendingPreviewSizeRefreshTask?.cancel()
-        pendingScrubOverlayRefreshTask?.cancel()
         scrubInteractionTask?.cancel()
+        scrubPlayerSeekTask?.cancel()
         previewRenderTask = nil
         dragRenderTask = nil
         pendingPreviewSizeRefreshTask = nil
-        pendingScrubOverlayRefreshTask = nil
         scrubInteractionTask = nil
+        scrubPlayerSeekTask = nil
+        pendingScrubPlayerSeekTime = nil
         scrubInteractionExpiresAt = .distantPast
         isScrubbingPreview = false
         draggedElementID = nil

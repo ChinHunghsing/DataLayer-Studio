@@ -13,6 +13,7 @@ struct PreviewCanvasView: View {
     let onToggleFullscreen: () -> Void
     @State private var activeDrag: ComponentDragState?
     @State private var magnificationStartZoom: Double?
+    @State private var liveScrubTime: TimeInterval?
 
     init(
         model: StudioModel,
@@ -27,8 +28,8 @@ struct PreviewCanvasView: View {
     }
 
     var body: some View {
-        let canvasState = PreviewCanvasState(model: model)
-        let controlsState = PreviewControlsState(model: model)
+        let canvasState = PreviewCanvasState(model: model, previewTimeOverride: liveScrubTime)
+        let controlsState = PreviewControlsState(model: model, previewTimeOverride: liveScrubTime)
 
         if isFullscreen {
             ZStack(alignment: .bottom) {
@@ -37,6 +38,7 @@ struct PreviewCanvasView: View {
                     model: model,
                     state: controlsState,
                     zoom: $zoom,
+                    liveScrubTime: $liveScrubTime,
                     isFullscreen: isFullscreen,
                     onToggleFullscreen: onToggleFullscreen
                 )
@@ -48,6 +50,7 @@ struct PreviewCanvasView: View {
                     model: model,
                     state: controlsState,
                     zoom: $zoom,
+                    liveScrubTime: $liveScrubTime,
                     isFullscreen: isFullscreen,
                     onToggleFullscreen: onToggleFullscreen
                 )
@@ -241,6 +244,11 @@ struct PreviewCanvasView: View {
         .transaction { transaction in
             transaction.animation = nil
             transaction.disablesAnimations = true
+        }
+        .onChange(of: state.isScrubbingPreview) { isScrubbing in
+            if !isScrubbing {
+                liveScrubTime = nil
+            }
         }
     }
 
@@ -763,7 +771,7 @@ struct PreviewCanvasView: View {
     }
 
     private func currentTelemetrySample() -> TelemetrySample {
-        let elapsed = model.timeSync.fitElapsed(forVideoTime: model.previewTime)
+        let elapsed = model.timeSync.fitElapsed(forVideoTime: effectivePreviewTime)
         return model.series?.sample(at: elapsed) ?? TelemetrySample(elapsed: elapsed)
     }
 
@@ -838,7 +846,7 @@ struct PreviewCanvasView: View {
 
     private func timeDateText(for element: OverlayElement) -> (label: String, elapsed: String, clock: String, date: String, icon: String) {
         let sample = currentTelemetrySample()
-        let rawElapsed = model.timeSync.rawFitElapsed(forVideoTime: model.previewTime)
+        let rawElapsed = model.timeSync.rawFitElapsed(forVideoTime: effectivePreviewTime)
         let absoluteDate = model.series?.date(atElapsed: rawElapsed) ?? sample.date
         return (
             element.customization.label(default: "TIME"),
@@ -847,6 +855,10 @@ struct PreviewCanvasView: View {
             formatCalendarDate(absoluteDate),
             element.customization.icon(default: "TIME")
         )
+    }
+
+    private var effectivePreviewTime: TimeInterval {
+        liveScrubTime ?? model.previewTime
     }
 
     private func labelSize(_ base: CGFloat, scale: CGFloat, element: OverlayElement) -> CGFloat {
@@ -1323,7 +1335,7 @@ struct PreviewCanvasView: View {
 
     private func routeMarkerPoint(in rect: CGRect, elapsedOffset: TimeInterval = 0) -> CGPoint? {
         guard let series = model.series, let bounds = series.bounds else { return nil }
-        let elapsed = model.timeSync.fitElapsed(forVideoTime: model.previewTime) + elapsedOffset
+        let elapsed = model.timeSync.fitElapsed(forVideoTime: effectivePreviewTime) + elapsedOffset
         let sample = series.sample(at: elapsed)
         guard let latitude = sample.latitude, let longitude = sample.longitude else { return nil }
         let latSpan = max(bounds.maxLatitude - bounds.minLatitude, 0.000_001)
@@ -1485,7 +1497,7 @@ struct PreviewCanvasState: Equatable {
     var isScrubbingPreview: Bool
 
     @MainActor
-    init(model: StudioModel) {
+    init(model: StudioModel, previewTimeOverride: TimeInterval? = nil) {
         player = model.player
         backgroundImage = model.backgroundImage
         overlayImage = model.overlayImage
@@ -1499,7 +1511,7 @@ struct PreviewCanvasState: Equatable {
         hasSeries = model.series != nil
         outputWidth = model.outputWidth
         outputHeight = model.outputHeight
-        previewTime = model.previewTime
+        previewTime = previewTimeOverride ?? model.previewTime
         isScrubbingPreview = model.isScrubbingPreview
     }
 
