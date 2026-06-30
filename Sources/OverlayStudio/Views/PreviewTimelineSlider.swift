@@ -179,6 +179,7 @@ final class TimelineScrubberView: NSView {
         currentValue = nextValue
         setAccessibilityValue(String(format: "%.3f", currentValue))
         needsDisplay = true
+        displayIfNeeded()
         onLiveChange(nextValue)
         if commit {
             onCommit(nextValue)

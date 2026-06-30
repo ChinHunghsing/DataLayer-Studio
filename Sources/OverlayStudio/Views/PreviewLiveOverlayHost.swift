@@ -101,8 +101,13 @@ final class PreviewLiveOverlayView: NSView {
             hostingView.isHidden = true
         }
         needsDisplay = true
+        hostingView.needsLayout = true
+        hostingView.needsDisplay = true
+        hostingView.layoutSubtreeIfNeeded()
         displayIfNeeded()
         hostingView.displayIfNeeded()
+        layer?.displayIfNeeded()
+        hostingView.layer?.displayIfNeeded()
     }
 
     override func draw(_ dirtyRect: NSRect) {

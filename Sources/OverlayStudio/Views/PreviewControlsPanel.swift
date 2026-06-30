@@ -9,6 +9,7 @@ struct PreviewControlsPanel: View {
     let isFullscreen: Bool
     let onToggleFullscreen: () -> Void
     @EnvironmentObject private var localization: LocalizationStore
+    @State private var liveStatusTime: TimeInterval?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -47,6 +48,7 @@ struct PreviewControlsPanel: View {
         HStack(spacing: 8) {
             Button {
                 liveScrubTime = nil
+                liveStatusTime = nil
                 liveScrubController.setTime(nil)
                 model.togglePlayback()
             } label: {
@@ -59,21 +61,24 @@ struct PreviewControlsPanel: View {
 
             PreviewTimelineSlider(
                 value: Binding(
-                    get: { liveScrubTime ?? model.previewTime },
+                    get: { liveStatusTime ?? liveScrubTime ?? model.previewTime },
                     set: {
+                        liveStatusTime = nil
                         liveScrubTime = $0
                         model.seekPreview(to: $0)
                     }
                 ),
                 range: 0...max(state.previewDuration, 1),
                 isEnabled: state.hasSeries && !state.isExporting,
-                accessibilityLabel: localization.string("preview.time", formatTimecode(state.previewTime)),
+                accessibilityLabel: localization.string("preview.time", formatTimecode(statusPreviewTime)),
                 onFrameStep: {
+                    liveStatusTime = nil
                     model.stepPreviewFrame(by: $0)
                     liveScrubTime = model.previewTime
                     liveScrubController.setTime(model.previewTime)
                 },
                 onLiveChange: {
+                    liveStatusTime = $0
                     liveScrubController.setTime($0)
                     model.scrubPreviewLive(to: $0)
                 }
@@ -145,7 +150,7 @@ struct PreviewControlsPanel: View {
 
     private var statusRow: some View {
         HStack {
-            Text(formatTimecode(state.previewTime))
+            Text(formatTimecode(statusPreviewTime))
             Spacer()
             if state.syncMode == .syncPoint, state.syncFITSeconds == 0 {
                 Text(localization.string("preview.sportStartAt", formatTimecode(state.syncVideoSeconds)))
@@ -156,6 +161,10 @@ struct PreviewControlsPanel: View {
         }
         .font(.caption.monospacedDigit())
         .foregroundStyle(.secondary)
+    }
+
+    private var statusPreviewTime: TimeInterval {
+        liveStatusTime ?? state.previewTime
     }
 
     @ViewBuilder
