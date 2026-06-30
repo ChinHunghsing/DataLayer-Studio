@@ -10,8 +10,10 @@ struct PreviewTimelineSlider: View {
 
     @FocusState private var hasFocus: Bool
     @State private var dragValue: Double?
+    @State private var lastLiveChange = Date.distantPast
 
     static let valueChangeEpsilon = 0.000_5
+    static let liveChangeInterval: TimeInterval = 1.0 / 60.0
 
     var body: some View {
         GeometryReader { proxy in
@@ -40,9 +42,11 @@ struct PreviewTimelineSlider: View {
                     .onChanged { update(locationX: $0.location.x, width: width) }
                     .onEnded { _ in
                         if let dragValue {
+                            onLiveChange(dragValue)
                             value = dragValue
                         }
                         dragValue = nil
+                        lastLiveChange = .distantPast
                     }
             )
         }
@@ -73,6 +77,9 @@ struct PreviewTimelineSlider: View {
         let nextValue = Self.value(forX: locationX, width: width, minValue: range.lowerBound, maxValue: range.upperBound)
         guard abs((dragValue ?? value) - nextValue) > Self.valueChangeEpsilon else { return }
         dragValue = nextValue
+        let now = Date()
+        guard now.timeIntervalSince(lastLiveChange) >= Self.liveChangeInterval else { return }
+        lastLiveChange = now
         onLiveChange(nextValue)
     }
 

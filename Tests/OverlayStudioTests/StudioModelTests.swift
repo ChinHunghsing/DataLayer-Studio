@@ -376,6 +376,10 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(PreviewTimelineSlider.valueChangeEpsilon, 0.001)
     }
 
+    func testPreviewTimelineLiveUpdatesAtDisplayRate() {
+        XCTAssertLessThanOrEqual(PreviewTimelineSlider.liveChangeInterval, 1.0 / 60.0)
+    }
+
     func testPreviewTimelineMapsPointerPositionToClampedValue() {
         XCTAssertEqual(PreviewTimelineSlider.value(forX: 50, width: 100, minValue: 10, maxValue: 20), 15)
         XCTAssertEqual(PreviewTimelineSlider.value(forX: -20, width: 100, minValue: 10, maxValue: 20), 10)
