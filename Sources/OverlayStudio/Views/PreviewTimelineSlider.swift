@@ -57,8 +57,9 @@ struct PreviewTimelineSlider: NSViewRepresentable {
 
         @objc func valueChanged(_ sender: NSSlider) {
             guard abs(value.wrappedValue - sender.doubleValue) > PreviewTimelineSlider.valueChangeEpsilon else { return }
-            onLiveChange(sender.doubleValue)
             value.wrappedValue = sender.doubleValue
+            onLiveChange(sender.doubleValue)
+            FocusableTimelineSlider.flushDisplay(for: sender)
         }
 
         func stepFrame(by offset: Int) {
@@ -113,12 +114,19 @@ final class FocusableTimelineSlider: NSSlider {
         guard abs(doubleValue - nextValue) > PreviewTimelineSlider.valueChangeEpsilon else { return }
         doubleValue = nextValue
         _ = sendAction(action, to: target)
-        window?.displayIfNeeded()
+        Self.flushDisplay(for: self)
     }
 
     static func value(forX x: CGFloat, width: CGFloat, minValue: Double, maxValue: Double) -> Double {
         guard width > 0, maxValue > minValue else { return minValue }
         let fraction = min(1, max(0, Double(x / width)))
         return minValue + (maxValue - minValue) * fraction
+    }
+
+    static func flushDisplay(for view: NSView) {
+        view.window?.contentView?.needsLayout = true
+        view.window?.contentView?.layoutSubtreeIfNeeded()
+        view.window?.contentView?.displayIfNeeded()
+        view.window?.displayIfNeeded()
     }
 }

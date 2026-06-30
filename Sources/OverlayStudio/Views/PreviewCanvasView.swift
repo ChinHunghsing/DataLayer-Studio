@@ -199,7 +199,7 @@ struct PreviewCanvasView: View {
                 }
             }
 
-            if state.isScrubbingPreview, state.hasSeries, activeDrag == nil {
+            if (state.isScrubbingPreview || liveScrubTime != nil), state.hasSeries, activeDrag == nil {
                 liveScrubOverlay(
                     displayRect: displayRect,
                     visibleElements: visibleElements,
