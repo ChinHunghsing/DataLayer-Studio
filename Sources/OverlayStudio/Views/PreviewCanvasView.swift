@@ -1025,7 +1025,7 @@ struct PreviewCanvasView: View {
                 case .route:
                     liveRouteMarkerOverlay(element: element, rect: rect, displayRect: displayRect)
                 case .speed:
-                    EmptyView()
+                    liveSpeedOverlay(element: element, rect: rect, displayRect: displayRect)
                 }
             }
         }
@@ -1165,6 +1165,91 @@ struct PreviewCanvasView: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(max(2, 10 * outputScale * displayScale))
+        }
+        .frame(width: rect.width, height: rect.height)
+        .position(x: rect.midX, y: rect.midY)
+    }
+
+    private func liveSpeedOverlay(element: OverlayElement, rect: CGRect, displayRect: CGRect) -> some View {
+        let sample = currentTelemetrySample()
+        let outputScale = rendererLayoutScale() * CGFloat(element.frame.scale)
+        let textScale = outputScale * CGFloat(element.frame.style.textScale)
+        let displayScale = displayScale(for: displayRect)
+        let gaugeMinimum = element.customization.gaugeMinimum ?? 0
+        let gaugeMaximum = max(gaugeMinimum + 1, element.customization.gaugeMaximum ?? 24)
+        let speedKmh = max(0, sample.speedMetersPerSecond ?? 0) * 3.6
+        let speedText: String = {
+            guard let speed = sample.speedMetersPerSecond, speed.isFinite else { return "--.-" }
+            let digits = min(2, max(0, element.customization.valuePrecision ?? 1))
+            return String(format: "%0\(digits + 3).\(digits)f", speed * 3.6)
+        }()
+        let progress = min(1, max(0, (speedKmh - gaugeMinimum) / (gaugeMaximum - gaugeMinimum)))
+        let accent = (element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
+        let trackColor = (element.customization.trackColor ?? .track).swiftUIColor
+        let labelColor = (element.customization.labelColor ?? .label).swiftUIColor
+        let valueColor = (element.customization.valueColor ?? (element.frame.style.accentColor ?? model.layout.style.accentColor).overlayColor).swiftUIColor
+        let unitColor = (element.customization.unitColor ?? .muted).swiftUIColor
+        let labelFontSize = labelSize(15, scale: textScale, element: element) * displayScale
+        let elapsedFontSize = unitSize(24, scale: textScale, element: element) * displayScale
+        let valueFontSize = valueSize(76, scale: textScale, element: element) * displayScale
+        let unitFontSize = unitSize(17, scale: textScale, element: element) * displayScale
+        let lineWidth = max(1, self.lineWidth(element, scale: outputScale) * displayScale)
+        let gaugeSize = min(rect.height * 0.76, rect.width * 0.36)
+        let gaugeFrame = CGRect(
+            x: 78 * outputScale * displayScale,
+            y: rect.height / 2 - gaugeSize / 2,
+            width: gaugeSize,
+            height: gaugeSize
+        )
+
+        return ZStack {
+            if element.customization.showsPanel {
+                RoundedRectangle(cornerRadius: max(8, 20 * outputScale * displayScale), style: .continuous)
+                    .fill(Color.black.opacity(componentPanelOpacity(element)))
+                    .overlay {
+                        if element.customization.panelBorderIsVisible {
+                            RoundedRectangle(cornerRadius: max(8, 20 * outputScale * displayScale), style: .continuous)
+                                .stroke(Color.white.opacity(0.14), lineWidth: max(0.5, displayScale))
+                        }
+                    }
+            }
+
+            if element.customization.showsLabel {
+                Text(element.customization.label(default: "RUN"))
+                    .font(liveFont(element.customization.labelFont, size: labelFontSize))
+                    .foregroundStyle(labelColor)
+                    .position(x: 58 * outputScale * displayScale, y: 33 * outputScale * displayScale)
+            }
+
+            Text(formatClockDuration(sample.elapsed))
+                .font(liveFont(element.customization.unitFont, size: elapsedFontSize))
+                .foregroundStyle(unitColor)
+                .position(x: 92 * outputScale * displayScale, y: 66 * outputScale * displayScale)
+
+            SpeedGaugeArc(progress: progress)
+                .stroke(trackColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .frame(width: gaugeFrame.width, height: gaugeFrame.height)
+                .position(x: gaugeFrame.midX, y: gaugeFrame.midY)
+            SpeedGaugeArc(progress: progress)
+                .trim(from: 0, to: progress)
+                .stroke(accent, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .frame(width: gaugeFrame.width, height: gaugeFrame.height)
+                .position(x: gaugeFrame.midX, y: gaugeFrame.midY)
+
+            Text(speedText)
+                .font(liveFont(element.customization.valueFont, size: valueFontSize))
+                .foregroundStyle(valueColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.45)
+                .position(x: 258 * outputScale * displayScale, y: rect.height / 2 + 14 * outputScale * displayScale)
+
+            if element.customization.showsUnit {
+                Text(element.customization.unit(default: "KM/H"))
+                    .font(liveFont(element.customization.unitFont, size: unitFontSize))
+                    .foregroundStyle(unitColor)
+                    .lineLimit(1)
+                    .position(x: 286 * outputScale * displayScale, y: rect.height - 65 * outputScale * displayScale)
+            }
         }
         .frame(width: rect.width, height: rect.height)
         .position(x: rect.midX, y: rect.midY)
@@ -1467,6 +1552,22 @@ private struct RouteArrowShape: Shape {
         path.addLine(to: CGPoint(x: base.x + perpendicular.x * width / 2, y: base.y + perpendicular.y * width / 2))
         path.addLine(to: CGPoint(x: base.x - perpendicular.x * width / 2, y: base.y - perpendicular.y * width / 2))
         path.closeSubpath()
+        return path
+    }
+}
+
+private struct SpeedGaugeArc: Shape {
+    var progress: Double
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addArc(
+            center: CGPoint(x: rect.midX, y: rect.midY),
+            radius: min(rect.width, rect.height) / 2,
+            startAngle: .degrees(224),
+            endAngle: .degrees(-44),
+            clockwise: true
+        )
         return path
     }
 }
