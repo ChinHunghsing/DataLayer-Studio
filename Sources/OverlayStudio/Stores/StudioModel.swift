@@ -137,6 +137,7 @@ final class StudioModel: ObservableObject {
     private var fitLoadTask: Task<Void, Never>?
     private var weatherLoadTask: Task<Void, Never>?
     private var pendingOverlayRefreshAfterCurrentRender = false
+    private var pendingOverlayRefreshDisplaysIntermediateResult = false
     private var isScrubbingPreview = false
     private var exportTask: Task<Void, Never>?
     private var exportCancellationToken: ExportCancellationToken?
@@ -718,7 +719,7 @@ final class StudioModel: ObservableObject {
         previewTime = clamped
         if let player {
             if isScrubbing {
-                refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
+                refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh, displayIntermediateResults: true)
             }
             let targetTime = CMTime(seconds: clamped, preferredTimescale: 600)
             if isScrubbing {
@@ -733,7 +734,11 @@ final class StudioModel: ObservableObject {
                 refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
             }
         } else if series != nil {
-            refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
+            if isScrubbing {
+                refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh, displayIntermediateResults: true)
+            } else {
+                refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
+            }
         } else {
             refreshPreview()
         }
@@ -977,10 +982,10 @@ final class StudioModel: ObservableObject {
             guard !Task.isCancelled else { return }
             let finalWarningMessage = warningMessage
 
-            await MainActor.run { [weak self] in
+            await Self.performPreviewUpdateOnMainRunLoop { [weak self] in
                 guard let self else { return }
-                guard !Task.isCancelled,
-                      self.previewRenderGeneration == generation else { return }
+                guard self.previewRenderGeneration == generation,
+                      self.previewRenderTask != nil else { return }
                 self.backgroundImage = background
                 self.overlayImage = overlay
                 self.previewWarning = finalWarningMessage
@@ -995,7 +1000,8 @@ final class StudioModel: ObservableObject {
     func refreshOverlayOnly(
         previewSize: CGSize? = nil,
         minimumInterval: TimeInterval = 0,
-        coalesceIfBusy: Bool = false
+        coalesceIfBusy: Bool = false,
+        displayIntermediateResults: Bool = false
     ) {
         guard !isExporting else { return }
         guard draggedElementID == nil else { return }
@@ -1008,9 +1014,11 @@ final class StudioModel: ObservableObject {
         }
         if coalesceIfBusy, previewRenderTask != nil {
             pendingOverlayRefreshAfterCurrentRender = true
+            pendingOverlayRefreshDisplaysIntermediateResult = pendingOverlayRefreshDisplaysIntermediateResult || displayIntermediateResults
             return
         }
         pendingOverlayRefreshAfterCurrentRender = false
+        pendingOverlayRefreshDisplaysIntermediateResult = false
 
         let now = Date()
         if minimumInterval > 0, now.timeIntervalSince(lastOverlayRefresh) < minimumInterval {
@@ -1051,14 +1059,27 @@ final class StudioModel: ObservableObject {
             }
             guard !Task.isCancelled else { return }
 
-            await MainActor.run { [weak self] in
+            await Self.performPreviewUpdateOnMainRunLoop { [weak self] in
                 guard let self else { return }
-                guard !Task.isCancelled,
-                      self.previewRenderGeneration == generation else { return }
+                guard self.previewRenderGeneration == generation,
+                      self.previewRenderTask != nil else { return }
                 if self.pendingOverlayRefreshAfterCurrentRender {
+                    let shouldDisplayIntermediateResult = displayIntermediateResults
+                        || self.pendingOverlayRefreshDisplaysIntermediateResult
                     self.pendingOverlayRefreshAfterCurrentRender = false
+                    self.pendingOverlayRefreshDisplaysIntermediateResult = false
+                    if shouldDisplayIntermediateResult {
+                        self.overlayImage = overlay
+                        self.previewWarning = warningMessage
+                        if let warningMessage {
+                            self.addDebugLog(.preview, warningMessage)
+                        }
+                    }
                     self.previewRenderTask = nil
-                    self.refreshOverlayOnly(coalesceIfBusy: true)
+                    self.refreshOverlayOnly(
+                        coalesceIfBusy: true,
+                        displayIntermediateResults: shouldDisplayIntermediateResult
+                    )
                     return
                 }
                 self.overlayImage = overlay
@@ -1291,6 +1312,18 @@ final class StudioModel: ObservableObject {
             ),
             size: NSSize(width: size.width, height: size.height)
         )
+    }
+
+    nonisolated private static func performPreviewUpdateOnMainRunLoop(_ update: @escaping @MainActor () -> Void) async {
+        await withCheckedContinuation { continuation in
+            RunLoop.main.perform(inModes: [.default, .eventTracking]) {
+                MainActor.assumeIsolated {
+                    update()
+                }
+                continuation.resume()
+            }
+            CFRunLoopWakeUp(CFRunLoopGetMain())
+        }
     }
 
     nonisolated private static func previewWarningMessage(_ prefix: String, error: Error) -> String {
@@ -1613,6 +1646,7 @@ final class StudioModel: ObservableObject {
         dragBaseOverlayImage = nil
         dragOverlayImage = nil
         pendingOverlayRefreshAfterCurrentRender = false
+        pendingOverlayRefreshDisplaysIntermediateResult = false
     }
 
     private func cancelLoadTasks() {
