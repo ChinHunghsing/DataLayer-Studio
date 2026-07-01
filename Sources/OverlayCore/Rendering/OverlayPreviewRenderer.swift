@@ -25,8 +25,10 @@ public final class OverlayPreviewRenderer {
     private let hardwareProfile: OverlayHardwareProfile
     private let context: CIContext
     private let pixelBufferPoolLock = NSLock()
+    private let rendererCacheLock = NSLock()
     private var pixelBufferPoolSize: PixelBufferPoolSize?
     private var pixelBufferPool: CVPixelBufferPool?
+    private var rendererCache: RendererCache?
 
     public init(hardwareProfile: OverlayHardwareProfile = .current) {
         self.hardwareProfile = hardwareProfile
@@ -53,7 +55,7 @@ public final class OverlayPreviewRenderer {
         let height = max(2, Int(size.height.rounded()))
         let pixelBuffer = try makePixelBuffer(width: width, height: height)
 
-        let renderer = OverlayRenderer(
+        let renderer = cachedRenderer(
             series: series,
             config: OverlayRenderConfig(
                 size: CGSize(width: width, height: height),
@@ -69,6 +71,24 @@ public final class OverlayPreviewRenderer {
             throw OverlayPreviewError.cannotCreatePreviewImage
         }
         return cgImage
+    }
+
+    private func cachedRenderer(series: TelemetrySeries, config: OverlayRenderConfig) -> OverlayRenderer {
+        rendererCacheLock.lock()
+        if let rendererCache,
+           rendererCache.config == config,
+           rendererCache.series == series {
+            let renderer = rendererCache.renderer
+            rendererCacheLock.unlock()
+            return renderer
+        }
+        rendererCacheLock.unlock()
+
+        let renderer = OverlayRenderer(series: series, config: config)
+        rendererCacheLock.lock()
+        rendererCache = RendererCache(series: series, config: config, renderer: renderer)
+        rendererCacheLock.unlock()
+        return renderer
     }
 
     private func makePixelBuffer(width: Int, height: Int) throws -> CVPixelBuffer {
@@ -111,4 +131,10 @@ public final class OverlayPreviewRenderer {
 private struct PixelBufferPoolSize: Equatable {
     var width: Int
     var height: Int
+}
+
+private struct RendererCache {
+    var series: TelemetrySeries
+    var config: OverlayRenderConfig
+    var renderer: OverlayRenderer
 }

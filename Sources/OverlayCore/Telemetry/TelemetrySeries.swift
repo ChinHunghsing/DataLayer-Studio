@@ -7,7 +7,7 @@ public struct GeoBounds: Equatable {
     public var maxLongitude: Double
 }
 
-public struct TelemetrySeries {
+public struct TelemetrySeries: Equatable {
     public private(set) var samples: [TelemetrySample]
     public let bounds: GeoBounds?
     private static let resampleInterval: TimeInterval = 1

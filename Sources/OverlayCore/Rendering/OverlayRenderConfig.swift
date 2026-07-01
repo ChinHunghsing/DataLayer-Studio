@@ -29,7 +29,7 @@ public enum OverlayDistanceUnit: String, CaseIterable, Codable, Identifiable {
     }
 }
 
-public struct OverlayRenderConfig {
+public struct OverlayRenderConfig: Equatable {
     public var size: CGSize
     public var timeSync: TelemetryTimeSync
     public var routePointLimit: Int

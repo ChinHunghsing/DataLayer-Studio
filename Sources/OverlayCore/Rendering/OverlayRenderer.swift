@@ -20,11 +20,15 @@ public final class OverlayRenderer {
         self.series = series
         self.config = config
         self.totalDistanceMeters = OverlayRenderer.lastFiniteDistance(samples: series.samples) ?? 0
-        self.routePoints = OverlayRenderer.makeRoutePoints(
-            samples: series.samples,
-            bounds: series.bounds,
-            limit: config.routePointLimit
-        )
+        if config.layout.visibleElements.contains(where: { $0.kind == .route }) {
+            self.routePoints = OverlayRenderer.makeRoutePoints(
+                samples: series.samples,
+                bounds: series.bounds,
+                limit: config.routePointLimit
+            )
+        } else {
+            self.routePoints = []
+        }
     }
 
     public func render(videoTime: TimeInterval, into pixelBuffer: CVPixelBuffer) throws {
