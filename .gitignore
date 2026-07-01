@@ -58,3 +58,6 @@
 
 # Private Docs
 DataLayer-Studio-handoff.md
+
+# Local purchase notification webhook deployment.
+cloudflare/app-store-webhook/
