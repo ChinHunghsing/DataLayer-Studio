@@ -5,9 +5,16 @@ import Darwin
 import Foundation
 
 public final class OverlayRenderer {
+    private static let routeBaseSize = CGSize(width: 382, height: 238)
+    private static let routeMapHorizontalInset: CGFloat = 26
+    private static let routeMapVerticalInset: CGFloat = 34
+
     private let series: TelemetrySeries
     private let config: OverlayRenderConfig
+    private let visibleElements: [OverlayElement]
+    private let metricElements: [OverlayElement]
     private let routePoints: [RoutePoint]
+    private let routePathCache: [String: CGPath]
     private let totalDistanceMeters: Double
     private let colorSpace = CGColorSpaceCreateDeviceRGB()
     private let fontCacheLock = NSLock()
@@ -19,16 +26,27 @@ public final class OverlayRenderer {
     public init(series: TelemetrySeries, config: OverlayRenderConfig) {
         self.series = series
         self.config = config
+        let visibleElements = config.layout.visibleElements
+        self.visibleElements = visibleElements
+        self.metricElements = visibleElements.filter { Self.isMetricKind($0.kind) }
         self.totalDistanceMeters = OverlayRenderer.lastFiniteDistance(samples: series.samples) ?? 0
-        if config.layout.visibleElements.contains(where: { $0.kind == .route }) {
-            self.routePoints = OverlayRenderer.makeRoutePoints(
+        let routePoints: [RoutePoint]
+        if visibleElements.contains(where: { $0.kind == .route }) {
+            routePoints = OverlayRenderer.makeRoutePoints(
                 samples: series.samples,
                 bounds: series.bounds,
                 limit: config.routePointLimit
             )
         } else {
-            self.routePoints = []
+            routePoints = []
         }
+        self.routePoints = routePoints
+        self.routePathCache = OverlayRenderer.makeRoutePathCache(
+            elements: visibleElements,
+            routePoints: routePoints,
+            bounds: series.bounds,
+            canvasSize: config.size
+        )
     }
 
     public func render(videoTime: TimeInterval, into pixelBuffer: CVPixelBuffer) throws {
@@ -67,7 +85,7 @@ public final class OverlayRenderer {
         let absoluteDate = series.date(atElapsed: rawTelemetryTime) ?? sample.date
         let metricTileWidth = alignedMetricTileWidth(sample: sample, canvas: canvas)
 
-        for element in config.layout.visibleElements {
+        for element in visibleElements {
             switch element.kind {
             case .topProgress:
                 drawTopProgress(context: context, sample: sample, canvas: canvas, element: element)
@@ -412,7 +430,7 @@ public final class OverlayRenderer {
     }
 
     private func alignedMetricTileWidth(sample: TelemetrySample, canvas: CGRect) -> CGFloat? {
-        let widths = config.layout.visibleElements.compactMap { element -> CGFloat? in
+        let widths = metricElements.compactMap { element -> CGFloat? in
             guard let content = metricContent(for: element, sample: sample) else { return nil }
             let scale = componentScale(element, canvas: canvas)
             let textScale = scale * componentTextScale(element)
@@ -551,7 +569,7 @@ public final class OverlayRenderer {
 
         let scale = componentScale(element, canvas: canvas)
         let panel = componentRect(element, baseSize: baseSize(for: element.kind), canvas: canvas)
-        let mapRect = panel.insetBy(dx: 26 * scale, dy: 34 * scale)
+        let mapRect = panel.insetBy(dx: Self.routeMapHorizontalInset * scale, dy: Self.routeMapVerticalInset * scale)
         let accent = componentAccent(element)
 
         drawPanelBackground(context, panel, element: element, radius: 20 * scale)
@@ -570,17 +588,17 @@ public final class OverlayRenderer {
             drawRouteDistance(context: context, panel: panel, sample: sample, scale: scale, element: element)
         }
 
-        let fitRect = routeFitRect(mapRect, bounds: bounds)
+        let fitRect = Self.routeFitRect(mapRect, bounds: bounds)
 
         context.setStrokeColor(valueColor(element, fallback: accent).copy(alpha: 0.16) ?? Colors.routeGlow)
         context.setLineWidth(max(1, lineWidth(element, scale: scale) * 1.8))
         context.setLineCap(.round)
         context.setLineJoin(.round)
-        strokeRoute(routePoints, in: fitRect, context: context)
+        strokeRoute(routePoints, cachedPath: cachedRoutePath(for: element, canvas: canvas), in: fitRect, context: context)
 
         context.setStrokeColor(trackColor(element).copy(alpha: 0.62) ?? Colors.routeBase)
         context.setLineWidth(max(0.5, lineWidth(element, scale: scale) * 0.82))
-        strokeRoute(routePoints, in: fitRect, context: context)
+        strokeRoute(routePoints, cachedPath: cachedRoutePath(for: element, canvas: canvas), in: fitRect, context: context)
 
         let elapsedCount = routePointCount(through: sample.elapsed)
         if elapsedCount > 1 {
@@ -592,7 +610,7 @@ public final class OverlayRenderer {
         if let current = point(for: sample, in: fitRect, bounds: bounds) {
             drawRouteCurrentMarker(
                 at: current,
-                angle: routeDirectionAngle(for: sample, in: fitRect, bounds: bounds),
+                angle: routeDirectionAngle(for: sample, in: fitRect),
                 context: context,
                 scale: scale,
                 element: element,
@@ -909,10 +927,18 @@ public final class OverlayRenderer {
         return CGPoint(x: x, y: y)
     }
 
-    private func routeDirectionAngle(for sample: TelemetrySample, in rect: CGRect, bounds: GeoBounds) -> CGFloat? {
-        let before = point(for: series.sample(at: sample.elapsed - 2), in: rect, bounds: bounds)
-        let after = point(for: series.sample(at: sample.elapsed + 2), in: rect, bounds: bounds)
-        guard let before, let after else { return nil }
+    private func routeDirectionAngle(for sample: TelemetrySample, in rect: CGRect) -> CGFloat? {
+        guard routePoints.count > 1 else { return nil }
+        let beforeIndex = max(0, routePointCount(through: sample.elapsed - 2) - 1)
+        var afterIndex = min(routePoints.count - 1, routePointCount(through: sample.elapsed + 2))
+        var adjustedBeforeIndex = beforeIndex
+        if adjustedBeforeIndex == afterIndex {
+            adjustedBeforeIndex = max(0, adjustedBeforeIndex - 1)
+            afterIndex = min(routePoints.count - 1, afterIndex + 1)
+        }
+        guard adjustedBeforeIndex != afterIndex else { return nil }
+        let before = routePoints[adjustedBeforeIndex].point(in: rect)
+        let after = routePoints[afterIndex].point(in: rect)
         return Self.routeDirectionAngle(before: before, after: after)
     }
 
@@ -966,7 +992,7 @@ public final class OverlayRenderer {
         context.fillPath()
     }
 
-    private func routeFitRect(_ rect: CGRect, bounds: GeoBounds) -> CGRect {
+    private static func routeFitRect(_ rect: CGRect, bounds: GeoBounds) -> CGRect {
         let latSpan = max(bounds.maxLatitude - bounds.minLatitude, 0.000_001)
         let lonSpan = max(bounds.maxLongitude - bounds.minLongitude, 0.000_001)
         let routeAspect = CGFloat(lonSpan / latSpan)
@@ -977,6 +1003,11 @@ public final class OverlayRenderer {
         }
         let width = rect.height * routeAspect
         return CGRect(x: rect.midX - width / 2, y: rect.minY, width: width, height: rect.height)
+    }
+
+    private func cachedRoutePath(for element: OverlayElement, canvas: CGRect) -> CGPath? {
+        guard canvas.size == config.size else { return nil }
+        return routePathCache[element.id]
     }
 
     private func routePointCount(through elapsed: TimeInterval) -> Int {
@@ -995,15 +1026,17 @@ public final class OverlayRenderer {
 
     private func strokeRoute<Points: Collection>(
         _ points: Points,
+        cachedPath: CGPath? = nil,
         in rect: CGRect,
         context: CGContext
     ) where Points.Element == RoutePoint {
-        guard let first = points.first else { return }
-        context.beginPath()
-        context.move(to: first.point(in: rect))
-        for point in points.dropFirst() {
-            context.addLine(to: point.point(in: rect))
+        if let cachedPath {
+            context.addPath(cachedPath)
+            context.strokePath()
+            return
         }
+        guard let path = Self.routePath(points, in: rect) else { return }
+        context.addPath(path)
         context.strokePath()
     }
 
@@ -1055,7 +1088,7 @@ public final class OverlayRenderer {
              .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness:
             return CGSize(width: 160, height: 74)
         case .route:
-            return CGSize(width: 382, height: 238)
+            return Self.routeBaseSize
         case .topProgress:
             return CGSize(width: 1650, height: 58)
         case .timeDate:
@@ -1493,6 +1526,54 @@ public final class OverlayRenderer {
             limit: limit
         )
         return samples.compactMap { RoutePoint(sample: $0, bounds: bounds) }
+    }
+
+    private static func makeRoutePathCache(
+        elements: [OverlayElement],
+        routePoints: [RoutePoint],
+        bounds: GeoBounds?,
+        canvasSize: CGSize
+    ) -> [String: CGPath] {
+        guard let bounds, routePoints.count > 1, canvasSize.width > 0, canvasSize.height > 0 else { return [:] }
+        let canvas = CGRect(origin: .zero, size: canvasSize)
+        var cache: [String: CGPath] = [:]
+        for element in elements where element.kind == .route {
+            let scale = max(0.28, min(canvas.width / 1920, canvas.height / 1080)) * CGFloat(element.frame.scale)
+            let width = routeBaseSize.width * scale * CGFloat(max(0.1, element.customization.lengthScale))
+            let height = routeBaseSize.height * scale
+            let panel = CGRect(
+                x: canvas.minX + canvas.width * CGFloat(element.frame.x),
+                y: canvas.maxY - canvas.height * CGFloat(element.frame.y) - height,
+                width: width,
+                height: height
+            )
+            let fitRect = routeFitRect(
+                panel.insetBy(dx: routeMapHorizontalInset * scale, dy: routeMapVerticalInset * scale),
+                bounds: bounds
+            )
+            cache[element.id] = routePath(routePoints, in: fitRect)
+        }
+        return cache
+    }
+
+    private static func routePath<Points: Collection>(_ points: Points, in rect: CGRect) -> CGPath? where Points.Element == RoutePoint {
+        guard let first = points.first else { return nil }
+        let path = CGMutablePath()
+        path.move(to: first.point(in: rect))
+        for point in points.dropFirst() {
+            path.addLine(to: point.point(in: rect))
+        }
+        return path
+    }
+
+    private static func isMetricKind(_ kind: OverlayComponentID) -> Bool {
+        switch kind {
+        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
+             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness, .weather:
+            return true
+        case .speed, .route, .topProgress, .timeDate:
+            return false
+        }
     }
 
     static func downsample(samples: [TelemetrySample], limit: Int) -> [TelemetrySample] {

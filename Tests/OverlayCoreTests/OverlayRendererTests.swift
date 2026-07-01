@@ -219,6 +219,24 @@ final class OverlayRendererTests: XCTestCase {
         XCTAssertNil(OverlayRenderer.routeDirectionAngle(before: CGPoint(x: 10, y: 10), after: CGPoint(x: 10.5, y: 10.2)))
     }
 
+    func testRendererDrawsRouteAcrossFrames() throws {
+        let series = TelemetrySeries(samples: makeSamples(count: 64))
+        let renderer = OverlayRenderer(
+            series: series,
+            config: OverlayRenderConfig(
+                size: CGSize(width: 640, height: 360),
+                layout: OverlayLayout(elements: [OverlayElement.defaultElement(kind: .route)])
+            )
+        )
+        let pixelBuffer = try makePixelBuffer(width: 640, height: 360)
+
+        try renderer.render(videoTime: 0, into: pixelBuffer)
+        XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
+
+        try renderer.render(videoTime: 30, into: pixelBuffer)
+        XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
+    }
+
     func testLastFiniteDistanceSkipsMissingAndInvalidDistances() {
         let samples = [
             TelemetrySample(elapsed: 0, distanceMeters: 1_000),
