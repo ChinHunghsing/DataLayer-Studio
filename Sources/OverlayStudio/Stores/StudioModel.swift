@@ -260,6 +260,22 @@ final class StudioModel: ObservableObject {
         }
     }
 
+    func useMatchPointSyncMode() {
+        guard syncMode != .syncPoint else { return }
+        let fitOffset: TimeInterval
+        switch syncMode {
+        case .offset:
+            fitOffset = -finiteTime(offsetSeconds)
+        case .fitStart:
+            fitOffset = nonNegativeTime(fitStartSeconds)
+        case .syncPoint:
+            return
+        }
+        syncMode = .syncPoint
+        syncVideoSeconds = max(0, -fitOffset)
+        syncFITSeconds = max(0, fitOffset)
+    }
+
     func applyLaunchOptions(_ options: StudioLaunchOptions) {
         if let offsetSeconds = options.offsetSeconds {
             syncMode = .offset

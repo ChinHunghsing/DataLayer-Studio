@@ -163,6 +163,29 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.timeSync.rawFitElapsed(forVideoTime: 3), 3)
     }
 
+    func testLegacySyncModesCollapseToEquivalentMatchPoint() {
+        let model = StudioModel()
+
+        model.syncMode = .offset
+        model.offsetSeconds = 120
+        model.useMatchPointSyncMode()
+        XCTAssertEqual(model.syncMode, .syncPoint)
+        XCTAssertEqual(model.syncVideoSeconds, 120)
+        XCTAssertEqual(model.syncFITSeconds, 0)
+
+        model.syncMode = .offset
+        model.offsetSeconds = -45
+        model.useMatchPointSyncMode()
+        XCTAssertEqual(model.syncVideoSeconds, 0)
+        XCTAssertEqual(model.syncFITSeconds, 45)
+
+        model.syncMode = .fitStart
+        model.fitStartSeconds = 30
+        model.useMatchPointSyncMode()
+        XCTAssertEqual(model.syncVideoSeconds, 0)
+        XCTAssertEqual(model.syncFITSeconds, 30)
+    }
+
     func testWeatherRefreshReportsMissingKey() {
         let model = StudioModel()
         model.openWeatherAPIKey = ""

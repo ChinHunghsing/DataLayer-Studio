@@ -4,21 +4,8 @@ struct SidebarSyncSection: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
 
-    private let syncModeDisplayOrder: [SyncMode] = [.syncPoint, .fitStart, .offset]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SidebarControl(title: localization.string("sidebar.sync.mode")) {
-                Picker(localization.string("sidebar.sync.mode"), selection: $model.syncMode) {
-                    ForEach(syncModeDisplayOrder) { mode in
-                        Text(localization.string(mode.localizationKey)).tag(mode)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .disabled(model.videoURL == nil)
-            }
-
             SyncInfoBox(
                 title: localization.string("sidebar.sync.currentFrame"),
                 message: currentMappingText,
@@ -27,17 +14,11 @@ struct SidebarSyncSection: View {
 
             SidebarDivider()
 
-            Group {
-                switch model.syncMode {
-                case .syncPoint:
-                    matchPointControls
-                case .fitStart:
-                    videoStartControls
-                case .offset:
-                    manualOffsetControls
-                }
-            }
-            .disabled(model.videoURL == nil)
+            matchPointControls
+                .disabled(model.videoURL == nil)
+        }
+        .onAppear {
+            model.useMatchPointSyncMode()
         }
     }
 
@@ -76,61 +57,12 @@ struct SidebarSyncSection: View {
         }
     }
 
-    private var videoStartControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TimecodeField(
-                title: localization.string("sidebar.sync.activityAtVideoStart"),
-                value: $model.fitStartSeconds,
-                range: 0...86_400
-            )
-
-            SyncInfoBox(
-                title: localization.string("sidebar.sync.whenToUse"),
-                message: localization.string("sidebar.sync.videoStartHelp"),
-                systemImage: "video"
-            )
-        }
-    }
-
-    private var manualOffsetControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TimecodeField(
-                title: localization.string("sidebar.sync.manualOffset"),
-                value: $model.offsetSeconds,
-                range: -86_400...86_400,
-                allowsNegative: true
-            )
-
-            SyncInfoBox(
-                title: localization.string("sidebar.sync.offsetResult"),
-                message: manualOffsetText,
-                systemImage: "plus.forwardslash.minus"
-            )
-
-            Text(localization.string("sidebar.sync.manualOffsetHelp"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
     private var currentMappingText: String {
         localization.string(
             "sidebar.sync.currentMapping",
             formatDuration(model.previewTime),
             formatActivityTime(model.timeSync.rawFitElapsed(forVideoTime: model.previewTime))
         )
-    }
-
-    private var manualOffsetText: String {
-        let offset = model.offsetSeconds
-        if abs(offset) < 0.0005 {
-            return localization.string("sidebar.sync.offsetAligned")
-        }
-        if offset > 0 {
-            return localization.string("sidebar.sync.offsetVideoBeforeFit", formatDuration(offset))
-        }
-        return localization.string("sidebar.sync.offsetVideoAfterFit", formatDuration(abs(offset)))
     }
 
     private func formatActivityTime(_ seconds: TimeInterval) -> String {
@@ -158,10 +90,8 @@ private struct TimecodeField: View {
     var title: String
     @Binding var value: Double
     var range: ClosedRange<Double>
-    var allowsNegative = false
 
     @EnvironmentObject private var localization: LocalizationStore
-    @State private var zeroSign = 1
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -171,15 +101,6 @@ private struct TimecodeField: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer()
-                if allowsNegative {
-                    Picker(localization.string("sidebar.sync.time.sign"), selection: signBinding) {
-                        Text("+").tag(1)
-                        Text("-").tag(-1)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(width: 64)
-                }
             }
 
             ViewThatFits(in: .horizontal) {
@@ -246,29 +167,12 @@ private struct TimecodeField: View {
             .foregroundStyle(.secondary)
     }
 
-    private var signBinding: Binding<Int> {
-        Binding(
-            get: { currentSign },
-            set: { newSign in
-                zeroSign = newSign
-                let absolute = abs(value.isFinite ? value : 0)
-                setSeconds(Double(newSign) * absolute)
-            }
-        )
-    }
-
-    private var currentSign: Int {
-        if value < 0 { return -1 }
-        if value > 0 { return 1 }
-        return zeroSign
-    }
-
     private func componentBinding(_ component: TimecodeComponent) -> Binding<Int> {
         Binding(
             get: { components[keyPath: component.keyPath] },
             set: { newValue in
                 let milliseconds = components.totalMilliseconds(replacing: component, with: newValue)
-                setSeconds(Double(currentSign) * Double(milliseconds) / 1_000)
+                setSeconds(Double(milliseconds) / 1_000)
             }
         )
     }
