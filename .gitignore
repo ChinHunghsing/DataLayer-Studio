@@ -61,3 +61,6 @@ DataLayer-Studio-handoff.md
 
 # Local purchase notification webhook deployment.
 cloudflare/app-store-webhook/
+node_modules/
+package.json
+package-lock.json
