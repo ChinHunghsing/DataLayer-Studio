@@ -9,6 +9,11 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
     case calories
     case strideLength
     case power
+    case verticalOscillation
+    case groundContactTime
+    case formPower
+    case airPower
+    case legSpringStiffness
     case weather
     case distance
     case route
@@ -33,6 +38,16 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
             return "Stride length"
         case .power:
             return "Power"
+        case .verticalOscillation:
+            return "Vertical oscillation"
+        case .groundContactTime:
+            return "Ground contact time"
+        case .formPower:
+            return "Form power"
+        case .airPower:
+            return "Air power"
+        case .legSpringStiffness:
+            return "Leg spring stiffness"
         case .weather:
             return "Weather"
         case .distance:
@@ -763,6 +778,36 @@ public extension OverlayElement {
                 y: 0.814,
                 style: OverlayComponentStyle(accentColor: .cleanWhite)
             )
+        case .verticalOscillation:
+            return OverlayComponentFrame(
+                x: 0.631,
+                y: 0.704,
+                style: OverlayComponentStyle(accentColor: .electricBlue)
+            )
+        case .groundContactTime:
+            return OverlayComponentFrame(
+                x: 0.725,
+                y: 0.704,
+                style: OverlayComponentStyle(accentColor: .telemetryGreen)
+            )
+        case .formPower:
+            return OverlayComponentFrame(
+                x: 0.819,
+                y: 0.704,
+                style: OverlayComponentStyle(accentColor: .cleanWhite)
+            )
+        case .airPower:
+            return OverlayComponentFrame(
+                x: 0.631,
+                y: 0.594,
+                style: OverlayComponentStyle(accentColor: .amber)
+            )
+        case .legSpringStiffness:
+            return OverlayComponentFrame(
+                x: 0.725,
+                y: 0.594,
+                style: OverlayComponentStyle(accentColor: .hotRed)
+            )
         case .weather:
             return OverlayComponentFrame(
                 x: 0.631,
@@ -809,7 +854,8 @@ public extension OverlayElement {
             return OverlayElementCustomization(lineWidth: 5.5)
         case .weather:
             return OverlayElementCustomization(showsIcon: true, labelScale: 0.92, valueScale: 1.04, unitScale: 0.94, iconScale: 1.12)
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power:
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power,
+             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness:
             return OverlayElementCustomization(labelScale: 0.92, valueScale: 1.04, unitScale: 0.94)
         }
     }

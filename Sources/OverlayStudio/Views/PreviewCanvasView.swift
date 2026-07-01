@@ -497,7 +497,8 @@ struct PreviewCanvasView: View {
         let baseHeight = base.height * scale
 
         switch element.kind {
-        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
+        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
+             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness, .weather:
             return metricOutputSize(
                 element: element,
                 baseWidth: baseWidth,
@@ -661,7 +662,8 @@ struct PreviewCanvasView: View {
 
     private func isMetricElement(_ element: OverlayElement) -> Bool {
         switch element.kind {
-        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
+        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
+             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness, .weather:
             return true
         case .speed, .route, .topProgress, .timeDate:
             return false
@@ -809,6 +811,41 @@ struct PreviewCanvasView: View {
                 sample.powerWatts.map { "\($0)" } ?? "--",
                 element.customization.unit(default: "W"),
                 element.customization.icon(default: "PWR")
+            )
+        case .verticalOscillation:
+            return (
+                element.customization.label(default: "VERT"),
+                formatDecimal(sample.verticalOscillationCentimeters, precision: element.customization.valuePrecision ?? 1),
+                element.customization.unit(default: "CM"),
+                element.customization.icon(default: "VERT")
+            )
+        case .groundContactTime:
+            return (
+                element.customization.label(default: "GCT"),
+                formatDecimal(sample.groundContactTimeMilliseconds, precision: element.customization.valuePrecision ?? 0),
+                element.customization.unit(default: "MS"),
+                element.customization.icon(default: "GCT")
+            )
+        case .formPower:
+            return (
+                element.customization.label(default: "FORM"),
+                sample.formPowerWatts.map { "\($0)" } ?? "--",
+                element.customization.unit(default: "W"),
+                element.customization.icon(default: "FORM")
+            )
+        case .airPower:
+            return (
+                element.customization.label(default: "AIR"),
+                sample.airPowerWatts.map { "\($0)" } ?? "--",
+                element.customization.unit(default: "W"),
+                element.customization.icon(default: "AIR")
+            )
+        case .legSpringStiffness:
+            return (
+                element.customization.label(default: "LSS"),
+                formatDecimal(sample.legSpringStiffnessKilonewtonsPerMeter, precision: element.customization.valuePrecision ?? 1),
+                element.customization.unit(default: "kN/m"),
+                element.customization.icon(default: "LSS")
             )
         case .weather:
             return (
@@ -1041,6 +1078,12 @@ struct PreviewCanvasView: View {
         guard let meters, meters.isFinite else { return "--" }
         let digits = min(3, max(0, precision ?? 2))
         return String(format: "%.\(digits)f", meters)
+    }
+
+    private func formatDecimal(_ value: Double?, precision: Int) -> String {
+        guard let value, value.isFinite else { return "--" }
+        let digits = min(3, max(0, precision))
+        return String(format: "%.\(digits)f", value)
     }
 
     private func formatPace(_ metersPerSecond: Double?) -> String {

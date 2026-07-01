@@ -178,6 +178,57 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(sample.stepLengthMeters ?? -1, 1.234, accuracy: 0.001)
     }
 
+    func testParsesStrydRunningDynamicsAndDeveloperFields() throws {
+        var content = Data()
+        appendStrydFieldDescriptionDefinition(localMessageType: 1, to: &content)
+        appendStrydFieldDescription(
+            developerDataIndex: 0,
+            fieldDefinitionNumber: 8,
+            fitBaseTypeID: 0x84,
+            fieldName: "Form Power",
+            units: "Watts",
+            localMessageType: 1,
+            to: &content
+        )
+        appendStrydFieldDescription(
+            developerDataIndex: 0,
+            fieldDefinitionNumber: 9,
+            fitBaseTypeID: 0x88,
+            fieldName: "Leg Spring Stiffness",
+            units: "KN/m",
+            localMessageType: 1,
+            to: &content
+        )
+        appendStrydFieldDescription(
+            developerDataIndex: 0,
+            fieldDefinitionNumber: 11,
+            fitBaseTypeID: 0x84,
+            fieldName: "Air Power",
+            units: "Watts",
+            localMessageType: 1,
+            to: &content
+        )
+        appendStrydRecordDefinition(localMessageType: 0, to: &content)
+        appendStrydRecord(
+            timestamp: 1_000_000,
+            verticalOscillationRaw: 580,
+            stanceTimeRaw: 2_510,
+            formPower: 47,
+            legSpringStiffness: 11.25,
+            airPower: 8,
+            localMessageType: 0,
+            to: &content
+        )
+
+        let sample = try FITParser().parse(data: makeFITFile(content: content)).sample(at: 0)
+
+        XCTAssertEqual(sample.verticalOscillationCentimeters ?? -1, 5.8, accuracy: 0.001)
+        XCTAssertEqual(sample.groundContactTimeMilliseconds ?? -1, 251, accuracy: 0.001)
+        XCTAssertEqual(sample.formPowerWatts, 47)
+        XCTAssertEqual(sample.legSpringStiffnessKilonewtonsPerMeter ?? -1, 11.25, accuracy: 0.001)
+        XCTAssertEqual(sample.airPowerWatts, 8)
+    }
+
     func testInterpolatesCurrentCaloriesFromLapTotals() throws {
         var content = Data()
         appendStandardRecordDefinition(localMessageType: 0, to: &content)
@@ -406,6 +457,34 @@ private func appendExtendedRecordDefinition(localMessageType: UInt8, to content:
     content.append(contentsOf: [85, 2, 0x84])
 }
 
+private func appendStrydFieldDescriptionDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(206, to: &content)
+    content.append(5)
+    content.append(contentsOf: [0, 1, 0x02])
+    content.append(contentsOf: [1, 1, 0x02])
+    content.append(contentsOf: [2, 1, 0x02])
+    content.append(contentsOf: [3, 32, 0x07])
+    content.append(contentsOf: [8, 16, 0x07])
+}
+
+private func appendStrydRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x60 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(20, to: &content)
+    content.append(3)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [39, 2, 0x84])
+    content.append(contentsOf: [41, 2, 0x84])
+    content.append(3)
+    content.append(contentsOf: [8, 2, 0])
+    content.append(contentsOf: [9, 4, 0])
+    content.append(contentsOf: [11, 2, 0])
+}
+
 private func appendLapDefinition(localMessageType: UInt8, to content: inout Data) {
     content.append(0x40 | localMessageType)
     content.append(0x00)
@@ -510,6 +589,42 @@ private func appendExtendedRecord(_ record: TestRecord, localMessageType: UInt8,
     appendUInt16(record.stepLengthRaw ?? 0xFFFF, to: &content)
 }
 
+private func appendStrydFieldDescription(
+    developerDataIndex: UInt8,
+    fieldDefinitionNumber: UInt8,
+    fitBaseTypeID: UInt8,
+    fieldName: String,
+    units: String,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    content.append(developerDataIndex)
+    content.append(fieldDefinitionNumber)
+    content.append(fitBaseTypeID)
+    appendPaddedString(fieldName, byteCount: 32, to: &content)
+    appendPaddedString(units, byteCount: 16, to: &content)
+}
+
+private func appendStrydRecord(
+    timestamp: UInt32,
+    verticalOscillationRaw: UInt16,
+    stanceTimeRaw: UInt16,
+    formPower: UInt16,
+    legSpringStiffness: Float,
+    airPower: UInt16,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    appendUInt16(verticalOscillationRaw, to: &content)
+    appendUInt16(stanceTimeRaw, to: &content)
+    appendUInt16(formPower, to: &content)
+    appendFloat32(legSpringStiffness, to: &content)
+    appendUInt16(airPower, to: &content)
+}
+
 private func appendLap(timestamp: UInt32, totalCalories: UInt16, localMessageType: UInt8, to content: inout Data) {
     content.append(localMessageType)
     appendUInt32(timestamp, to: &content)
@@ -585,4 +700,14 @@ private func appendUInt32(_ value: UInt32, to data: inout Data) {
 
 private func appendInt32(_ value: Int32, to data: inout Data) {
     appendUInt32(UInt32(bitPattern: value), to: &data)
+}
+
+private func appendFloat32(_ value: Float, to data: inout Data) {
+    appendUInt32(value.bitPattern, to: &data)
+}
+
+private func appendPaddedString(_ value: String, byteCount: Int, to data: inout Data) {
+    let bytes = Array(value.utf8.prefix(max(0, byteCount - 1)))
+    data.append(contentsOf: bytes)
+    data.append(contentsOf: repeatElement(UInt8(0), count: max(0, byteCount - bytes.count)))
 }

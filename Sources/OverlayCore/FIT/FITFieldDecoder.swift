@@ -1,6 +1,12 @@
 import Foundation
 
 enum FITFieldDecoder {
+    static func string(bytes: [UInt8]) -> String? {
+        let trimmed = bytes.prefix { $0 != 0 }
+        guard !trimmed.isEmpty else { return nil }
+        return String(bytes: trimmed, encoding: .utf8)
+    }
+
     static func number(bytes: [UInt8], baseType: UInt8, endian: FITEndian) -> Double? {
         let baseNumber = baseType & 0x1F
         let width = byteWidth(forBaseNumber: baseNumber)
@@ -88,4 +94,3 @@ enum FITFieldDecoder {
         }
     }
 }
-

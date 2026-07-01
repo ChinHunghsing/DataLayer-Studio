@@ -562,6 +562,11 @@ enum AppLocalizer {
         "component.calories": "Calories",
         "component.strideLength": "Stride length",
         "component.power": "Power",
+        "component.verticalOscillation": "Vertical oscillation",
+        "component.groundContactTime": "Ground contact time",
+        "component.formPower": "Form power",
+        "component.airPower": "Air power",
+        "component.legSpringStiffness": "Leg spring stiffness",
         "component.weather": "Weather",
         "component.distanceValue": "Distance value",
         "component.gpsRoute": "GPS route",
@@ -949,6 +954,11 @@ enum AppLocalizer {
         "component.calories": "热量",
         "component.strideLength": "步幅",
         "component.power": "功率",
+        "component.verticalOscillation": "垂直振幅",
+        "component.groundContactTime": "触地时间",
+        "component.formPower": "形态功率",
+        "component.airPower": "空气功率",
+        "component.legSpringStiffness": "腿部弹簧刚度",
         "component.weather": "天气",
         "component.distanceValue": "距离数值",
         "component.gpsRoute": "GPS 轨迹",
@@ -1336,6 +1346,11 @@ enum AppLocalizer {
         "component.calories": "熱量",
         "component.strideLength": "步幅",
         "component.power": "功率",
+        "component.verticalOscillation": "垂直振幅",
+        "component.groundContactTime": "觸地時間",
+        "component.formPower": "形態功率",
+        "component.airPower": "空氣功率",
+        "component.legSpringStiffness": "腿部彈簧剛度",
         "component.weather": "天氣",
         "component.distanceValue": "距離數值",
         "component.gpsRoute": "GPS 軌跡",
@@ -1723,6 +1738,11 @@ enum AppLocalizer {
         "component.calories": "消費カロリー",
         "component.strideLength": "歩幅",
         "component.power": "パワー",
+        "component.verticalOscillation": "上下動",
+        "component.groundContactTime": "接地時間",
+        "component.formPower": "フォームパワー",
+        "component.airPower": "エアパワー",
+        "component.legSpringStiffness": "脚部スプリング剛性",
         "component.weather": "天気",
         "component.distanceValue": "距離の値",
         "component.gpsRoute": "GPS ルート",
@@ -1839,6 +1859,16 @@ extension OverlayComponentID {
             return "component.strideLength"
         case .power:
             return "component.power"
+        case .verticalOscillation:
+            return "component.verticalOscillation"
+        case .groundContactTime:
+            return "component.groundContactTime"
+        case .formPower:
+            return "component.formPower"
+        case .airPower:
+            return "component.airPower"
+        case .legSpringStiffness:
+            return "component.legSpringStiffness"
         case .weather:
             return "component.weather"
         case .distance:

@@ -11,6 +11,11 @@ public struct TelemetrySample: Equatable {
     public var distanceMeters: Double?
     public var speedMetersPerSecond: Double?
     public var powerWatts: Int?
+    public var verticalOscillationCentimeters: Double?
+    public var groundContactTimeMilliseconds: Double?
+    public var formPowerWatts: Int?
+    public var airPowerWatts: Int?
+    public var legSpringStiffnessKilonewtonsPerMeter: Double?
     public var totalCalories: Double?
     public var stepLengthMeters: Double?
     public var temperatureCelsius: Int?
@@ -29,6 +34,11 @@ public struct TelemetrySample: Equatable {
         distanceMeters: Double? = nil,
         speedMetersPerSecond: Double? = nil,
         powerWatts: Int? = nil,
+        verticalOscillationCentimeters: Double? = nil,
+        groundContactTimeMilliseconds: Double? = nil,
+        formPowerWatts: Int? = nil,
+        airPowerWatts: Int? = nil,
+        legSpringStiffnessKilonewtonsPerMeter: Double? = nil,
         totalCalories: Double? = nil,
         stepLengthMeters: Double? = nil,
         temperatureCelsius: Int? = nil,
@@ -46,6 +56,11 @@ public struct TelemetrySample: Equatable {
         self.distanceMeters = distanceMeters
         self.speedMetersPerSecond = speedMetersPerSecond
         self.powerWatts = powerWatts
+        self.verticalOscillationCentimeters = verticalOscillationCentimeters
+        self.groundContactTimeMilliseconds = groundContactTimeMilliseconds
+        self.formPowerWatts = formPowerWatts
+        self.airPowerWatts = airPowerWatts
+        self.legSpringStiffnessKilonewtonsPerMeter = legSpringStiffnessKilonewtonsPerMeter
         self.totalCalories = totalCalories
         self.stepLengthMeters = stepLengthMeters
         self.temperatureCelsius = temperatureCelsius

@@ -6,11 +6,50 @@ struct FITFieldDefinition {
     var baseType: UInt8
 }
 
+struct FITDeveloperFieldDefinition {
+    var number: UInt8
+    var size: UInt8
+    var developerDataIndex: UInt8
+}
+
 struct FITLocalMessageDefinition {
     var endian: FITEndian
     var globalMessageNumber: UInt16
     var fields: [FITFieldDefinition]
-    var developerFieldSizes: [UInt8]
+    var developerFields: [FITDeveloperFieldDefinition]
+}
+
+struct FITDeveloperFieldKey: Hashable {
+    var developerDataIndex: UInt8
+    var fieldDefinitionNumber: UInt8
+}
+
+struct FITDeveloperFieldDescription {
+    var developerDataIndex: UInt8?
+    var fieldDefinitionNumber: UInt8?
+    var fitBaseTypeID: UInt8?
+    var fieldName: String?
+    var units: String?
+    var scale: Double?
+    var offset: Double?
+
+    var key: FITDeveloperFieldKey? {
+        guard let developerDataIndex, let fieldDefinitionNumber else { return nil }
+        return FITDeveloperFieldKey(
+            developerDataIndex: developerDataIndex,
+            fieldDefinitionNumber: fieldDefinitionNumber
+        )
+    }
+
+    var normalizedFieldName: String {
+        (fieldName ?? "")
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+    }
+
+    func scaledValue(_ value: Double) -> Double {
+        (value - (offset ?? 0)) / max(scale ?? 1, 0.000_001)
+    }
 }
 
 struct RawFITRecord {
@@ -24,6 +63,11 @@ struct RawFITRecord {
     var distanceMeters: Double?
     var speedMetersPerSecond: Double?
     var powerWatts: Int?
+    var verticalOscillationCentimeters: Double?
+    var groundContactTimeMilliseconds: Double?
+    var formPowerWatts: Int?
+    var airPowerWatts: Int?
+    var legSpringStiffnessKilonewtonsPerMeter: Double?
     var stepLengthMeters: Double?
     var temperatureCelsius: Int?
 }
@@ -64,6 +108,7 @@ struct ParsedFITMessage {
     var event: RawFITEvent?
     var session: RawFITSession?
     var lap: RawFITLap?
+    var developerFieldDescription: FITDeveloperFieldDescription?
 }
 
 private struct CaloriePoint {
@@ -149,6 +194,7 @@ public final class FITParser {
         var timerStartTimestamps: [UInt32] = []
         var sessionStartTimestamps: [UInt32] = []
         var compressedDistanceAccumulator = CompressedDistanceAccumulator()
+        var developerFieldDescriptions: [FITDeveloperFieldKey: FITDeveloperFieldDescription] = [:]
         var lastTimestamp: UInt32?
 
         while !reader.isAtEnd {
@@ -166,10 +212,15 @@ public final class FITParser {
                     definition: definition,
                     reader: &reader,
                     compressedTimestamp: compressedTimestamp,
-                    compressedDistanceAccumulator: &compressedDistanceAccumulator
+                    compressedDistanceAccumulator: &compressedDistanceAccumulator,
+                    developerFieldDescriptions: developerFieldDescriptions
                 )
                 if let timestamp = parsed.timestamp {
                     lastTimestamp = timestamp
+                }
+                if let description = parsed.developerFieldDescription,
+                   let key = description.key {
+                    developerFieldDescriptions[key] = description
                 }
                 append(
                     parsed: parsed,
@@ -199,10 +250,15 @@ public final class FITParser {
                         definition: definition,
                         reader: &reader,
                         compressedTimestamp: nil,
-                        compressedDistanceAccumulator: &compressedDistanceAccumulator
+                        compressedDistanceAccumulator: &compressedDistanceAccumulator,
+                        developerFieldDescriptions: developerFieldDescriptions
                     )
                     if let timestamp = parsed.timestamp {
                         lastTimestamp = timestamp
+                    }
+                    if let description = parsed.developerFieldDescription,
+                       let key = description.key {
+                        developerFieldDescriptions[key] = description
                     }
                     append(
                         parsed: parsed,
@@ -302,14 +358,16 @@ public final class FITParser {
             ))
         }
 
-        var developerFieldSizes: [UInt8] = []
+        var developerFields: [FITDeveloperFieldDefinition] = []
         if hasDeveloperData {
             let developerFieldCount = Int(try reader.readUInt8())
-            developerFieldSizes.reserveCapacity(developerFieldCount)
+            developerFields.reserveCapacity(developerFieldCount)
             for _ in 0..<developerFieldCount {
-                _ = try reader.readUInt8()
-                developerFieldSizes.append(try reader.readUInt8())
-                _ = try reader.readUInt8()
+                developerFields.append(FITDeveloperFieldDefinition(
+                    number: try reader.readUInt8(),
+                    size: try reader.readUInt8(),
+                    developerDataIndex: try reader.readUInt8()
+                ))
             }
         }
 
@@ -317,7 +375,7 @@ public final class FITParser {
             endian: endian,
             globalMessageNumber: globalMessageNumber,
             fields: fields,
-            developerFieldSizes: developerFieldSizes
+            developerFields: developerFields
         )
     }
 
@@ -325,13 +383,15 @@ public final class FITParser {
         definition: FITLocalMessageDefinition,
         reader: inout ByteReader,
         compressedTimestamp: UInt32?,
-        compressedDistanceAccumulator: inout CompressedDistanceAccumulator
+        compressedDistanceAccumulator: inout CompressedDistanceAccumulator,
+        developerFieldDescriptions: [FITDeveloperFieldKey: FITDeveloperFieldDescription]
     ) throws -> ParsedFITMessage {
         var timestamp = compressedTimestamp
         var record = RawFITRecord(timestamp: compressedTimestamp)
         var event = RawFITEvent(timestamp: compressedTimestamp)
         var session = RawFITSession(timestamp: compressedTimestamp)
         var lap = RawFITLap(timestamp: compressedTimestamp)
+        var developerFieldDescription = FITDeveloperFieldDescription()
 
         for field in definition.fields {
             let bytes = try reader.readBytes(count: Int(field.size))
@@ -343,6 +403,24 @@ public final class FITParser {
                 }
                 if record.distanceMeters == nil {
                     record.distanceMeters = compressed.distanceMeters
+                }
+                continue
+            }
+
+            if definition.globalMessageNumber == 206 {
+                switch field.number {
+                case 3:
+                    developerFieldDescription.fieldName = FITFieldDecoder.string(bytes: bytes)
+                case 8:
+                    developerFieldDescription.units = FITFieldDecoder.string(bytes: bytes)
+                default:
+                    if let value = FITFieldDecoder.number(
+                        bytes: bytes,
+                        baseType: field.baseType,
+                        endian: definition.endian
+                    ) {
+                        applyFieldDescriptionValue(value, fieldNumber: field.number, to: &developerFieldDescription)
+                    }
                 }
                 continue
             }
@@ -382,6 +460,10 @@ public final class FITParser {
                     }
                 case 7:
                     record.powerWatts = Int(value)
+                case 39:
+                    record.verticalOscillationCentimeters = value / 100
+                case 41:
+                    record.groundContactTimeMilliseconds = value / 10
                 case 13:
                     record.temperatureCelsius = Int(value)
                 case 53:
@@ -435,8 +517,23 @@ public final class FITParser {
             }
         }
 
-        for size in definition.developerFieldSizes {
-            try reader.skip(count: Int(size))
+        for developerField in definition.developerFields {
+            let bytes = try reader.readBytes(count: Int(developerField.size))
+            guard definition.globalMessageNumber == 20 else { continue }
+            let key = FITDeveloperFieldKey(
+                developerDataIndex: developerField.developerDataIndex,
+                fieldDefinitionNumber: developerField.number
+            )
+            guard let description = developerFieldDescriptions[key],
+                  let baseType = description.fitBaseTypeID,
+                  let value = FITFieldDecoder.number(
+                    bytes: bytes,
+                    baseType: baseType,
+                    endian: definition.endian
+                  ) else {
+                continue
+            }
+            applyDeveloperRecordValue(description.scaledValue(value), description: description, to: &record)
         }
 
         record.timestamp = timestamp
@@ -449,8 +546,47 @@ public final class FITParser {
             record: definition.globalMessageNumber == 20 ? record : nil,
             event: definition.globalMessageNumber == 21 ? event : nil,
             session: definition.globalMessageNumber == 18 ? session : nil,
-            lap: definition.globalMessageNumber == 19 ? lap : nil
+            lap: definition.globalMessageNumber == 19 ? lap : nil,
+            developerFieldDescription: definition.globalMessageNumber == 206 ? developerFieldDescription : nil
         )
+    }
+
+    private func applyFieldDescriptionValue(
+        _ value: Double,
+        fieldNumber: UInt8,
+        to description: inout FITDeveloperFieldDescription
+    ) {
+        switch fieldNumber {
+        case 0:
+            description.developerDataIndex = UInt8(value)
+        case 1:
+            description.fieldDefinitionNumber = UInt8(value)
+        case 2:
+            description.fitBaseTypeID = UInt8(value)
+        case 6:
+            description.scale = value
+        case 7:
+            description.offset = value
+        default:
+            return
+        }
+    }
+
+    private func applyDeveloperRecordValue(
+        _ value: Double,
+        description: FITDeveloperFieldDescription,
+        to record: inout RawFITRecord
+    ) {
+        switch description.normalizedFieldName {
+        case "airpower":
+            record.airPowerWatts = Int(value.rounded())
+        case "formpower":
+            record.formPowerWatts = Int(value.rounded())
+        case "legspringstiffness":
+            record.legSpringStiffnessKilonewtonsPerMeter = value
+        default:
+            return
+        }
     }
 
     private func samples(
@@ -490,6 +626,11 @@ public final class FITParser {
                 distanceMeters: record.distanceMeters,
                 speedMetersPerSecond: record.speedMetersPerSecond,
                 powerWatts: record.powerWatts,
+                verticalOscillationCentimeters: record.verticalOscillationCentimeters,
+                groundContactTimeMilliseconds: record.groundContactTimeMilliseconds,
+                formPowerWatts: record.formPowerWatts,
+                airPowerWatts: record.airPowerWatts,
+                legSpringStiffnessKilonewtonsPerMeter: record.legSpringStiffnessKilonewtonsPerMeter,
                 totalCalories: calories(at: elapsed, points: caloriePoints),
                 stepLengthMeters: record.stepLengthMeters,
                 temperatureCelsius: record.temperatureCelsius
@@ -513,6 +654,11 @@ public final class FITParser {
                 distanceMeters: syntheticStartDistance(firstRecord, elapsed: firstSample.elapsed),
                 speedMetersPerSecond: firstRecord.speedMetersPerSecond,
                 powerWatts: firstRecord.powerWatts,
+                verticalOscillationCentimeters: firstRecord.verticalOscillationCentimeters,
+                groundContactTimeMilliseconds: firstRecord.groundContactTimeMilliseconds,
+                formPowerWatts: firstRecord.formPowerWatts,
+                airPowerWatts: firstRecord.airPowerWatts,
+                legSpringStiffnessKilonewtonsPerMeter: firstRecord.legSpringStiffnessKilonewtonsPerMeter,
                 totalCalories: calories(at: 0, points: caloriePoints),
                 stepLengthMeters: firstRecord.stepLengthMeters,
                 temperatureCelsius: firstRecord.temperatureCelsius
@@ -730,6 +876,11 @@ private extension RawFITRecord {
             || distanceMeters != nil
             || speedMetersPerSecond != nil
             || powerWatts != nil
+            || verticalOscillationCentimeters != nil
+            || groundContactTimeMilliseconds != nil
+            || formPowerWatts != nil
+            || airPowerWatts != nil
+            || legSpringStiffnessKilonewtonsPerMeter != nil
             || stepLengthMeters != nil
             || temperatureCelsius != nil
     }

@@ -19,6 +19,16 @@ extension OverlayComponentID {
             return "figure.run.motion"
         case .power:
             return "bolt.fill"
+        case .verticalOscillation:
+            return "arrow.up.and.down"
+        case .groundContactTime:
+            return "timer"
+        case .formPower:
+            return "bolt.badge.clock"
+        case .airPower:
+            return "wind"
+        case .legSpringStiffness:
+            return "figure.run.motion"
         case .weather:
             return "cloud.sun.fill"
         case .distance:
@@ -34,9 +44,11 @@ extension OverlayComponentID {
 
     var supportsValuePrecision: Bool {
         switch self {
-        case .speed, .distance, .strideLength, .topProgress:
+        case .speed, .distance, .strideLength, .topProgress,
+             .verticalOscillation, .groundContactTime, .legSpringStiffness:
             return true
-        case .pace, .heartRate, .cadence, .calories, .power, .weather, .route, .timeDate:
+        case .pace, .heartRate, .cadence, .calories, .power, .formPower, .airPower,
+             .weather, .route, .timeDate:
             return false
         }
     }
@@ -49,9 +61,16 @@ extension OverlayComponentID {
             return 2
         case .strideLength:
             return 2
+        case .verticalOscillation:
+            return 1
+        case .groundContactTime:
+            return 0
+        case .legSpringStiffness:
+            return 1
         case .topProgress:
             return 1
-        case .pace, .heartRate, .cadence, .calories, .power, .weather, .route, .timeDate:
+        case .pace, .heartRate, .cadence, .calories, .power, .formPower, .airPower,
+             .weather, .route, .timeDate:
             return 0
         }
     }
@@ -60,7 +79,9 @@ extension OverlayComponentID {
         switch self {
         case .speed, .route, .topProgress:
             return true
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .weather, .distance, .timeDate:
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power,
+             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness,
+             .weather, .distance, .timeDate:
             return false
         }
     }
@@ -69,7 +90,9 @@ extension OverlayComponentID {
         switch self {
         case .topProgress:
             return true
-        case .speed, .pace, .heartRate, .cadence, .calories, .strideLength, .power, .weather, .distance, .route, .timeDate:
+        case .speed, .pace, .heartRate, .cadence, .calories, .strideLength, .power,
+             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness,
+             .weather, .distance, .route, .timeDate:
             return false
         }
     }

@@ -87,7 +87,8 @@ struct ComponentBaseSize {
             return CGSize(width: 420, height: 238)
         case .weather:
             return CGSize(width: 136, height: 76)
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance:
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance,
+             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness:
             return CGSize(width: 160, height: 74)
         case .route:
             return CGSize(width: 382, height: 238)

@@ -73,7 +73,8 @@ public final class OverlayRenderer {
                 drawTopProgress(context: context, sample: sample, canvas: canvas, element: element)
             case .speed:
                 drawSpeed(context: context, sample: sample, canvas: canvas, element: element)
-            case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power, .weather:
+            case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
+                 .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness, .weather:
                 if let content = metricContent(for: element, sample: sample) {
                     drawMetricComponent(
                         element,
@@ -290,6 +291,16 @@ public final class OverlayRenderer {
             return ("STRIDE", formatStrideLength(sample.stepLengthMeters, precision: element.customization.valuePrecision), "m")
         case .power:
             return ("PWR", sample.powerWatts.map { "\($0)" } ?? "--", "W")
+        case .verticalOscillation:
+            return ("VERT", formatDecimal(sample.verticalOscillationCentimeters, precision: element.customization.valuePrecision ?? 1), "CM")
+        case .groundContactTime:
+            return ("GCT", formatDecimal(sample.groundContactTimeMilliseconds, precision: element.customization.valuePrecision ?? 0), "MS")
+        case .formPower:
+            return ("FORM", sample.formPowerWatts.map { "\($0)" } ?? "--", "W")
+        case .airPower:
+            return ("AIR", sample.airPowerWatts.map { "\($0)" } ?? "--", "W")
+        case .legSpringStiffness:
+            return ("LSS", formatDecimal(sample.legSpringStiffnessKilonewtonsPerMeter, precision: element.customization.valuePrecision ?? 1), "kN/m")
         case .weather:
             return ("WEATHER", formatWeatherTemperature(sample), formatWeatherUnit(sample))
         default:
@@ -1040,7 +1051,8 @@ public final class OverlayRenderer {
             return CGSize(width: 420, height: 238)
         case .weather:
             return CGSize(width: 136, height: 76)
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance:
+        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance,
+             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness:
             return CGSize(width: 160, height: 74)
         case .route:
             return CGSize(width: 382, height: 238)
@@ -1210,6 +1222,16 @@ public final class OverlayRenderer {
             return "STR"
         case .power:
             return "PWR"
+        case .verticalOscillation:
+            return "VERT"
+        case .groundContactTime:
+            return "GCT"
+        case .formPower:
+            return "FORM"
+        case .airPower:
+            return "AIR"
+        case .legSpringStiffness:
+            return "LSS"
         case .weather:
             return OverlayWeatherIcon.clouds.symbol
         case .distance:
@@ -1402,6 +1424,12 @@ public final class OverlayRenderer {
         guard let meters, meters.isFinite else { return "--" }
         let digits = min(3, max(0, precision ?? 2))
         return String(format: "%.\(digits)f", meters)
+    }
+
+    private func formatDecimal(_ value: Double?, precision: Int) -> String {
+        guard let value, value.isFinite else { return "--" }
+        let digits = min(3, max(0, precision))
+        return String(format: "%.\(digits)f", value)
     }
 
     private func distanceLabel(_ meters: Double?, element: OverlayElement) -> String {

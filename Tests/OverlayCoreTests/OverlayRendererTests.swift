@@ -155,6 +155,37 @@ final class OverlayRendererTests: XCTestCase {
         XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
     }
 
+    func testRendererDrawsStrydMetricGauges() throws {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(
+                elapsed: 0,
+                verticalOscillationCentimeters: 5.8,
+                groundContactTimeMilliseconds: 251,
+                formPowerWatts: 47,
+                airPowerWatts: 8,
+                legSpringStiffnessKilonewtonsPerMeter: 11.25
+            )
+        ])
+        let elements = [
+            metricElement(id: "vertical", kind: .verticalOscillation, y: 0.06),
+            metricElement(id: "gct", kind: .groundContactTime, y: 0.16),
+            metricElement(id: "form", kind: .formPower, y: 0.26),
+            metricElement(id: "air", kind: .airPower, y: 0.36),
+            metricElement(id: "lss", kind: .legSpringStiffness, y: 0.46)
+        ]
+        let renderer = OverlayRenderer(
+            series: series,
+            config: OverlayRenderConfig(
+                size: CGSize(width: 640, height: 480),
+                layout: OverlayLayout(elements: elements)
+            )
+        )
+        let pixelBuffer = try makePixelBuffer(width: 640, height: 480)
+
+        try renderer.render(videoTime: 0, into: pixelBuffer)
+        XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
+    }
+
     func testRouteDownsampleHonorsLimitAndKeepsEndpoints() {
         let samples = makeSamples(count: 1_799)
 
