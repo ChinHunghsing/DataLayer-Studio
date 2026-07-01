@@ -336,6 +336,10 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(PreviewCanvasView.componentDragMinimumDistance, 1)
     }
 
+    func testPreviewGaugeDragSnapshotIncludesRendererShadow() {
+        XCTAssertGreaterThanOrEqual(PreviewCanvasView.componentDragSnapshotBleed, 12)
+    }
+
     @MainActor
     func testBeginElementDragSkipsFallbackRenderWhenSnapshotsAreAvailable() async throws {
         let model = StudioModel()

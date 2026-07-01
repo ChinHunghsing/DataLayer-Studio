@@ -5,6 +5,7 @@ import OverlayCore
 
 struct PreviewCanvasView: View {
     static let componentDragMinimumDistance: CGFloat = 1
+    static let componentDragSnapshotBleed: CGFloat = 12
 
     let model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
@@ -162,7 +163,7 @@ struct PreviewCanvasView: View {
                 } else if let sourceOverlay = activeDrag.sourceOverlay {
                     dragBaseSnapshotOverlay(
                         sourceOverlay,
-                        excluding: activeDrag.sourceRect,
+                        excluding: activeDrag.snapshotRect,
                         displayRect: displayRect
                     )
                 }
@@ -174,20 +175,20 @@ struct PreviewCanvasView: View {
                 if let sourceElementSnapshot = activeDrag.sourceElementSnapshot {
                     dragSnapshotImage(
                         sourceElementSnapshot,
-                        sourceRect: activeDrag.sourceRect,
+                        sourceRect: activeDrag.snapshotRect,
                         translation: activeDrag.translation
                     )
                 } else if let dragOverlay = state.dragOverlayImage {
                     dragSnapshotOverlay(
                         dragOverlay,
-                        sourceRect: activeDrag.sourceRect,
+                        sourceRect: activeDrag.snapshotRect,
                         displayRect: displayRect,
                         translation: activeDrag.translation
                     )
                 } else if let sourceOverlay = activeDrag.sourceOverlay {
                     dragSnapshotOverlay(
                         sourceOverlay,
-                        sourceRect: activeDrag.sourceRect,
+                        sourceRect: activeDrag.snapshotRect,
                         displayRect: displayRect,
                         translation: activeDrag.translation
                     )
@@ -365,9 +366,10 @@ struct PreviewCanvasView: View {
                 displayRect: displayRect,
                 alignedMetricWidth: alignedMetricWidth
             )
+            let snapshotRect = dragSnapshotRenderRect(sourceRect: sourceRect, displayRect: displayRect)
             let sourceOverlay = model.overlayImage
             let sourceElementSnapshot = sourceOverlay.flatMap {
-                PreviewSnapshotSlicer.sliceImage($0, cropRect: sourceRect, displayRect: displayRect)
+                PreviewSnapshotSlicer.sliceImage($0, cropRect: snapshotRect, displayRect: displayRect)
             }
             let initialDragState = ComponentDragState(
                 id: id,
@@ -376,6 +378,7 @@ struct PreviewCanvasView: View {
                 currentX: element.frame.x,
                 currentY: element.frame.y,
                 sourceRect: sourceRect,
+                snapshotRect: snapshotRect,
                 sourceOverlay: sourceOverlay,
                 sourceElementSnapshot: sourceElementSnapshot,
                 visibleElements: [element],
@@ -983,9 +986,16 @@ struct PreviewCanvasView: View {
             .allowsHitTesting(false)
     }
 
+    private func dragSnapshotRenderRect(sourceRect: CGRect, displayRect: CGRect) -> CGRect {
+        let expanded = sourceRect
+            .insetBy(dx: -Self.componentDragSnapshotBleed, dy: -Self.componentDragSnapshotBleed)
+            .intersection(displayRect)
+        guard !expanded.isNull, !expanded.isEmpty else { return sourceRect }
+        return expanded
+    }
+
     private func dragMaskRect(sourceRect: CGRect, displayRect: CGRect) -> CGRect {
-        let bleed: CGFloat = 1
-        let excluded = sourceRect.insetBy(dx: -bleed, dy: -bleed).intersection(displayRect)
+        let excluded = sourceRect.intersection(displayRect)
         guard !excluded.isNull, !excluded.isEmpty else { return .zero }
         return CGRect(
             x: excluded.minX - displayRect.minX,
@@ -1169,6 +1179,7 @@ private struct ComponentDragState {
     var currentX: Double
     var currentY: Double
     let sourceRect: CGRect
+    let snapshotRect: CGRect
     let sourceOverlay: NSImage?
     let sourceElementSnapshot: NSImage?
     let visibleElements: [OverlayElement]
