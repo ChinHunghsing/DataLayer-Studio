@@ -90,7 +90,7 @@ struct ComponentBaseSize {
         case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
-             .formPower, .airPower, .legSpringStiffness:
+             .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness:
             return CGSize(width: 160, height: 74)
         case .route:
             return CGSize(width: 382, height: 238)

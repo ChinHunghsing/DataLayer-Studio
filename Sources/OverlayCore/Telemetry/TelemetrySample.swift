@@ -17,6 +17,7 @@ public struct TelemetrySample: Equatable {
     public var groundContactTimeBalancePercent: Double?
     public var verticalRatioPercent: Double?
     public var respirationRateBreathsPerMinute: Double?
+    public var stepSpeedLossPercent: Double?
     public var formPowerWatts: Int?
     public var airPowerWatts: Int?
     public var legSpringStiffnessKilonewtonsPerMeter: Double?
@@ -44,6 +45,7 @@ public struct TelemetrySample: Equatable {
         groundContactTimeBalancePercent: Double? = nil,
         verticalRatioPercent: Double? = nil,
         respirationRateBreathsPerMinute: Double? = nil,
+        stepSpeedLossPercent: Double? = nil,
         formPowerWatts: Int? = nil,
         airPowerWatts: Int? = nil,
         legSpringStiffnessKilonewtonsPerMeter: Double? = nil,
@@ -70,6 +72,7 @@ public struct TelemetrySample: Equatable {
         self.groundContactTimeBalancePercent = groundContactTimeBalancePercent
         self.verticalRatioPercent = verticalRatioPercent
         self.respirationRateBreathsPerMinute = respirationRateBreathsPerMinute
+        self.stepSpeedLossPercent = stepSpeedLossPercent
         self.formPowerWatts = formPowerWatts
         self.airPowerWatts = airPowerWatts
         self.legSpringStiffnessKilonewtonsPerMeter = legSpringStiffnessKilonewtonsPerMeter

@@ -238,6 +238,7 @@ final class FITParserTests: XCTestCase {
             verticalRatioRaw: 812,
             stanceTimeBalanceRaw: 5_020,
             respirationRateRaw: 1_875,
+            stepSpeedLossPercentRaw: 264,
             localMessageType: 0,
             to: &content
         )
@@ -248,6 +249,7 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(sample.verticalRatioPercent ?? -1, 8.12, accuracy: 0.001)
         XCTAssertEqual(sample.groundContactTimeBalancePercent ?? -1, 50.2, accuracy: 0.001)
         XCTAssertEqual(sample.respirationRateBreathsPerMinute ?? -1, 18.75, accuracy: 0.001)
+        XCTAssertEqual(sample.stepSpeedLossPercent ?? -1, 2.64, accuracy: 0.001)
     }
 
     func testInterpolatesCurrentCaloriesFromLapTotals() throws {
@@ -511,12 +513,13 @@ private func appendGarminRunningDynamicsRecordDefinition(localMessageType: UInt8
     content.append(0x00)
     content.append(0x00)
     appendUInt16(20, to: &content)
-    content.append(5)
+    content.append(6)
     content.append(contentsOf: [253, 4, 0x86])
     content.append(contentsOf: [40, 2, 0x84])
     content.append(contentsOf: [83, 2, 0x84])
     content.append(contentsOf: [84, 2, 0x84])
     content.append(contentsOf: [108, 2, 0x84])
+    content.append(contentsOf: [147, 2, 0x84])
 }
 
 private func appendLapDefinition(localMessageType: UInt8, to content: inout Data) {
@@ -665,6 +668,7 @@ private func appendGarminRunningDynamicsRecord(
     verticalRatioRaw: UInt16,
     stanceTimeBalanceRaw: UInt16,
     respirationRateRaw: UInt16,
+    stepSpeedLossPercentRaw: UInt16,
     localMessageType: UInt8,
     to content: inout Data
 ) {
@@ -674,6 +678,7 @@ private func appendGarminRunningDynamicsRecord(
     appendUInt16(verticalRatioRaw, to: &content)
     appendUInt16(stanceTimeBalanceRaw, to: &content)
     appendUInt16(respirationRateRaw, to: &content)
+    appendUInt16(stepSpeedLossPercentRaw, to: &content)
 }
 
 private func appendLap(timestamp: UInt32, totalCalories: UInt16, localMessageType: UInt8, to content: inout Data) {

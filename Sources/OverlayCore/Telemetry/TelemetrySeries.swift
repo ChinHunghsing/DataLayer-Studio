@@ -139,6 +139,7 @@ public struct TelemetrySeries: Equatable {
             groundContactTimeBalancePercent: interpolate(a.groundContactTimeBalancePercent, b.groundContactTimeBalancePercent, fraction: fraction),
             verticalRatioPercent: interpolate(a.verticalRatioPercent, b.verticalRatioPercent, fraction: fraction),
             respirationRateBreathsPerMinute: interpolate(a.respirationRateBreathsPerMinute, b.respirationRateBreathsPerMinute, fraction: fraction),
+            stepSpeedLossPercent: interpolate(a.stepSpeedLossPercent, b.stepSpeedLossPercent, fraction: fraction),
             formPowerWatts: nearest(a.formPowerWatts, b.formPowerWatts, fraction: fraction),
             airPowerWatts: nearest(a.airPowerWatts, b.airPowerWatts, fraction: fraction),
             legSpringStiffnessKilonewtonsPerMeter: interpolate(a.legSpringStiffnessKilonewtonsPerMeter, b.legSpringStiffnessKilonewtonsPerMeter, fraction: fraction),

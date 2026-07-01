@@ -15,6 +15,7 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
     case groundContactTimeBalance
     case verticalRatio
     case respirationRate
+    case stepSpeedLoss
     case formPower
     case airPower
     case legSpringStiffness
@@ -54,6 +55,8 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
             return "Vertical ratio"
         case .respirationRate:
             return "Respiration rate"
+        case .stepSpeedLoss:
+            return "Step speed loss %"
         case .formPower:
             return "Form power"
         case .airPower:
@@ -826,6 +829,12 @@ public extension OverlayElement {
                 y: 0.484,
                 style: OverlayComponentStyle(accentColor: .cleanWhite)
             )
+        case .stepSpeedLoss:
+            return OverlayComponentFrame(
+                x: 0.631,
+                y: 0.374,
+                style: OverlayComponentStyle(accentColor: .amber)
+            )
         case .formPower:
             return OverlayComponentFrame(
                 x: 0.819,
@@ -893,7 +902,7 @@ public extension OverlayElement {
         case .pace, .heartRate, .cadence, .calories, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
-             .formPower, .airPower, .legSpringStiffness:
+             .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness:
             return OverlayElementCustomization(labelScale: 0.92, valueScale: 1.04, unitScale: 0.94)
         }
     }

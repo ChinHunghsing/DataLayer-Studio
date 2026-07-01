@@ -69,6 +69,7 @@ struct RawFITRecord {
     var groundContactTimeBalancePercent: Double?
     var verticalRatioPercent: Double?
     var respirationRateBreathsPerMinute: Double?
+    var stepSpeedLossPercent: Double?
     var formPowerWatts: Int?
     var airPowerWatts: Int?
     var legSpringStiffnessKilonewtonsPerMeter: Double?
@@ -486,6 +487,8 @@ public final class FITParser {
                     record.stepLengthMeters = value / 10_000
                 case 108:
                     record.respirationRateBreathsPerMinute = value / 100
+                case 147:
+                    record.stepSpeedLossPercent = value / 100
                 default:
                     continue
                 }
@@ -644,6 +647,7 @@ public final class FITParser {
                 groundContactTimeBalancePercent: record.groundContactTimeBalancePercent,
                 verticalRatioPercent: record.verticalRatioPercent,
                 respirationRateBreathsPerMinute: record.respirationRateBreathsPerMinute,
+                stepSpeedLossPercent: record.stepSpeedLossPercent,
                 formPowerWatts: record.formPowerWatts,
                 airPowerWatts: record.airPowerWatts,
                 legSpringStiffnessKilonewtonsPerMeter: record.legSpringStiffnessKilonewtonsPerMeter,
@@ -676,6 +680,7 @@ public final class FITParser {
                 groundContactTimeBalancePercent: firstRecord.groundContactTimeBalancePercent,
                 verticalRatioPercent: firstRecord.verticalRatioPercent,
                 respirationRateBreathsPerMinute: firstRecord.respirationRateBreathsPerMinute,
+                stepSpeedLossPercent: firstRecord.stepSpeedLossPercent,
                 formPowerWatts: firstRecord.formPowerWatts,
                 airPowerWatts: firstRecord.airPowerWatts,
                 legSpringStiffnessKilonewtonsPerMeter: firstRecord.legSpringStiffnessKilonewtonsPerMeter,
@@ -902,6 +907,7 @@ private extension RawFITRecord {
             || groundContactTimeBalancePercent != nil
             || verticalRatioPercent != nil
             || respirationRateBreathsPerMinute != nil
+            || stepSpeedLossPercent != nil
             || formPowerWatts != nil
             || airPowerWatts != nil
             || legSpringStiffnessKilonewtonsPerMeter != nil

@@ -94,7 +94,7 @@ public final class OverlayRenderer {
             case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
                  .verticalOscillation, .groundContactTime, .groundContactTimePercent,
                  .groundContactTimeBalance, .verticalRatio, .respirationRate,
-                 .formPower, .airPower, .legSpringStiffness, .weather:
+                 .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
                 if let content = metricContent(for: element, sample: sample) {
                     drawMetricComponent(
                         element,
@@ -323,6 +323,8 @@ public final class OverlayRenderer {
             return ("VERT R", formatDecimal(sample.verticalRatioPercent, precision: element.customization.valuePrecision ?? 1), "%")
         case .respirationRate:
             return ("RESP", formatDecimal(sample.respirationRateBreathsPerMinute, precision: element.customization.valuePrecision ?? 1), "BR/MIN")
+        case .stepSpeedLoss:
+            return ("SSL", formatDecimal(sample.stepSpeedLossPercent, precision: element.customization.valuePrecision ?? 1), "%")
         case .formPower:
             return ("FORM", sample.formPowerWatts.map { "\($0)" } ?? "--", "W")
         case .airPower:
@@ -1097,7 +1099,7 @@ public final class OverlayRenderer {
         case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
-             .formPower, .airPower, .legSpringStiffness:
+             .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness:
             return CGSize(width: 160, height: 74)
         case .route:
             return Self.routeBaseSize
@@ -1279,6 +1281,8 @@ public final class OverlayRenderer {
             return "VR"
         case .respirationRate:
             return "RESP"
+        case .stepSpeedLoss:
+            return "SSL"
         case .formPower:
             return "FORM"
         case .airPower:
@@ -1591,7 +1595,7 @@ public final class OverlayRenderer {
         case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
-             .formPower, .airPower, .legSpringStiffness, .weather:
+             .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
             return true
         case .speed, .route, .topProgress, .timeDate:
             return false

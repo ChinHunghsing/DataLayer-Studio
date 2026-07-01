@@ -31,6 +31,8 @@ extension OverlayComponentID {
             return "arrow.up.and.down"
         case .respirationRate:
             return "lungs.fill"
+        case .stepSpeedLoss:
+            return "speedometer"
         case .formPower:
             return "bolt.badge.clock"
         case .airPower:
@@ -55,7 +57,7 @@ extension OverlayComponentID {
         case .speed, .distance, .strideLength, .topProgress,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
-             .legSpringStiffness:
+             .stepSpeedLoss, .legSpringStiffness:
             return true
         case .pace, .heartRate, .cadence, .calories, .power, .formPower, .airPower,
              .weather, .route, .timeDate:
@@ -75,7 +77,8 @@ extension OverlayComponentID {
             return 1
         case .groundContactTime:
             return 0
-        case .groundContactTimePercent, .groundContactTimeBalance, .verticalRatio, .respirationRate:
+        case .groundContactTimePercent, .groundContactTimeBalance, .verticalRatio, .respirationRate,
+             .stepSpeedLoss:
             return 1
         case .legSpringStiffness:
             return 1
@@ -94,7 +97,7 @@ extension OverlayComponentID {
         case .pace, .heartRate, .cadence, .calories, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
-             .formPower, .airPower, .legSpringStiffness,
+             .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness,
              .weather, .distance, .timeDate:
             return false
         }
@@ -107,7 +110,7 @@ extension OverlayComponentID {
         case .speed, .pace, .heartRate, .cadence, .calories, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
-             .formPower, .airPower, .legSpringStiffness,
+             .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness,
              .weather, .distance, .route, .timeDate:
             return false
         }

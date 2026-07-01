@@ -165,6 +165,7 @@ final class OverlayRendererTests: XCTestCase {
                 groundContactTimeBalancePercent: 50.2,
                 verticalRatioPercent: 8.12,
                 respirationRateBreathsPerMinute: 18.75,
+                stepSpeedLossPercent: 2.64,
                 formPowerWatts: 47,
                 airPowerWatts: 8,
                 legSpringStiffnessKilonewtonsPerMeter: 11.25
@@ -177,9 +178,10 @@ final class OverlayRendererTests: XCTestCase {
             metricElement(id: "gctBalance", kind: .groundContactTimeBalance, y: 0.36),
             metricElement(id: "verticalRatio", kind: .verticalRatio, y: 0.46),
             metricElement(id: "respiration", kind: .respirationRate, y: 0.56),
-            metricElement(id: "form", kind: .formPower, y: 0.66),
-            metricElement(id: "air", kind: .airPower, y: 0.76),
-            metricElement(id: "lss", kind: .legSpringStiffness, y: 0.86)
+            metricElement(id: "stepSpeedLoss", kind: .stepSpeedLoss, y: 0.66),
+            metricElement(id: "form", kind: .formPower, y: 0.76),
+            metricElement(id: "air", kind: .airPower, y: 0.86),
+            metricElement(id: "lss", kind: .legSpringStiffness, y: 0.96)
         ]
         let renderer = OverlayRenderer(
             series: series,

@@ -500,7 +500,7 @@ struct PreviewCanvasView: View {
         case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
-             .formPower, .airPower, .legSpringStiffness, .weather:
+             .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
             return metricOutputSize(
                 element: element,
                 baseWidth: baseWidth,
@@ -667,7 +667,7 @@ struct PreviewCanvasView: View {
         case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
-             .formPower, .airPower, .legSpringStiffness, .weather:
+             .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
             return true
         case .speed, .route, .topProgress, .timeDate:
             return false
@@ -857,6 +857,13 @@ struct PreviewCanvasView: View {
                 formatDecimal(sample.respirationRateBreathsPerMinute, precision: element.customization.valuePrecision ?? 1),
                 element.customization.unit(default: "BR/MIN"),
                 element.customization.icon(default: "RESP")
+            )
+        case .stepSpeedLoss:
+            return (
+                element.customization.label(default: "SSL"),
+                formatDecimal(sample.stepSpeedLossPercent, precision: element.customization.valuePrecision ?? 1),
+                element.customization.unit(default: "%"),
+                element.customization.icon(default: "SSL")
             )
         case .formPower:
             return (
