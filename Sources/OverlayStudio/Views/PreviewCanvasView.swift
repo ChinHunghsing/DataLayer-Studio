@@ -5,7 +5,7 @@ import OverlayCore
 
 struct PreviewCanvasView: View {
     static let componentDragMinimumDistance: CGFloat = 1
-    static let componentDragSnapshotBleed: CGFloat = 12
+    static let componentDragMaskBleed: CGFloat = 12
 
     let model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
@@ -163,7 +163,7 @@ struct PreviewCanvasView: View {
                 } else if let sourceOverlay = activeDrag.sourceOverlay {
                     dragBaseSnapshotOverlay(
                         sourceOverlay,
-                        excluding: activeDrag.snapshotRect,
+                        excluding: activeDrag.maskRect,
                         displayRect: displayRect
                     )
                 }
@@ -175,20 +175,20 @@ struct PreviewCanvasView: View {
                 if let sourceElementSnapshot = activeDrag.sourceElementSnapshot {
                     dragSnapshotImage(
                         sourceElementSnapshot,
-                        sourceRect: activeDrag.snapshotRect,
+                        sourceRect: activeDrag.sourceRect,
                         translation: activeDrag.translation
                     )
                 } else if let dragOverlay = state.dragOverlayImage {
                     dragSnapshotOverlay(
                         dragOverlay,
-                        sourceRect: activeDrag.snapshotRect,
+                        sourceRect: activeDrag.sourceRect,
                         displayRect: displayRect,
                         translation: activeDrag.translation
                     )
                 } else if let sourceOverlay = activeDrag.sourceOverlay {
                     dragSnapshotOverlay(
                         sourceOverlay,
-                        sourceRect: activeDrag.snapshotRect,
+                        sourceRect: activeDrag.sourceRect,
                         displayRect: displayRect,
                         translation: activeDrag.translation
                     )
@@ -366,10 +366,16 @@ struct PreviewCanvasView: View {
                 displayRect: displayRect,
                 alignedMetricWidth: alignedMetricWidth
             )
-            let snapshotRect = dragSnapshotRenderRect(sourceRect: sourceRect, displayRect: displayRect)
+            let maskRect = dragMaskRenderRect(
+                sourceRect: sourceRect,
+                elementID: id,
+                displayRect: displayRect,
+                visibleElements: visibleElements,
+                alignedMetricWidth: alignedMetricWidth
+            )
             let sourceOverlay = model.overlayImage
             let sourceElementSnapshot = sourceOverlay.flatMap {
-                PreviewSnapshotSlicer.sliceImage($0, cropRect: snapshotRect, displayRect: displayRect)
+                PreviewSnapshotSlicer.sliceImage($0, cropRect: sourceRect, displayRect: displayRect)
             }
             let initialDragState = ComponentDragState(
                 id: id,
@@ -378,7 +384,7 @@ struct PreviewCanvasView: View {
                 currentX: element.frame.x,
                 currentY: element.frame.y,
                 sourceRect: sourceRect,
-                snapshotRect: snapshotRect,
+                maskRect: maskRect,
                 sourceOverlay: sourceOverlay,
                 sourceElementSnapshot: sourceElementSnapshot,
                 visibleElements: [element],
@@ -986,12 +992,54 @@ struct PreviewCanvasView: View {
             .allowsHitTesting(false)
     }
 
-    private func dragSnapshotRenderRect(sourceRect: CGRect, displayRect: CGRect) -> CGRect {
-        let expanded = sourceRect
-            .insetBy(dx: -Self.componentDragSnapshotBleed, dy: -Self.componentDragSnapshotBleed)
-            .intersection(displayRect)
+    private func dragMaskRenderRect(
+        sourceRect: CGRect,
+        elementID: String,
+        displayRect: CGRect,
+        visibleElements: [OverlayElement],
+        alignedMetricWidth: CGFloat?
+    ) -> CGRect {
+        var left = Self.componentDragMaskBleed
+        var right = Self.componentDragMaskBleed
+        var top = Self.componentDragMaskBleed
+        var bottom = Self.componentDragMaskBleed
+
+        for element in visibleElements where element.id != elementID {
+            let rect = componentDisplayRect(element: element, displayRect: displayRect, alignedMetricWidth: alignedMetricWidth)
+            if rect.maxY > sourceRect.minY, rect.minY < sourceRect.maxY {
+                if rect.maxX <= sourceRect.minX {
+                    left = min(left, dragMaskBleedLimit(sourceRect.minX - rect.maxX))
+                } else if rect.minX >= sourceRect.maxX {
+                    right = min(right, dragMaskBleedLimit(rect.minX - sourceRect.maxX))
+                } else {
+                    left = 0
+                    right = 0
+                }
+            }
+            if rect.maxX > sourceRect.minX, rect.minX < sourceRect.maxX {
+                if rect.maxY <= sourceRect.minY {
+                    top = min(top, dragMaskBleedLimit(sourceRect.minY - rect.maxY))
+                } else if rect.minY >= sourceRect.maxY {
+                    bottom = min(bottom, dragMaskBleedLimit(rect.minY - sourceRect.maxY))
+                } else {
+                    top = 0
+                    bottom = 0
+                }
+            }
+        }
+
+        let expanded = CGRect(
+            x: sourceRect.minX - left,
+            y: sourceRect.minY - top,
+            width: sourceRect.width + left + right,
+            height: sourceRect.height + top + bottom
+        ).intersection(displayRect)
         guard !expanded.isNull, !expanded.isEmpty else { return sourceRect }
         return expanded
+    }
+
+    private func dragMaskBleedLimit(_ gap: CGFloat) -> CGFloat {
+        max(0, min(Self.componentDragMaskBleed, gap - 0.5))
     }
 
     private func dragMaskRect(sourceRect: CGRect, displayRect: CGRect) -> CGRect {
@@ -1179,7 +1227,7 @@ private struct ComponentDragState {
     var currentX: Double
     var currentY: Double
     let sourceRect: CGRect
-    let snapshotRect: CGRect
+    let maskRect: CGRect
     let sourceOverlay: NSImage?
     let sourceElementSnapshot: NSImage?
     let visibleElements: [OverlayElement]

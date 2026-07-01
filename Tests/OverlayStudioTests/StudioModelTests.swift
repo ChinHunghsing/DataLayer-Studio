@@ -336,8 +336,8 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(PreviewCanvasView.componentDragMinimumDistance, 1)
     }
 
-    func testPreviewGaugeDragSnapshotIncludesRendererShadow() {
-        XCTAssertGreaterThanOrEqual(PreviewCanvasView.componentDragSnapshotBleed, 12)
+    func testPreviewGaugeDragMaskIncludesRendererShadow() {
+        XCTAssertGreaterThanOrEqual(PreviewCanvasView.componentDragMaskBleed, 12)
     }
 
     @MainActor
