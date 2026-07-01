@@ -138,6 +138,7 @@ struct LayoutPresetRow: View {
     var makeDefault: () -> Void
     var delete: () -> Void
     @EnvironmentObject private var localization: LocalizationStore
+    @State private var isConfirmingApply = false
     @State private var isConfirmingDelete = false
 
     var body: some View {
@@ -160,8 +161,10 @@ struct LayoutPresetRow: View {
 
             Spacer()
 
-            Button(action: apply) {
-                Label(localization.string("preset.apply"), systemImage: "arrow.down.left.and.arrow.up.right")
+            Button {
+                isConfirmingApply = true
+            } label: {
+                Label(localization.string("preset.apply"), systemImage: "tray.and.arrow.down")
                     .labelStyle(.iconOnly)
             }
             .help(localization.string("preset.applyHelp"))
@@ -184,6 +187,16 @@ struct LayoutPresetRow: View {
         .buttonStyle(.borderless)
         .padding(10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .confirmationDialog(
+            localization.string("preset.applyDialogTitle"),
+            isPresented: $isConfirmingApply,
+            titleVisibility: .visible
+        ) {
+            Button(localization.string("preset.applyNamed", preset.name), role: .destructive, action: apply)
+            Button(localization.string("common.cancel"), role: .cancel) {}
+        } message: {
+            Text(localization.string("preset.applyDialogMessage"))
+        }
         .confirmationDialog(
             localization.string("preset.deleteDialogTitle"),
             isPresented: $isConfirmingDelete,
