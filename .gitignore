@@ -55,3 +55,6 @@
 .colameta/*.lock
 .colameta/**/*.lock
 # <<< ColaMeta local state <<<
+
+# Private Docs
+DataLayer-Studio-handoff.md
