@@ -65,6 +65,10 @@ struct RawFITRecord {
     var powerWatts: Int?
     var verticalOscillationCentimeters: Double?
     var groundContactTimeMilliseconds: Double?
+    var groundContactTimePercent: Double?
+    var groundContactTimeBalancePercent: Double?
+    var verticalRatioPercent: Double?
+    var respirationRateBreathsPerMinute: Double?
     var formPowerWatts: Int?
     var airPowerWatts: Int?
     var legSpringStiffnessKilonewtonsPerMeter: Double?
@@ -462,6 +466,8 @@ public final class FITParser {
                     record.powerWatts = Int(value)
                 case 39:
                     record.verticalOscillationCentimeters = value / 100
+                case 40:
+                    record.groundContactTimePercent = value / 100
                 case 41:
                     record.groundContactTimeMilliseconds = value / 10
                 case 13:
@@ -472,8 +478,14 @@ public final class FITParser {
                     record.speedMetersPerSecond = value / 1000
                 case 78:
                     record.altitudeMeters = (value / 5) - 500
+                case 83:
+                    record.verticalRatioPercent = value / 100
+                case 84:
+                    record.groundContactTimeBalancePercent = value / 100
                 case 85:
                     record.stepLengthMeters = value / 10_000
+                case 108:
+                    record.respirationRateBreathsPerMinute = value / 100
                 default:
                     continue
                 }
@@ -628,6 +640,10 @@ public final class FITParser {
                 powerWatts: record.powerWatts,
                 verticalOscillationCentimeters: record.verticalOscillationCentimeters,
                 groundContactTimeMilliseconds: record.groundContactTimeMilliseconds,
+                groundContactTimePercent: record.groundContactTimePercent,
+                groundContactTimeBalancePercent: record.groundContactTimeBalancePercent,
+                verticalRatioPercent: record.verticalRatioPercent,
+                respirationRateBreathsPerMinute: record.respirationRateBreathsPerMinute,
                 formPowerWatts: record.formPowerWatts,
                 airPowerWatts: record.airPowerWatts,
                 legSpringStiffnessKilonewtonsPerMeter: record.legSpringStiffnessKilonewtonsPerMeter,
@@ -656,6 +672,10 @@ public final class FITParser {
                 powerWatts: firstRecord.powerWatts,
                 verticalOscillationCentimeters: firstRecord.verticalOscillationCentimeters,
                 groundContactTimeMilliseconds: firstRecord.groundContactTimeMilliseconds,
+                groundContactTimePercent: firstRecord.groundContactTimePercent,
+                groundContactTimeBalancePercent: firstRecord.groundContactTimeBalancePercent,
+                verticalRatioPercent: firstRecord.verticalRatioPercent,
+                respirationRateBreathsPerMinute: firstRecord.respirationRateBreathsPerMinute,
                 formPowerWatts: firstRecord.formPowerWatts,
                 airPowerWatts: firstRecord.airPowerWatts,
                 legSpringStiffnessKilonewtonsPerMeter: firstRecord.legSpringStiffnessKilonewtonsPerMeter,
@@ -878,6 +898,10 @@ private extension RawFITRecord {
             || powerWatts != nil
             || verticalOscillationCentimeters != nil
             || groundContactTimeMilliseconds != nil
+            || groundContactTimePercent != nil
+            || groundContactTimeBalancePercent != nil
+            || verticalRatioPercent != nil
+            || respirationRateBreathsPerMinute != nil
             || formPowerWatts != nil
             || airPowerWatts != nil
             || legSpringStiffnessKilonewtonsPerMeter != nil

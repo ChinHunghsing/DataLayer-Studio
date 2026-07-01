@@ -564,6 +564,10 @@ enum AppLocalizer {
         "component.power": "Power",
         "component.verticalOscillation": "Vertical oscillation",
         "component.groundContactTime": "Ground contact time",
+        "component.groundContactTimePercent": "Ground contact %",
+        "component.groundContactTimeBalance": "Ground contact balance",
+        "component.verticalRatio": "Vertical ratio",
+        "component.respirationRate": "Respiration rate",
         "component.formPower": "Form power",
         "component.airPower": "Air power",
         "component.legSpringStiffness": "Leg spring stiffness",
@@ -956,6 +960,10 @@ enum AppLocalizer {
         "component.power": "功率",
         "component.verticalOscillation": "垂直振幅",
         "component.groundContactTime": "触地时间",
+        "component.groundContactTimePercent": "触地时间占比",
+        "component.groundContactTimeBalance": "触地平衡",
+        "component.verticalRatio": "垂直比",
+        "component.respirationRate": "呼吸频率",
         "component.formPower": "形态功率",
         "component.airPower": "空气功率",
         "component.legSpringStiffness": "腿部弹簧刚度",
@@ -1348,6 +1356,10 @@ enum AppLocalizer {
         "component.power": "功率",
         "component.verticalOscillation": "垂直振幅",
         "component.groundContactTime": "觸地時間",
+        "component.groundContactTimePercent": "觸地時間占比",
+        "component.groundContactTimeBalance": "觸地平衡",
+        "component.verticalRatio": "垂直比",
+        "component.respirationRate": "呼吸頻率",
         "component.formPower": "形態功率",
         "component.airPower": "空氣功率",
         "component.legSpringStiffness": "腿部彈簧剛度",
@@ -1740,6 +1752,10 @@ enum AppLocalizer {
         "component.power": "パワー",
         "component.verticalOscillation": "上下動",
         "component.groundContactTime": "接地時間",
+        "component.groundContactTimePercent": "接地時間比率",
+        "component.groundContactTimeBalance": "接地バランス",
+        "component.verticalRatio": "上下動比",
+        "component.respirationRate": "呼吸数",
         "component.formPower": "フォームパワー",
         "component.airPower": "エアパワー",
         "component.legSpringStiffness": "脚部スプリング剛性",
@@ -1863,6 +1879,14 @@ extension OverlayComponentID {
             return "component.verticalOscillation"
         case .groundContactTime:
             return "component.groundContactTime"
+        case .groundContactTimePercent:
+            return "component.groundContactTimePercent"
+        case .groundContactTimeBalance:
+            return "component.groundContactTimeBalance"
+        case .verticalRatio:
+            return "component.verticalRatio"
+        case .respirationRate:
+            return "component.respirationRate"
         case .formPower:
             return "component.formPower"
         case .airPower:

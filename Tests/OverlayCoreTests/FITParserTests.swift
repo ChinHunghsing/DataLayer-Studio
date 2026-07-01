@@ -229,6 +229,27 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(sample.airPowerWatts, 8)
     }
 
+    func testParsesGarminNativeRunningDynamicsRecordFields() throws {
+        var content = Data()
+        appendGarminRunningDynamicsRecordDefinition(localMessageType: 0, to: &content)
+        appendGarminRunningDynamicsRecord(
+            timestamp: 1_000_000,
+            stanceTimePercentRaw: 3_125,
+            verticalRatioRaw: 812,
+            stanceTimeBalanceRaw: 5_020,
+            respirationRateRaw: 1_875,
+            localMessageType: 0,
+            to: &content
+        )
+
+        let sample = try FITParser().parse(data: makeFITFile(content: content)).sample(at: 0)
+
+        XCTAssertEqual(sample.groundContactTimePercent ?? -1, 31.25, accuracy: 0.001)
+        XCTAssertEqual(sample.verticalRatioPercent ?? -1, 8.12, accuracy: 0.001)
+        XCTAssertEqual(sample.groundContactTimeBalancePercent ?? -1, 50.2, accuracy: 0.001)
+        XCTAssertEqual(sample.respirationRateBreathsPerMinute ?? -1, 18.75, accuracy: 0.001)
+    }
+
     func testInterpolatesCurrentCaloriesFromLapTotals() throws {
         var content = Data()
         appendStandardRecordDefinition(localMessageType: 0, to: &content)
@@ -485,6 +506,19 @@ private func appendStrydRecordDefinition(localMessageType: UInt8, to content: in
     content.append(contentsOf: [11, 2, 0])
 }
 
+private func appendGarminRunningDynamicsRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(20, to: &content)
+    content.append(5)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [40, 2, 0x84])
+    content.append(contentsOf: [83, 2, 0x84])
+    content.append(contentsOf: [84, 2, 0x84])
+    content.append(contentsOf: [108, 2, 0x84])
+}
+
 private func appendLapDefinition(localMessageType: UInt8, to content: inout Data) {
     content.append(0x40 | localMessageType)
     content.append(0x00)
@@ -623,6 +657,23 @@ private func appendStrydRecord(
     appendUInt16(formPower, to: &content)
     appendFloat32(legSpringStiffness, to: &content)
     appendUInt16(airPower, to: &content)
+}
+
+private func appendGarminRunningDynamicsRecord(
+    timestamp: UInt32,
+    stanceTimePercentRaw: UInt16,
+    verticalRatioRaw: UInt16,
+    stanceTimeBalanceRaw: UInt16,
+    respirationRateRaw: UInt16,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    appendUInt16(stanceTimePercentRaw, to: &content)
+    appendUInt16(verticalRatioRaw, to: &content)
+    appendUInt16(stanceTimeBalanceRaw, to: &content)
+    appendUInt16(respirationRateRaw, to: &content)
 }
 
 private func appendLap(timestamp: UInt32, totalCalories: UInt16, localMessageType: UInt8, to content: inout Data) {

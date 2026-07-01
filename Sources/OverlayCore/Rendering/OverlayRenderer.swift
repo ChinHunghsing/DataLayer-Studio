@@ -92,7 +92,9 @@ public final class OverlayRenderer {
             case .speed:
                 drawSpeed(context: context, sample: sample, canvas: canvas, element: element)
             case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
-                 .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness, .weather:
+                 .verticalOscillation, .groundContactTime, .groundContactTimePercent,
+                 .groundContactTimeBalance, .verticalRatio, .respirationRate,
+                 .formPower, .airPower, .legSpringStiffness, .weather:
                 if let content = metricContent(for: element, sample: sample) {
                     drawMetricComponent(
                         element,
@@ -313,6 +315,14 @@ public final class OverlayRenderer {
             return ("VERT", formatDecimal(sample.verticalOscillationCentimeters, precision: element.customization.valuePrecision ?? 1), "CM")
         case .groundContactTime:
             return ("GCT", formatDecimal(sample.groundContactTimeMilliseconds, precision: element.customization.valuePrecision ?? 0), "MS")
+        case .groundContactTimePercent:
+            return ("GCT %", formatDecimal(sample.groundContactTimePercent, precision: element.customization.valuePrecision ?? 1), "%")
+        case .groundContactTimeBalance:
+            return ("GCT BAL", formatDecimal(sample.groundContactTimeBalancePercent, precision: element.customization.valuePrecision ?? 1), "%")
+        case .verticalRatio:
+            return ("VERT R", formatDecimal(sample.verticalRatioPercent, precision: element.customization.valuePrecision ?? 1), "%")
+        case .respirationRate:
+            return ("RESP", formatDecimal(sample.respirationRateBreathsPerMinute, precision: element.customization.valuePrecision ?? 1), "BR/MIN")
         case .formPower:
             return ("FORM", sample.formPowerWatts.map { "\($0)" } ?? "--", "W")
         case .airPower:
@@ -1085,7 +1095,9 @@ public final class OverlayRenderer {
         case .weather:
             return CGSize(width: 136, height: 76)
         case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance,
-             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness:
+             .verticalOscillation, .groundContactTime, .groundContactTimePercent,
+             .groundContactTimeBalance, .verticalRatio, .respirationRate,
+             .formPower, .airPower, .legSpringStiffness:
             return CGSize(width: 160, height: 74)
         case .route:
             return Self.routeBaseSize
@@ -1259,6 +1271,14 @@ public final class OverlayRenderer {
             return "VERT"
         case .groundContactTime:
             return "GCT"
+        case .groundContactTimePercent:
+            return "GCT%"
+        case .groundContactTimeBalance:
+            return "BAL"
+        case .verticalRatio:
+            return "VR"
+        case .respirationRate:
+            return "RESP"
         case .formPower:
             return "FORM"
         case .airPower:
@@ -1569,7 +1589,9 @@ public final class OverlayRenderer {
     private static func isMetricKind(_ kind: OverlayComponentID) -> Bool {
         switch kind {
         case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
-             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness, .weather:
+             .verticalOscillation, .groundContactTime, .groundContactTimePercent,
+             .groundContactTimeBalance, .verticalRatio, .respirationRate,
+             .formPower, .airPower, .legSpringStiffness, .weather:
             return true
         case .speed, .route, .topProgress, .timeDate:
             return false

@@ -498,7 +498,9 @@ struct PreviewCanvasView: View {
 
         switch element.kind {
         case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
-             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness, .weather:
+             .verticalOscillation, .groundContactTime, .groundContactTimePercent,
+             .groundContactTimeBalance, .verticalRatio, .respirationRate,
+             .formPower, .airPower, .legSpringStiffness, .weather:
             return metricOutputSize(
                 element: element,
                 baseWidth: baseWidth,
@@ -663,7 +665,9 @@ struct PreviewCanvasView: View {
     private func isMetricElement(_ element: OverlayElement) -> Bool {
         switch element.kind {
         case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
-             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness, .weather:
+             .verticalOscillation, .groundContactTime, .groundContactTimePercent,
+             .groundContactTimeBalance, .verticalRatio, .respirationRate,
+             .formPower, .airPower, .legSpringStiffness, .weather:
             return true
         case .speed, .route, .topProgress, .timeDate:
             return false
@@ -825,6 +829,34 @@ struct PreviewCanvasView: View {
                 formatDecimal(sample.groundContactTimeMilliseconds, precision: element.customization.valuePrecision ?? 0),
                 element.customization.unit(default: "MS"),
                 element.customization.icon(default: "GCT")
+            )
+        case .groundContactTimePercent:
+            return (
+                element.customization.label(default: "GCT %"),
+                formatDecimal(sample.groundContactTimePercent, precision: element.customization.valuePrecision ?? 1),
+                element.customization.unit(default: "%"),
+                element.customization.icon(default: "GCT%")
+            )
+        case .groundContactTimeBalance:
+            return (
+                element.customization.label(default: "GCT BAL"),
+                formatDecimal(sample.groundContactTimeBalancePercent, precision: element.customization.valuePrecision ?? 1),
+                element.customization.unit(default: "%"),
+                element.customization.icon(default: "BAL")
+            )
+        case .verticalRatio:
+            return (
+                element.customization.label(default: "VERT R"),
+                formatDecimal(sample.verticalRatioPercent, precision: element.customization.valuePrecision ?? 1),
+                element.customization.unit(default: "%"),
+                element.customization.icon(default: "VR")
+            )
+        case .respirationRate:
+            return (
+                element.customization.label(default: "RESP"),
+                formatDecimal(sample.respirationRateBreathsPerMinute, precision: element.customization.valuePrecision ?? 1),
+                element.customization.unit(default: "BR/MIN"),
+                element.customization.icon(default: "RESP")
             )
         case .formPower:
             return (

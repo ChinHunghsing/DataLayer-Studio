@@ -23,6 +23,14 @@ extension OverlayComponentID {
             return "arrow.up.and.down"
         case .groundContactTime:
             return "timer"
+        case .groundContactTimePercent:
+            return "percent"
+        case .groundContactTimeBalance:
+            return "scalemass"
+        case .verticalRatio:
+            return "arrow.up.and.down"
+        case .respirationRate:
+            return "lungs.fill"
         case .formPower:
             return "bolt.badge.clock"
         case .airPower:
@@ -45,7 +53,9 @@ extension OverlayComponentID {
     var supportsValuePrecision: Bool {
         switch self {
         case .speed, .distance, .strideLength, .topProgress,
-             .verticalOscillation, .groundContactTime, .legSpringStiffness:
+             .verticalOscillation, .groundContactTime, .groundContactTimePercent,
+             .groundContactTimeBalance, .verticalRatio, .respirationRate,
+             .legSpringStiffness:
             return true
         case .pace, .heartRate, .cadence, .calories, .power, .formPower, .airPower,
              .weather, .route, .timeDate:
@@ -65,6 +75,8 @@ extension OverlayComponentID {
             return 1
         case .groundContactTime:
             return 0
+        case .groundContactTimePercent, .groundContactTimeBalance, .verticalRatio, .respirationRate:
+            return 1
         case .legSpringStiffness:
             return 1
         case .topProgress:
@@ -80,7 +92,9 @@ extension OverlayComponentID {
         case .speed, .route, .topProgress:
             return true
         case .pace, .heartRate, .cadence, .calories, .strideLength, .power,
-             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness,
+             .verticalOscillation, .groundContactTime, .groundContactTimePercent,
+             .groundContactTimeBalance, .verticalRatio, .respirationRate,
+             .formPower, .airPower, .legSpringStiffness,
              .weather, .distance, .timeDate:
             return false
         }
@@ -91,7 +105,9 @@ extension OverlayComponentID {
         case .topProgress:
             return true
         case .speed, .pace, .heartRate, .cadence, .calories, .strideLength, .power,
-             .verticalOscillation, .groundContactTime, .formPower, .airPower, .legSpringStiffness,
+             .verticalOscillation, .groundContactTime, .groundContactTimePercent,
+             .groundContactTimeBalance, .verticalRatio, .respirationRate,
+             .formPower, .airPower, .legSpringStiffness,
              .weather, .distance, .route, .timeDate:
             return false
         }
