@@ -1,5 +1,6 @@
 import XCTest
 import AppKit
+import AVFoundation
 import OverlayCore
 @testable import OverlayStudio
 
@@ -248,12 +249,10 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(loaded, legacyState)
     }
 
-    func testPlaybackOverlayRefreshIsThrottledBelowPlayerTimeUpdates() {
+    func testPreviewTimingConstantsStayResponsive() {
         XCTAssertGreaterThan(StudioModel.playbackOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
-        XCTAssertLessThan(StudioModel.scrubOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThanOrEqual(StudioModel.playerTimeObserverInterval, 0.10)
         XCTAssertLessThanOrEqual(StudioModel.playbackOverlayRefreshInterval, 0.25)
-        XCTAssertLessThanOrEqual(StudioModel.scrubOverlayRefreshInterval, 1.0 / 55.0)
         XCTAssertGreaterThan(StudioModel.scrubInteractionHoldInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThanOrEqual(StudioModel.scrubInteractionHoldInterval, 0.20)
         XCTAssertGreaterThan(StudioModel.previewResizeRefreshDelay, StudioModel.playerTimeObserverInterval)
@@ -337,6 +336,24 @@ final class StudioModelTests: XCTestCase {
 
     func testPreviewTimelineKeepsScrubInputSensitive() {
         XCTAssertLessThanOrEqual(PreviewTimelineSlider.valueChangeEpsilon, 0.001)
+    }
+
+    @MainActor
+    func testScrubPreviewWithPlayerRefreshesOverlay() async throws {
+        let model = StudioModel()
+        model.player = AVPlayer()
+        model.videoURL = URL(fileURLWithPath: "/tmp/source.mov")
+        model.setOutputWidth(320)
+        model.setOutputHeight(180)
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 3, distanceMeters: 12)
+        ])
+
+        model.scrubPreview(to: 3)
+
+        try await waitForOverlayImage(in: model)
+        XCTAssertEqual(model.previewTime, 3)
     }
 
     func testSourceFrameRatePresetOnlyAppearsWhenExportable() {
