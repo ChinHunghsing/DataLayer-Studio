@@ -159,8 +159,6 @@ struct PreviewCanvasView: View {
             if let activeDrag {
                 if let baseOverlay = state.dragBaseOverlayImage {
                     overlayImage(baseOverlay, displayRect: displayRect)
-                } else if !activeDrag.baseSnapshots.isEmpty {
-                    dragBaseSnapshotSlices(activeDrag.baseSnapshots)
                 } else if let sourceOverlay = activeDrag.sourceOverlay {
                     dragBaseSnapshotOverlay(
                         sourceOverlay,
@@ -371,16 +369,6 @@ struct PreviewCanvasView: View {
             let sourceElementSnapshot = sourceOverlay.flatMap {
                 PreviewSnapshotSlicer.sliceImage($0, cropRect: sourceRect, displayRect: displayRect)
             }
-            let baseSnapshotRects = dragBaseSnapshotRects(displayRect: displayRect, excluding: sourceRect)
-            let baseSnapshots = sourceOverlay.map { overlay in
-                baseSnapshotRects.compactMap { rect in
-                    PreviewSnapshotSlicer.slice(
-                        image: overlay,
-                        cropRect: rect,
-                        displayRect: displayRect
-                    )
-                }
-            } ?? []
             let initialDragState = ComponentDragState(
                 id: id,
                 startX: element.frame.x,
@@ -390,7 +378,6 @@ struct PreviewCanvasView: View {
                 sourceRect: sourceRect,
                 sourceOverlay: sourceOverlay,
                 sourceElementSnapshot: sourceElementSnapshot,
-                baseSnapshots: baseSnapshots,
                 visibleElements: [element],
                 alignedMetricWidth: alignedMetricWidth,
                 overflowInsets: layoutOverflowInsets(
@@ -406,7 +393,7 @@ struct PreviewCanvasView: View {
             model.beginElementDrag(
                 id: id,
                 previewSize: previewOverlayRenderSize(for: displayRect.size),
-                renderFallbackSnapshots: sourceElementSnapshot == nil || baseSnapshots.count != baseSnapshotRects.count
+                renderFallbackSnapshots: sourceElementSnapshot == nil
             )
         }
         guard var activeDrag = dragState else { return }
@@ -979,75 +966,33 @@ struct PreviewCanvasView: View {
             .allowsHitTesting(false)
     }
 
-    private func dragBaseSnapshotSlices(_ slices: [DragSnapshotSlice]) -> some View {
-        ZStack {
-            ForEach(slices.indices, id: \.self) { index in
-                let slice = slices[index]
-                Image(nsImage: slice.image)
-                    .resizable()
-                    .frame(width: slice.rect.width, height: slice.rect.height)
-                    .position(x: slice.rect.midX, y: slice.rect.midY)
-            }
-        }
-        .allowsHitTesting(false)
-    }
-
     private func dragBaseSnapshotOverlay(
         _ image: NSImage,
         excluding sourceRect: CGRect,
         displayRect: CGRect
     ) -> some View {
-        let cropRects = dragBaseSnapshotRects(displayRect: displayRect, excluding: sourceRect)
-        return ZStack {
-            ForEach(cropRects.indices, id: \.self) { index in
-                croppedOverlayImage(image, cropRect: cropRects[index], displayRect: displayRect)
+        let excludedRect = dragMaskRect(sourceRect: sourceRect, displayRect: displayRect)
+        return Image(nsImage: image)
+            .resizable()
+            .frame(width: displayRect.width, height: displayRect.height)
+            .mask {
+                DragBaseSnapshotMask(excludedRect: excludedRect)
+                    .fill(style: FillStyle(eoFill: true))
             }
-        }
-        .allowsHitTesting(false)
+            .position(x: displayRect.midX, y: displayRect.midY)
+            .allowsHitTesting(false)
     }
 
-    private func croppedOverlayImage(_ image: NSImage, cropRect: CGRect, displayRect: CGRect) -> some View {
-        ZStack(alignment: .topLeading) {
-            Image(nsImage: image)
-                .resizable()
-                .frame(width: displayRect.width, height: displayRect.height)
-                .offset(
-                    x: displayRect.minX - cropRect.minX,
-                    y: displayRect.minY - cropRect.minY
-                )
-        }
-        .frame(width: cropRect.width, height: cropRect.height, alignment: .topLeading)
-        .clipped()
-        .position(x: cropRect.midX, y: cropRect.midY)
-    }
-
-    private func dragBaseSnapshotRects(displayRect: CGRect, excluding sourceRect: CGRect) -> [CGRect] {
-        let excluded = sourceRect.intersection(displayRect)
-        guard !excluded.isNull, !excluded.isEmpty else { return [displayRect] }
-
-        var rects: [CGRect] = []
-        appendSnapshotRect(
-            CGRect(x: displayRect.minX, y: displayRect.minY, width: displayRect.width, height: excluded.minY - displayRect.minY),
-            to: &rects
+    private func dragMaskRect(sourceRect: CGRect, displayRect: CGRect) -> CGRect {
+        let bleed: CGFloat = 1
+        let excluded = sourceRect.insetBy(dx: -bleed, dy: -bleed).intersection(displayRect)
+        guard !excluded.isNull, !excluded.isEmpty else { return .zero }
+        return CGRect(
+            x: excluded.minX - displayRect.minX,
+            y: excluded.minY - displayRect.minY,
+            width: excluded.width,
+            height: excluded.height
         )
-        appendSnapshotRect(
-            CGRect(x: displayRect.minX, y: excluded.maxY, width: displayRect.width, height: displayRect.maxY - excluded.maxY),
-            to: &rects
-        )
-        appendSnapshotRect(
-            CGRect(x: displayRect.minX, y: excluded.minY, width: excluded.minX - displayRect.minX, height: excluded.height),
-            to: &rects
-        )
-        appendSnapshotRect(
-            CGRect(x: excluded.maxX, y: excluded.minY, width: displayRect.maxX - excluded.maxX, height: excluded.height),
-            to: &rects
-        )
-        return rects
-    }
-
-    private func appendSnapshotRect(_ rect: CGRect, to rects: inout [CGRect]) {
-        guard rect.width > 0.5, rect.height > 0.5 else { return }
-        rects.append(rect)
     }
 
     private func overlayImage(_ image: NSImage, displayRect: CGRect) -> some View {
@@ -1226,7 +1171,6 @@ private struct ComponentDragState {
     let sourceRect: CGRect
     let sourceOverlay: NSImage?
     let sourceElementSnapshot: NSImage?
-    let baseSnapshots: [DragSnapshotSlice]
     let visibleElements: [OverlayElement]
     let alignedMetricWidth: CGFloat?
     let overflowInsets: CanvasOverflowInsets
@@ -1234,23 +1178,21 @@ private struct ComponentDragState {
     var translation: CGSize
 }
 
-struct DragSnapshotSlice {
-    let rect: CGRect
-    let image: NSImage
+private struct DragBaseSnapshotMask: Shape {
+    var excludedRect: CGRect
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addRect(rect)
+        let excluded = excludedRect.intersection(rect)
+        if !excluded.isNull, !excluded.isEmpty {
+            path.addRect(excluded)
+        }
+        return path
+    }
 }
 
 enum PreviewSnapshotSlicer {
-    static func slice(
-        image: NSImage,
-        cropRect: CGRect,
-        displayRect: CGRect
-    ) -> DragSnapshotSlice? {
-        guard let slicedImage = sliceImage(image, cropRect: cropRect, displayRect: displayRect) else {
-            return nil
-        }
-        return DragSnapshotSlice(rect: cropRect, image: slicedImage)
-    }
-
     static func sliceImage(
         _ image: NSImage,
         cropRect: CGRect,
