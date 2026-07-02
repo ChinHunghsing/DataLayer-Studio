@@ -23,30 +23,46 @@ public final class OverlayRenderer {
     private static let maximumCachedTextWidths = 16_384
     private static var textWidthCache: [TextWidthKey: CGFloat] = [:]
 
-    public init(series: TelemetrySeries, config: OverlayRenderConfig) {
+    public convenience init(series: TelemetrySeries, config: OverlayRenderConfig) {
+        self.init(series: series, config: config, reusing: nil)
+    }
+
+    private init(series: TelemetrySeries, config: OverlayRenderConfig, reusing previous: OverlayRenderer?) {
         self.series = series
         self.config = config
         let visibleElements = config.layout.visibleElements
         self.visibleElements = visibleElements
         self.metricElements = visibleElements.filter { Self.isMetricKind($0.kind) }
-        self.totalDistanceMeters = OverlayRenderer.lastFiniteDistance(samples: series.samples) ?? 0
+        self.totalDistanceMeters = previous?.totalDistanceMeters
+            ?? OverlayRenderer.lastFiniteDistance(samples: series.samples) ?? 0
         let routePoints: [RoutePoint]
-        if visibleElements.contains(where: { $0.kind == .route }) {
+        if !visibleElements.contains(where: { $0.kind == .route }) {
+            routePoints = []
+        } else if let previous, previous.visibleElements.contains(where: { $0.kind == .route }) {
+            routePoints = previous.routePoints
+        } else {
             routePoints = OverlayRenderer.makeRoutePoints(
                 samples: series.samples,
                 bounds: series.bounds,
                 limit: config.routePointLimit
             )
-        } else {
-            routePoints = []
         }
         self.routePoints = routePoints
         self.routePathCache = OverlayRenderer.makeRoutePathCache(
             elements: visibleElements,
             routePoints: routePoints,
             bounds: series.bounds,
-            canvasSize: config.size
+            canvasSize: config.size,
+            previousElements: previous?.visibleElements ?? [],
+            previousCache: previous?.routePathCache ?? [:]
         )
+    }
+
+    /// 仅布局变化时复用同一 series/config 的预计算状态（路线点、未变元素的路径缓存）。
+    public func withLayout(_ layout: OverlayLayout) -> OverlayRenderer {
+        var newConfig = config
+        newConfig.layout = layout.sanitized
+        return OverlayRenderer(series: series, config: newConfig, reusing: self)
     }
 
     public func render(videoTime: TimeInterval, into pixelBuffer: CVPixelBuffer) throws {
@@ -1556,12 +1572,25 @@ public final class OverlayRenderer {
         elements: [OverlayElement],
         routePoints: [RoutePoint],
         bounds: GeoBounds?,
-        canvasSize: CGSize
+        canvasSize: CGSize,
+        previousElements: [OverlayElement] = [],
+        previousCache: [String: CGPath] = [:]
     ) -> [String: CGPath] {
         guard let bounds, routePoints.count > 1, canvasSize.width > 0, canvasSize.height > 0 else { return [:] }
         let canvas = CGRect(origin: .zero, size: canvasSize)
+        let reusableElements = Dictionary(
+            previousElements.filter { $0.kind == .route }.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var cache: [String: CGPath] = [:]
         for element in elements where element.kind == .route {
+            if let cachedPath = previousCache[element.id],
+               let previousElement = reusableElements[element.id],
+               previousElement.frame == element.frame,
+               previousElement.customization.lengthScale == element.customization.lengthScale {
+                cache[element.id] = cachedPath
+                continue
+            }
             let scale = max(0.28, min(canvas.width / 1920, canvas.height / 1080)) * CGFloat(element.frame.scale)
             let width = routeBaseSize.width * scale * CGFloat(max(0.1, element.customization.lengthScale))
             let height = routeBaseSize.height * scale

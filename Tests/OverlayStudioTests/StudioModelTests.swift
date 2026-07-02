@@ -22,6 +22,19 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(options.offsetSeconds, 120)
     }
 
+    func testGaugeDragPreviewRenderSizeCapsLongestSide() {
+        XCTAssertEqual(
+            StudioModel.gaugeDragPreviewRenderSize(for: CGSize(width: 3_200, height: 1_800)),
+            CGSize(width: 1_600, height: 900)
+        )
+        XCTAssertEqual(
+            StudioModel.gaugeDragPreviewRenderSize(for: CGSize(width: 900, height: 3_200)),
+            CGSize(width: 450, height: 1_600)
+        )
+        let smallSize = CGSize(width: 1_280, height: 720)
+        XCTAssertEqual(StudioModel.gaugeDragPreviewRenderSize(for: smallSize), smallSize)
+    }
+
     func testSanitizedOutputDimensionClampsAndRoundsToEvenPixels() {
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(1), 2)
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(2), 2)

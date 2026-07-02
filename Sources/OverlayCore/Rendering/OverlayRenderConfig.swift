@@ -50,6 +50,13 @@ public struct OverlayRenderConfig: Equatable {
         self.distanceUnit = distanceUnit
     }
 
+    public func matchesIgnoringLayout(_ other: OverlayRenderConfig) -> Bool {
+        size == other.size
+            && timeSync == other.timeSync
+            && routePointLimit == other.routePointLimit
+            && distanceUnit == other.distanceUnit
+    }
+
     public init(
         size: CGSize,
         telemetryOffset: TimeInterval,

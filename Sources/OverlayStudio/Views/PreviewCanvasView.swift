@@ -232,6 +232,7 @@ struct PreviewCanvasView: View {
                     }
                     .onEnded { _ in
                         activeDrag = nil
+                        model.endGaugeDragInteraction()
                     }
             )
             .zIndex(isSelected ? 10 : 1)
@@ -298,6 +299,7 @@ struct PreviewCanvasView: View {
         alignedMetricWidth: CGFloat?
     ) {
         guard !model.isExporting else { return }
+        model.beginGaugeDragInteraction()
 
         var dragState = activeDrag
         if activeDrag?.id != id, let element = model.layout.elements.first(where: { $0.id == id }) {

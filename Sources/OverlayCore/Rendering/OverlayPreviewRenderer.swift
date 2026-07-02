@@ -75,16 +75,21 @@ public final class OverlayPreviewRenderer {
 
     private func cachedRenderer(series: TelemetrySeries, config: OverlayRenderConfig) -> OverlayRenderer {
         rendererCacheLock.lock()
-        if let rendererCache,
-           rendererCache.config == config,
-           rendererCache.series == series {
-            let renderer = rendererCache.renderer
-            rendererCacheLock.unlock()
-            return renderer
-        }
+        let cached = rendererCache
         rendererCacheLock.unlock()
 
-        let renderer = OverlayRenderer(series: series, config: config)
+        if let cached, cached.config == config, cached.series == series {
+            return cached.renderer
+        }
+
+        let renderer: OverlayRenderer
+        if let cached,
+           cached.series == series,
+           cached.config.matchesIgnoringLayout(config) {
+            renderer = cached.renderer.withLayout(config.layout)
+        } else {
+            renderer = OverlayRenderer(series: series, config: config)
+        }
         rendererCacheLock.lock()
         rendererCache = RendererCache(series: series, config: config, renderer: renderer)
         rendererCacheLock.unlock()

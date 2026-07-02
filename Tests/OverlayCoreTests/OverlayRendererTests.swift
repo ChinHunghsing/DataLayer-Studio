@@ -247,6 +247,63 @@ final class OverlayRendererTests: XCTestCase {
         XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
     }
 
+    func testWithLayoutRendersSameAsFreshRendererWhenMetricMoves() throws {
+        let series = TelemetrySeries(samples: makeSamples(count: 64))
+        let size = CGSize(width: 640, height: 360)
+        let layoutA = OverlayLayout(elements: [
+            OverlayElement.defaultElement(kind: .route),
+            OverlayElement.defaultElement(kind: .pace)
+        ])
+        var layoutB = layoutA
+        layoutB.updateElement(id: "pace") { element in
+            element.frame.x = 0.42
+            element.frame.y = 0.31
+        }
+
+        let base = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layoutA))
+        let reused = base.withLayout(layoutB)
+        let fresh = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layoutB))
+
+        try assertRenderersProduceIdenticalPixels(reused, fresh, size: size, videoTime: 30)
+    }
+
+    func testWithLayoutComputesRoutePointsWhenRouteBecomesVisible() throws {
+        let series = TelemetrySeries(samples: makeSamples(count: 64))
+        let size = CGSize(width: 640, height: 360)
+        let layoutA = OverlayLayout(elements: [OverlayElement.defaultElement(kind: .pace)])
+        let layoutB = OverlayLayout(elements: [
+            OverlayElement.defaultElement(kind: .pace),
+            OverlayElement.defaultElement(kind: .route)
+        ])
+
+        let base = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layoutA))
+        let reused = base.withLayout(layoutB)
+        let fresh = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layoutB))
+
+        let pixelBuffer = try makePixelBuffer(width: Int(size.width), height: Int(size.height))
+        try reused.render(videoTime: 30, into: pixelBuffer)
+        XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
+
+        try assertRenderersProduceIdenticalPixels(reused, fresh, size: size, videoTime: 30)
+    }
+
+    func testWithLayoutRebuildsRoutePathWhenRouteMoves() throws {
+        let series = TelemetrySeries(samples: makeSamples(count: 64))
+        let size = CGSize(width: 640, height: 360)
+        let layoutA = OverlayLayout(elements: [OverlayElement.defaultElement(kind: .route)])
+        var layoutB = layoutA
+        layoutB.updateElement(id: "route") { element in
+            element.frame.x = 0.12
+            element.frame.y = 0.08
+        }
+
+        let base = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layoutA))
+        let reused = base.withLayout(layoutB)
+        let fresh = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layoutB))
+
+        try assertRenderersProduceIdenticalPixels(reused, fresh, size: size, videoTime: 30)
+    }
+
     func testLastFiniteDistanceSkipsMissingAndInvalidDistances() {
         let samples = [
             TelemetrySample(elapsed: 0, distanceMeters: 1_000),
@@ -338,6 +395,48 @@ final class OverlayRendererTests: XCTestCase {
                 (lhs.maxX - lhs.minX) < (rhs.maxX - rhs.minX)
             }!
         }.sorted { $0.minX < $1.minX }
+    }
+
+    private func assertRenderersProduceIdenticalPixels(
+        _ lhs: OverlayRenderer,
+        _ rhs: OverlayRenderer,
+        size: CGSize,
+        videoTime: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let lhsBuffer = try makePixelBuffer(width: Int(size.width), height: Int(size.height))
+        let rhsBuffer = try makePixelBuffer(width: Int(size.width), height: Int(size.height))
+        try lhs.render(videoTime: videoTime, into: lhsBuffer)
+        try rhs.render(videoTime: videoTime, into: rhsBuffer)
+        XCTAssertEqual(
+            try pixelBytes(pixelBuffer: lhsBuffer),
+            try pixelBytes(pixelBuffer: rhsBuffer),
+            "Renderers should draw identical pixels",
+            file: file,
+            line: line
+        )
+    }
+
+    private func pixelBytes(pixelBuffer: CVPixelBuffer) throws -> [UInt8] {
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+            throw OverlayVideoError.cannotCreatePixelBuffer
+        }
+
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let bytes = baseAddress.assumingMemoryBound(to: UInt8.self)
+        var result: [UInt8] = []
+        result.reserveCapacity(width * height * 4)
+        for row in 0..<height {
+            let rowStart = row * bytesPerRow
+            result.append(contentsOf: UnsafeBufferPointer(start: bytes + rowStart, count: width * 4))
+        }
+        return result
     }
 
     private func drawnPixelCount(pixelBuffer: CVPixelBuffer) throws -> Int {
