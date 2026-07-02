@@ -2,14 +2,14 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-DataLayer Studio 是一款 macOS App 和命令行工具，用来把跑步运动数据渲染成透明背景的视频浮层。
+DataLayer Studio 可以把跑步运动数据做成清爽的视频数据层，适合比赛回顾、训练分析和社交短片。你可以用 macOS 编辑器可视化排版，也可以用命令行批量导出。
 
 它需要：
 
 - 一个源视频文件，用于读取分辨率、帧率和时长
 - 一个标准 `.fit` 运动文件，用于读取 GPS 和跑步指标
 
-输出结果是带 alpha 通道的 `.mov` 文件，可以放在 Final Cut Pro、DaVinci Resolve、Premiere 或类似剪辑软件的上层轨道。
+它既可以导出带 alpha 通道的透明 `.mov`，放在 Final Cut Pro、DaVinci Resolve、Premiere 等剪辑软件的上层轨道，也可以直接导出已经叠加数据层的成片。
 
 DataLayer Studio 是独立项目，不隶属于 Telemetry Overlay，也未获得 Telemetry Overlay 或其开发者的认可、赞助或授权。本项目不会读取或修改 `/Applications/Telemetry Overlay.app`，也不包含 Telemetry Overlay 的专有代码或素材。
 
@@ -17,9 +17,23 @@ DataLayer Studio 是独立项目，不隶属于 Telemetry Overlay，也未获得
 
 > 需要 Apple Silicon 芯片的 Mac，系统为 macOS 13.0 Ventura 或更新版本。
 
-## 应用展示
+## 亮点
 
-<img src="assets/readme/app-showcase.png" alt="DataLayer Studio macOS app preview with synced video and running telemetry overlay" width="100%">
+- 用匹配点同步视频时间线和 FIT 运动时间。
+- 在实时预览画布上摆放配速、心率、步频、轨迹、距离、时间、天气等数据浮层。
+- 保存可复用布局预设，适配不同视频风格。
+- 导出透明 HEVC/ProRes Alpha 浮层，或导出已合成的数据视频。
+- 命令行和图形界面使用同一套渲染逻辑，适合批量流程。
+
+## App Store 截图
+
+| 实时预览 | 排布浮层 | 导出透明浮层 |
+| --- | --- | --- |
+| <img src="assets/appstore/v0.1.2/zh-Hans/desktop/01-preview-overlay.png" alt="DataLayer Studio 实时浮层预览" width="100%"> | <img src="assets/appstore/v0.1.2/zh-Hans/desktop/02-arrange-gauges.png" alt="DataLayer Studio 浮层排布界面" width="100%"> | <img src="assets/appstore/v0.1.2/zh-Hans/desktop/03-export-alpha.png" alt="DataLayer Studio 透明浮层导出界面" width="100%"> |
+
+| 数据对比 | 数据指标 |
+| --- | --- |
+| <img src="assets/appstore/v0.1.2/zh-Hans/desktop/04-data-layer-comparison.png" alt="DataLayer Studio 数据层效果对比" width="100%"> | <img src="assets/appstore/v0.1.2/zh-Hans/desktop/05-data-layer-metrics.png" alt="DataLayer Studio 支持的数据指标" width="100%"> |
 
 ## 快速开始
 

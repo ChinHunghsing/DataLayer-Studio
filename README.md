@@ -2,16 +2,18 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-DataLayer Studio is a macOS app and command-line tool for turning running
-telemetry into a transparent video overlay layer.
+DataLayer Studio turns running telemetry into clean video overlays for race
+recaps, training breakdowns, and social clips. Use the macOS editor for visual
+layout work, or the command-line tool for repeatable exports.
 
 It takes:
 
 - a source video file, used for resolution, frame rate, and duration
 - a standard `.fit` activity file, used for GPS and running metrics
 
-The output is an alpha-capable `.mov` designed to sit on an upper track in
-Final Cut Pro, DaVinci Resolve, Premiere, or similar editors.
+It can export either a transparent alpha `.mov` for Final Cut Pro, DaVinci
+Resolve, Premiere, and similar editors, or a finished video with the overlay
+burned in.
 
 DataLayer Studio is an independent project. It is not affiliated with,
 endorsed by, or sponsored by Telemetry Overlay or its developers. This project
@@ -22,9 +24,19 @@ not include proprietary code or assets from Telemetry Overlay.
 
 > Requires macOS 13.0 Ventura or later on Apple Silicon Macs.
 
-## App preview
+## Highlights
 
-<img src="assets/readme/app-showcase.png" alt="DataLayer Studio macOS app preview with synced video and running telemetry overlay" width="100%">
+- Sync a video with FIT activity time using match points.
+- Arrange pace, heart rate, cadence, route, distance, time, weather, and other gauges on a live preview canvas.
+- Save reusable layout presets for different video styles.
+- Export transparent HEVC/ProRes Alpha overlays or composited videos.
+- Run the same renderer from the CLI for scripted workflows.
+
+## App Store screenshots
+
+| Live overlay preview | Arrange gauges | Export alpha overlay |
+| --- | --- | --- |
+| <img src="assets/appstore/v0.1.2/en-US/desktop/01-preview-overlay.png" alt="DataLayer Studio live overlay preview" width="100%"> | <img src="assets/appstore/v0.1.2/en-US/desktop/02-arrange-gauges.png" alt="DataLayer Studio gauge arrangement screen" width="100%"> | <img src="assets/appstore/v0.1.2/en-US/desktop/03-export-alpha.png" alt="DataLayer Studio alpha overlay export screen" width="100%"> |
 
 ## Quick start
 
