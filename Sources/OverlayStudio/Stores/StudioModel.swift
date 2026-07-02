@@ -148,7 +148,9 @@ final class StudioModel: ObservableObject {
     private var isGaugeDragActive = false
     private var exportProgressSamples: [(date: Date, progress: Double)] = []
     private static let exportETASampleWindow: TimeInterval = 10
-    weak var undoManager: UndoManager?
+    weak var undoManager: UndoManager? {
+        didSet { undoManager?.levelsOfUndo = 100 }
+    }
     private var layoutUndoTransaction: (layout: OverlayLayout, selectedElementID: String?, actionKey: String)?
     private var lastCoalescedLayoutUndo: (actionKey: String, date: Date)?
     private static let layoutUndoCoalescingInterval: TimeInterval = 0.8
@@ -1591,7 +1593,12 @@ final class StudioModel: ObservableObject {
                             overlayLayout: currentLayout,
                             distanceUnit: currentDistanceUnit,
                             progressHandler: progressHandler,
-                            cancellationHandler: { cancellationToken.isCancelled }
+                            cancellationHandler: { cancellationToken.isCancelled },
+                            diagnosticsHandler: { [weak self] message in
+                                Task { @MainActor in
+                                    self?.addDebugLog(.export, message)
+                                }
+                            }
                         )
                     ).write()
                 }

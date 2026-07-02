@@ -19,6 +19,7 @@ public struct CompositedVideoWriterConfig {
     public var distanceUnit: OverlayDistanceUnit
     public var progressHandler: ((Int, Int) -> Void)?
     public var cancellationHandler: (() -> Bool)?
+    public var diagnosticsHandler: ((String) -> Void)?
 
     public init(
         width: Int,
@@ -31,7 +32,8 @@ public struct CompositedVideoWriterConfig {
         overlayLayout: OverlayLayout = .default,
         distanceUnit: OverlayDistanceUnit = .kilometers,
         progressHandler: ((Int, Int) -> Void)? = nil,
-        cancellationHandler: (() -> Bool)? = nil
+        cancellationHandler: (() -> Bool)? = nil,
+        diagnosticsHandler: ((String) -> Void)? = nil
     ) {
         self.width = width
         self.height = height
@@ -44,6 +46,7 @@ public struct CompositedVideoWriterConfig {
         self.distanceUnit = distanceUnit
         self.progressHandler = progressHandler
         self.cancellationHandler = cancellationHandler
+        self.diagnosticsHandler = diagnosticsHandler
     }
 }
 
@@ -173,64 +176,93 @@ public final class CompositedVideoWriter {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let ciContext = OverlayCIContextFactory.makeContext(profile: hardwareProfile)
         let overlayPool = try TransparentVideoWriter.makePixelBufferPool(width: width, height: height, minimumBufferCount: 2)
+
+        let renderQueue = DispatchQueue(label: "run.libo.overlay.composited-writer")
+        let writeFinished = DispatchSemaphore(value: 0)
+        let codec = config.codec
+        let progressHandler = config.progressHandler
+        let cancellationHandler = config.cancellationHandler
+        let frameCount = timing.frameCount
         var frameIndex = 0
+        var writeError: Error?
+        var sourceExhausted = false
+        var didFinishInput = false
 
-        while frameIndex < timing.frameCount {
-            var didReadFrame = false
-            try autoreleasepool {
-                guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else { return }
-                didReadFrame = true
+        input.requestMediaDataWhenReady(on: renderQueue) {
+            while input.isReadyForMoreMediaData,
+                  frameIndex < frameCount,
+                  writeError == nil,
+                  !sourceExhausted {
+                do {
+                    var didReadFrame = false
+                    try autoreleasepool {
+                        guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else { return }
+                        didReadFrame = true
 
-                if config.cancellationHandler?() == true {
-                    reader.cancelReading()
-                    writer.cancelWriting()
-                    throw OverlayVideoError.cancelled
-                }
+                        if cancellationHandler?() == true {
+                            throw OverlayVideoError.cancelled
+                        }
 
-                try waitUntilReady(input)
-                guard let pool = adaptor.pixelBufferPool else {
-                    throw OverlayVideoError.cannotCreatePixelBuffer
-                }
-                guard let sourceBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                    throw OverlayVideoError.cannotCreatePixelBuffer
-                }
+                        guard let pool = adaptor.pixelBufferPool else {
+                            throw OverlayVideoError.cannotCreatePixelBuffer
+                        }
+                        guard let sourceBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                            throw OverlayVideoError.cannotCreatePixelBuffer
+                        }
 
-                let outputBuffer = try TransparentVideoWriter.makePixelBuffer(from: pool)
-                let overlayBuffer = try TransparentVideoWriter.makePixelBuffer(from: overlayPool)
-                let presentationTime = timing.presentationTime(for: frameIndex)
-                let videoTime = CMTimeGetSeconds(presentationTime)
+                        let outputBuffer = try TransparentVideoWriter.makePixelBuffer(from: pool)
+                        let overlayBuffer = try TransparentVideoWriter.makePixelBuffer(from: overlayPool)
+                        let presentationTime = timing.presentationTime(for: frameIndex)
+                        let videoTime = CMTimeGetSeconds(presentationTime)
 
-                try renderer.render(videoTime: videoTime, into: overlayBuffer)
-                let composed = CIImage(cvPixelBuffer: overlayBuffer)
-                    .composited(over: CIImage(cvPixelBuffer: sourceBuffer))
-                ciContext.render(
-                    composed,
-                    to: outputBuffer,
-                    bounds: CGRect(x: 0, y: 0, width: width, height: height),
-                    colorSpace: colorSpace
-                )
+                        try renderer.render(videoTime: videoTime, into: overlayBuffer)
+                        let composed = CIImage(cvPixelBuffer: overlayBuffer)
+                            .composited(over: CIImage(cvPixelBuffer: sourceBuffer))
+                        ciContext.render(
+                            composed,
+                            to: outputBuffer,
+                            bounds: CGRect(x: 0, y: 0, width: width, height: height),
+                            colorSpace: colorSpace
+                        )
 
-                guard try TransparentVideoWriter.appendPixelBuffer(
-                    outputBuffer,
-                    to: input,
-                    at: presentationTime,
-                    duration: timing.frameDuration
-                ) else {
-                    throw OverlayVideoError.writerFailed(describe(error: writer.error, codec: config.codec))
-                }
+                        guard try TransparentVideoWriter.appendPixelBuffer(
+                            outputBuffer,
+                            to: input,
+                            at: presentationTime,
+                            duration: timing.frameDuration
+                        ) else {
+                            throw OverlayVideoError.writerFailed(self.describe(error: writer.error, codec: codec))
+                        }
 
-                frameIndex += 1
-                if frameIndex == timing.frameCount || frameIndex % Int(max(1, timing.framesPerSecond)) == 0 {
-                    config.progressHandler?(frameIndex, timing.frameCount)
+                        frameIndex += 1
+                        if frameIndex == frameCount || frameIndex % Int(max(1, timing.framesPerSecond)) == 0 {
+                            progressHandler?(frameIndex, frameCount)
+                        }
+                    }
+                    if !didReadFrame {
+                        sourceExhausted = true
+                    }
+                } catch {
+                    writeError = error
                 }
             }
-            if !didReadFrame {
-                break
+
+            if (frameIndex >= frameCount || writeError != nil || sourceExhausted), !didFinishInput {
+                didFinishInput = true
+                if writeError == nil {
+                    writer.endSession(atSourceTime: timing.outputDuration)
+                }
+                input.markAsFinished()
+                writeFinished.signal()
             }
         }
+        writeFinished.wait()
 
-        writer.endSession(atSourceTime: timing.outputDuration)
-        input.markAsFinished()
+        if let writeError {
+            reader.cancelReading()
+            writer.cancelWriting()
+            throw writeError
+        }
         if reader.status == .failed {
             writer.cancelWriting()
             throw OverlayVideoError.unreadableVideo(reader.error?.localizedDescription ?? "Source video reading failed.")
@@ -364,6 +396,9 @@ public final class CompositedVideoWriter {
                 presetName: AVAssetExportPresetPassthrough
             )
         } catch {
+            config.diagnosticsHandler?(
+                "Audio passthrough mux failed (\(error.localizedDescription)); re-exporting with highest quality preset, video will be re-encoded."
+            )
             removePartialOutput(at: outputURL)
             try exportComposition(
                 composition,
@@ -430,15 +465,6 @@ public final class CompositedVideoWriter {
             kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality as String: true
         ]
         return settings
-    }
-
-    private func waitUntilReady(_ input: AVAssetWriterInput) throws {
-        while !input.isReadyForMoreMediaData {
-            if config.cancellationHandler?() == true {
-                throw OverlayVideoError.cancelled
-            }
-            Thread.sleep(forTimeInterval: 0.002)
-        }
     }
 
     private func validateOutputURL() throws {

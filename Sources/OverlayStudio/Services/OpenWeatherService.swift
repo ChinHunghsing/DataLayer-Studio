@@ -249,7 +249,7 @@ final class OpenWeatherService {
     }
 
     private static func nearestRecord(to date: Date, in records: [OpenWeatherRecord]) -> OpenWeatherRecord? {
-        // ponytail: OpenWeather 1h pages cap at 20 records; linear nearest lookup stays tiny.
+        // OpenWeather 1h pages cap at 20 records; linear nearest lookup stays tiny.
         let nearest = records.min { lhs, rhs in
             abs(lhs.timestamp.timeIntervalSince(date)) < abs(rhs.timestamp.timeIntervalSince(date))
         }
