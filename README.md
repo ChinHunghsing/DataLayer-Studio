@@ -2,6 +2,10 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
+<p>
+  <img src="assets/readme/fable5verified.png" alt="Fabel 5 Verified badge" width="220">
+</p>
+
 DataLayer Studio turns running telemetry into clean video overlays for race
 recaps, training breakdowns, and social clips. Use the macOS editor for visual
 layout work, or the command-line tool for repeatable exports.

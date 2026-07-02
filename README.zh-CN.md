@@ -2,6 +2,10 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
+<p>
+  <img src="assets/readme/fable5verified.png" alt="Fabel 5 Verified badge" width="220">
+</p>
+
 DataLayer Studio 可以把跑步运动数据做成清爽的视频数据层，适合比赛回顾、训练分析和社交短片。你可以用 macOS 编辑器可视化排版，也可以用命令行批量导出。
 
 它需要：
