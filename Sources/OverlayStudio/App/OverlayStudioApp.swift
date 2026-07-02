@@ -60,14 +60,41 @@ private struct AppInfoCommands: Commands {
 
 private enum AboutPanelPresenter {
     private static let badgeResourceName = "fable5verified"
-    private static let badgeWidth: CGFloat = 220
+    private static var window: NSWindow?
 
     static func show() {
-        var options: [NSApplication.AboutPanelOptionKey: Any] = [:]
-        if let badge = badgeImage() {
-            options[.credits] = credits(with: badge)
+        if let window {
+            window.center()
+            window.makeKeyAndOrderFront(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            return
         }
-        NSApplication.shared.orderFrontStandardAboutPanel(options: options)
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 280),
+            styleMask: [.titled, .closable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = appName
+        panel.titleVisibility = .hidden
+        panel.titlebarAppearsTransparent = true
+        panel.isReleasedWhenClosed = false
+        panel.contentView = contentView()
+        panel.center()
+        panel.makeKeyAndOrderFront(nil)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        window = panel
+    }
+
+    private static var appName: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? "DataLayer Studio"
+    }
+
+    private static var versionText: String {
+        let version = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? ""
+        let build = (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? ""
+        return [version, build.isEmpty ? nil : "(\(build))"].compactMap { $0 }.joined(separator: " ")
     }
 
     private static func badgeImage() -> NSImage? {
@@ -80,34 +107,50 @@ private enum AboutPanelPresenter {
         return NSImage(contentsOf: localURL)
     }
 
-    private static func credits(with badge: NSImage) -> NSAttributedString {
-        let attachment = NSTextAttachment()
-        attachment.image = scaledBadgeImage(badge)
+    private static func contentView() -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let credits = NSMutableAttributedString(string: "\n")
-        let badgeString = NSMutableAttributedString(attachment: attachment)
-        badgeString.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: badgeString.length))
-        credits.append(badgeString)
-        credits.append(NSAttributedString(string: "\n"))
-        return credits
-    }
+        let iconView = NSImageView(image: NSApplication.shared.applicationIconImage)
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.translatesAutoresizingMaskIntoConstraints = false
 
-    private static func scaledBadgeImage(_ image: NSImage) -> NSImage {
-        let scale = badgeWidth / max(image.size.width, 1)
-        let size = NSSize(width: badgeWidth, height: max(1, image.size.height * scale))
-        let output = NSImage(size: size)
-        output.lockFocus()
-        image.draw(
-            in: NSRect(origin: .zero, size: size),
-            from: NSRect(origin: .zero, size: image.size),
-            operation: .sourceOver,
-            fraction: 1
-        )
-        output.unlockFocus()
-        return output
+        let nameLabel = NSTextField(labelWithString: appName)
+        nameLabel.font = .systemFont(ofSize: 18, weight: .semibold)
+        nameLabel.alignment = .center
+
+        let versionLabel = NSTextField(labelWithString: versionText)
+        versionLabel.font = .systemFont(ofSize: 12, weight: .medium)
+        versionLabel.textColor = .secondaryLabelColor
+        versionLabel.alignment = .center
+
+        let badgeView = NSImageView(image: badgeImage() ?? NSImage())
+        badgeView.imageScaling = .scaleProportionallyUpOrDown
+        badgeView.translatesAutoresizingMaskIntoConstraints = false
+
+        stack.addArrangedSubview(iconView)
+        stack.addArrangedSubview(nameLabel)
+        stack.addArrangedSubview(versionLabel)
+        stack.addArrangedSubview(badgeView)
+        view.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 10),
+            iconView.widthAnchor.constraint(equalToConstant: 64),
+            iconView.heightAnchor.constraint(equalToConstant: 64),
+            badgeView.widthAnchor.constraint(equalToConstant: 220),
+            badgeView.heightAnchor.constraint(equalToConstant: 70)
+        ])
+
+        return view
     }
 }
 
