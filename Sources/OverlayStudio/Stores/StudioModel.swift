@@ -112,6 +112,8 @@ final class StudioModel: ObservableObject {
     @Published var previewWarning: String?
     @Published var isExporting = false
     @Published var exportProgress = 0.0
+    @Published private(set) var exportETASeconds: TimeInterval?
+    @Published private(set) var lastExportedURL: URL?
     @Published var openWeatherAPIKey = OpenWeatherKeyStore.load()
     @Published var weatherRefreshMessage: String?
     @Published var debugLogEntries: [DebugLogEntry] = []
@@ -144,6 +146,8 @@ final class StudioModel: ObservableObject {
     private var pendingOverlayRefreshDisplaysIntermediateResult = false
     private var isScrubbingPreview = false
     private var isGaugeDragActive = false
+    private var exportProgressSamples: [(date: Date, progress: Double)] = []
+    private static let exportETASampleWindow: TimeInterval = 10
     weak var undoManager: UndoManager?
     private var layoutUndoTransaction: (layout: OverlayLayout, selectedElementID: String?, actionKey: String)?
     private var lastCoalescedLayoutUndo: (actionKey: String, date: Date)?
@@ -1516,6 +1520,9 @@ final class StudioModel: ObservableObject {
         cancelPreviewRenderTasks()
         isExporting = true
         exportProgress = 0
+        exportETASeconds = nil
+        exportProgressSamples = [(Date(), 0)]
+        lastExportedURL = nil
         setStatus("status.exporting")
         addDebugLog(.export, "Export started: \(outputURL.lastPathComponent), \(exportSettings.width)x\(exportSettings.height), \(Self.formatDebugSeconds(exportSettings.duration))")
         let cancellationToken = ExportCancellationToken()
@@ -1529,7 +1536,7 @@ final class StudioModel: ObservableObject {
         let sourceVideoURL = videoURL
         let progressHandler: (Int, Int) -> Void = { [weak self] completed, total in
             Task { @MainActor in
-                self?.exportProgress = total > 0 ? Double(completed) / Double(total) : 0
+                self?.updateExportProgress(total > 0 ? Double(completed) / Double(total) : 0)
             }
         }
 
@@ -1581,6 +1588,8 @@ final class StudioModel: ObservableObject {
                     guard let self else { return }
                     self.isExporting = false
                     self.exportProgress = 1
+                    self.exportETASeconds = nil
+                    self.lastExportedURL = outputURL
                     self.exportTask = nil
                     self.exportCancellationToken = nil
                     self.setStatus("status.wroteFile", outputURL.path)
@@ -1593,6 +1602,7 @@ final class StudioModel: ObservableObject {
                     guard let self else { return }
                     self.isExporting = false
                     self.exportProgress = 0
+                    self.exportETASeconds = nil
                     self.exportTask = nil
                     self.exportCancellationToken = nil
                     self.setStatus("status.exportCancelled")
@@ -1603,6 +1613,7 @@ final class StudioModel: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     self.isExporting = false
+                    self.exportETASeconds = nil
                     self.exportTask = nil
                     self.exportCancellationToken = nil
                     self.setStatus("status.exportError", error.localizedDescription)
@@ -1611,6 +1622,33 @@ final class StudioModel: ObservableObject {
                 }
             }
         }
+    }
+
+    func updateExportProgress(_ progress: Double, at date: Date = Date()) {
+        exportProgress = progress
+        exportProgressSamples.append((date, progress))
+        exportProgressSamples.removeAll { date.timeIntervalSince($0.date) > Self.exportETASampleWindow }
+        guard progress > 0.02,
+              progress < 1,
+              let first = exportProgressSamples.first,
+              date.timeIntervalSince(first.date) > 1,
+              progress > first.progress else {
+            return
+        }
+        let rate = (progress - first.progress) / date.timeIntervalSince(first.date)
+        guard rate > 0 else { return }
+        exportETASeconds = (1 - progress) / rate
+    }
+
+    func revealLastExportInFinder() {
+        guard let lastExportedURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([lastExportedURL])
+    }
+
+    func copyLastExportPath() {
+        guard let lastExportedURL else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(lastExportedURL.path, forType: .string)
     }
 
     private func notifyExportCompleted(_ outputURL: URL) {
@@ -1625,6 +1663,7 @@ final class StudioModel: ObservableObject {
             content.title = title
             content.body = body
             content.sound = .default
+            content.userInfo = ["exportPath": outputURL.path]
 
             let request = UNNotificationRequest(
                 identifier: "datalayer-export-\(UUID().uuidString)",

@@ -604,6 +604,33 @@ final class StudioModelTests: XCTestCase {
         }
     }
 
+    func testExportProgressEstimatesRemainingTimeFromRate() {
+        let model = StudioModel()
+        let start = Date(timeIntervalSinceReferenceDate: 1_000)
+
+        model.updateExportProgress(0, at: start)
+        XCTAssertNil(model.exportETASeconds)
+
+        model.updateExportProgress(0.1, at: start.addingTimeInterval(2))
+        // 0.1 progress in 2 s -> rate 0.05/s -> remaining 0.9 / 0.05 = 18 s
+        XCTAssertEqual(model.exportETASeconds ?? 0, 18, accuracy: 0.01)
+
+        model.updateExportProgress(1, at: start.addingTimeInterval(20))
+        XCTAssertEqual(model.exportETASeconds ?? 0, 18, accuracy: 0.01)
+    }
+
+    func testExportProgressSkipsETAWithoutEnoughSignal() {
+        let model = StudioModel()
+        let start = Date(timeIntervalSinceReferenceDate: 2_000)
+
+        model.updateExportProgress(0.01, at: start)
+        model.updateExportProgress(0.015, at: start.addingTimeInterval(2))
+        XCTAssertNil(model.exportETASeconds)
+
+        model.updateExportProgress(0.5, at: start.addingTimeInterval(2.5))
+        XCTAssertNotNil(model.exportETASeconds)
+    }
+
     func testStatusRelocalizesWhenLanguageChanges() {
         let model = StudioModel()
 

@@ -1,3 +1,4 @@
+import AppKit
 import OverlayCore
 import SwiftUI
 @preconcurrency import UserNotifications
@@ -52,6 +53,16 @@ private final class AppNotificationDelegate: NSObject, UNUserNotificationCenterD
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
         [.banner, .sound]
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        guard let path = response.notification.request.content.userInfo["exportPath"] as? String else { return }
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }
 

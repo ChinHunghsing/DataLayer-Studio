@@ -426,11 +426,23 @@ struct SidebarView: View {
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                    if let etaSeconds = model.exportETASeconds {
+                        Text(localization.string("sidebar.exportETA", formatETADuration(etaSeconds)))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(localization.string("sidebar.exportProgress"))
                 .accessibilityValue(clampedExportProgress.percentString)
             }
+
+            if !model.isExporting, let exportedURL = model.lastExportedURL {
+                exportSuccessCard(exportedURL)
+            }
+
             if !model.isExporting, let exportReadinessMessage = model.exportReadinessMessage {
                 Label(exportReadinessMessage, systemImage: "info.circle")
                     .font(.caption)
@@ -480,6 +492,42 @@ struct SidebarView: View {
     private var clampedExportProgress: Double {
         guard model.exportProgress.isFinite else { return 0 }
         return min(1, max(0, model.exportProgress))
+    }
+
+    private func exportSuccessCard(_ exportedURL: URL) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(localization.string("sidebar.exportDone"), systemImage: "checkmark.circle.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.green)
+
+            Text(exportedURL.lastPathComponent)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            HStack(spacing: 8) {
+                Button(localization.string("sidebar.revealInFinder")) {
+                    model.revealLastExportInFinder()
+                }
+                Button(localization.string("sidebar.copyPath")) {
+                    model.copyLastExportPath()
+                }
+            }
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func formatETADuration(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded()))
+        if total >= 3600 {
+            return String(format: "%d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
+        }
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 
