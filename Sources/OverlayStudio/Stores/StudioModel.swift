@@ -1594,10 +1594,8 @@ final class StudioModel: ObservableObject {
                             distanceUnit: currentDistanceUnit,
                             progressHandler: progressHandler,
                             cancellationHandler: { cancellationToken.isCancelled },
-                            diagnosticsHandler: { [weak self] message in
-                                Task { @MainActor in
-                                    self?.addDebugLog(.export, message)
-                                }
+                            diagnosticsHandler: { message in
+                                studioDebugLogger.info("[export] \(message, privacy: .public)")
                             }
                         )
                     ).write()

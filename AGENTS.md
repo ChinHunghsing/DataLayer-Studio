@@ -10,6 +10,9 @@
 - 发内部 TestFlight 时不要对内部组调用 `asc builds add-groups`；该接口只适合外部组。用 `asc builds build-beta-detail view` 确认 `Internal State = IN_BETA_TESTING` 即完成。
 - App Store / TestFlight 构建号使用 `yyyyMMddNN`，例如 `2026062601`。
 - 内部 TestFlight 流程：先 `git fetch` 并确认不落后；用 `APP_VERSION=<版本号> APP_BUILD=<yyyyMMddNN> scripts/build_app_bundle.sh` 构建；用 `.apple.env.local` 中的签名配置执行 `scripts/package_app_store_pkg.sh`；用 `asc builds upload --pkg <pkg> --version <版本号> --build-number <构建号> --wait` 上传；如果 ASC 提示构建号不够高，先 `asc builds list --app <APP_ID> --platform MAC_OS` 查最新号并递增；最后用 `asc builds build-beta-detail view --app <APP_ID> --build-number <构建号> --version <版本号> --platform MAC_OS` 确认 `Internal State = IN_BETA_TESTING`。
+- GitHub Release 流程：先 `git fetch --tags` 并确认当前分支不落后、工作区干净、目标 tag 不存在；先让 `main` 的 CI 通过，再创建 `vX.Y.Z` tag 并 `git push origin vX.Y.Z`。
+- `v*` tag 会触发 `.github/workflows/release.yml`：运行测试、构建、签名、公证，并创建/更新 GitHub Release，上传 zip 和 sha256。发布后必须用 `gh run list` / `gh run watch` 确认 release workflow 成功，再用 `gh release view <tag>` 核对资产。
+- release workflow 失败时，先修复并推送新提交，确认 `main` CI 通过后再处理 tag；不要无原因覆盖或移动已发布 tag。
 
 ## 项目结构
 
