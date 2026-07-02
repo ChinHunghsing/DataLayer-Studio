@@ -58,6 +58,77 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.overlayImage?.size.height ?? 0, 1_000, accuracy: 1)
     }
 
+    func testDeleteSelectedElementCanUndoAndRedo() {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        model.undoManager = undoManager
+        let originalLayout = model.layout
+        let originalSelection = model.selectedElementID
+
+        model.deleteSelectedElement()
+
+        XCTAssertNotEqual(model.layout, originalLayout)
+        XCTAssertTrue(undoManager.canUndo)
+
+        undoManager.undo()
+
+        XCTAssertEqual(model.layout, originalLayout)
+        XCTAssertEqual(model.selectedElementID, originalSelection)
+        XCTAssertTrue(undoManager.canRedo)
+
+        undoManager.redo()
+
+        XCTAssertNotEqual(model.layout, originalLayout)
+        XCTAssertTrue(undoManager.canUndo)
+    }
+
+    func testGaugeDragRegistersSingleUndoStep() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        model.undoManager = undoManager
+        let originalLayout = model.layout
+        let elementID = try XCTUnwrap(model.selectedElementID)
+
+        model.beginGaugeDragInteraction()
+        model.updateElement(elementID, refreshPreview: false) { $0.frame.x = 0.5 }
+        model.updateElement(elementID, refreshPreview: false) { $0.frame.x = 0.61 }
+        model.updateElement(elementID, refreshPreview: false) { $0.frame.y = 0.35 }
+        model.endGaugeDragInteraction()
+
+        XCTAssertNotEqual(model.layout, originalLayout)
+        XCTAssertTrue(undoManager.canUndo)
+
+        undoManager.undo()
+
+        XCTAssertEqual(model.layout, originalLayout)
+        XCTAssertFalse(undoManager.canUndo)
+    }
+
+    func testApplyLayoutPresetCanUndo() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        model.undoManager = undoManager
+        var presetLayout = model.layout
+        presetLayout.updateElement(id: try XCTUnwrap(model.selectedElementID)) { $0.frame.x = 0.9 }
+        model.layoutPresets = [LayoutPreset(
+            id: "preset-undo-test",
+            name: "Undo Test",
+            layout: presetLayout,
+            createdAt: Date(),
+            updatedAt: Date()
+        )]
+        let layoutBeforeApply = model.layout
+
+        model.applyLayoutPreset(id: "preset-undo-test")
+
+        XCTAssertNotEqual(model.layout, layoutBeforeApply)
+        XCTAssertTrue(undoManager.canUndo)
+
+        undoManager.undo()
+
+        XCTAssertEqual(model.layout, layoutBeforeApply)
+    }
+
     func testSanitizedOutputDimensionClampsAndRoundsToEvenPixels() {
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(1), 2)
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(2), 2)

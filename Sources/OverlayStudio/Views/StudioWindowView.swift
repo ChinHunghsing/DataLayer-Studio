@@ -4,6 +4,7 @@ import AppKit
 struct StudioWindowView: View {
     @StateObject private var model = StudioModel()
     @EnvironmentObject private var localization: LocalizationStore
+    @Environment(\.undoManager) private var windowUndoManager
     @State private var didApplyLaunchOptions = false
 
     var body: some View {
@@ -12,6 +13,10 @@ struct StudioWindowView: View {
             .background(WindowCenterTitle(centerTitle: centerTitle, windowTitle: windowTitle))
             .background(WindowLiveResizeObserver { model.setPreviewLiveResizing($0) })
             .onAppear(perform: applyLaunchOptionsIfNeeded)
+            .onAppear { model.undoManager = windowUndoManager }
+            .onChange(of: windowUndoManager.map(ObjectIdentifier.init)) { _ in
+                model.undoManager = windowUndoManager
+            }
     }
 
     private var centerTitle: String {
