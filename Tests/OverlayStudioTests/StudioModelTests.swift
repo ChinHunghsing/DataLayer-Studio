@@ -631,6 +631,25 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNotNil(model.exportETASeconds)
     }
 
+    func testNudgeElementMovesFrameAndSupportsUndo() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        model.undoManager = undoManager
+        let elementID = try XCTUnwrap(model.selectedElementID)
+        let originalLayout = model.layout
+        let originalX = try XCTUnwrap(model.layout.elements.first { $0.id == elementID }).frame.x
+
+        model.nudgeElement(elementID, deltaX: 0.01, deltaY: 0)
+
+        let movedX = try XCTUnwrap(model.layout.elements.first { $0.id == elementID }).frame.x
+        XCTAssertEqual(movedX, originalX + 0.01, accuracy: 0.000_001)
+        XCTAssertTrue(undoManager.canUndo)
+
+        undoManager.undo()
+
+        XCTAssertEqual(model.layout, originalLayout)
+    }
+
     func testStatusRelocalizesWhenLanguageChanges() {
         let model = StudioModel()
 

@@ -1371,6 +1371,17 @@ final class StudioModel: ObservableObject {
         }
     }
 
+    func nudgeElement(_ id: String, deltaX: Double, deltaY: Double) {
+        guard !isExporting else { return }
+        if selectedElementID != id {
+            selectedElementID = id
+        }
+        updateElement(id) { element in
+            element.frame.x = PreviewLayoutLimits.clampPosition(element.frame.x + deltaX)
+            element.frame.y = PreviewLayoutLimits.clampPosition(element.frame.y + deltaY)
+        }
+    }
+
     func updateComponent(_ id: OverlayComponentID, _ update: (inout OverlayComponentFrame) -> Void) {
         guard !isExporting else { return }
         performLayoutChange("undo.editElement", coalescing: true) {

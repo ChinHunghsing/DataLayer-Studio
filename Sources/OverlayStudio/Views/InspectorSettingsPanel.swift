@@ -1618,6 +1618,8 @@ private struct LabeledSlider: View {
 
             Slider(value: clampedValue, in: range)
                 .controlSize(.small)
+                .accessibilityLabel(Text(title))
+                .accessibilityValue(Text(showsTextField ? draftText : label))
         }
         .onAppear {
             draftText = formatDisplayValue(clamp(value))

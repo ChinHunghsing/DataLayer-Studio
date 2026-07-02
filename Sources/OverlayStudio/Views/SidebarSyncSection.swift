@@ -136,6 +136,7 @@ private struct TimecodeField: View {
     private var hoursControl: some View {
         TimecodeUnitStepper(
             label: localization.string("sidebar.sync.time.hours"),
+            accessibilityLabel: "\(title) — \(localization.string("sidebar.sync.time.hours"))",
             value: componentBinding(.hours)
         )
     }
@@ -143,6 +144,7 @@ private struct TimecodeField: View {
     private var minutesControl: some View {
         TimecodeUnitStepper(
             label: localization.string("sidebar.sync.time.minutes"),
+            accessibilityLabel: "\(title) — \(localization.string("sidebar.sync.time.minutes"))",
             value: componentBinding(.minutes)
         )
     }
@@ -150,6 +152,7 @@ private struct TimecodeField: View {
     private var secondsControl: some View {
         TimecodeUnitStepper(
             label: localization.string("sidebar.sync.time.seconds"),
+            accessibilityLabel: "\(title) — \(localization.string("sidebar.sync.time.seconds"))",
             value: componentBinding(.seconds)
         )
     }
@@ -157,6 +160,7 @@ private struct TimecodeField: View {
     private var millisecondsControl: some View {
         TimecodeUnitStepper(
             label: localization.string("sidebar.sync.time.milliseconds"),
+            accessibilityLabel: "\(title) — \(localization.string("sidebar.sync.time.milliseconds"))",
             value: componentBinding(.milliseconds)
         )
     }
@@ -192,6 +196,7 @@ private struct TimecodeField: View {
 
 private struct TimecodeUnitStepper: View {
     var label: String
+    var accessibilityLabel: String?
     @Binding var value: Int
 
     var body: some View {
@@ -207,8 +212,11 @@ private struct TimecodeUnitStepper: View {
                     .multilineTextAlignment(.trailing)
                     .monospacedDigit()
                     .frame(minWidth: 34)
+                    .accessibilityLabel(accessibilityLabel ?? label)
                 Stepper(label, value: $value)
                     .labelsHidden()
+                    .accessibilityLabel(accessibilityLabel ?? label)
+                    .accessibilityValue("\(value)")
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -13,6 +13,7 @@ struct PreviewCanvasView: View {
     let onToggleFullscreen: () -> Void
     @State private var activeDrag: ComponentDragState?
     @State private var magnificationStartZoom: Double?
+    @FocusState private var focusedElementID: String?
 
     init(
         model: StudioModel,
@@ -194,6 +195,11 @@ struct PreviewCanvasView: View {
             transaction.animation = nil
             transaction.disablesAnimations = true
         }
+        .onChange(of: focusedElementID) { elementID in
+            if let elementID {
+                selectElement(elementID)
+            }
+        }
         .onDisappear {
             activeDrag = nil
             model.endGaugeDragInteraction()
@@ -215,6 +221,11 @@ struct PreviewCanvasView: View {
             .frame(width: rect.width, height: rect.height)
             .position(x: rect.midX, y: rect.midY)
             .contentShape(Rectangle())
+            .focusable()
+            .focused($focusedElementID, equals: element.id)
+            .onMoveCommand { direction in
+                nudgeElement(element.id, direction: direction)
+            }
             .onTapGesture {
                 selectElement(element.id)
             }
@@ -341,6 +352,23 @@ struct PreviewCanvasView: View {
             element.frame.y = nextY
         }
         model.refreshOverlayOnly(coalesceIfBusy: true, displayIntermediateResults: true)
+    }
+
+    private func nudgeElement(_ id: String, direction: MoveCommandDirection) {
+        let stepX = 1.0 / Double(max(1, model.outputWidth))
+        let stepY = 1.0 / Double(max(1, model.outputHeight))
+        switch direction {
+        case .left:
+            model.nudgeElement(id, deltaX: -stepX, deltaY: 0)
+        case .right:
+            model.nudgeElement(id, deltaX: stepX, deltaY: 0)
+        case .up:
+            model.nudgeElement(id, deltaX: 0, deltaY: -stepY)
+        case .down:
+            model.nudgeElement(id, deltaX: 0, deltaY: stepY)
+        @unknown default:
+            break
+        }
     }
 
     private func snapped(_ value: Double, divisions: Int) -> Double {
