@@ -324,41 +324,8 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(PreviewControlsState(model: model), initialState)
     }
 
-    func testDragOverlayRenderDelayStaysBelowPlaybackRefreshInterval() {
-        XCTAssertGreaterThan(StudioModel.dragOverlayRenderDelay, 0)
-        XCTAssertLessThanOrEqual(StudioModel.dragOverlayRenderDelay, 1.0 / 30.0)
-        XCTAssertLessThan(StudioModel.dragOverlayRenderDelay, StudioModel.playbackOverlayRefreshInterval)
-        XCTAssertGreaterThan(StudioModel.dragBaseOverlayRenderDelay, StudioModel.dragOverlayRenderDelay)
-        XCTAssertLessThanOrEqual(StudioModel.dragBaseOverlayRenderDelay, 0.10)
-    }
-
     func testPreviewGaugeDragStartsWithMinimalPointerTravel() {
         XCTAssertLessThanOrEqual(PreviewCanvasView.componentDragMinimumDistance, 1)
-    }
-
-    func testPreviewGaugeDragMaskIncludesRendererShadow() {
-        XCTAssertGreaterThanOrEqual(PreviewCanvasView.componentDragMaskBleed, 12)
-    }
-
-    @MainActor
-    func testBeginElementDragSkipsFallbackRenderWhenSnapshotsAreAvailable() async throws {
-        let model = StudioModel()
-        model.series = TelemetrySeries(samples: [
-            TelemetrySample(elapsed: 0, distanceMeters: 0),
-            TelemetrySample(elapsed: 5, distanceMeters: 20)
-        ])
-        model.overlayImage = NSImage(size: CGSize(width: 8, height: 8))
-        let elementID = try XCTUnwrap(model.layout.elements.first?.id)
-
-        model.beginElementDrag(
-            id: elementID,
-            previewSize: CGSize(width: 640, height: 360),
-            renderFallbackSnapshots: false
-        )
-        try await Task.sleep(nanoseconds: UInt64((StudioModel.dragBaseOverlayRenderDelay + 0.04) * 1_000_000_000))
-
-        XCTAssertNil(model.dragBaseOverlayImage)
-        XCTAssertNil(model.dragOverlayImage)
     }
 
     func testPreviewTimelineKeepsScrubInputSensitive() {
@@ -413,8 +380,6 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNil(model.previewWarning)
         XCTAssertNil(model.backgroundImage)
         XCTAssertNil(model.overlayImage)
-        XCTAssertNil(model.dragBaseOverlayImage)
-        XCTAssertNil(model.dragOverlayImage)
     }
 
     func testRefreshOverlayOnlyClearsStaleWarningWithoutMissingInputs() {

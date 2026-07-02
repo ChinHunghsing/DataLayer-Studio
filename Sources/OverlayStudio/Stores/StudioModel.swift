@@ -45,8 +45,6 @@ final class StudioModel: ObservableObject {
     static let playbackOverlayRefreshInterval: TimeInterval = 0.20
     static let scrubInteractionHoldInterval: TimeInterval = 0.16
     static let previewResizeRefreshDelay: TimeInterval = 0.16
-    static let dragOverlayRenderDelay: TimeInterval = 1.0 / 120.0
-    static let dragBaseOverlayRenderDelay: TimeInterval = 0.08
 
     @Published var videoURL: URL?
     @Published var fitURL: URL?
@@ -82,8 +80,6 @@ final class StudioModel: ObservableObject {
     @Published var isPlaying = false
     @Published var backgroundImage: NSImage?
     @Published var overlayImage: NSImage?
-    @Published var dragBaseOverlayImage: NSImage?
-    @Published var dragOverlayImage: NSImage?
     @Published var layout: OverlayLayout
     @Published var selectedElementID: String?
     @Published var layoutPresets: [LayoutPreset]
@@ -125,9 +121,7 @@ final class StudioModel: ObservableObject {
     private var previewOverlayRenderSize: CGSize?
     private var lastOverlayRefresh = Date.distantPast
     private let maximumPreviewRenderDimension: CGFloat = 3_200
-    private var draggedElementID: String?
     private var previewRenderTask: Task<Void, Never>?
-    private var dragRenderTask: Task<Void, Never>?
     private var pendingPreviewSizeRefreshTask: Task<Void, Never>?
     private var scrubInteractionTask: Task<Void, Never>?
     private var isPreviewLiveResizing = false
@@ -173,7 +167,6 @@ final class StudioModel: ObservableObject {
         fitLoadTask?.cancel()
         weatherLoadTask?.cancel()
         previewRenderTask?.cancel()
-        dragRenderTask?.cancel()
         pendingPreviewSizeRefreshTask?.cancel()
         scrubInteractionTask?.cancel()
         exportCancellationToken?.cancel()
@@ -591,15 +584,12 @@ final class StudioModel: ObservableObject {
         previewRenderGeneration += 1
         videoLoadGeneration += 1
         let loadGeneration = videoLoadGeneration
-        draggedElementID = nil
         previewOverlayRenderSize = nil
         videoURL = nil
         metadata = nil
         sourceDuration = 0
         backgroundImage = nil
         overlayImage = nil
-        dragBaseOverlayImage = nil
-        dragOverlayImage = nil
         previewWarning = nil
         status = localized("status.loadingVideo", url.lastPathComponent)
 
@@ -803,12 +793,9 @@ final class StudioModel: ObservableObject {
         previewRenderGeneration += 1
         fitLoadGeneration += 1
         let loadGeneration = fitLoadGeneration
-        draggedElementID = nil
         fitURL = nil
         series = nil
         overlayImage = nil
-        dragBaseOverlayImage = nil
-        dragOverlayImage = nil
         previewWarning = nil
         status = localized("status.loadingFit", url.lastPathComponent)
         addDebugLog(.input, "Loading activity file: \(url.lastPathComponent)")
@@ -936,18 +923,13 @@ final class StudioModel: ObservableObject {
 
     func refreshPreview() {
         guard !isExporting else { return }
-        guard draggedElementID == nil else { return }
         guard let videoURL else {
             backgroundImage = nil
             overlayImage = nil
-            dragBaseOverlayImage = nil
-            dragOverlayImage = nil
             previewWarning = nil
             return
         }
 
-        dragBaseOverlayImage = nil
-        dragOverlayImage = nil
         pendingOverlayRefreshAfterCurrentRender = false
         previewRenderGeneration += 1
         let generation = previewRenderGeneration
@@ -1020,9 +1002,6 @@ final class StudioModel: ObservableObject {
         displayIntermediateResults: Bool = false
     ) {
         guard !isExporting else { return }
-        guard draggedElementID == nil else { return }
-        dragBaseOverlayImage = nil
-        dragOverlayImage = nil
         guard let currentSeries = series else {
             overlayImage = nil
             previewWarning = nil
@@ -1166,106 +1145,6 @@ final class StudioModel: ObservableObject {
             return outputSize
         }
         return previewOverlayRenderSize
-    }
-
-    func beginElementDrag(
-        id: String,
-        previewSize: CGSize,
-        renderFallbackSnapshots: Bool = true
-    ) {
-        guard let element = layout.elements.first(where: { $0.id == id }) else {
-            return
-        }
-
-        previewRenderGeneration += 1
-        let generation = previewRenderGeneration
-
-        previewRenderTask?.cancel()
-        dragRenderTask?.cancel()
-        draggedElementID = id
-        dragBaseOverlayImage = nil
-        dragOverlayImage = nil
-        guard renderFallbackSnapshots, let currentSeries = series else {
-            dragRenderTask = nil
-            return
-        }
-
-        let time = previewTime
-        let renderSize = sanitizedPreviewSize(previewSize)
-        let currentSync = timeSync
-        let currentDistanceUnit = distanceUnit
-        let baseLayout = OverlayLayout(elements: layout.elements.filter { $0.id != id }, style: layout.style)
-        let dragLayout = OverlayLayout(elements: [element], style: layout.style)
-        let canUseExistingDragSnapshot = overlayImage != nil
-        let renderDelay = canUseExistingDragSnapshot ? Self.dragBaseOverlayRenderDelay : Self.dragOverlayRenderDelay
-        let delayNanoseconds = UInt64(max(0, renderDelay) * 1_000_000_000)
-
-        dragRenderTask = Task.detached(priority: .userInitiated) { [previewRenderer] in
-            do {
-                try await Task.sleep(nanoseconds: delayNanoseconds)
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            let baseOverlay = try? Self.renderOverlayImage(
-                previewRenderer: previewRenderer,
-                series: currentSeries,
-                size: renderSize,
-                videoTime: time,
-                timeSync: currentSync,
-                layout: baseLayout,
-                distanceUnit: currentDistanceUnit
-            )
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                guard !Task.isCancelled,
-                      self.previewRenderGeneration == generation else { return }
-                self.dragBaseOverlayImage = baseOverlay
-            }
-
-            if canUseExistingDragSnapshot {
-                await MainActor.run { [weak self] in
-                    guard let self else { return }
-                    guard !Task.isCancelled,
-                          self.previewRenderGeneration == generation else { return }
-                    self.dragRenderTask = nil
-                }
-                return
-            }
-
-            guard !Task.isCancelled else { return }
-            let dragOverlay = try? Self.renderOverlayImage(
-                previewRenderer: previewRenderer,
-                series: currentSeries,
-                size: renderSize,
-                videoTime: time,
-                timeSync: currentSync,
-                layout: dragLayout,
-                distanceUnit: currentDistanceUnit
-            )
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                guard !Task.isCancelled,
-                      self.previewRenderGeneration == generation else { return }
-                self.dragOverlayImage = dragOverlay
-                self.dragRenderTask = nil
-            }
-        }
-    }
-
-    func endElementDrag() {
-        previewRenderGeneration += 1
-        dragRenderTask?.cancel()
-        dragRenderTask = nil
-        draggedElementID = nil
-        overlayImage = nil
-        dragBaseOverlayImage = nil
-        dragOverlayImage = nil
-        refreshOverlayOnly()
     }
 
     private func sanitizedPreviewSize(_ size: CGSize) -> CGSize {
@@ -1649,18 +1528,13 @@ final class StudioModel: ObservableObject {
     private func cancelPreviewRenderTasks() {
         previewRenderGeneration += 1
         previewRenderTask?.cancel()
-        dragRenderTask?.cancel()
         pendingPreviewSizeRefreshTask?.cancel()
         scrubInteractionTask?.cancel()
         previewRenderTask = nil
-        dragRenderTask = nil
         pendingPreviewSizeRefreshTask = nil
         scrubInteractionTask = nil
         scrubInteractionExpiresAt = .distantPast
         isScrubbingPreview = false
-        draggedElementID = nil
-        dragBaseOverlayImage = nil
-        dragOverlayImage = nil
         pendingOverlayRefreshAfterCurrentRender = false
         pendingOverlayRefreshDisplaysIntermediateResult = false
     }
