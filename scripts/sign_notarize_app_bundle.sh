@@ -6,6 +6,13 @@ APP_PATH="${1:-"$ROOT_DIR/.build/DataLayer Studio.app"}"
 ZIP_PATH="${2:-"$ROOT_DIR/DataLayer-Studio-macOS-arm64.zip"}"
 SIGN_IDENTITY="${DEVELOPER_ID_APPLICATION:-${SIGN_IDENTITY:-}}"
 
+verify_distribution_app() {
+    local app_path="$1"
+    codesign --verify --deep --strict --verbose=2 "$app_path"
+    xcrun stapler validate "$app_path"
+    spctl -a -vv -t exec "$app_path"
+}
+
 if [[ ! -d "$APP_PATH" ]]; then
     echo "error: missing app bundle: $APP_PATH" >&2
     exit 1
@@ -29,10 +36,15 @@ ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
 
 ASC_BYPASS_KEYCHAIN="${ASC_BYPASS_KEYCHAIN:-1}" asc notarization submit --file "$ZIP_PATH" --wait
 xcrun stapler staple "$APP_PATH"
-spctl -a -vv "$APP_PATH"
+verify_distribution_app "$APP_PATH"
 
 rm -f "$ZIP_PATH"
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
 shasum -a 256 "$ZIP_PATH" > "$ZIP_PATH.sha256"
+
+ROUNDTRIP_DIR="$(mktemp -d)"
+trap 'rm -rf "$ROUNDTRIP_DIR"' EXIT
+ditto -x -k --rsrc "$ZIP_PATH" "$ROUNDTRIP_DIR"
+verify_distribution_app "$ROUNDTRIP_DIR/$(basename "$APP_PATH")"
 
 echo "$ZIP_PATH"
