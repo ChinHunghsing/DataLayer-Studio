@@ -9,6 +9,7 @@
 - 涉及 App Store Connect、TestFlight、审核、元数据、构建上传时，优先加载 `app-store-connect` skill 并使用已安装的 `asc`/脚本，不默认走网页手工流程。
 - 发内部 TestFlight 时不要对内部组调用 `asc builds add-groups`；该接口只适合外部组。用 `asc builds build-beta-detail view` 确认 `Internal State = IN_BETA_TESTING` 即完成。
 - App Store / TestFlight 构建号使用 `yyyyMMddNN`，例如 `2026062601`。
+- 内部 TestFlight 流程：先 `git fetch` 并确认不落后；用 `APP_VERSION=<版本号> APP_BUILD=<yyyyMMddNN> scripts/build_app_bundle.sh` 构建；用 `.apple.env.local` 中的签名配置执行 `scripts/package_app_store_pkg.sh`；用 `asc builds upload --pkg <pkg> --version <版本号> --build-number <构建号> --wait` 上传；如果 ASC 提示构建号不够高，先 `asc builds list --app <APP_ID> --platform MAC_OS` 查最新号并递增；最后用 `asc builds build-beta-detail view --app <APP_ID> --build-number <构建号> --version <版本号> --platform MAC_OS` 确认 `Internal State = IN_BETA_TESTING`。
 
 ## 项目结构
 
