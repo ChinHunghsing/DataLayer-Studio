@@ -35,6 +35,29 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(StudioModel.gaugeDragPreviewRenderSize(for: smallSize), smallSize)
     }
 
+    func testGaugeDragEndRestoresPreviewRenderSize() async throws {
+        let model = StudioModel()
+        model.setOutputWidth(2_000)
+        model.setOutputHeight(1_000)
+        model.updatePreviewOverlayRenderSize(CGSize(width: 2_000, height: 1_000))
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 5, distanceMeters: 20)
+        ])
+
+        model.beginGaugeDragInteraction()
+        model.refreshOverlayOnly()
+        try await waitForOverlayImage(in: model, timeout: 2)
+        XCTAssertEqual(model.overlayImage?.size.width ?? 0, 1_600, accuracy: 1)
+        XCTAssertEqual(model.overlayImage?.size.height ?? 0, 800, accuracy: 1)
+
+        model.overlayImage = nil
+        model.endGaugeDragInteraction()
+        try await waitForOverlayImage(in: model, timeout: 2)
+        XCTAssertEqual(model.overlayImage?.size.width ?? 0, 2_000, accuracy: 1)
+        XCTAssertEqual(model.overlayImage?.size.height ?? 0, 1_000, accuracy: 1)
+    }
+
     func testSanitizedOutputDimensionClampsAndRoundsToEvenPixels() {
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(1), 2)
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(2), 2)

@@ -45,7 +45,7 @@ final class StudioModel: ObservableObject {
     static let playbackOverlayRefreshInterval: TimeInterval = 0.20
     static let scrubInteractionHoldInterval: TimeInterval = 0.16
     static let previewResizeRefreshDelay: TimeInterval = 0.16
-    static let gaugeDragMaximumPreviewRenderDimension: CGFloat = 1_600
+    nonisolated static let gaugeDragMaximumPreviewRenderDimension: CGFloat = 1_600
 
     @Published var videoURL: URL?
     @Published var fitURL: URL?

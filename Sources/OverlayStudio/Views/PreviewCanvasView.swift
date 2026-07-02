@@ -194,6 +194,10 @@ struct PreviewCanvasView: View {
             transaction.animation = nil
             transaction.disablesAnimations = true
         }
+        .onDisappear {
+            activeDrag = nil
+            model.endGaugeDragInteraction()
+        }
     }
 
     private func componentHandle(
