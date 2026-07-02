@@ -27,6 +27,7 @@ fi
 require_file "$CONTENTS_DIR/Info.plist"
 require_file "$CONTENTS_DIR/MacOS/DataLayer Studio"
 require_file "$CONTENTS_DIR/Resources/DataLayerStudio.icns"
+require_file "$CONTENTS_DIR/Resources/fable5verified.png"
 require_file "$LEGAL_DIR/LICENSE.md"
 require_file "$LEGAL_DIR/NOTICE.md"
 require_file "$LEGAL_DIR/README.md"

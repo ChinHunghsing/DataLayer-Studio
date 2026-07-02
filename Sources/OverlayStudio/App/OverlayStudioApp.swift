@@ -32,6 +32,7 @@ struct OverlayStudioApp: App {
                 .preferredColorScheme(preferredColorScheme)
         }
         .commands {
+            AppInfoCommands(localization: localization)
             StudioFileCommands(localization: localization)
             LanguageCommands(localization: localization)
             PreviewCommands(localization: localization)
@@ -42,6 +43,71 @@ struct OverlayStudioApp: App {
 
     private var preferredColorScheme: ColorScheme? {
         AppAppearanceSelection.selection(from: appearanceRawValue).colorScheme
+    }
+}
+
+private struct AppInfoCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
+
+    var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button(localization.string("menu.aboutApp", localization.string("app.name"))) {
+                AboutPanelPresenter.show()
+            }
+        }
+    }
+}
+
+private enum AboutPanelPresenter {
+    private static let badgeResourceName = "fable5verified"
+    private static let badgeWidth: CGFloat = 220
+
+    static func show() {
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [:]
+        if let badge = badgeImage() {
+            options[.credits] = credits(with: badge)
+        }
+        NSApplication.shared.orderFrontStandardAboutPanel(options: options)
+    }
+
+    private static func badgeImage() -> NSImage? {
+        if let bundleURL = Bundle.main.url(forResource: badgeResourceName, withExtension: "png") {
+            return NSImage(contentsOf: bundleURL)
+        }
+
+        let localURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("assets/readme/\(badgeResourceName).png")
+        return NSImage(contentsOf: localURL)
+    }
+
+    private static func credits(with badge: NSImage) -> NSAttributedString {
+        let attachment = NSTextAttachment()
+        attachment.image = scaledBadgeImage(badge)
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+
+        let credits = NSMutableAttributedString(string: "\n")
+        let badgeString = NSMutableAttributedString(attachment: attachment)
+        badgeString.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: badgeString.length))
+        credits.append(badgeString)
+        credits.append(NSAttributedString(string: "\n"))
+        return credits
+    }
+
+    private static func scaledBadgeImage(_ image: NSImage) -> NSImage {
+        let scale = badgeWidth / max(image.size.width, 1)
+        let size = NSSize(width: badgeWidth, height: max(1, image.size.height * scale))
+        let output = NSImage(size: size)
+        output.lockFocus()
+        image.draw(
+            in: NSRect(origin: .zero, size: size),
+            from: NSRect(origin: .zero, size: image.size),
+            operation: .sourceOver,
+            fraction: 1
+        )
+        output.unlockFocus()
+        return output
     }
 }
 
