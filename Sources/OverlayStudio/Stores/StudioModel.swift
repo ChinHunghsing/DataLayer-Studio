@@ -11,6 +11,12 @@ private let studioDebugLogger = Logger(
     category: "Debug"
 )
 
+struct SourceLoadFailure: Equatable {
+    var url: URL
+    var messageKey: String
+    var detail: String
+}
+
 enum LayoutPresetSyncStatus: Equatable {
     case localOnly
     case ready
@@ -101,6 +107,8 @@ final class StudioModel: ObservableObject {
     }
 
     @Published var status = AppLocalizer.currentString("status.chooseVideoAndFit")
+    @Published private(set) var videoLoadFailure: SourceLoadFailure?
+    @Published private(set) var fitLoadFailure: SourceLoadFailure?
     @Published var previewWarning: String?
     @Published var isExporting = false
     @Published var exportProgress = 0.0
@@ -109,6 +117,7 @@ final class StudioModel: ObservableObject {
     @Published var debugLogEntries: [DebugLogEntry] = []
 
     private var resolvedLanguage = AppLocalizer.resolvedLanguage(for: AppLocalizer.storedSelection())
+    private var statusMessage: (key: String, arguments: [CVarArg]) = ("status.chooseVideoAndFit", [])
     private let videoFrameService = VideoFrameService()
     private let previewRenderer = OverlayPreviewRenderer()
     private let openWeatherService = OpenWeatherService()
@@ -200,38 +209,42 @@ final class StudioModel: ObservableObject {
     }
 
     var exportReadinessMessage: String? {
+        exportReadinessMessageKey.map { localized($0) }
+    }
+
+    private var exportReadinessMessageKey: String? {
         if series == nil {
-            return localized("status.chooseFitFile")
+            return "status.chooseFitFile"
         }
         if exportMode == .video, videoURL == nil {
-            return localized("status.chooseVideoForCompositedExport")
+            return "status.chooseVideoForCompositedExport"
         }
         if codec.exportMode != exportMode {
-            return localized("status.codecExportModeMismatch")
+            return "status.codecExportModeMismatch"
         }
         if outputWidth < 2 || outputWidth > 16_384 {
-            return localized("status.outputWidthRange")
+            return "status.outputWidthRange"
         }
         if outputWidth % 2 != 0 {
-            return localized("status.outputWidthEven")
+            return "status.outputWidthEven"
         }
         if outputHeight < 2 || outputHeight > 16_384 {
-            return localized("status.outputHeightRange")
+            return "status.outputHeightRange"
         }
         if outputHeight % 2 != 0 {
-            return localized("status.outputHeightEven")
+            return "status.outputHeightEven"
         }
         if !outputFPS.isFinite || outputFPS < 1 || outputFPS > 240 {
-            return localized("status.frameRateRange")
+            return "status.frameRateRange"
         }
         if exportDuration == nil {
-            return localized("status.sourceDurationRange")
+            return "status.sourceDurationRange"
         }
         if bitRateKbps < 1 || bitRateKbps > 1_000_000 {
-            return localized("status.bitrateRange")
+            return "status.bitrateRange"
         }
         if bitRateKbps > Int.max / 1000 {
-            return localized("status.bitrateTooLarge")
+            return "status.bitrateTooLarge"
         }
         return nil
     }
@@ -384,7 +397,7 @@ final class StudioModel: ObservableObject {
         if isExporting {
             isExporting = false
             exportProgress = 0
-            status = localized("status.exportCancelled")
+            setStatus("status.exportCancelled")
         }
         videoFrameService.clearCache()
         stopPlayback()
@@ -427,19 +440,19 @@ final class StudioModel: ObservableObject {
 
     func refreshOpenWeatherForCurrentFIT() {
         guard !openWeatherAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            status = localized("status.weatherKeyRequired")
+            setStatus("status.weatherKeyRequired")
             weatherRefreshMessage = status
             addDebugLog(.weather, "Refresh skipped: missing OpenWeather key")
             return
         }
         guard let currentSeries = series,
               let fitURL else {
-            status = localized("status.weatherFitRequired")
+            setStatus("status.weatherFitRequired")
             weatherRefreshMessage = status
             addDebugLog(.weather, "Refresh skipped: missing FIT series")
             return
         }
-        status = localized("status.weatherRefreshing", fitURL.lastPathComponent)
+        setStatus("status.weatherRefreshing", fitURL.lastPathComponent)
         weatherRefreshMessage = status
         addDebugLog(.weather, "Refresh started: \(fitURL.lastPathComponent), samples=\(currentSeries.samples.count), key=\(redactedKeySummary(openWeatherAPIKey))")
         loadOpenWeatherIfPossible(
@@ -473,7 +486,7 @@ final class StudioModel: ObservableObject {
     func saveLayoutPreset(named rawName: String) -> Bool {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
-            status = localized("status.presetNameRequired")
+            setStatus("status.presetNameRequired")
             return false
         }
 
@@ -483,7 +496,7 @@ final class StudioModel: ObservableObject {
             layoutPresets[index].layout = layout.sanitized
             layoutPresets[index].updatedAt = now
             persistLayoutPresets()
-            status = localized("status.updatedPreset", name)
+            setStatus("status.updatedPreset", name)
             return true
         }
 
@@ -496,7 +509,7 @@ final class StudioModel: ObservableObject {
         )
         layoutPresets.append(preset)
         persistLayoutPresets()
-        status = localized("status.savedPreset", name)
+        setStatus("status.savedPreset", name)
         return true
     }
 
@@ -507,7 +520,7 @@ final class StudioModel: ObservableObject {
             layout = preset.layout.sanitized
             selectedElementID = Self.firstSelectableElementID(in: layout)
         }
-        status = localized("status.appliedPreset", preset.name)
+        setStatus("status.appliedPreset", preset.name)
         refreshOverlayOrPreview()
     }
 
@@ -515,7 +528,7 @@ final class StudioModel: ObservableObject {
         guard let preset = layoutPresets.first(where: { $0.id == id }) else { return }
         defaultLayoutPresetID = id
         persistLayoutPresets()
-        status = localized("status.defaultPreset", preset.name)
+        setStatus("status.defaultPreset", preset.name)
     }
 
     func deleteLayoutPreset(id: String) {
@@ -525,12 +538,12 @@ final class StudioModel: ObservableObject {
             defaultLayoutPresetID = nil
         }
         persistLayoutPresets()
-        status = localized("status.deletedPreset", preset.name)
+        setStatus("status.deletedPreset", preset.name)
     }
 
     func exportLayoutPresets() {
         guard !layoutPresets.isEmpty else {
-            status = localized("status.noPresetsToExport")
+            setStatus("status.noPresetsToExport")
             return
         }
 
@@ -548,9 +561,9 @@ final class StudioModel: ObservableObject {
             let state = LayoutPresetState(presets: layoutPresets, defaultPresetID: defaultLayoutPresetID)
             let data = try encoder.encode(state.sanitized)
             try data.write(to: url, options: .atomic)
-            status = localized("status.exportedPresets", layoutPresets.count)
+            setStatus("status.exportedPresets", layoutPresets.count)
         } catch {
-            status = localized("status.presetExportError", error.localizedDescription)
+            setStatus("status.presetExportError", error.localizedDescription)
         }
     }
 
@@ -576,11 +589,13 @@ final class StudioModel: ObservableObject {
             }
 
             let importedCount = mergeImportedLayoutPresets(state)
-            status = importedCount == 0
-                ? localized("status.noPresetsImported")
-                : localized("status.importedPresets", importedCount)
+            if importedCount == 0 {
+                setStatus("status.noPresetsImported")
+            } else {
+                setStatus("status.importedPresets", importedCount)
+            }
         } catch {
-            status = localized("status.presetImportError", error.localizedDescription)
+            setStatus("status.presetImportError", error.localizedDescription)
         }
     }
 
@@ -600,7 +615,8 @@ final class StudioModel: ObservableObject {
         backgroundImage = nil
         overlayImage = nil
         previewWarning = nil
-        status = localized("status.loadingVideo", url.lastPathComponent)
+        videoLoadFailure = nil
+        setStatus("status.loadingVideo", url.lastPathComponent)
 
         videoLoadTask = Task.detached {
             do {
@@ -622,7 +638,7 @@ final class StudioModel: ObservableObject {
                     self.applySuggestedOutputURLIfNeeded(for: url, replacingManualSelection: true)
                     self.previewTime = 0
                     self.configurePlayer(url: url)
-                    self.status = self.localized("status.loadedVideo", url.lastPathComponent)
+                    self.setStatus("status.loadedVideo", url.lastPathComponent)
                     self.refreshPreview()
                     self.videoLoadTask = nil
                 }
@@ -638,7 +654,8 @@ final class StudioModel: ObservableObject {
                     guard let self else { return }
                     guard !Task.isCancelled,
                           self.videoLoadGeneration == loadGeneration else { return }
-                    self.status = self.localized("status.videoError", message)
+                    self.videoLoadFailure = SourceLoadFailure(url: url, messageKey: "status.videoError", detail: message)
+                    self.setStatus("status.videoError", message)
                     self.videoLoadTask = nil
                 }
             }
@@ -799,12 +816,22 @@ final class StudioModel: ObservableObject {
         refreshOverlayOnly(coalesceIfBusy: true)
     }
 
+    func retryVideoLoad() {
+        guard let failure = videoLoadFailure else { return }
+        setVideo(failure.url)
+    }
+
+    func retryFITLoad() {
+        guard let failure = fitLoadFailure else { return }
+        setFIT(failure.url)
+    }
+
     func markSportStart() {
         guard !isExporting else { return }
         syncMode = .syncPoint
         syncVideoSeconds = previewTime
         syncFITSeconds = 0
-        status = localized("status.sportStartSet", formatTime(previewTime))
+        setStatus("status.sportStartSet", formatTime(previewTime))
         refreshOverlayOrPreview()
     }
 
@@ -820,7 +847,8 @@ final class StudioModel: ObservableObject {
         series = nil
         overlayImage = nil
         previewWarning = nil
-        status = localized("status.loadingFit", url.lastPathComponent)
+        fitLoadFailure = nil
+        setStatus("status.loadingFit", url.lastPathComponent)
         addDebugLog(.input, "Loading activity file: \(url.lastPathComponent)")
 
         fitLoadTask = Task.detached {
@@ -836,7 +864,7 @@ final class StudioModel: ObservableObject {
                     if self.videoURL == nil {
                         self.applySuggestedOutputURLIfNeeded(for: url)
                     }
-                    self.status = self.localized("status.loadedFit", url.lastPathComponent)
+                    self.setStatus("status.loadedFit", url.lastPathComponent)
                     self.addDebugLog(.input, "Loaded activity file: \(url.lastPathComponent), samples=\(parsedSeries.samples.count), duration=\(Self.formatDebugSeconds(parsedSeries.duration))")
                     self.refreshOverlayOrPreview()
                     self.loadOpenWeatherIfPossible(
@@ -867,7 +895,8 @@ final class StudioModel: ObservableObject {
                     guard let self else { return }
                     guard !Task.isCancelled,
                           self.fitLoadGeneration == loadGeneration else { return }
-                    self.status = self.localized("status.fitError", message)
+                    self.fitLoadFailure = SourceLoadFailure(url: url, messageKey: "status.fitError", detail: message)
+                    self.setStatus("status.fitError", message)
                     self.addDebugLog(.input, "Activity file error: \(message)")
                     self.fitLoadTask = nil
                     self.refreshOverlayOnly()
@@ -903,9 +932,11 @@ final class StudioModel: ObservableObject {
                           self.fitLoadGeneration == generation else { return }
                     self.series = enrichedSeries
                     let weatherSampleCount = enrichedSeries.samples.filter { $0.weatherTemperatureCelsius != nil || $0.weatherHumidityPercent != nil || $0.weatherSummary != nil }.count
-                    self.status = weatherSampleCount > 0
-                        ? self.localized("status.loadedFitWithWeather", sourceName)
-                        : self.localized("status.weatherUnavailable", sourceName)
+                    if weatherSampleCount > 0 {
+                        self.setStatus("status.loadedFitWithWeather", sourceName)
+                    } else {
+                        self.setStatus("status.weatherUnavailable", sourceName)
+                    }
                     self.weatherRefreshMessage = self.status
                     self.addDebugLog(.weather, "Weather request finished: weatherSamples=\(weatherSampleCount)/\(enrichedSeries.samples.count)")
                     self.refreshOverlayOrPreview()
@@ -922,7 +953,7 @@ final class StudioModel: ObservableObject {
                     } else {
                         details = error.localizedDescription
                     }
-                    self.status = self.localized("status.weatherError", sourceName, details)
+                    self.setStatus("status.weatherError", sourceName, details)
                     self.weatherRefreshMessage = self.status
                     self.addDebugLog(.weather, "Weather request failed: \(details)")
                     self.weatherLoadTask = nil
@@ -1460,24 +1491,24 @@ final class StudioModel: ObservableObject {
 
     func export() {
         guard !isExporting else { return }
-        if let exportReadinessMessage {
-            status = exportReadinessMessage
+        if let exportReadinessMessageKey {
+            setStatus(exportReadinessMessageKey)
             return
         }
         guard let exportSettings = validatedExportSettings else {
-            status = localized("status.checkOutputSettings")
+            setStatus("status.checkOutputSettings")
             return
         }
         if needsOutputSelectionBeforeExport {
             chooseOutput()
         }
         guard !needsOutputSelectionBeforeExport, let outputURL else {
-            status = localized("status.chooseOutputFile")
+            setStatus("status.chooseOutputFile")
             return
         }
         guard confirmOverwriteIfNeeded(outputURL) else { return }
         guard let series else {
-            status = localized("status.chooseFitBeforeExport")
+            setStatus("status.chooseFitBeforeExport")
             return
         }
 
@@ -1485,7 +1516,7 @@ final class StudioModel: ObservableObject {
         cancelPreviewRenderTasks()
         isExporting = true
         exportProgress = 0
-        status = localized("status.exporting")
+        setStatus("status.exporting")
         addDebugLog(.export, "Export started: \(outputURL.lastPathComponent), \(exportSettings.width)x\(exportSettings.height), \(Self.formatDebugSeconds(exportSettings.duration))")
         let cancellationToken = ExportCancellationToken()
         exportCancellationToken = cancellationToken
@@ -1552,7 +1583,7 @@ final class StudioModel: ObservableObject {
                     self.exportProgress = 1
                     self.exportTask = nil
                     self.exportCancellationToken = nil
-                    self.status = self.localized("status.wroteFile", outputURL.path)
+                    self.setStatus("status.wroteFile", outputURL.path)
                     self.addDebugLog(.export, "Export finished: \(outputURL.lastPathComponent)")
                     self.notifyExportCompleted(outputURL)
                     self.refreshOverlayOrPreview()
@@ -1564,7 +1595,7 @@ final class StudioModel: ObservableObject {
                     self.exportProgress = 0
                     self.exportTask = nil
                     self.exportCancellationToken = nil
-                    self.status = self.localized("status.exportCancelled")
+                    self.setStatus("status.exportCancelled")
                     self.addDebugLog(.export, "Export cancelled")
                     self.refreshOverlayOrPreview()
                 }
@@ -1574,7 +1605,7 @@ final class StudioModel: ObservableObject {
                     self.isExporting = false
                     self.exportTask = nil
                     self.exportCancellationToken = nil
-                    self.status = self.localized("status.exportError", error.localizedDescription)
+                    self.setStatus("status.exportError", error.localizedDescription)
                     self.addDebugLog(.export, "Export failed: \(error.localizedDescription)")
                     self.refreshOverlayOrPreview()
                 }
@@ -1608,7 +1639,7 @@ final class StudioModel: ObservableObject {
         guard isExporting else { return }
         exportCancellationToken?.cancel()
         exportTask?.cancel()
-        status = localized("status.cancellingExport")
+        setStatus("status.cancellingExport")
     }
 
     private func confirmOverwriteIfNeeded(_ url: URL) -> Bool {
@@ -1623,14 +1654,12 @@ final class StudioModel: ObservableObject {
     }
 
     func refreshLocalizedStatus() {
-        guard !isExporting else { return }
-        if series == nil && videoURL == nil {
-            status = localized("status.chooseVideoAndFit")
-        } else if series == nil {
-            status = localized("status.chooseFitFile")
-        } else if videoURL == nil, let fitURL {
-            status = localized("status.loadedFit", fitURL.lastPathComponent)
-        }
+        status = AppLocalizer.string(statusMessage.key, language: resolvedLanguage, arguments: statusMessage.arguments)
+    }
+
+    private func setStatus(_ key: String, _ arguments: CVarArg...) {
+        statusMessage = (key, arguments)
+        status = AppLocalizer.string(key, language: resolvedLanguage, arguments: arguments)
     }
 
     private func formatTime(_ time: TimeInterval) -> String {

@@ -596,4 +596,37 @@ final class StudioModelTests: XCTestCase {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
     }
+
+    private func waitUntil(timeout: TimeInterval = 2, _ condition: () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition() && Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+    }
+
+    func testStatusRelocalizesWhenLanguageChanges() {
+        let model = StudioModel()
+
+        model.setResolvedLanguage(.english)
+        XCTAssertEqual(model.status, AppLocalizer.string("status.chooseVideoAndFit", language: .english))
+
+        model.setResolvedLanguage(.simplifiedChinese)
+        XCTAssertEqual(model.status, AppLocalizer.string("status.chooseVideoAndFit", language: .simplifiedChinese))
+    }
+
+    func testFitLoadFailureSurfacesInlineErrorWithRetrySource() async throws {
+        let model = StudioModel()
+        let missingURL = URL(fileURLWithPath: "/nonexistent/datalayer-studio-tests/missing.fit")
+
+        model.setFIT(missingURL)
+        try await waitUntil { model.fitLoadFailure != nil }
+
+        let failure = try XCTUnwrap(model.fitLoadFailure)
+        XCTAssertEqual(failure.url, missingURL)
+        XCTAssertEqual(failure.messageKey, "status.fitError")
+        XCTAssertFalse(failure.detail.isEmpty)
+
+        model.setFIT(missingURL)
+        XCTAssertNil(model.fitLoadFailure)
+    }
 }

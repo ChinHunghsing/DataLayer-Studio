@@ -8,24 +8,47 @@ struct SidebarView: View {
     @SceneStorage("sidebarWorkflowTab") private var selectedTabRawValue = SidebarWorkflowTab.source.rawValue
 
     var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 18) {
-                workflowTabs
+        VStack(spacing: 0) {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 18) {
+                    workflowTabs
 
-                SidebarWorkflowSection(
-                    step: selectedTab.step,
-                    title: localization.string(selectedTab.titleKey),
-                    subtitle: localization.string(selectedTab.subtitleKey),
-                    systemImage: selectedTab.systemImage
-                ) {
-                    selectedTabContent
+                    SidebarWorkflowSection(
+                        step: selectedTab.step,
+                        title: localization.string(selectedTab.titleKey),
+                        subtitle: localization.string(selectedTab.subtitleKey),
+                        systemImage: selectedTab.systemImage
+                    ) {
+                        selectedTabContent
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 20)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 20)
+
+            Divider()
+            statusFooter
         }
         .controlSize(.small)
+    }
+
+    private var statusFooter: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: "info.circle")
+                .foregroundStyle(.secondary)
+            Text(model.status)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(localization.string("sidebar.status"))
+        .accessibilityValue(model.status)
     }
 
     private var selectedTab: SidebarWorkflowTab {
@@ -69,6 +92,14 @@ struct SidebarView: View {
                 action: model.chooseVideo
             )
 
+            if let failure = model.videoLoadFailure {
+                SourceLoadFailureRow(
+                    message: localization.string(failure.messageKey, failure.detail),
+                    retryTitle: localization.string("sidebar.retryLoad"),
+                    retry: model.retryVideoLoad
+                )
+            }
+
             FilePickRow(
                 title: localization.string("sidebar.fit.title"),
                 subtitle: model.fitURL?.lastPathComponent ?? localization.string("sidebar.fit.placeholder"),
@@ -77,6 +108,13 @@ struct SidebarView: View {
                 action: model.chooseFIT
             )
 
+            if let failure = model.fitLoadFailure {
+                SourceLoadFailureRow(
+                    message: localization.string(failure.messageKey, failure.detail),
+                    retryTitle: localization.string("sidebar.retryLoad"),
+                    retry: model.retryFITLoad
+                )
+            }
         }
     }
 
@@ -393,11 +431,6 @@ struct SidebarView: View {
                 .accessibilityLabel(localization.string("sidebar.exportProgress"))
                 .accessibilityValue(clampedExportProgress.percentString)
             }
-            Text(model.status)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(4)
-
             if !model.isExporting, let exportReadinessMessage = model.exportReadinessMessage {
                 Label(exportReadinessMessage, systemImage: "info.circle")
                     .font(.caption)
@@ -447,6 +480,30 @@ struct SidebarView: View {
     private var clampedExportProgress: Double {
         guard model.exportProgress.isFinite else { return 0 }
         return min(1, max(0, model.exportProgress))
+    }
+}
+
+private struct SourceLoadFailureRow: View {
+    var message: String
+    var retryTitle: String
+    var retry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .lineLimit(4)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button(retryTitle, action: retry)
+                .controlSize(.small)
+        }
+        .padding(8)
+        .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
     }
 }
 
