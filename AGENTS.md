@@ -9,7 +9,8 @@
 - 涉及 App Store Connect、TestFlight、审核、元数据、构建上传时，优先加载 `app-store-connect` skill 并使用已安装的 `asc`/脚本，不默认走网页手工流程。
 - 发内部 TestFlight 时不要对内部组调用 `asc builds add-groups`；该接口只适合外部组。用 `asc builds build-beta-detail view` 确认 `Internal State = IN_BETA_TESTING` 即完成。
 - App Store / TestFlight 构建号使用 `yyyyMMddNN`，例如 `2026062601`。
-- 内部 TestFlight 流程：先 `git fetch` 并确认不落后；用 `APP_VERSION=<版本号> APP_BUILD=<yyyyMMddNN> scripts/build_app_bundle.sh` 构建；用 `.apple.env.local` 中的签名配置执行 `scripts/package_app_store_pkg.sh`；用 `asc builds upload --pkg <pkg> --version <版本号> --build-number <构建号> --wait` 上传；如果 ASC 提示构建号不够高，先 `asc builds list --app <APP_ID> --platform MAC_OS` 查最新号并递增；最后用 `asc builds build-beta-detail view --app <APP_ID> --build-number <构建号> --version <版本号> --platform MAC_OS` 确认 `Internal State = IN_BETA_TESTING`。
+- 内部 TestFlight 流程：先 `git fetch` 并确认不落后；用 `asc doctor` 确认认证正常；用 `asc builds list --app 6782545770 --platform MAC_OS --version <版本号>` 查同版本最新构建号；显式传 `APP_VERSION=<版本号> APP_BUILD=<yyyyMMddNN>` 运行 `scripts/build_app_bundle.sh`，不要依赖脚本默认版本号；用 `.apple.env.local` 中的签名配置执行 `scripts/package_app_store_pkg.sh`；用 `asc builds upload --app 6782545770 --pkg <pkg> --version <版本号> --build-number <构建号> --wait` 上传；如果 ASC 提示构建号不够高，递增当天 NN 后重新构建和打包；最后用 `asc builds build-beta-detail view --app 6782545770 --build-number <构建号> --version <版本号> --platform MAC_OS` 确认 `Internal State = IN_BETA_TESTING`。
+- ASC 命令需要访问 Keychain；如果沙箱里出现 `One or more parameters passed ... (-50)`，不要改项目参数，改在沙箱外执行同一条 `asc` 命令。
 - GitHub Release 流程：先 `git fetch --tags` 并确认当前分支不落后、工作区干净、目标 tag 不存在；先让 `main` 的 CI 通过，再创建 `vX.Y.Z` tag 并 `git push origin vX.Y.Z`。
 - `v*` tag 会触发 `.github/workflows/release.yml`：运行测试、构建、签名、公证，并创建/更新 GitHub Release，上传 zip 和 sha256。发布后必须用 `gh run list` / `gh run watch` 确认 release workflow 成功，再用 `gh release view <tag>` 核对资产。
 - GitHub Release 资产必须做下载后验证：下载 zip、核对 sha256、解压后运行 `codesign --verify --deep --strict`、`xcrun stapler validate`、`spctl -a -vv -t exec`，三者都通过才算“用户可直接运行”。
