@@ -28,6 +28,11 @@ struct SidebarView: View {
                 .padding(.vertical, 20)
             }
 
+            if selectedTab == .export {
+                Divider()
+                exportActionFooter
+            }
+
             Divider()
             statusFooter
         }
@@ -469,7 +474,11 @@ struct SidebarView: View {
                 .pickerStyle(.segmented)
             }
             .disabled(model.isExporting)
+        }
+    }
 
+    private var exportActionFooter: some View {
+        Group {
             if model.isExporting {
                 Button(role: .destructive) {
                     model.cancelExport()
@@ -477,7 +486,6 @@ struct SidebarView: View {
                     Label(localization.string("toolbar.cancelExport"), systemImage: "xmark.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
-                .controlSize(.large)
                 .buttonStyle(.bordered)
             } else {
                 Button {
@@ -486,12 +494,14 @@ struct SidebarView: View {
                     Label(localization.string(model.exportMode == .video ? "sidebar.exportVideo" : "sidebar.exportOverlay"), systemImage: "play.fill")
                         .frame(maxWidth: .infinity)
                 }
-                .controlSize(.large)
                 .buttonStyle(.borderedProminent)
                 .disabled(!model.canExport)
                 .help(model.exportReadinessMessage ?? localization.string(model.exportMode == .video ? "help.exportCompositedVideo" : "help.exportTransparentOverlay"))
             }
         }
+        .controlSize(.large)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
     }
 
     private var exportSummaryCard: some View {
@@ -505,28 +515,8 @@ struct SidebarView: View {
                 value: localization.string(model.exportMode.localizationKey)
             )
             SidebarSummaryRow(
-                title: localization.string("sidebar.exportSummary.codec"),
-                value: localization.string(model.codec.localizationKey)
-            )
-            SidebarSummaryRow(
-                title: localization.string("sidebar.exportSummary.resolution"),
-                value: "\(NumberTextFormatter.formatInt(model.outputWidth))×\(NumberTextFormatter.formatInt(model.outputHeight))"
-            )
-            SidebarSummaryRow(
-                title: localization.string("sidebar.exportSummary.frameRate"),
-                value: "\(NumberTextFormatter.formatDouble(model.outputFPS)) fps"
-            )
-            SidebarSummaryRow(
-                title: localization.string("sidebar.exportSummary.range"),
-                value: "\(formatTrimTime(model.effectiveExportTrimStart)) – \(formatTrimTime(model.effectiveExportTrimEnd))"
-            )
-            SidebarSummaryRow(
                 title: localization.string("sidebar.exportSummary.duration"),
                 value: formatTrimTime(model.effectiveExportTrimDuration)
-            )
-            SidebarSummaryRow(
-                title: localization.string("sidebar.exportSummary.bitrate"),
-                value: "\(NumberTextFormatter.formatInt(model.bitRateKbps)) kbps"
             )
             SidebarSummaryRow(
                 title: localization.string("sidebar.exportSummary.estimatedSize"),
@@ -632,10 +622,10 @@ private struct ExportTrimRangeControl: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Label(localization.string("sidebar.exportRange"), systemImage: "scissors")
-                    .font(.caption.weight(.semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button(localization.string("sidebar.exportRange.full"), action: reset)
@@ -656,7 +646,7 @@ private struct ExportTrimRangeControl: View {
                 trimValue(label: localization.string("sidebar.exportRange.end"), value: end, alignment: .trailing)
             }
         }
-        .padding(10)
+        .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .combine)
@@ -673,7 +663,7 @@ private struct ExportTrimRangeControl: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(formatTime(value))
-                .font(.caption.monospacedDigit())
+                .font(.caption2.monospacedDigit())
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -698,18 +688,18 @@ private struct ExportTrimRangeSlider: View {
                 Capsule()
                     .fill(.secondary.opacity(0.25))
                     .frame(height: 4)
-                    .position(x: width / 2, y: 16)
+                    .position(x: width / 2, y: 12)
 
                 Capsule()
                     .fill(Color.accentColor)
                     .frame(width: max(0, endX - startX), height: 4)
-                    .position(x: startX + max(0, endX - startX) / 2, y: 16)
+                    .position(x: startX + max(0, endX - startX) / 2, y: 12)
 
                 handle(isActive: activeHandle == .start)
-                    .position(x: startX, y: 16)
+                    .position(x: startX, y: 12)
 
                 handle(isActive: activeHandle == .end)
-                    .position(x: endX, y: 16)
+                    .position(x: endX, y: 12)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -733,13 +723,13 @@ private struct ExportTrimRangeSlider: View {
                     .onEnded { _ in activeHandle = nil }
             )
         }
-        .frame(height: 32)
+        .frame(height: 24)
     }
 
     private func handle(isActive: Bool) -> some View {
         RoundedRectangle(cornerRadius: 5)
             .fill(.background)
-            .frame(width: 12, height: 22)
+            .frame(width: 10, height: 18)
             .overlay(
                 RoundedRectangle(cornerRadius: 5)
                     .stroke(isActive ? Color.accentColor : Color.secondary.opacity(0.55), lineWidth: isActive ? 2 : 1)
