@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import OverlayCore
 
@@ -520,6 +521,18 @@ struct SidebarView: View {
                 value: "\(formatTrimTime(model.effectiveExportTrimStart)) – \(formatTrimTime(model.effectiveExportTrimEnd))"
             )
             SidebarSummaryRow(
+                title: localization.string("sidebar.exportSummary.duration"),
+                value: formatTrimTime(model.effectiveExportTrimDuration)
+            )
+            SidebarSummaryRow(
+                title: localization.string("sidebar.exportSummary.bitrate"),
+                value: "\(NumberTextFormatter.formatInt(model.bitRateKbps)) kbps"
+            )
+            SidebarSummaryRow(
+                title: localization.string("sidebar.exportSummary.estimatedSize"),
+                value: formatEstimatedFileSize(duration: model.effectiveExportTrimDuration, bitRateKbps: model.bitRateKbps)
+            )
+            SidebarSummaryRow(
                 title: localization.string("sidebar.exportSummary.destination"),
                 value: model.outputURL?.lastPathComponent ?? localization.string("sidebar.askWhenExporting")
             )
@@ -600,6 +613,13 @@ struct SidebarView: View {
             return String(format: "%d:%02d:%02d.%03d", hours, minutes, secs, ms)
         }
         return String(format: "%02d:%02d.%03d", minutes, secs, ms)
+    }
+
+    private func formatEstimatedFileSize(duration: TimeInterval, bitRateKbps: Int) -> String {
+        let bytes = max(0, duration) * Double(max(0, bitRateKbps)) * 125
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes.rounded()))
     }
 }
 
