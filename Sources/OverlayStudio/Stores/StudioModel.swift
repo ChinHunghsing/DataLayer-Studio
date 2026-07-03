@@ -687,13 +687,15 @@ final class StudioModel: ObservableObject {
                 guard !self.isScrubbingPreview else { return }
                 let seconds = CMTimeGetSeconds(time)
                 guard seconds.isFinite else { return }
-                self.previewTime = min(max(0, seconds), max(0, self.sourceDuration))
+                let clamped = self.clampedPreviewTime(seconds)
+                self.previewTime = clamped
                 self.refreshOverlayOnly(
                     minimumInterval: Self.playbackOverlayRefreshInterval,
                     coalesceIfBusy: true
                 )
-                if self.sourceDuration > 0, self.previewTime >= self.sourceDuration {
+                if seconds >= self.previewTimeRange.upperBound {
                     self.pausePlayback()
+                    self.player?.seek(to: CMTime(seconds: clamped, preferredTimescale: 600))
                 }
             }
         }
@@ -707,6 +709,9 @@ final class StudioModel: ObservableObject {
     func startPlayback() {
         guard !isExporting else { return }
         guard let player else { return }
+        if previewTime < previewTimeRange.lowerBound || previewTime >= previewTimeRange.upperBound {
+            seekPreview(to: previewTimeRange.lowerBound)
+        }
         isPlaying = true
         player.play()
     }
@@ -752,21 +757,35 @@ final class StudioModel: ObservableObject {
         return series?.duration ?? 0
     }
 
+    var previewTimeRange: ClosedRange<TimeInterval> {
+        let duration = max(0, previewDuration)
+        guard duration > 0 else { return 0...0 }
+        let lowerBound = min(duration, max(0, effectiveExportTrimStart))
+        let upperBound = max(lowerBound, min(duration, effectiveExportTrimEnd))
+        return lowerBound...upperBound
+    }
+
     var exportTrimSourceDuration: TimeInterval {
         let duration = videoURL == nil ? series?.duration ?? 0 : sourceDuration
         guard duration.isFinite, duration > 0 else { return 0 }
         return min(duration, 86_400)
     }
 
+    private var exportTrimEditingDuration: TimeInterval {
+        let duration = exportTrimSourceDuration > 0 ? exportTrimSourceDuration : previewDuration
+        guard duration.isFinite, duration > 0 else { return 0 }
+        return min(duration, 86_400)
+    }
+
     var effectiveExportTrimStart: TimeInterval {
-        sanitizedExportTrimStart(exportTrimStartSeconds, sourceDuration: exportTrimSourceDuration)
+        sanitizedExportTrimStart(exportTrimStartSeconds, sourceDuration: exportTrimEditingDuration)
     }
 
     var effectiveExportTrimEnd: TimeInterval {
         sanitizedExportTrimEnd(
             exportTrimEndSeconds,
             start: effectiveExportTrimStart,
-            sourceDuration: exportTrimSourceDuration
+            sourceDuration: exportTrimEditingDuration
         )
     }
 
@@ -776,13 +795,14 @@ final class StudioModel: ObservableObject {
 
     func setExportTrimStart(_ value: TimeInterval) {
         guard !isExporting else { return }
-        let sourceDuration = exportTrimSourceDuration
+        let sourceDuration = exportTrimEditingDuration
         exportTrimStartSeconds = sanitizedExportTrimStart(value, sourceDuration: sourceDuration)
         exportTrimEndSeconds = sanitizedExportTrimEnd(
             exportTrimEndSeconds,
             start: exportTrimStartSeconds,
             sourceDuration: sourceDuration
         )
+        clampPreviewToExportTrimRange()
     }
 
     func setExportTrimEnd(_ value: TimeInterval) {
@@ -790,8 +810,9 @@ final class StudioModel: ObservableObject {
         exportTrimEndSeconds = sanitizedExportTrimEnd(
             value,
             start: effectiveExportTrimStart,
-            sourceDuration: exportTrimSourceDuration
+            sourceDuration: exportTrimEditingDuration
         )
+        clampPreviewToExportTrimRange()
     }
 
     func resetExportTrimRange() {
@@ -801,7 +822,7 @@ final class StudioModel: ObservableObject {
 
     private func seekPreview(to time: TimeInterval, coalesceOverlayRefresh: Bool, isScrubbing: Bool = false) {
         guard !isExporting else { return }
-        let clamped = min(max(0, time), max(previewDuration, 0))
+        let clamped = clampedPreviewTime(time)
         if isScrubbing, abs(previewTime - clamped) < 0.000_5 {
             return
         }
@@ -831,6 +852,18 @@ final class StudioModel: ObservableObject {
         } else {
             refreshPreview()
         }
+    }
+
+    private func clampedPreviewTime(_ time: TimeInterval) -> TimeInterval {
+        let range = previewTimeRange
+        let finiteTime = time.isFinite ? time : range.lowerBound
+        return min(range.upperBound, max(range.lowerBound, finiteTime))
+    }
+
+    private func clampPreviewToExportTrimRange() {
+        let clamped = clampedPreviewTime(previewTime)
+        guard abs(previewTime - clamped) >= 0.000_5 else { return }
+        seekPreview(to: clamped)
     }
 
     private var scrubSeekTolerance: CMTime {
@@ -1856,21 +1889,33 @@ final class StudioModel: ObservableObject {
             width: outputWidth,
             height: outputHeight,
             framesPerSecond: outputFPS,
-            startTime: effectiveExportTrimStart,
+            startTime: sourceExportTrimStart,
             duration: duration,
             averageBitRate: bitRateKbps * 1000
         )
     }
 
     private var exportDuration: TimeInterval? {
-        let duration = effectiveExportTrimDuration
+        let duration = max(0, sourceExportTrimEnd - sourceExportTrimStart)
         guard duration.isFinite, duration >= 0.1, duration <= 86_400 else { return nil }
         return duration
     }
 
+    private var sourceExportTrimStart: TimeInterval {
+        sanitizedExportTrimStart(exportTrimStartSeconds, sourceDuration: exportTrimSourceDuration)
+    }
+
+    private var sourceExportTrimEnd: TimeInterval {
+        sanitizedExportTrimEnd(
+            exportTrimEndSeconds,
+            start: sourceExportTrimStart,
+            sourceDuration: exportTrimSourceDuration
+        )
+    }
+
     private func resetExportTrimRangeToFullDuration() {
         exportTrimStartSeconds = 0
-        exportTrimEndSeconds = exportTrimSourceDuration
+        exportTrimEndSeconds = exportTrimEditingDuration
     }
 
     private func sanitizedExportTrimStart(_ value: TimeInterval, sourceDuration: TimeInterval) -> TimeInterval {

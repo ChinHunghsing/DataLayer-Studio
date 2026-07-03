@@ -560,6 +560,36 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.previewTime, 0)
     }
 
+    func testPreviewTimeClampsToExportTrimRange() {
+        let model = StudioModel()
+        model.sourceDuration = 12
+        model.setExportTrimStart(4)
+        model.setExportTrimEnd(8)
+
+        model.seekPreview(to: 2)
+        XCTAssertEqual(model.previewTime, 4)
+
+        model.seekPreview(to: 10)
+        XCTAssertEqual(model.previewTime, 8)
+
+        model.seekPreview(to: 6)
+        model.stepPreviewFrame(by: 1_000)
+        XCTAssertEqual(model.previewTime, 8)
+    }
+
+    func testChangingExportTrimRangeMovesPreviewIntoRange() {
+        let model = StudioModel()
+        model.sourceDuration = 12
+        model.seekPreview(to: 2)
+
+        model.setExportTrimStart(4)
+        XCTAssertEqual(model.previewTime, 4)
+
+        model.seekPreview(to: 10)
+        model.setExportTrimEnd(8)
+        XCTAssertEqual(model.previewTime, 8)
+    }
+
     func testSeekPreviewClampsToFITDurationWithoutVideo() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [

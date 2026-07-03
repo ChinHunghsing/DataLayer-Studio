@@ -58,7 +58,7 @@ struct PreviewControlsPanel: View {
                     get: { state.previewTime },
                     set: { model.scrubPreview(to: $0) }
                 ),
-                range: 0...max(state.previewDuration, 1),
+                range: state.previewTimeRange,
                 isEnabled: state.hasSeries && !state.isExporting,
                 accessibilityLabel: localization.string("preview.time", formatTimecode(state.previewTime)),
                 onFrameStep: { model.stepPreviewFrame(by: $0) }
@@ -187,6 +187,7 @@ struct PreviewControlsPanel: View {
 struct PreviewControlsState: Equatable {
     var previewTime: TimeInterval
     var previewDuration: TimeInterval
+    var previewTimeRange: ClosedRange<TimeInterval>
     var previewFrameRate: Double
     var isPlaying: Bool
     var hasPlayer: Bool
@@ -203,6 +204,8 @@ struct PreviewControlsState: Equatable {
     init(model: StudioModel) {
         previewTime = model.previewTime
         previewDuration = model.previewDuration
+        let modelRange = model.previewTimeRange
+        previewTimeRange = modelRange.lowerBound...max(modelRange.lowerBound + 0.001, modelRange.upperBound)
         previewFrameRate = model.previewFrameRate
         isPlaying = model.isPlaying
         hasPlayer = model.player != nil
