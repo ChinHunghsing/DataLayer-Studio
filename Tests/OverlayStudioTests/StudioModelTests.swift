@@ -182,6 +182,17 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(StudioModel.sourceVideoBitRateKbps(from: metadata), 12_346)
     }
 
+    func testSportStartStatusUsesReadableDuration() {
+        let model = StudioModel()
+        model.setResolvedLanguage(.simplifiedChinese)
+        model.previewTime = 133.369
+
+        model.markSportStart()
+
+        XCTAssertEqual(model.syncVideoSeconds, 133.369, accuracy: 0.000_1)
+        XCTAssertEqual(model.status, "运动开始已设置在视频 2分13秒；运动时间从 00:00 开始。")
+    }
+
     func testAutoSuggestedOutputStillNeedsExplicitExportSelection() {
         let model = StudioModel()
         XCTAssertTrue(model.needsOutputSelectionBeforeExport)

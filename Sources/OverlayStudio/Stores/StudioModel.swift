@@ -921,7 +921,7 @@ final class StudioModel: ObservableObject {
         syncMode = .syncPoint
         syncVideoSeconds = previewTime
         syncFITSeconds = 0
-        setStatus("status.sportStartSet", formatTime(previewTime))
+        setStatus("status.sportStartSet", formatStatusDuration(previewTime))
         refreshOverlayOrPreview()
     }
 
@@ -1804,8 +1804,30 @@ final class StudioModel: ObservableObject {
         status = AppLocalizer.string(key, language: resolvedLanguage, arguments: arguments)
     }
 
-    private func formatTime(_ time: TimeInterval) -> String {
-        String(format: "%.3f", time)
+    private func formatStatusDuration(_ time: TimeInterval) -> String {
+        let totalSeconds = max(0, Int(time.rounded()))
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds / 60) % 60
+        let seconds = totalSeconds % 60
+
+        switch resolvedLanguage {
+        case .english:
+            if hours > 0 { return "\(hours) h \(minutes) min \(seconds) sec" }
+            if minutes > 0 { return "\(minutes) min \(seconds) sec" }
+            return "\(seconds) sec"
+        case .japanese:
+            if hours > 0 { return "\(hours)時間\(minutes)分\(seconds)秒" }
+            if minutes > 0 { return "\(minutes)分\(seconds)秒" }
+            return "\(seconds)秒"
+        case .simplifiedChinese:
+            if hours > 0 { return "\(hours)小时\(minutes)分\(seconds)秒" }
+            if minutes > 0 { return "\(minutes)分\(seconds)秒" }
+            return "\(seconds)秒"
+        case .traditionalChinese:
+            if hours > 0 { return "\(hours)小時\(minutes)分\(seconds)秒" }
+            if minutes > 0 { return "\(minutes)分\(seconds)秒" }
+            return "\(seconds)秒"
+        }
     }
 
     private func localized(_ key: String, _ arguments: CVarArg...) -> String {
