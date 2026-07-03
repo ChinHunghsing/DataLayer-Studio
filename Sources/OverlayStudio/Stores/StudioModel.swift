@@ -63,6 +63,8 @@ final class StudioModel: ObservableObject {
     @Published var outputHeight = 1080
     @Published var outputFPS = 30.0
     @Published var sourceDuration: TimeInterval = 0
+    @Published var exportTrimStartSeconds: TimeInterval = 0
+    @Published var exportTrimEndSeconds: TimeInterval = 0
     @Published var bitRateKbps = 12_000
     @Published var exportMode: OverlayExportMode = .overlay {
         didSet {
@@ -148,6 +150,7 @@ final class StudioModel: ObservableObject {
     private var isGaugeDragActive = false
     private var exportProgressSamples: [(date: Date, progress: Double)] = []
     private static let exportETASampleWindow: TimeInterval = 10
+    private static let minimumExportTrimDuration: TimeInterval = 0.1
     weak var undoManager: UndoManager? {
         didSet { undoManager?.levelsOfUndo = 100 }
     }
@@ -641,6 +644,7 @@ final class StudioModel: ObservableObject {
                         self.setBitRateKbps(sourceBitRateKbps)
                     }
                     self.sourceDuration = Self.sanitizedSourceDuration(loaded.duration)
+                    self.resetExportTrimRangeToFullDuration()
                     self.applySuggestedOutputURLIfNeeded(for: url, replacingManualSelection: true)
                     self.previewTime = 0
                     self.configurePlayer(url: url)
@@ -746,6 +750,53 @@ final class StudioModel: ObservableObject {
             return sourceDuration
         }
         return series?.duration ?? 0
+    }
+
+    var exportTrimSourceDuration: TimeInterval {
+        let duration = videoURL == nil ? series?.duration ?? 0 : sourceDuration
+        guard duration.isFinite, duration > 0 else { return 0 }
+        return min(duration, 86_400)
+    }
+
+    var effectiveExportTrimStart: TimeInterval {
+        sanitizedExportTrimStart(exportTrimStartSeconds, sourceDuration: exportTrimSourceDuration)
+    }
+
+    var effectiveExportTrimEnd: TimeInterval {
+        sanitizedExportTrimEnd(
+            exportTrimEndSeconds,
+            start: effectiveExportTrimStart,
+            sourceDuration: exportTrimSourceDuration
+        )
+    }
+
+    var effectiveExportTrimDuration: TimeInterval {
+        max(0, effectiveExportTrimEnd - effectiveExportTrimStart)
+    }
+
+    func setExportTrimStart(_ value: TimeInterval) {
+        guard !isExporting else { return }
+        let sourceDuration = exportTrimSourceDuration
+        exportTrimStartSeconds = sanitizedExportTrimStart(value, sourceDuration: sourceDuration)
+        exportTrimEndSeconds = sanitizedExportTrimEnd(
+            exportTrimEndSeconds,
+            start: exportTrimStartSeconds,
+            sourceDuration: sourceDuration
+        )
+    }
+
+    func setExportTrimEnd(_ value: TimeInterval) {
+        guard !isExporting else { return }
+        exportTrimEndSeconds = sanitizedExportTrimEnd(
+            value,
+            start: effectiveExportTrimStart,
+            sourceDuration: exportTrimSourceDuration
+        )
+    }
+
+    func resetExportTrimRange() {
+        guard !isExporting else { return }
+        resetExportTrimRangeToFullDuration()
     }
 
     private func seekPreview(to time: TimeInterval, coalesceOverlayRefresh: Bool, isScrubbing: Bool = false) {
@@ -868,6 +919,7 @@ final class StudioModel: ObservableObject {
                     self.fitURL = url
                     self.series = parsedSeries
                     if self.videoURL == nil {
+                        self.resetExportTrimRangeToFullDuration()
                         self.applySuggestedOutputURLIfNeeded(for: url)
                     }
                     self.setStatus("status.loadedFit", url.lastPathComponent)
@@ -1537,7 +1589,7 @@ final class StudioModel: ObservableObject {
         exportProgressSamples = [(Date(), 0)]
         lastExportedURL = nil
         setStatus("status.exporting")
-        addDebugLog(.export, "Export started: \(outputURL.lastPathComponent), \(exportSettings.width)x\(exportSettings.height), \(Self.formatDebugSeconds(exportSettings.duration))")
+        addDebugLog(.export, "Export started: \(outputURL.lastPathComponent), \(exportSettings.width)x\(exportSettings.height), start=\(Self.formatDebugSeconds(exportSettings.startTime)), duration=\(Self.formatDebugSeconds(exportSettings.duration))")
         let cancellationToken = ExportCancellationToken()
         exportCancellationToken = cancellationToken
 
@@ -1564,6 +1616,7 @@ final class StudioModel: ObservableObject {
                             width: exportSettings.width,
                             height: exportSettings.height,
                             framesPerSecond: exportSettings.framesPerSecond,
+                            startTime: exportSettings.startTime,
                             duration: exportSettings.duration,
                             averageBitRate: exportSettings.averageBitRate,
                             timeSync: currentTimeSync,
@@ -1586,6 +1639,7 @@ final class StudioModel: ObservableObject {
                             width: exportSettings.width,
                             height: exportSettings.height,
                             framesPerSecond: exportSettings.framesPerSecond,
+                            startTime: exportSettings.startTime,
                             duration: exportSettings.duration,
                             averageBitRate: exportSettings.averageBitRate,
                             timeSync: currentTimeSync,
@@ -1802,15 +1856,39 @@ final class StudioModel: ObservableObject {
             width: outputWidth,
             height: outputHeight,
             framesPerSecond: outputFPS,
+            startTime: effectiveExportTrimStart,
             duration: duration,
             averageBitRate: bitRateKbps * 1000
         )
     }
 
     private var exportDuration: TimeInterval? {
-        let duration = videoURL == nil ? series?.duration ?? 0 : sourceDuration
+        let duration = effectiveExportTrimDuration
         guard duration.isFinite, duration >= 0.1, duration <= 86_400 else { return nil }
         return duration
+    }
+
+    private func resetExportTrimRangeToFullDuration() {
+        exportTrimStartSeconds = 0
+        exportTrimEndSeconds = exportTrimSourceDuration
+    }
+
+    private func sanitizedExportTrimStart(_ value: TimeInterval, sourceDuration: TimeInterval) -> TimeInterval {
+        guard sourceDuration.isFinite, sourceDuration > 0 else { return 0 }
+        let upperBound = max(0, sourceDuration - Self.minimumExportTrimDuration)
+        let finiteValue = value.isFinite ? value : 0
+        return min(upperBound, max(0, finiteValue))
+    }
+
+    private func sanitizedExportTrimEnd(
+        _ value: TimeInterval,
+        start: TimeInterval,
+        sourceDuration: TimeInterval
+    ) -> TimeInterval {
+        guard sourceDuration.isFinite, sourceDuration > 0 else { return 0 }
+        let fallbackEnd = value.isFinite && value > 0 ? value : sourceDuration
+        let minimumEnd = min(sourceDuration, start + Self.minimumExportTrimDuration)
+        return min(sourceDuration, max(minimumEnd, fallbackEnd))
     }
 
     private func mergeImportedLayoutPresets(_ importedState: LayoutPresetState) -> Int {
@@ -2031,6 +2109,7 @@ private struct ExportSettings {
     var width: Int
     var height: Int
     var framesPerSecond: Double
+    var startTime: TimeInterval
     var duration: TimeInterval
     var averageBitRate: Int
 }

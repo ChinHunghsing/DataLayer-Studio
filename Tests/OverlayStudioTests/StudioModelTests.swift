@@ -242,6 +242,35 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNil(model.exportReadinessMessage)
     }
 
+    func testExportTrimRangeDefaultsToFullActivityAndClamps() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, distanceMeters: 40)
+        ])
+
+        XCTAssertEqual(model.effectiveExportTrimStart, 0)
+        XCTAssertEqual(model.effectiveExportTrimEnd, 10)
+        XCTAssertEqual(model.effectiveExportTrimDuration, 10)
+        XCTAssertTrue(model.canExport)
+
+        model.setExportTrimStart(2.5)
+        model.setExportTrimEnd(7.25)
+
+        XCTAssertEqual(model.effectiveExportTrimStart, 2.5, accuracy: 0.000_1)
+        XCTAssertEqual(model.effectiveExportTrimEnd, 7.25, accuracy: 0.000_1)
+        XCTAssertEqual(model.effectiveExportTrimDuration, 4.75, accuracy: 0.000_1)
+
+        model.setExportTrimEnd(2.52)
+
+        XCTAssertEqual(model.effectiveExportTrimEnd, 2.6, accuracy: 0.000_1)
+
+        model.resetExportTrimRange()
+
+        XCTAssertEqual(model.effectiveExportTrimStart, 0)
+        XCTAssertEqual(model.effectiveExportTrimEnd, 10)
+    }
+
     func testFitOnlyModeCannotExportCompositedVideo() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [

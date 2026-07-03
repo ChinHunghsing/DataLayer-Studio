@@ -453,6 +453,8 @@ struct SidebarView: View {
                     .accessibilityValue(exportReadinessMessage)
             }
 
+            exportTrimRangeCard
+
             exportSummaryCard
 
             SidebarControl(title: localization.string("sidebar.exportMode")) {
@@ -514,6 +516,10 @@ struct SidebarView: View {
                 value: "\(NumberTextFormatter.formatDouble(model.outputFPS)) fps"
             )
             SidebarSummaryRow(
+                title: localization.string("sidebar.exportSummary.range"),
+                value: "\(formatTrimTime(model.effectiveExportTrimStart)) – \(formatTrimTime(model.effectiveExportTrimEnd))"
+            )
+            SidebarSummaryRow(
                 title: localization.string("sidebar.exportSummary.destination"),
                 value: model.outputURL?.lastPathComponent ?? localization.string("sidebar.askWhenExporting")
             )
@@ -523,6 +529,23 @@ struct SidebarView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(localization.string("sidebar.exportSummary"))
+    }
+
+    private var exportTrimRangeCard: some View {
+        ExportTrimRangeControl(
+            start: Binding(
+                get: { model.effectiveExportTrimStart },
+                set: { model.setExportTrimStart($0) }
+            ),
+            end: Binding(
+                get: { model.effectiveExportTrimEnd },
+                set: { model.setExportTrimEnd($0) }
+            ),
+            sourceDuration: model.exportTrimSourceDuration,
+            reset: { model.resetExportTrimRange() },
+            formatTime: formatTrimTime
+        )
+        .disabled(model.isExporting || model.exportTrimSourceDuration <= 0)
     }
 
     private var clampedExportProgress: Double {
@@ -564,6 +587,164 @@ struct SidebarView: View {
             return String(format: "%d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
         }
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    private func formatTrimTime(_ seconds: TimeInterval) -> String {
+        let milliseconds = max(0, Int((seconds * 1000).rounded()))
+        let ms = milliseconds % 1000
+        let totalSeconds = milliseconds / 1000
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds / 60) % 60
+        let secs = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d.%03d", hours, minutes, secs, ms)
+        }
+        return String(format: "%02d:%02d.%03d", minutes, secs, ms)
+    }
+}
+
+private struct ExportTrimRangeControl: View {
+    @Binding var start: TimeInterval
+    @Binding var end: TimeInterval
+    var sourceDuration: TimeInterval
+    var reset: () -> Void
+    var formatTime: (TimeInterval) -> String
+    @EnvironmentObject private var localization: LocalizationStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Label(localization.string("sidebar.exportRange"), systemImage: "scissors")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(localization.string("sidebar.exportRange.full"), action: reset)
+                    .controlSize(.small)
+            }
+
+            ExportTrimRangeSlider(
+                start: $start,
+                end: $end,
+                sourceDuration: sourceDuration
+            )
+
+            HStack(alignment: .top, spacing: 8) {
+                trimValue(label: localization.string("sidebar.exportRange.start"), value: start)
+                Spacer(minLength: 8)
+                trimValue(label: localization.string("sidebar.exportRange.duration"), value: max(0, end - start))
+                Spacer(minLength: 8)
+                trimValue(label: localization.string("sidebar.exportRange.end"), value: end, alignment: .trailing)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(localization.string("sidebar.exportRange"))
+    }
+
+    private func trimValue(
+        label: String,
+        value: TimeInterval,
+        alignment: HorizontalAlignment = .leading
+    ) -> some View {
+        VStack(alignment: alignment, spacing: 2) {
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(formatTime(value))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+    }
+}
+
+private struct ExportTrimRangeSlider: View {
+    @Binding var start: TimeInterval
+    @Binding var end: TimeInterval
+    var sourceDuration: TimeInterval
+    @State private var activeHandle: Handle?
+    private let minimumRangeDuration: TimeInterval = 0.1
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(1, proxy.size.width)
+            let startX = xPosition(for: start, width: width)
+            let endX = xPosition(for: end, width: width)
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.secondary.opacity(0.25))
+                    .frame(height: 4)
+                    .position(x: width / 2, y: 16)
+
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(width: max(0, endX - startX), height: 4)
+                    .position(x: startX + max(0, endX - startX) / 2, y: 16)
+
+                handle(isActive: activeHandle == .start)
+                    .position(x: startX, y: 16)
+
+                handle(isActive: activeHandle == .end)
+                    .position(x: endX, y: 16)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        guard sourceDuration > minimumRangeDuration else { return }
+                        let handle = activeHandle ?? nearestHandle(
+                            to: value.startLocation.x,
+                            startX: startX,
+                            endX: endX
+                        )
+                        activeHandle = handle
+                        let time = time(for: value.location.x, width: width)
+                        switch handle {
+                        case .start:
+                            start = min(max(0, time), max(0, end - minimumRangeDuration))
+                        case .end:
+                            end = max(min(sourceDuration, time), min(sourceDuration, start + minimumRangeDuration))
+                        }
+                    }
+                    .onEnded { _ in activeHandle = nil }
+            )
+        }
+        .frame(height: 32)
+    }
+
+    private func handle(isActive: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 5)
+            .fill(.background)
+            .frame(width: 12, height: 22)
+            .overlay(
+                RoundedRectangle(cornerRadius: 5)
+                    .stroke(isActive ? Color.accentColor : Color.secondary.opacity(0.55), lineWidth: isActive ? 2 : 1)
+            )
+            .shadow(color: .black.opacity(0.2), radius: 3, y: 1)
+    }
+
+    private func xPosition(for time: TimeInterval, width: CGFloat) -> CGFloat {
+        guard sourceDuration > 0 else { return 0 }
+        let progress = min(1, max(0, time / sourceDuration))
+        return CGFloat(progress) * width
+    }
+
+    private func time(for x: CGFloat, width: CGFloat) -> TimeInterval {
+        let progress = min(1, max(0, x / max(1, width)))
+        return TimeInterval(progress) * sourceDuration
+    }
+
+    private func nearestHandle(to x: CGFloat, startX: CGFloat, endX: CGFloat) -> Handle {
+        abs(x - startX) <= abs(x - endX) ? .start : .end
+    }
+
+    private enum Handle {
+        case start
+        case end
     }
 }
 

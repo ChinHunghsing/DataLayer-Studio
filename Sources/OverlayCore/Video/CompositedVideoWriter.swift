@@ -11,6 +11,7 @@ public struct CompositedVideoWriterConfig {
     public var width: Int
     public var height: Int
     public var framesPerSecond: Double
+    public var startTime: TimeInterval
     public var duration: TimeInterval
     public var averageBitRate: Int
     public var timeSync: TelemetryTimeSync
@@ -25,6 +26,7 @@ public struct CompositedVideoWriterConfig {
         width: Int,
         height: Int,
         framesPerSecond: Double,
+        startTime: TimeInterval = 0,
         duration: TimeInterval,
         averageBitRate: Int = 12_000_000,
         timeSync: TelemetryTimeSync = .identity,
@@ -38,6 +40,7 @@ public struct CompositedVideoWriterConfig {
         self.width = width
         self.height = height
         self.framesPerSecond = framesPerSecond
+        self.startTime = startTime
         self.duration = duration
         self.averageBitRate = averageBitRate
         self.timeSync = timeSync
@@ -114,12 +117,20 @@ public final class CompositedVideoWriter {
             throw OverlayVideoError.unreadableVideo("No video track found in \(sourceVideoURL.path).")
         }
 
+        let trimStartTime = CMTime(seconds: config.startTime, preferredTimescale: timing.mediaTimeScale)
         let reader = try AVAssetReader(asset: asset)
+        reader.timeRange = CMTimeRange(start: trimStartTime, duration: timing.outputDuration)
         let readerOutput = AVAssetReaderVideoCompositionOutput(
             videoTracks: [videoTrack],
             videoSettings: OverlayPixelBufferAttributes.canvas(width: width, height: height)
         )
-        readerOutput.videoComposition = makeVideoComposition(track: videoTrack, width: width, height: height, timing: timing)
+        readerOutput.videoComposition = makeVideoComposition(
+            track: videoTrack,
+            width: width,
+            height: height,
+            timing: timing,
+            startTime: trimStartTime
+        )
         readerOutput.alwaysCopiesSampleData = false
         guard reader.canAdd(readerOutput) else {
             throw OverlayVideoError.unreadableVideo("Could not read composited video frames from \(sourceVideoURL.path).")
@@ -182,6 +193,7 @@ public final class CompositedVideoWriter {
         let codec = config.codec
         let progressHandler = config.progressHandler
         let cancellationHandler = config.cancellationHandler
+        let exportStartTime = config.startTime
         let frameCount = timing.frameCount
         var frameIndex = 0
         var writeError: Error?
@@ -213,7 +225,7 @@ public final class CompositedVideoWriter {
                         let outputBuffer = try TransparentVideoWriter.makePixelBuffer(from: pool)
                         let overlayBuffer = try TransparentVideoWriter.makePixelBuffer(from: overlayPool)
                         let presentationTime = timing.presentationTime(for: frameIndex)
-                        let videoTime = CMTimeGetSeconds(presentationTime)
+                        let videoTime = exportStartTime + CMTimeGetSeconds(presentationTime)
 
                         try renderer.render(videoTime: videoTime, into: overlayBuffer)
                         let composed = CIImage(cvPixelBuffer: overlayBuffer)
@@ -294,6 +306,9 @@ public final class CompositedVideoWriter {
         guard config.framesPerSecond.isFinite, config.framesPerSecond > 0 else {
             throw OverlayVideoError.invalidConfiguration("Output frame rate must be a positive finite number.")
         }
+        guard config.startTime.isFinite, config.startTime >= 0 else {
+            throw OverlayVideoError.invalidConfiguration("Output start time must be a non-negative finite number.")
+        }
         guard config.duration.isFinite, config.duration > 0 else {
             throw OverlayVideoError.invalidConfiguration("Output duration must be a positive finite number.")
         }
@@ -313,7 +328,8 @@ public final class CompositedVideoWriter {
         track: AVAssetTrack,
         width: Int,
         height: Int,
-        timing: TransparentVideoFrameTiming
+        timing: TransparentVideoFrameTiming,
+        startTime: CMTime
     ) -> AVMutableVideoComposition {
         let outputSize = CGSize(width: width, height: height)
         let naturalSize = track.naturalSize
@@ -328,11 +344,11 @@ public final class CompositedVideoWriter {
             .concatenating(CGAffineTransform(translationX: x, y: y))
 
         let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
-        layer.setTransform(transform, at: .zero)
+        layer.setTransform(transform, at: startTime)
 
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = CMTimeRange(
-            start: .zero,
+            start: startTime,
             duration: timing.outputDuration
         )
         instruction.layerInstructions = [layer]
@@ -363,6 +379,7 @@ public final class CompositedVideoWriter {
             duration: config.duration
         ).outputDuration
         let timeRange = CMTimeRange(start: .zero, duration: duration)
+        let sourceAudioStartOffset = CMTime(seconds: config.startTime, preferredTimescale: duration.timescale)
 
         guard let compositionVideo = composition.addMutableTrack(
             withMediaType: .video,
@@ -379,10 +396,13 @@ public final class CompositedVideoWriter {
             ) else {
                 continue
             }
-            let audioDuration = minTime(duration, audioTrack.timeRange.duration)
+            let sourceStart = CMTimeAdd(audioTrack.timeRange.start, sourceAudioStartOffset)
+            let sourceEnd = CMTimeRangeGetEnd(audioTrack.timeRange)
+            let availableDuration = CMTimeSubtract(sourceEnd, sourceStart)
+            let audioDuration = minTime(duration, availableDuration)
             guard audioDuration > .zero else { continue }
             try compositionAudio.insertTimeRange(
-                CMTimeRange(start: .zero, duration: audioDuration),
+                CMTimeRange(start: sourceStart, duration: audioDuration),
                 of: audioTrack,
                 at: .zero
             )

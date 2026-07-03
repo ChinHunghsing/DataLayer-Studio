@@ -71,6 +71,7 @@ public struct TransparentVideoWriterConfig {
     public var width: Int
     public var height: Int
     public var framesPerSecond: Double
+    public var startTime: TimeInterval
     public var duration: TimeInterval
     public var averageBitRate: Int
     public var timeSync: TelemetryTimeSync
@@ -84,6 +85,7 @@ public struct TransparentVideoWriterConfig {
         width: Int,
         height: Int,
         framesPerSecond: Double,
+        startTime: TimeInterval = 0,
         duration: TimeInterval,
         averageBitRate: Int = 12_000_000,
         timeSync: TelemetryTimeSync = .identity,
@@ -96,6 +98,7 @@ public struct TransparentVideoWriterConfig {
         self.width = width
         self.height = height
         self.framesPerSecond = framesPerSecond
+        self.startTime = startTime
         self.duration = duration
         self.averageBitRate = averageBitRate
         self.timeSync = timeSync
@@ -298,6 +301,7 @@ public final class TransparentVideoWriter {
             : nil
         let progressHandler = config.progressHandler
         let cancellationHandler = config.cancellationHandler
+        let exportStartTime = config.startTime
         var frameIndex = 0
         var renderError: Error?
         var didFinishInput = false
@@ -321,7 +325,7 @@ public final class TransparentVideoWriter {
                     }
 
                     let presentationTime = timing.presentationTime(for: frameIndex)
-                    let videoTime = CMTimeGetSeconds(presentationTime)
+                    let videoTime = exportStartTime + CMTimeGetSeconds(presentationTime)
                     try renderer.render(videoTime: videoTime, into: renderBuffer)
                     if let alphaContext {
                         Self.prepareHEVCAlphaForEncoding(
@@ -388,6 +392,9 @@ public final class TransparentVideoWriter {
         }
         guard config.framesPerSecond.isFinite, config.framesPerSecond > 0 else {
             throw OverlayVideoError.invalidConfiguration("Output frame rate must be a positive finite number.")
+        }
+        guard config.startTime.isFinite, config.startTime >= 0 else {
+            throw OverlayVideoError.invalidConfiguration("Output start time must be a non-negative finite number.")
         }
         guard config.duration.isFinite, config.duration > 0 else {
             throw OverlayVideoError.invalidConfiguration("Output duration must be a positive finite number.")
