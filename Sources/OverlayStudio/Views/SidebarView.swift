@@ -545,6 +545,7 @@ struct SidebarView: View {
                 set: { model.setExportTrimEnd($0) }
             ),
             sourceDuration: model.exportTrimSourceDuration,
+            currentTime: model.previewTime,
             reset: { model.resetExportTrimRange() },
             formatTime: formatTrimTime
         )
@@ -617,6 +618,7 @@ private struct ExportTrimRangeControl: View {
     @Binding var start: TimeInterval
     @Binding var end: TimeInterval
     var sourceDuration: TimeInterval
+    var currentTime: TimeInterval
     var reset: () -> Void
     var formatTime: (TimeInterval) -> String
     @EnvironmentObject private var localization: LocalizationStore
@@ -637,6 +639,22 @@ private struct ExportTrimRangeControl: View {
                 end: $end,
                 sourceDuration: sourceDuration
             )
+
+            HStack(spacing: 6) {
+                Button {
+                    start = currentTime
+                } label: {
+                    Label(localization.string("sidebar.exportRange.setStart"), systemImage: "arrow.left.to.line")
+                }
+
+                Button {
+                    end = currentTime
+                } label: {
+                    Label(localization.string("sidebar.exportRange.setEnd"), systemImage: "arrow.right.to.line")
+                }
+            }
+            .labelStyle(.titleAndIcon)
+            .controlSize(.small)
 
             HStack(alignment: .top, spacing: 8) {
                 trimValue(label: localization.string("sidebar.exportRange.start"), value: start)
