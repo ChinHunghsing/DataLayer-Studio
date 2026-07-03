@@ -5,6 +5,8 @@
 | 状态 | 提案（未排期，未开工） |
 | 日期 | 2026-07-04 |
 | 适用平台 | iPadOS（与 iPhone 版共用同一个 iOS App，本文只覆盖 iPad 形态） |
+| 最低系统版本 | iPadOS 26（已定；macOS 版维持 13 不变） |
+| 商业模式 | 已定：付费买断，统一定价，一次购买 Mac / iPad / iPhone 三端使用（Universal Purchase） |
 | 关联文档 | `docs/ipad-technical-design.md`、`docs/iphone-product-design.md`、`DataLayer-Studio-UX-Review.md` |
 
 ## 0. 结论摘要
@@ -202,8 +204,9 @@ macOS 版已经完成的能力：导入视频 + FIT/GPX，三种对表方式（�
 
 ## 12. 商业化与发布
 
-- 付费买断，与 Mac 版一致；沿用 StoreKit 2 AppTransaction 收据校验门。
-- **决策点（开放问题 #1）**：iOS 版加入 Mac 版同一 App record 启用 Universal Purchase（买一次三端可用），或独立 SKU 分开定价。倾向 Universal Purchase：预设同步的价值主张就是「一套工具三端用」，分开收费会削弱它；代价是放弃 iPad 端独立营收。
+- **商业模式（已定）：付费买断，统一定价，一次购买 Mac / iPad / iPhone 三端使用（Universal Purchase）。** iOS 版加入 Mac 版同一 App record；已购 Mac 版的用户在 iPad/iPhone 上以同一 Apple 账户零成本解锁。这与预设 iCloud 同步共同构成「一套工具三端用」的完整价值主张。
+- 定价含义：三端单一价格，不做拆分 SKU；若因三端价值提升而调价，存量已购用户不受影响。iPhone/iPad 的 App Store 曝光作为获客入口，iPad/Mac 承接深度编辑（分工见 iPhone 产品文档 §2）。
+- 沿用 StoreKit 2 AppTransaction 收据校验门（工程细节见技术文档 §9）。
 - 上架物料：iPad 13 英寸与 11 英寸截图（横屏三栏 + 画布特写 + 导出页），四语言元数据，沿用 `app-store-connect` 工作流与 `yyyyMMddNN` 构建号规则。
 
 ## 13. 成功指标
@@ -229,8 +232,8 @@ macOS 版已经完成的能力：导入视频 + FIT/GPX，三种对表方式（�
 
 ## 15. 开放问题
 
-1. Universal Purchase 还是独立 SKU？（影响定价与 App record 结构，需在 M2 前定）
-2. 最低系统版本取 iPadOS 17 还是 18？（技术文档 §2.4 给出建议：18）
-3. HealthKit / Apple Watch 训练导入是否提前到 v1.x？（免 FIT 文件搬运，对 Jordan 价值大）
-4. 外接显示器全屏预览是否作为 M3 可选项？
-5. iPad 版是否需要「示例项目」（内置演示视频+FIT）降低首次体验门槛？
+已决事项（不再开放）：商业模式为统一定价 Universal Purchase（§12）；最低系统版本为 iPadOS 26（技术文档 §2.4）。
+
+1. HealthKit / Apple Watch 训练导入是否提前到 v1.x？（免 FIT 文件搬运，对 Jordan 价值大）
+2. 外接显示器全屏预览是否作为 M3 可选项？
+3. iPad 版是否需要「示例项目」（内置演示视频+FIT）降低首次体验门槛？

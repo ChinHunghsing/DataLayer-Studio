@@ -5,6 +5,8 @@
 | 状态 | 提案（未排期，未开工；本文不改动任何现有代码） |
 | 日期 | 2026-07-04 |
 | 适用平台 | iPadOS（与 iPhone 共用同一 iOS App target；共享架构以本文为准，iPhone 特有差异见 `docs/iphone-technical-design.md`） |
+| 最低系统版本 | iOS / iPadOS 26（已定，§2.4；macOS 版维持 13 不变） |
+| 商业模式 | 已定：统一定价，一次购买三端使用（Universal Purchase，§9） |
 | 关联文档 | `docs/ipad-product-design.md` |
 
 ## 0. 结论摘要
@@ -102,9 +104,14 @@ OverlayStudioKit 禁止 import AppKit/UIKit（照搬 OverlayCore「不依赖 Swi
 
 ### 2.4 Package.swift 与系统版本
 
-- `platforms: [.macOS(.v13), .iOS(.v18)]`。
-- 最低 iOS/iPadOS 18 的理由：覆盖 A12 及以上绝大多数设备；`@Observable`、`.onKeyPress`、`ContentUnavailableView` 等免版本分支；iPadOS 18 仍含 A10 的 iPad 第 7 代，需对其做运行时编码能力探测（本来就有 OverlayHardwareProfile）。若发布时点在 2026 秋后，可评估直接取 iPadOS 26 起跳（裁掉 A10/A12 尾部设备，简化测试矩阵）——列为产品开放问题 #2。
-- 以当前正式版 Xcode/SDK 构建。
+- **最低系统版本（已定）：iOS / iPadOS 26**；macOS 版最低版本维持 13 不变。
+- 声明方式：`platforms: [.macOS(.v13), .iOS("26.0")]`——用字符串形式可保持 `swift-tools-version: 5.9` 不动（枚举 `.v26` 需要更高工具链的 PackageDescription）；若同期把工具链统一升到 Xcode 26 随附版本，也可改用枚举形式，二选一。
+- 取 26 的收益：
+  - 设备下限抬到 A12 Bionic（iPadOS 26：iPad 第 8 代 / mini 5 / Air 3 / Pro 3 代及以上）与 A13（iOS 26：iPhone 11 / SE 第 2 代及以上），全系具备成熟 HEVC 硬编，A10 级设备（iPad 第 7 代）的编码器顾虑直接消除；
+  - 单一系统大版本，无需为 17/18 的 SwiftUI 行为差异做分支；`@Observable`、`.onKeyPress`、`ContentUnavailableView` 等全量可用；
+  - UI 直接按 iOS 26 原生控件与系统外观（Liquid Glass 体系）实现，无旧外观适配层。
+- 代价：放弃无法升级到 26 的机型（iPhone XS/XR、iPad 第 7 代等，终止于 iOS/iPadOS 18）。本产品对编码性能敏感、目标用户为视频创作人群，设备普遍较新，可接受。
+- 以 Xcode 26 / iOS 26 SDK 构建。
 
 ## 3. 共享层抽取（对现有代码的重构范围）
 
@@ -203,7 +210,7 @@ macOS 壳的实现即现有 NSPanel/NSWorkspace/NSAlert/NSPasteboard 代码平�
 | 编码 | macOS 现状 | iOS/iPadOS | 策略 |
 | --- | --- | --- | --- |
 | H.264 / HEVC | 硬编（探测选择） | 全部支持设备硬编 | 不变 |
-| HEVC-alpha | 硬编+系统支持 | iOS 13+ 系统支持；A 系/M 系硬编 | 不变；M0 真机金样验证 |
+| HEVC-alpha | 硬编+系统支持 | 系统支持成熟；最低版本 26 的设备下限（A12/A13）起均具硬编 | 不变；M0 真机金样验证 |
 | ProRes 4444 | 总可用（软编兜底） | 仅 ProRes 硬件机型可靠（iPhone 13 Pro+ 的 Pro 系、M1+ iPad）；其余设备不保证 | 复用 `OverlayHardwareProfile` 探测：无硬编时 UI 隐藏 ProRes 选项并注明「此设备不支持」，默认引导 HEVC-alpha。**与 macOS 的行为差异点，需要产品文案** |
 
 ### 6.2 分辨率与码率钳位
@@ -238,9 +245,11 @@ iOS 与 macOS 的最大运行时差异：**App 退到后台会被挂起，AVAsse
 
 ## 9. 购买与授权
 
-- StoreKit 2 `AppTransaction.shared` / `AppStore.sync()` 在 iOS 15+ 可用，`PurchaseAuthorizationStore` 状态机与 Gate 视图直接复用。
+- **商业模式（已定）：付费买断 + Universal Purchase，统一定价，一次购买 Mac / iPad / iPhone 三端使用。**
+- 工程落地：iOS target 使用与 Mac 相同的 bundle identifier `run.libo.datalayer-studio`，在 ASC 现有 App record（App ID 6782545770）下新增 iOS platform；已购 Mac 版的用户在 iOS 端以同一 Apple 账户直接解锁，无迁移动作。entitlements 中的 iCloud KVS 标识同步对齐（§8）。
+- 注意事项：Universal Purchase 挂接是单向操作，之后不能再拆回独立 SKU；调价作用于三端同一价格；macOS 与 iOS 平台在同一 App record 下各自维护版本元数据与截图。
+- StoreKit 2 `AppTransaction.shared` / `AppStore.sync()` 在 iOS 可用，`PurchaseAuthorizationStore` 状态机与 Gate 视图直接复用；同一 App record 下 AppTransaction 校验逻辑三端一致。
 - `SecCodeCopySelf` 读取签名 entitlement 是 macOS-only，加 `#if os(macOS)`；iOS 判定「需要校验」只看收据存在性即可（App Store 安装必有收据；本地开发无收据 → 直接放行，与现逻辑一致）。
-- Universal Purchase：若产品决定与 Mac 同 App record（开放问题 #1），iOS target 使用同一 bundle identifier `run.libo.datalayer-studio` 并在 ASC 同一 App 下加 iOS platform；否则新 bundle id 新 App。工程上两者只差配置，无代码差异。
 
 ## 10. 性能与内存预算
 
@@ -276,7 +285,7 @@ iOS 与 macOS 的最大运行时差异：**App 退到后台会被挂起，AVAsse
 
 | 阶段 | 内容 | 出口标准 | 粗估 |
 | --- | --- | --- | --- |
-| P0 验证 spike | Package.swift 加 iOS 平台；建最小 Xcode 壳；真机（1 台 M 系 iPad + 1 台 A 系）跑 OverlayCore 导出 1080p HEVC-alpha + 合成 HEVC；FCP iPad 验收 | 金样通过，得出编码器/性能基准表 | 2–3 天 |
+| P0 验证 spike | Package.swift 加 iOS 平台；建最小 Xcode 壳；真机（1 台 M 系 iPad + 1 台下限档 A12 机型，如 iPad 第 8 代）跑 OverlayCore 导出 1080p HEVC-alpha + 合成 HEVC；FCP iPad 验收 | 金样通过，得出编码器/性能基准表 | 2–3 天 |
 | P1 共享层下沉 | 建 OverlayStudioKit；StudioModel 拆分 + 平台协议；NSImage→CGImage；macOS 全量回归（swift test + build_app_bundle.sh + 手测） | macOS 版行为零变化 | 1.5–2 周 |
 | P2 iPad UI | OverlayTouch：三栏自适应布局、画布触控手势、检查器/侧栏容器、文件导入导出、导出生命周期模块 | 产品文档 M1+M2 场景走通 | 3–4 周 |
 | P3 平台特性 | 拖拽、多窗口、键盘全键位、Pencil/指针、文档类型、通知、预设同步联调（含 Mac entitlement 前置项） | 产品文档 M3 验收 | 1.5–2 周 |
@@ -288,7 +297,7 @@ iOS 与 macOS 的最大运行时差异：**App 退到后台会被挂起，AVAsse
 
 | 风险 | 概率 | 影响 | 缓解 |
 | --- | --- | --- | --- |
-| HEVC-alpha 在部分 A 系设备行为差异（灰边/编码失败） | 中 | 高（核心卖点） | P0 金样前置；探测式降级到 ProRes（有硬编时）或提示换设备 |
+| HEVC-alpha 在部分 A 系设备行为差异（灰边/编码失败） | 低–中（最低版本 26 已把下限收敛到 A12/A13） | 高（核心卖点） | P0 金样前置；探测式降级到 ProRes（有硬编时）或提示换设备 |
 | ProRes 在非 ProRes 机型不可用引发用户困惑 | 高 | 中 | UI 显隐 + 文案；产品文档已注明与 Mac 行为差异 |
 | 导出中挂起/热限制导致失败率上升 | 中 | 中 | §7 生命周期模块 + 中断可解释可重试；导出前时长提示 |
 | StudioModel 拆分引入 macOS 回归 | 中 | 高 | P1 独立合入 + 全量测试 + app bundle 手测清单；拆分期间冻结其他 GUI 需求 |

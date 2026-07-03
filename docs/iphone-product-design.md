@@ -5,6 +5,8 @@
 | 状态 | 提案（未排期，未开工） |
 | 日期 | 2026-07-04 |
 | 适用平台 | iOS / iPhone（与 iPad 版共用同一 iOS App，本文只覆盖 iPhone 形态） |
+| 最低系统版本 | iOS 26（已定；设备下限 iPhone 11 / SE 第 2 代） |
+| 商业模式 | 已定：与 Mac / iPad 统一定价，一次购买三端使用（Universal Purchase） |
 | 关联文档 | `docs/iphone-technical-design.md`、`docs/ipad-product-design.md` |
 
 ## 0. 结论摘要
@@ -19,7 +21,7 @@ iPhone 版在技术上与 iPad 版共享同一套可行性结论（核心引擎�
 - 数据：手表 FIT 文件通过 Garmin Connect / COROS / 高驰等 App 或 Files 到达手机；
 - 发布：Instagram / 小红书 / 抖音 / Strava，全部在手机完成。
 
-现状是用户必须把素材搬去 Mac 做浮层再搬回手机发布。iPhone 版把这条链路缩短为「拍完/跑完 → 手机上 5 分钟出片 → 直接分享」。同时 iPhone 版是三端矩阵的流量入口：App Store 上 iPhone 曝光远大于 Mac，轻量出片吸引的用户会向 iPad/Mac 深度编辑迁移（Universal Purchase 时无额外付费墙）。
+现状是用户必须把素材搬去 Mac 做浮层再搬回手机发布。iPhone 版把这条链路缩短为「拍完/跑完 → 手机上 5 分钟出片 → 直接分享」。同时 iPhone 版是三端矩阵的流量入口：App Store 上 iPhone 曝光远大于 Mac，轻量出片吸引的用户会向 iPad/Mac 深度编辑迁移——一次购买三端使用，中间没有任何付费墙。
 
 ## 2. 产品定位
 
@@ -131,9 +133,9 @@ iPhone 版在技术上与 iPad 版共享同一套可行性结论（核心引擎�
 
 ## 9. 商业化与发布
 
-- 与 iPad 同属一个 iOS App（universal），无独立定价问题；iOS App 与 Mac 版是否 Universal Purchase 见 iPad 产品文档开放问题 #1。
-- iPhone 是 App Store 获客主入口：截图脚本围绕场景 1（赛后出片）与场景 2（竖版模板）设计；关键词围绕 running overlay / 跑步数据视频 / FIT。
-- 审核注意：天气功能要求用户自备 OpenWeather key，需在设置文案中说明用途，避免被认作未完成功能；「在 iPad/Mac 上编辑此预设」的引导文案不构成对未购功能的强制（Universal Purchase 下无此问题）。
+- **商业模式（已定）：与 Mac / iPad 统一定价，一次购买三端使用（Universal Purchase，同一 App record）。** iPhone 与 iPad 本就是同一个 iOS App；Mac 版经 Universal Purchase 挂接，已购用户在任一端购买后三端直接解锁（工程细节见 iPad 技术文档 §9）。
+- iPhone 是 App Store 获客主入口：统一定价下，iPhone 端的转化直接抬高三端用户基数；截图脚本围绕场景 1（赛后出片）与场景 2（竖版模板）设计；关键词围绕 running overlay / 跑步数据视频 / FIT。
+- 审核注意：天气功能要求用户自备 OpenWeather key，需在设置文案中说明用途，避免被认作未完成功能；「在 iPad/Mac 上编辑此预设」的引导指向同一次购买内的能力，不构成诱导升级。
 
 ## 10. 成功指标
 

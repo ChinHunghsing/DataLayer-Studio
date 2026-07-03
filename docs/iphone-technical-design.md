@@ -5,6 +5,8 @@
 | 状态 | 提案（未排期，未开工；本文不改动任何现有代码） |
 | 日期 | 2026-07-04 |
 | 适用平台 | iOS / iPhone（与 iPad 共用同一 iOS App target） |
+| 最低系统版本 | iOS 26（已定，声明与理由见 iPad 技术文档 §2.4；设备下限 iPhone 11 / SE 第 2 代，A13） |
+| 商业模式 | 已定：统一定价，一次购买三端使用（Universal Purchase，见 iPad 技术文档 §9） |
 | 关联文档 | `docs/iphone-product-design.md`、`docs/ipad-technical-design.md`（共享架构以该文档为准，本文只展开 iPhone 特有部分） |
 
 ## 0. 结论摘要
@@ -21,6 +23,7 @@ OverlayCore（不动） ← OverlayStudioKit（共享层，iPad 文档 §3） �
                                                                   └── iPhone idiom（compact）
 ```
 
+- 最低系统版本 iOS 26（与 iPad 端同一声明 `.iOS("26.0")`）：iPhone 侧设备下限为 iPhone 11 / SE 第 2 代（A13），全系 HEVC 硬编，UI 直接按 iOS 26 原生外观实现、无版本分支。
 - idiom 分流依据 **size class**（`horizontalSizeClass == .compact` 走 iPhone 布局），不用 `UIDevice.userInterfaceIdiom`——这样 iPad Slide Over/分屏的 compact 场景自动获得 iPhone 布局，一举两得。
 - `StudioSessionModel`、平台服务协议、导出生命周期模块（`ExportRuntimeGuarding`）、文件访问（security-scoped + bookmark）、Info.plist/entitlements/隐私清单等完全共享，见 iPad 技术文档 §3–§7。
 - 渲染一致性是硬约束：iPhone 上任何「轻编辑」都只是 UI 裁剪，写回的仍是完整 `OverlayLayout`，三端像素级一致。
@@ -87,7 +90,7 @@ OverlayCore（不动） ← OverlayStudioKit（共享层，iPad 文档 §3） �
 
 | 项 | 评估 |
 | --- | --- |
-| 导出峰值内存 | 流式管线下 1080p < 100MB、4K < 300MB 量级（BGRA 帧 33MB × 池深 ~6 + 编码器内部）；对 4GB RAM 设备（iPhone XS 级）安全余量充足；**保持「禁止整段缓存帧」红线** |
+| 导出峰值内存 | 流式管线下 1080p < 100MB、4K < 300MB 量级（BGRA 帧 33MB × 池深 ~6 + 编码器内部）；对 iOS 26 下限机型中内存最小的 iPhone SE 第 2 代（3GB RAM）仍有安全余量；**保持「禁止整段缓存帧」红线** |
 | 预览 | iPhone 视图尺寸小，预览渲染负载低于 iPad；AVAssetImageGenerator scrub 不变 |
 | 4K HEVC-alpha 导出速度 | A 系设备低于 M 系 iPad，P0 基准表需覆盖至少一台非 Pro A 系机型；导出页的预估耗时区间用该表标定 |
 | 电量 | 长导出属高功耗场景，纳入 M4 实测（30 分钟素材导出的电量消耗），必要时在文案中管理预期 |
