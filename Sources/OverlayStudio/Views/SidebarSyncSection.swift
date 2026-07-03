@@ -14,8 +14,15 @@ struct SidebarSyncSection: View {
 
             SidebarDivider()
 
-            matchPointControls
-                .disabled(model.videoURL == nil)
+            if model.videoURL == nil {
+                SyncInfoBox(
+                    title: localization.string("sidebar.sync.noVideo.title"),
+                    message: localization.string("sidebar.sync.noVideo.message"),
+                    systemImage: "info.circle"
+                )
+            } else {
+                matchPointControls
+            }
         }
         .onAppear {
             model.useMatchPointSyncMode()

@@ -157,6 +157,25 @@ final class LocalizationTests: XCTestCase {
         )
     }
 
+    func testActivityAndExportLabelsAvoidLegacyFITOnlyWording() {
+        XCTAssertEqual(
+            AppLocalizer.string("menu.openFit", language: .simplifiedChinese),
+            "打开运动文件..."
+        )
+        XCTAssertEqual(
+            AppLocalizer.string("sidebar.source.subtitle", language: .english),
+            "Video and activity data"
+        )
+        XCTAssertEqual(
+            AppLocalizer.string("exportMode.video", language: .traditionalChinese),
+            "合成影片"
+        )
+        XCTAssertEqual(
+            AppLocalizer.string("sidebar.sync.noVideo.title", language: .japanese),
+            "同期は不要です"
+        )
+    }
+
     func testAppearanceSelectionMapsToColorScheme() {
         XCTAssertNil(AppAppearanceSelection.system.colorScheme)
         XCTAssertEqual(AppAppearanceSelection.light.colorScheme, .light)

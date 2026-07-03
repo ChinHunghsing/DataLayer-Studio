@@ -453,6 +453,8 @@ struct SidebarView: View {
                     .accessibilityValue(exportReadinessMessage)
             }
 
+            exportSummaryCard
+
             SidebarControl(title: localization.string("sidebar.exportMode")) {
                 Picker(localization.string("sidebar.exportMode"), selection: $model.exportMode) {
                     ForEach(OverlayExportMode.allCases) { mode in
@@ -487,6 +489,40 @@ struct SidebarView: View {
                 .help(model.exportReadinessMessage ?? localization.string(model.exportMode == .video ? "help.exportCompositedVideo" : "help.exportTransparentOverlay"))
             }
         }
+    }
+
+    private var exportSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(localization.string("sidebar.exportSummary"), systemImage: "checklist")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            SidebarSummaryRow(
+                title: localization.string("sidebar.exportSummary.type"),
+                value: localization.string(model.exportMode.localizationKey)
+            )
+            SidebarSummaryRow(
+                title: localization.string("sidebar.exportSummary.codec"),
+                value: localization.string(model.codec.localizationKey)
+            )
+            SidebarSummaryRow(
+                title: localization.string("sidebar.exportSummary.resolution"),
+                value: "\(NumberTextFormatter.formatInt(model.outputWidth))×\(NumberTextFormatter.formatInt(model.outputHeight))"
+            )
+            SidebarSummaryRow(
+                title: localization.string("sidebar.exportSummary.frameRate"),
+                value: "\(NumberTextFormatter.formatDouble(model.outputFPS)) fps"
+            )
+            SidebarSummaryRow(
+                title: localization.string("sidebar.exportSummary.destination"),
+                value: model.outputURL?.lastPathComponent ?? localization.string("sidebar.askWhenExporting")
+            )
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(localization.string("sidebar.exportSummary"))
     }
 
     private var clampedExportProgress: Double {
@@ -552,6 +588,25 @@ private struct SourceLoadFailureRow: View {
         .padding(8)
         .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct SidebarSummaryRow: View {
+    var title: String
+    var value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(value)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .font(.caption)
     }
 }
 
