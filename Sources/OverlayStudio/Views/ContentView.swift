@@ -38,7 +38,7 @@ struct ContentView: View {
     private var editorLayout: some View {
         HStack(spacing: 0) {
             SidebarView(model: model)
-                .frame(width: 380)
+                .frame(width: 330)
                 .background(.bar)
 
             Divider()

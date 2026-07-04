@@ -12,25 +12,30 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 18) {
-                    workflowTabs
+                    SidebarWorkflowSection(
+                        step: "1",
+                        title: localization.string("sidebar.source.title"),
+                        subtitle: localization.string("sidebar.source.subtitle"),
+                        systemImage: "film.stack"
+                    ) {
+                        fileSection
+                            .disabled(model.isExporting)
+                    }
+
+                    SidebarDivider()
 
                     SidebarWorkflowSection(
-                        step: selectedTab.step,
-                        title: localization.string(selectedTab.titleKey),
-                        subtitle: localization.string(selectedTab.subtitleKey),
-                        systemImage: selectedTab.systemImage
+                        step: "2",
+                        title: localization.string("sidebar.canvas.title"),
+                        subtitle: localization.string("sidebar.canvas.subtitle"),
+                        systemImage: "rectangle.dashed"
                     ) {
-                        selectedTabContent
+                        canvasSection
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
-            }
-
-            if selectedTab == .export {
-                Divider()
-                exportActionFooter
             }
 
             Divider()
@@ -614,7 +619,7 @@ struct SidebarView: View {
     }
 }
 
-private struct ExportTrimRangeControl: View {
+struct ExportTrimRangeControl: View {
     @Binding var start: TimeInterval
     @Binding var end: TimeInterval
     var sourceDuration: TimeInterval
@@ -800,7 +805,7 @@ private struct SourceLoadFailureRow: View {
     }
 }
 
-private struct SidebarSummaryRow: View {
+struct SidebarSummaryRow: View {
     var title: String
     var value: String
 

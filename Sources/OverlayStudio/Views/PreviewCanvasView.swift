@@ -45,6 +45,7 @@ struct PreviewCanvasView: View {
         } else {
             VStack(spacing: 0) {
                 previewViewport(state: canvasState)
+                    .layoutPriority(1)
                 PreviewControlsPanel(
                     model: model,
                     state: controlsState,
@@ -52,6 +53,7 @@ struct PreviewCanvasView: View {
                     isFullscreen: isFullscreen,
                     onToggleFullscreen: onToggleFullscreen
                 )
+                BottomWorkspaceView(model: model)
             }
         }
     }
