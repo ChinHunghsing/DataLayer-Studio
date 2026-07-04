@@ -17,3 +17,20 @@ open landing-page/index.html
 ```bash
 node landing-page/scripts/generate-localized-assets.mjs
 ```
+
+## 上线
+
+正式站点：
+
+```text
+https://datalayer-studio.ligh-t-ouch.com
+```
+
+部署到 Cloudflare Pages：
+
+```bash
+wrangler pages deploy landing-page --project-name=datalayer-studio --branch=main
+curl -I https://datalayer-studio.ligh-t-ouch.com
+```
+
+发布前确认左右展示图已按实际展示尺寸优化，优先使用 WebP。
