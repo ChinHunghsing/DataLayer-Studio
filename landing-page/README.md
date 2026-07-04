@@ -10,4 +10,10 @@
 open landing-page/index.html
 ```
 
-页面素材来自仓库内的 App 图标、README 展示图和 App Store 截图草稿，并复制到 `landing-page/assets/` 下，方便单独预览或部署。
+页面素材来自仓库内的 App 图标、README 展示图和 App Store 截图草稿，并以 WebP 放到 `landing-page/assets/` 下，方便单独预览或部署。
+
+如需重新生成多语言图片素材，本机需要安装 ImageMagick，然后运行：
+
+```bash
+node landing-page/scripts/generate-localized-assets.mjs
+```
