@@ -131,6 +131,21 @@ svg {
   stroke-width: 1.8;
 }
 
+.github-mark {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  stroke: none;
+}
+
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 .section-shell {
   width: min(var(--content-width), calc(100% - var(--page-gutter) * 2));
   margin-inline: auto;
@@ -1058,8 +1073,16 @@ svg {
 }
 
 .site-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--muted);
   transition: color 180ms var(--ease);
+}
+
+.site-footer .github-mark {
+  width: 15px;
+  height: 15px;
 }
 
 .site-footer a:hover {
