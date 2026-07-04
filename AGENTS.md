@@ -59,6 +59,7 @@
 - 视频写出必须按帧流式处理，禁止把整段视频帧或大图缓存进内存。
 - 文件和命令输出里不要使用千分位逗号作为可编辑数值格式。
 - 前端/落地页左右展示图必须按实际展示尺寸优化分辨率，优先转成 WebP。
+- 落地页正式站点是 `https://datalayer-studio.ligh-t-ouch.com`，Cloudflare Pages 项目是 `datalayer-studio`，生产分支是 `landing-page`；上线用 `wrangler pages deploy landing-page --project-name=datalayer-studio --branch=landing-page`，不要用 `--branch=main`，那只会发预览环境。
 
 ## 禁止事项
 
