@@ -9,6 +9,13 @@
       content="DataLayer Studio 是一款 macOS App 和命令行工具，用来把 FIT/GPX 跑步遥测渲染成透明 Alpha 视频浮层。"
       data-i18n-attr="content:meta.description"
     >
+    <meta name="theme-color" content="#061018">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="DataLayer Studio">
+    <meta property="og:title" content="DataLayer Studio | 跑步视频数据层">
+    <meta property="og:description" content="把 FIT/GPX 跑步遥测渲染成透明 Alpha 视频浮层的 macOS App 与命令行工具。">
+    <!-- og:image 需站点域名确定后补绝对地址 -->
+    <meta name="twitter:card" content="summary">
     <link rel="alternate" hreflang="zh-Hans" href="?lang=zh-Hans">
     <link rel="alternate" hreflang="zh-Hant" href="?lang=zh-Hant">
     <link rel="alternate" hreflang="en" href="?lang=en">
@@ -17,10 +24,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700;800&family=Noto+Serif:wght@600;700;900&family=Noto+Serif+JP:wght@600;700;900&family=Noto+Serif+SC:wght@600;700;900&family=Noto+Serif+TC:wght@600;700;900&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif:wght@700&family=Noto+Serif+JP:wght@700&family=Noto+Serif+SC:wght@700&family=Noto+Serif+TC:wght@700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260704-pricing-overlap">
+    <link rel="stylesheet" href="styles.css?v=20260704-visual-polish">
   </head>
   <body>
     <header class="site-header" data-header>
@@ -28,6 +35,13 @@
         <img src="assets/app-icon.png" alt="" width="32" height="32">
         <span>DataLayer Studio</span>
       </a>
+      <nav class="site-nav" aria-label="页面导航" data-i18n-attr="aria-label:nav.ariaLabel">
+        <a href="#workflow" data-i18n="nav.workflow">工作流</a>
+        <a href="#features" data-i18n="nav.features">功能</a>
+        <a href="#output" data-i18n="nav.output">输出</a>
+        <a href="#pricing" data-i18n="nav.pricing">购买</a>
+      </nav>
+      <div class="header-actions">
       <div class="language-menu" role="group" aria-label="语言切换" data-language-menu data-i18n-attr="aria-label:language.ariaLabel">
         <button class="language-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="language-options" data-language-trigger>
           <svg class="language-globe" aria-hidden="true" viewBox="0 0 24 24">
@@ -57,6 +71,10 @@
             <small>日</small>
           </button>
         </div>
+      </div>
+      <a class="button primary header-cta" href="https://apps.apple.com/search?term=DataLayer%20Studio" target="_blank" rel="noreferrer">
+        <span data-i18n="actions.appStore">App Store 下载</span>
+      </a>
       </div>
     </header>
 
@@ -130,13 +148,14 @@
       </section>
 
       <section class="section-panel section-shell" id="workflow" aria-labelledby="workflow-title">
-        <div class="section-heading">
+        <div class="section-heading" data-reveal>
+          <p class="section-eyebrow" data-i18n="workflow.eyebrow">工作流</p>
           <h2 id="workflow-title" data-i18n="workflow.title">从素材到成片，三步完成</h2>
           <p data-i18n="workflow.copy">把原本分散在运动文件、视频时间线和剪辑软件里的步骤，收束成一条可预览的制作流程。</p>
         </div>
         <div class="section-showcase">
           <ol class="steps">
-            <li>
+            <li data-reveal>
               <span class="step-index">1</span>
               <div class="step-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v9H4zM4 7V5h5l2 2"></path></svg>
@@ -144,7 +163,7 @@
               <h3 data-i18n="workflow.step1Title">导入素材</h3>
               <p data-i18n="workflow.step1Copy">选择源视频和 FIT/GPX 运动文件，读取分辨率、帧率、GPS 与跑步指标。</p>
             </li>
-            <li>
+            <li data-reveal>
               <span class="step-index">2</span>
               <div class="step-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path></svg>
@@ -152,7 +171,7 @@
               <h3 data-i18n="workflow.step2Title">校准与排布</h3>
               <p data-i18n="workflow.step2Copy">用偏移、FIT 开始或同步点对齐时间，在画布上拖拽每一层数据组件。</p>
             </li>
-            <li>
+            <li data-reveal>
               <span class="step-index">3</span>
               <div class="step-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M12 4v11M7 9l5-5 5 5M5 20h14"></path></svg>
@@ -165,28 +184,29 @@
       </section>
 
       <section class="section-panel section-shell feature-strip" id="features" aria-labelledby="features-title">
-        <div class="section-heading">
+        <div class="section-heading" data-reveal>
+          <p class="section-eyebrow" data-i18n="features.eyebrow">功能</p>
           <h2 id="features-title" data-i18n="features.title">每一层数据都可精细调整</h2>
           <p data-i18n="features.copy">配速、心率、步频、距离、轨迹、天气、时间日期都能按镜头重新组织。</p>
         </div>
         <div class="section-showcase">
           <div class="feature-grid">
-            <article>
+            <article data-reveal>
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM9 9l6 3-6 3z"></path></svg>
               <h3 data-i18n="features.previewTitle">实时预览</h3>
               <p data-i18n="features.previewCopy">播放源视频时同步渲染数据层，拖动和缩放后立即看到结果。</p>
             </article>
-            <article>
+            <article data-reveal>
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14M7 7l10 10M17 7 7 17"></path></svg>
               <h3 data-i18n="features.layoutTitle">自由布局</h3>
               <p data-i18n="features.layoutCopy">调整层级、位置、尺寸、透明度、字体和颜色，保存成可复用预设。</p>
             </article>
-            <article>
+            <article data-reveal>
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 17 9 9l4 5 3-4 4 7M4 20h16"></path></svg>
               <h3 data-i18n="features.metricsTitle">完整指标</h3>
               <p data-i18n="features.metricsCopy">支持 GPS、距离、速度、配速、心率、步频、功率、温度等常见记录字段。</p>
             </article>
-            <article>
+            <article data-reveal>
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
               <h3 data-i18n="features.cliTitle">命令行批处理</h3>
               <p data-i18n="features.cliCopy">用 CLI 复用布局预设，为多个视频生成一致的数据层输出。</p>
@@ -196,28 +216,30 @@
       </section>
 
       <section class="section-panel section-shell" aria-labelledby="showcase-title">
-        <div class="section-heading">
+        <div class="section-heading" data-reveal>
+          <p class="section-eyebrow" data-i18n="showcase.eyebrow">效果展示</p>
           <h2 id="showcase-title" data-i18n="showcase.title">让观众从“看到场景”到“读懂运动”</h2>
           <p data-i18n="showcase.copy">
             路线、距离进度、实时配速、心率和环境信息直接进入画面，
             训练故事不再只靠字幕和后期备注解释。
           </p>
         </div>
-        <div class="section-showcase showcase-stage">
+        <div class="section-showcase showcase-stage" data-reveal>
           <div class="media-switcher" role="tablist" aria-label="截图切换" data-i18n-attr="aria-label:showcase.tablistLabel">
-            <button class="switcher-button is-active" type="button" role="tab" aria-selected="true" data-shot="comparison">
+            <button class="switcher-button is-active" type="button" role="tab" aria-selected="true" aria-controls="shot-panel-comparison" data-shot="comparison">
               <span data-i18n="showcase.tabComparison">前后对比</span>
             </button>
-            <button class="switcher-button" type="button" role="tab" aria-selected="false" data-shot="metrics">
+            <button class="switcher-button" type="button" role="tab" aria-selected="false" aria-controls="shot-panel-metrics" tabindex="-1" data-shot="metrics">
               <span data-i18n="showcase.tabMetrics">数据标注</span>
             </button>
-            <button class="switcher-button" type="button" role="tab" aria-selected="false" data-shot="app">
+            <button class="switcher-button" type="button" role="tab" aria-selected="false" aria-controls="shot-panel-app" tabindex="-1" data-shot="app">
               <span data-i18n="showcase.tabApp">编辑界面</span>
             </button>
           </div>
           <div class="showcase-media">
             <img
               class="is-visible"
+              id="shot-panel-comparison"
               data-localized-image="comparison"
               data-shot-panel="comparison"
               src="assets/data-layer-comparison.webp"
@@ -228,6 +250,7 @@
               loading="eager"
             >
             <img
+              id="shot-panel-metrics"
               data-localized-image="metrics"
               data-shot-panel="metrics"
               src="assets/data-layer-metrics.webp"
@@ -235,9 +258,10 @@
               data-i18n-attr="alt:showcase.metricsAlt"
               width="1440"
               height="900"
-              loading="eager"
+              loading="lazy"
             >
             <img
+              id="shot-panel-app"
               data-localized-image="appShowcase"
               data-shot-panel="app"
               src="assets/app-showcase.webp"
@@ -245,18 +269,19 @@
               data-i18n-attr="alt:showcase.appAlt"
               width="1800"
               height="1130"
-              loading="eager"
+              loading="lazy"
             >
           </div>
         </div>
       </section>
 
       <section class="section-panel section-shell split-panel" id="output" aria-labelledby="output-title">
-        <div class="section-heading">
+        <div class="section-heading" data-reveal>
+          <p class="section-eyebrow" data-i18n="output.eyebrow">输出</p>
           <h2 id="output-title" data-i18n="output.title">为剪辑软件准备的透明输出</h2>
         </div>
         <div class="section-showcase split-layout">
-          <div class="split-copy">
+          <div class="split-copy" data-reveal>
             <p data-i18n="output.copy">
               默认生成带 Alpha 通道的 MOV，适合叠放在 Final Cut Pro、DaVinci Resolve、
               Premiere 或类似剪辑软件的上层轨道。
@@ -276,7 +301,7 @@
               </div>
             </dl>
           </div>
-          <div class="output-visual" aria-label="透明 Alpha 输出示意" data-i18n-attr="aria-label:output.visualLabel">
+          <div class="output-visual" data-reveal aria-label="透明 Alpha 输出示意" data-i18n-attr="aria-label:output.visualLabel">
             <div class="alpha-board">
               <div class="route-line" aria-hidden="true"></div>
               <div class="distance-bar" aria-hidden="true">
@@ -285,7 +310,7 @@
               <div class="metric-stack" aria-hidden="true">
                 <b>PACE <strong>4:32</strong></b>
                 <b>HR <strong>168</strong></b>
-                <b>CAD <strong>212</strong></b>
+                <b>CAD <strong>178</strong></b>
               </div>
               <div class="weather-chip" aria-hidden="true">23°C</div>
             </div>
@@ -299,11 +324,12 @@
       </section>
 
       <section class="section-panel section-shell split-panel pricing" id="pricing" aria-labelledby="pricing-title">
-        <div class="section-heading">
+        <div class="section-heading" data-reveal>
+          <p class="section-eyebrow" data-i18n="pricing.eyebrow">购买</p>
           <h2 id="pricing-title" data-i18n="pricing.title">开始制作你的运动数据层</h2>
         </div>
         <div class="section-showcase split-layout">
-          <div class="split-copy">
+          <div class="split-copy" data-reveal>
             <p data-i18n="pricing.copy">
               把运动文件里的时间、路线和指标，变成剪辑时间线里可控、可复用、可交付的一层画面。
               DataLayer Studio 在 App Store 购买后即可使用，价格以当前地区商店显示为准。
@@ -319,7 +345,7 @@
               </a>
             </div>
           </div>
-          <div class="purchase-panel" aria-label="DataLayer Studio 的 App Store 页面截图" data-i18n-attr="aria-label:pricing.purchaseLabel">
+          <div class="purchase-panel" data-reveal aria-label="DataLayer Studio 的 App Store 页面截图" data-i18n-attr="aria-label:pricing.purchaseLabel">
             <img
               class="app-store-image"
               data-localized-image="appStore"
@@ -344,6 +370,6 @@
       <span>© 2026 DataLayer Studio contributors.</span>
     </footer>
 
-    <script src="script.js?v=20260704-localized-images"></script>
+    <script src="script.js?v=20260704-visual-polish"></script>
   </body>
 </html>

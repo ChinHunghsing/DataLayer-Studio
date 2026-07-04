@@ -11,6 +11,13 @@ const translations = {
     language: {
       ariaLabel: "语言切换",
     },
+    nav: {
+      ariaLabel: "页面导航",
+      workflow: "工作流",
+      features: "功能",
+      output: "输出",
+      pricing: "购买",
+    },
     actions: {
       appStore: "App Store 下载",
       project: "查看项目",
@@ -30,6 +37,7 @@ const translations = {
       visualAlt: "DataLayer Studio 在视频上预览跑步配速、心率、轨迹、时间等数据层",
     },
     workflow: {
+      eyebrow: "工作流",
       title: "从素材到成片，三步完成",
       copy: "把原本分散在运动文件、视频时间线和剪辑软件里的步骤，收束成一条可预览的制作流程。",
       step1Title: "导入素材",
@@ -40,6 +48,7 @@ const translations = {
       step3Copy: "生成透明 Alpha 浮层放进剪辑软件，或直接导出已叠加数据层的视频成片。",
     },
     features: {
+      eyebrow: "功能",
       title: "每一层数据都可精细调整",
       copy: "配速、心率、步频、距离、轨迹、天气、时间日期都能按镜头重新组织。",
       previewTitle: "实时预览",
@@ -52,6 +61,7 @@ const translations = {
       cliCopy: "用 CLI 复用布局预设，为多个视频生成一致的数据层输出。",
     },
     showcase: {
+      eyebrow: "效果展示",
       title: "让观众从“看到场景”到“读懂运动”",
       copy: "路线、距离进度、实时配速、心率和环境信息直接进入画面，训练故事不再只靠字幕和后期备注解释。",
       tablistLabel: "截图切换",
@@ -63,6 +73,7 @@ const translations = {
       appAlt: "DataLayer Studio 的同步、画布、检查器和预览界面",
     },
     output: {
+      eyebrow: "输出",
       title: "为剪辑软件准备的透明输出",
       copy: "默认生成带 Alpha 通道的 MOV，适合叠放在 Final Cut Pro、DaVinci Resolve、Premiere 或类似剪辑软件的上层轨道。",
       factsLabel: "输出能力",
@@ -77,6 +88,7 @@ const translations = {
       exportSource: "你的主视频",
     },
     pricing: {
+      eyebrow: "购买",
       title: "开始制作你的运动数据层",
       copy: "把运动文件里的时间、路线和指标，变成剪辑时间线里可控、可复用、可交付的一层画面。DataLayer Studio 在 App Store 购买后即可使用，价格以当前地区商店显示为准。",
       purchaseLabel: "DataLayer Studio 的 App Store 页面截图",
@@ -99,6 +111,13 @@ const translations = {
     language: {
       ariaLabel: "語言切換",
     },
+    nav: {
+      ariaLabel: "頁面導覽",
+      workflow: "工作流程",
+      features: "功能",
+      output: "輸出",
+      pricing: "購買",
+    },
     actions: {
       appStore: "App Store 下載",
       project: "查看專案",
@@ -118,6 +137,7 @@ const translations = {
       visualAlt: "DataLayer Studio 在影片上預覽跑步配速、心率、軌跡、時間等資料層",
     },
     workflow: {
+      eyebrow: "工作流程",
       title: "從素材到完成影片，三步完成",
       copy: "把原本分散在運動檔案、影片時間軸和剪輯軟體裡的步驟，收束成一條可預覽的製作流程。",
       step1Title: "匯入素材",
@@ -128,6 +148,7 @@ const translations = {
       step3Copy: "產生透明 Alpha 浮層放進剪輯軟體，或直接匯出已疊加資料層的完成影片。",
     },
     features: {
+      eyebrow: "功能",
       title: "每一層資料都可精細調整",
       copy: "配速、心率、步頻、距離、軌跡、天氣、時間日期都能依鏡頭重新組織。",
       previewTitle: "即時預覽",
@@ -140,6 +161,7 @@ const translations = {
       cliCopy: "用 CLI 重複使用版面預設，為多支影片產生一致的資料層輸出。",
     },
     showcase: {
+      eyebrow: "效果展示",
       title: "讓觀眾從「看到畫面」到「讀懂運動」",
       copy: "路線、距離進度、即時配速、心率和環境資訊直接進入畫面，訓練故事不再只靠字幕和後期備註說明。",
       tablistLabel: "截圖切換",
@@ -151,6 +173,7 @@ const translations = {
       appAlt: "DataLayer Studio 的同步、畫布、檢查器和預覽介面",
     },
     output: {
+      eyebrow: "輸出",
       title: "為剪輯軟體準備的透明輸出",
       copy: "預設產生帶 Alpha 通道的 MOV，適合疊放在 Final Cut Pro、DaVinci Resolve、Premiere 或類似剪輯軟體的上層軌道。",
       factsLabel: "輸出能力",
@@ -165,6 +188,7 @@ const translations = {
       exportSource: "你的主影片",
     },
     pricing: {
+      eyebrow: "購買",
       title: "開始製作你的運動資料層",
       copy: "把運動檔案裡的時間、路線和指標，變成剪輯時間軸裡可控、可重複使用、可交付的一層畫面。DataLayer Studio 在 App Store 購買後即可使用，價格以目前所在地區商店顯示為準。",
       purchaseLabel: "DataLayer Studio 的 App Store 頁面截圖",
@@ -187,6 +211,13 @@ const translations = {
     language: {
       ariaLabel: "Language switcher",
     },
+    nav: {
+      ariaLabel: "Page navigation",
+      workflow: "Workflow",
+      features: "Features",
+      output: "Output",
+      pricing: "Pricing",
+    },
     actions: {
       appStore: "Download on App Store",
       project: "View project",
@@ -206,6 +237,7 @@ const translations = {
       visualAlt: "DataLayer Studio previewing pace, heart rate, route, time, and other data layers over a running video",
     },
     workflow: {
+      eyebrow: "Workflow",
       title: "From footage to finished video in three steps",
       copy: "Bring the steps scattered across activity files, video timelines, and editing apps into one previewable production flow.",
       step1Title: "Import assets",
@@ -216,6 +248,7 @@ const translations = {
       step3Copy: "Generate a transparent Alpha overlay for editing software, or export a finished video with data already composited.",
     },
     features: {
+      eyebrow: "Features",
       title: "Fine-tune every data layer",
       copy: "Pace, heart rate, cadence, distance, route, weather, date, and time can all be reorganized per shot.",
       previewTitle: "Live preview",
@@ -228,6 +261,7 @@ const translations = {
       cliCopy: "Reuse layout presets from the CLI to create consistent data-layer output for multiple videos.",
     },
     showcase: {
+      eyebrow: "Showcase",
       title: "Help viewers read the run, not just see it",
       copy: "Route, distance progress, live pace, heart rate, and environment details enter the frame directly, so the training story no longer depends on captions or post notes.",
       tablistLabel: "Screenshot switcher",
@@ -239,6 +273,7 @@ const translations = {
       appAlt: "DataLayer Studio sync, canvas, inspector, and preview interface",
     },
     output: {
+      eyebrow: "Output",
       title: "Transparent output for video editors",
       copy: "By default, DataLayer Studio creates MOV files with Alpha, ready to stack above your footage in Final Cut Pro, DaVinci Resolve, Premiere, or similar editors.",
       factsLabel: "Output capabilities",
@@ -253,6 +288,7 @@ const translations = {
       exportSource: "Your main video",
     },
     pricing: {
+      eyebrow: "Pricing",
       title: "Start building your activity data layer",
       copy: "Turn time, routes, and metrics from activity files into a controlled, reusable, deliverable layer for your edit timeline. Buy DataLayer Studio on the App Store and start using it immediately; pricing follows the current storefront.",
       purchaseLabel: "DataLayer Studio App Store page screenshot",
@@ -275,6 +311,13 @@ const translations = {
     language: {
       ariaLabel: "言語切り替え",
     },
+    nav: {
+      ariaLabel: "ページナビゲーション",
+      workflow: "ワークフロー",
+      features: "機能",
+      output: "出力",
+      pricing: "購入",
+    },
     actions: {
       appStore: "App Store でダウンロード",
       project: "プロジェクトを見る",
@@ -294,6 +337,7 @@ const translations = {
       visualAlt: "DataLayer Studio がランニング動画上にペース、心拍、ルート、時刻などのデータレイヤーをプレビューしている画面",
     },
     workflow: {
+      eyebrow: "ワークフロー",
       title: "素材から完成動画まで3ステップ",
       copy: "運動ファイル、動画タイムライン、編集ソフトに分かれていた作業を、プレビューできる制作フローにまとめます。",
       step1Title: "素材を読み込む",
@@ -304,6 +348,7 @@ const translations = {
       step3Copy: "編集ソフトに重ねる透明 Alpha オーバーレイ、またはデータを合成した完成動画を書き出します。",
     },
     features: {
+      eyebrow: "機能",
       title: "データレイヤーを細かく調整",
       copy: "ペース、心拍、ピッチ、距離、ルート、天気、日時をカットごとに組み替えられます。",
       previewTitle: "リアルタイムプレビュー",
@@ -316,6 +361,7 @@ const translations = {
       cliCopy: "CLI からレイアウトプリセットを再利用し、複数の動画に一貫したデータレイヤーを生成できます。",
     },
     showcase: {
+      eyebrow: "ショーケース",
       title: "ただ見る映像から、運動が読める映像へ",
       copy: "ルート、距離の進捗、リアルタイムペース、心拍、環境情報を画面に直接載せ、トレーニングの文脈を字幕や注釈だけに頼らず伝えます。",
       tablistLabel: "スクリーンショット切り替え",
@@ -327,6 +373,7 @@ const translations = {
       appAlt: "DataLayer Studio の同期、キャンバス、インスペクタ、プレビュー画面",
     },
     output: {
+      eyebrow: "出力",
       title: "編集ソフト向けの透明出力",
       copy: "標準では Alpha チャンネル付きの MOV を生成し、Final Cut Pro、DaVinci Resolve、Premiere などの上位トラックに重ねられます。",
       factsLabel: "出力機能",
@@ -341,6 +388,7 @@ const translations = {
       exportSource: "メイン動画",
     },
     pricing: {
+      eyebrow: "購入",
       title: "運動データレイヤーを作り始める",
       copy: "運動ファイルの時刻、ルート、指標を、編集タイムラインで扱いやすく再利用できる納品向けの映像レイヤーに変換します。DataLayer Studio は App Store で購入後すぐに使えます。価格は現在のストア表示に従います。",
       purchaseLabel: "DataLayer Studio の App Store ページスクリーンショット",
@@ -568,18 +616,62 @@ const setHeaderState = () => {
 setHeaderState();
 window.addEventListener("scroll", setHeaderState, { passive: true });
 
+const activateShot = (button) => {
+  const shot = button.dataset.shot;
+
+  switcherButtons.forEach((item) => {
+    const active = item === button;
+    item.classList.toggle("is-active", active);
+    item.setAttribute("aria-selected", String(active));
+    item.tabIndex = active ? 0 : -1;
+  });
+
+  shotPanels.forEach((panel) => {
+    panel.classList.toggle("is-visible", panel.dataset.shotPanel === shot);
+  });
+};
+
 switcherButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const shot = button.dataset.shot;
+  button.addEventListener("click", () => activateShot(button));
 
-    switcherButtons.forEach((item) => {
-      const active = item === button;
-      item.classList.toggle("is-active", active);
-      item.setAttribute("aria-selected", String(active));
-    });
+  button.addEventListener("keydown", (event) => {
+    const currentIndex = switcherButtons.indexOf(button);
+    let targetIndex = null;
 
-    shotPanels.forEach((panel) => {
-      panel.classList.toggle("is-visible", panel.dataset.shotPanel === shot);
-    });
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      targetIndex = (currentIndex + 1) % switcherButtons.length;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      targetIndex = (currentIndex - 1 + switcherButtons.length) % switcherButtons.length;
+    } else if (event.key === "Home") {
+      targetIndex = 0;
+    } else if (event.key === "End") {
+      targetIndex = switcherButtons.length - 1;
+    }
+
+    if (targetIndex == null) return;
+    event.preventDefault();
+    const target = switcherButtons[targetIndex];
+    activateShot(target);
+    target.focus();
   });
 });
+
+const revealElements = Array.from(document.querySelectorAll("[data-reveal]"));
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+if (revealElements.length > 0 && "IntersectionObserver" in window && !prefersReducedMotion.matches) {
+  document.documentElement.classList.add("has-reveal");
+
+  const revealObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-revealed");
+        revealObserver.unobserve(entry.target);
+      });
+    },
+    { rootMargin: "0px 0px -56px", threshold: 0.1 },
+  );
+
+  revealElements.forEach((element) => revealObserver.observe(element));
+}
