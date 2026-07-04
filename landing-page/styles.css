@@ -219,6 +219,7 @@ svg {
 .site-header .header-cta.secondary:has(.github-mark) .github-mark {
   width: 22px;
   height: 22px;
+  transform: translateX(2px);
 }
 
 .language-menu {
