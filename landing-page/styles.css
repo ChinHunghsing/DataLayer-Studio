@@ -26,7 +26,7 @@
   --space-2xl: 48px;
   --space-3xl: 64px;
   --space-4xl: 96px;
-  --section-space: clamp(92px, 10vw, 136px);
+  --section-space: clamp(64px, 7vw, 96px);
   --section-title-size: 3rem;
   --section-title-size-tablet: 2.5rem;
   --section-title-size-mobile: 2rem;
@@ -335,9 +335,9 @@ svg {
     "title title"
     "copy visual";
   align-items: center;
-  gap: var(--space-3xl) clamp(48px, 6vw, 88px);
-  min-height: calc(100svh - 76px);
-  padding-block: 76px 88px;
+  gap: clamp(28px, 4vw, 48px) clamp(36px, 5vw, 72px);
+  min-height: min(760px, calc(100svh - 76px));
+  padding-block: 52px 64px;
 }
 
 .hero-copy {
@@ -401,14 +401,14 @@ svg {
   margin: 0;
   color: var(--muted);
   font-size: 1.1875rem;
-  line-height: 1.82;
+  line-height: 1.72;
 }
 
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  margin-top: var(--space-xl);
+  margin-top: var(--space-lg);
 }
 
 .button {
@@ -450,7 +450,7 @@ svg {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
   max-width: 650px;
-  margin: 42px 0 0;
+  margin: 28px 0 0;
   padding: 1px;
   border: 1px solid rgba(118, 215, 255, 0.14);
   background: rgba(118, 215, 255, 0.1);
@@ -460,7 +460,7 @@ svg {
 
 .hero-facts div {
   min-width: 0;
-  padding: 16px;
+  padding: 14px;
   background: rgba(8, 20, 30, 0.78);
 }
 
@@ -622,9 +622,9 @@ svg {
 .section-heading {
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: var(--space-md);
   max-width: none;
-  margin-bottom: var(--space-3xl);
+  margin-bottom: var(--space-2xl);
 }
 
 .section-eyebrow {
@@ -656,7 +656,7 @@ svg {
   margin: 0;
   color: var(--muted);
   font-size: 1.0625rem;
-  line-height: 1.74;
+  line-height: 1.66;
 }
 
 .section-showcase {
@@ -686,13 +686,13 @@ svg {
 .split-layout {
   display: grid;
   grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.12fr);
-  gap: clamp(48px, 6vw, 88px);
+  gap: clamp(32px, 5vw, 64px);
   align-items: center;
 }
 
 .split-copy {
   display: grid;
-  gap: var(--space-xl);
+  gap: var(--space-lg);
   max-width: 650px;
 }
 
@@ -700,7 +700,7 @@ svg {
   margin: 0;
   color: var(--muted);
   font-size: 1.1875rem;
-  line-height: 1.82;
+  line-height: 1.72;
 }
 
 .split-actions {
@@ -763,7 +763,7 @@ svg {
 .steps li {
   position: relative;
   min-width: 0;
-  padding: 38px 34px;
+  padding: 30px 28px;
   background: rgba(8, 20, 30, 0.82);
 }
 
@@ -780,7 +780,7 @@ svg {
 }
 
 .step-icon {
-  margin-top: 46px;
+  margin-top: 30px;
   color: #a7eaff;
 }
 
@@ -792,7 +792,7 @@ svg {
 
 .steps h3,
 .feature-grid h3 {
-  margin: 22px 0 12px;
+  margin: 18px 0 10px;
   color: var(--text);
   font-size: 1.25rem;
   line-height: 1.25;
@@ -804,7 +804,7 @@ svg {
   margin: 0;
   color: var(--muted);
   font-size: 0.9375rem;
-  line-height: 1.7;
+  line-height: 1.62;
 }
 
 .feature-strip {
@@ -821,7 +821,7 @@ svg {
 
 .feature-grid article {
   min-width: 0;
-  padding: 38px 30px 40px;
+  padding: 30px 26px 32px;
   border-right: 1px solid rgba(118, 215, 255, 0.13);
   border-bottom: 1px solid rgba(118, 215, 255, 0.13);
   background: rgba(7, 18, 27, 0.36);
@@ -836,7 +836,7 @@ svg {
 
 .showcase-stage {
   display: grid;
-  gap: var(--space-xl);
+  gap: var(--space-lg);
 }
 
 .media-switcher {
@@ -1005,7 +1005,7 @@ svg {
   grid-template-columns: 1fr 120px 1fr;
   align-items: center;
   gap: 16px;
-  margin-top: var(--space-lg);
+  margin-top: var(--space-md);
   color: var(--muted);
   font-size: 14px;
   font-weight: 500;
@@ -1042,7 +1042,7 @@ svg {
   flex-wrap: wrap;
   align-items: center;
   gap: 18px 28px;
-  padding-block: 28px 40px;
+  padding-block: 22px 30px;
   color: var(--quiet);
   font-size: 13px;
   border-top: 1px solid rgba(118, 215, 255, 0.1);
@@ -1143,7 +1143,7 @@ svg {
 
 @media (max-width: 1080px) {
   :root {
-    --section-space: 88px;
+    --section-space: 64px;
   }
 
   .hero {
@@ -1152,9 +1152,9 @@ svg {
       "title"
       "copy"
       "visual";
-    gap: var(--space-2xl);
+    gap: var(--space-xl);
     min-height: auto;
-    padding-block: 56px 76px;
+    padding-block: 42px 56px;
   }
 
   .hero h1 {
@@ -1179,7 +1179,7 @@ svg {
 
   .split-layout {
     grid-template-columns: 1fr;
-    gap: var(--space-2xl);
+    gap: var(--space-xl);
   }
 
   .split-copy {
@@ -1191,7 +1191,7 @@ svg {
 @media (max-width: 720px) {
   :root {
     --page-gutter: 18px;
-    --section-space: 72px;
+    --section-space: 52px;
   }
 
   body {
@@ -1222,8 +1222,8 @@ svg {
   }
 
   .hero {
-    gap: var(--space-xl);
-    padding-block: 44px 64px;
+    gap: var(--space-lg);
+    padding-block: 30px 42px;
   }
 
   .hero h1 {
@@ -1232,7 +1232,7 @@ svg {
 
   .hero-copy > p {
     font-size: 1rem;
-    line-height: 1.78;
+    line-height: 1.68;
   }
 
   .hero-actions {
@@ -1254,7 +1254,7 @@ svg {
   .hero-facts div,
   .steps li,
   .feature-grid article {
-    padding: 22px;
+    padding: 18px;
   }
 
   .floating-readout {
@@ -1267,7 +1267,7 @@ svg {
 
   .section-heading {
     gap: var(--space-md);
-    margin-bottom: var(--space-xl);
+    margin-bottom: var(--space-lg);
   }
 
   .section-heading h2 {
