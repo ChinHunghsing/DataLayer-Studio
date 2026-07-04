@@ -21,6 +21,7 @@ const translations = {
     actions: {
       appStore: "App Store 下载",
       project: "查看项目",
+      github: "GitHub",
     },
     hero: {
       title: "跑步数据变成视频数据层",
@@ -121,6 +122,7 @@ const translations = {
     actions: {
       appStore: "App Store 下載",
       project: "查看專案",
+      github: "GitHub",
     },
     hero: {
       title: "跑步資料變成影片資料層",
@@ -221,6 +223,7 @@ const translations = {
     actions: {
       appStore: "Download on App Store",
       project: "View project",
+      github: "GitHub",
     },
     hero: {
       title: "Run Data, Video-Ready",
@@ -321,6 +324,7 @@ const translations = {
     actions: {
       appStore: "App Store でダウンロード",
       project: "プロジェクトを見る",
+      github: "GitHub",
     },
     hero: {
       title: "ランデータを映像レイヤーに",

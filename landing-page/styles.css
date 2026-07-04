@@ -182,6 +182,10 @@ svg {
   box-shadow: 0 10px 24px rgba(47, 149, 255, 0.22);
 }
 
+.site-header .header-cta.secondary {
+  box-shadow: none;
+}
+
 .language-menu {
   position: relative;
 }
