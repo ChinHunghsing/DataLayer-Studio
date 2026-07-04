@@ -192,14 +192,6 @@ struct BottomWorkspaceView: View {
         VStack(alignment: .leading, spacing: 10) {
             SidebarSubsectionHeader(title: localization.string("sidebar.render"), systemImage: "paperplane")
 
-            if model.isExporting {
-                exportProgressCard
-            }
-
-            if !model.isExporting, let exportedURL = model.lastExportedURL {
-                exportSuccessCard(exportedURL)
-            }
-
             if !model.isExporting, let exportReadinessMessage = sharedExportReadinessMessage {
                 Label(exportReadinessMessage, systemImage: "info.circle")
                     .font(.caption)
@@ -220,58 +212,22 @@ struct BottomWorkspaceView: View {
         return overlayMessage
     }
 
-    private var exportProgressCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ProgressView(value: clampedExportProgress)
-            HStack {
-                Text(localization.string(model.exportMode == .video ? "sidebar.exportingVideo" : "sidebar.exportingOverlay"))
-                Spacer()
-                Text(clampedExportProgress.percentString)
-                    .monospacedDigit()
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            if let etaSeconds = model.exportETASeconds {
-                Text(localization.string("sidebar.exportETA", formatETADuration(etaSeconds)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(localization.string("sidebar.exportProgress"))
-        .accessibilityValue(clampedExportProgress.percentString)
-    }
-
     private var exportActionFooter: some View {
-        Group {
-            if model.isExporting {
-                Button(role: .destructive) {
-                    model.cancelExport()
-                } label: {
-                    Label(localization.string("toolbar.cancelExport"), systemImage: "xmark.circle.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            } else {
-                HStack(spacing: 10) {
-                    exportButton(
-                        mode: .overlay,
-                        titleKey: "sidebar.exportOverlay",
-                        helpKey: "help.exportTransparentOverlay",
-                        systemImage: "square.on.square"
-                    )
-                    exportButton(
-                        mode: .video,
-                        titleKey: "sidebar.exportVideo",
-                        helpKey: "help.exportCompositedVideo",
-                        systemImage: "play.fill"
-                    )
-                }
-                .frame(maxWidth: .infinity)
-            }
+        HStack(spacing: 10) {
+            exportButton(
+                mode: .overlay,
+                titleKey: "sidebar.exportOverlay",
+                helpKey: "help.exportTransparentOverlay",
+                systemImage: "square.on.square"
+            )
+            exportButton(
+                mode: .video,
+                titleKey: "sidebar.exportVideo",
+                helpKey: "help.exportCompositedVideo",
+                systemImage: "play.fill"
+            )
         }
+        .frame(maxWidth: .infinity)
         .controlSize(.large)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -290,7 +246,7 @@ struct BottomWorkspaceView: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
-        .disabled(!model.canExport(as: mode))
+        .disabled(model.isExporting || !model.canExport(as: mode))
         .help(model.exportReadinessMessage(for: mode) ?? localization.string(helpKey))
     }
 
@@ -366,39 +322,6 @@ struct BottomWorkspaceView: View {
         )
     }
 
-    private var clampedExportProgress: Double {
-        guard model.exportProgress.isFinite else { return 0 }
-        return min(1, max(0, model.exportProgress))
-    }
-
-    private func exportSuccessCard(_ exportedURL: URL) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(localization.string("sidebar.exportDone"), systemImage: "checkmark.circle.fill")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.green)
-
-            Text(exportedURL.lastPathComponent)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            HStack(spacing: 8) {
-                Button(localization.string("sidebar.revealInFinder")) {
-                    model.revealLastExportInFinder()
-                }
-                Button(localization.string("sidebar.copyPath")) {
-                    model.copyLastExportPath()
-                }
-            }
-            .controlSize(.small)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .accessibilityElement(children: .contain)
-    }
-
     private func intBinding(
         get: @escaping () -> Int,
         set: @escaping (Int) -> Void,
@@ -424,14 +347,6 @@ struct BottomWorkspaceView: View {
                 set(min(range.upperBound, max(range.lowerBound, $0.isFinite ? $0 : range.lowerBound)))
             }
         )
-    }
-
-    private func formatETADuration(_ seconds: TimeInterval) -> String {
-        let total = max(0, Int(seconds.rounded()))
-        if total >= 3600 {
-            return String(format: "%d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
-        }
-        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     private func formatTrimTime(_ seconds: TimeInterval) -> String {

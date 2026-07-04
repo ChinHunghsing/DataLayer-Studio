@@ -116,6 +116,9 @@ final class StudioModel: ObservableObject {
     @Published var exportProgress = 0.0
     @Published private(set) var exportETASeconds: TimeInterval?
     @Published private(set) var lastExportedURL: URL?
+    @Published private(set) var lastExportElapsedSeconds: TimeInterval?
+    @Published private(set) var lastExportErrorMessage: String?
+    @Published private(set) var lastExportWasCancelled = false
     @Published var openWeatherAPIKey = OpenWeatherKeyStore.load()
     @Published var weatherRefreshMessage: String?
     @Published var debugLogEntries: [DebugLogEntry] = []
@@ -205,6 +208,10 @@ final class StudioModel: ObservableObject {
 
     var canExport: Bool {
         exportReadinessMessage == nil
+    }
+
+    var hasExportResult: Bool {
+        lastExportedURL != nil || lastExportErrorMessage != nil || lastExportWasCancelled
     }
 
     func canExport(as mode: OverlayExportMode) -> Bool {
@@ -1628,11 +1635,15 @@ final class StudioModel: ObservableObject {
 
         pausePlayback()
         cancelPreviewRenderTasks()
+        let exportStartedAt = Date()
         isExporting = true
         exportProgress = 0
         exportETASeconds = nil
-        exportProgressSamples = [(Date(), 0)]
+        exportProgressSamples = [(exportStartedAt, 0)]
         lastExportedURL = nil
+        lastExportElapsedSeconds = nil
+        lastExportErrorMessage = nil
+        lastExportWasCancelled = false
         setStatus("status.exporting")
         addDebugLog(.export, "Export started: \(outputURL.lastPathComponent), \(exportSettings.width)x\(exportSettings.height), start=\(Self.formatDebugSeconds(exportSettings.startTime)), duration=\(Self.formatDebugSeconds(exportSettings.duration))")
         let cancellationToken = ExportCancellationToken()
@@ -1705,6 +1716,7 @@ final class StudioModel: ObservableObject {
                     self.exportProgress = 1
                     self.exportETASeconds = nil
                     self.lastExportedURL = outputURL
+                    self.lastExportElapsedSeconds = Date().timeIntervalSince(exportStartedAt)
                     self.exportTask = nil
                     self.exportCancellationToken = nil
                     self.setStatus("status.wroteFile", outputURL.path)
@@ -1718,6 +1730,8 @@ final class StudioModel: ObservableObject {
                     self.isExporting = false
                     self.exportProgress = 0
                     self.exportETASeconds = nil
+                    self.lastExportElapsedSeconds = Date().timeIntervalSince(exportStartedAt)
+                    self.lastExportWasCancelled = true
                     self.exportTask = nil
                     self.exportCancellationToken = nil
                     self.setStatus("status.exportCancelled")
@@ -1729,6 +1743,8 @@ final class StudioModel: ObservableObject {
                     guard let self else { return }
                     self.isExporting = false
                     self.exportETASeconds = nil
+                    self.lastExportElapsedSeconds = Date().timeIntervalSince(exportStartedAt)
+                    self.lastExportErrorMessage = error.localizedDescription
                     self.exportTask = nil
                     self.exportCancellationToken = nil
                     self.setStatus("status.exportError", error.localizedDescription)
@@ -1766,10 +1782,17 @@ final class StudioModel: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([lastExportedURL])
     }
 
-    func copyLastExportPath() {
+    func openLastExport() {
         guard let lastExportedURL else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(lastExportedURL.path, forType: .string)
+        NSWorkspace.shared.open(lastExportedURL)
+    }
+
+    func clearExportResult() {
+        guard !isExporting else { return }
+        lastExportedURL = nil
+        lastExportElapsedSeconds = nil
+        lastExportErrorMessage = nil
+        lastExportWasCancelled = false
     }
 
     private func notifyExportCompleted(_ outputURL: URL) {
