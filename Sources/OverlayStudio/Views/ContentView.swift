@@ -180,7 +180,7 @@ private struct ExportStatusSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 22) {
             if model.isExporting {
                 exportingContent
             } else {
@@ -188,7 +188,7 @@ private struct ExportStatusSheet: View {
             }
         }
         .padding(24)
-        .frame(width: 430, alignment: .leading)
+        .frame(width: 480, alignment: .leading)
         .interactiveDismissDisabled(model.isExporting)
         .alert(localization.string("exportDialog.cancelTitle"), isPresented: $isCancelExportConfirmationPresented) {
             Button(localization.string("exportDialog.confirmCancel"), role: .destructive) {
@@ -201,14 +201,15 @@ private struct ExportStatusSheet: View {
     }
 
     private var exportingContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label(
-                localization.string(model.exportMode == .video ? "sidebar.exportingVideo" : "sidebar.exportingOverlay"),
-                systemImage: "paperplane.fill"
-            )
-            .font(.headline)
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 14) {
+                statusGlyph(systemImage: "paperplane.fill", color: .accentColor)
 
-            VStack(alignment: .leading, spacing: 6) {
+                Text(localization.string(model.exportMode == .video ? "sidebar.exportingVideo" : "sidebar.exportingOverlay"))
+                    .font(.title3.weight(.semibold))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
                 ProgressView(value: clampedExportProgress)
 
                 HStack {
@@ -227,82 +228,126 @@ private struct ExportStatusSheet: View {
             .accessibilityLabel(localization.string("sidebar.exportProgress"))
             .accessibilityValue(clampedExportProgress.percentString)
 
-            Button(role: .destructive) {
-                isCancelExportConfirmationPresented = true
-            } label: {
-                Label(localization.string("toolbar.cancelExport"), systemImage: "xmark.circle.fill")
-                    .frame(maxWidth: .infinity)
+            HStack {
+                Spacer()
+
+                Button(role: .destructive) {
+                    isCancelExportConfirmationPresented = true
+                } label: {
+                    Label(localization.string("toolbar.cancelExport"), systemImage: "xmark.circle.fill")
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
             .controlSize(.large)
         }
     }
 
     private var resultContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 20) {
             resultHeader
-
-            if let lastExportedURL = model.lastExportedURL {
-                Text(lastExportedURL.lastPathComponent)
-                    .font(.body)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-            } else if let errorMessage = model.lastExportErrorMessage {
-                Text(errorMessage)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(4)
-            }
-
-            if let elapsed = model.lastExportElapsedSeconds {
-                Label(localization.string("exportDialog.elapsed", formatDuration(elapsed)), systemImage: "timer")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-
-            ViewThatFits {
-                HStack(spacing: 8) {
-                    resultButtons
-                }
-                VStack(spacing: 8) {
-                    resultButtons
-                }
-            }
-            .controlSize(.large)
+            resultDetail
+            Divider()
+            resultActions
         }
     }
 
     private var resultHeader: some View {
-        Label(resultTitle, systemImage: resultSystemImage)
-            .font(.headline)
-            .foregroundStyle(resultColor)
-            .accessibilityElement(children: .combine)
+        HStack(alignment: .center, spacing: 14) {
+            statusGlyph(systemImage: resultSystemImage, color: resultColor)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(resultTitle)
+                    .font(.title3.weight(.semibold))
+
+                if let elapsed = model.lastExportElapsedSeconds {
+                    Label(localization.string("exportDialog.elapsed", formatDuration(elapsed)), systemImage: "timer")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
-    private var resultButtons: some View {
-        if model.lastExportedURL != nil {
-            Button {
-                model.revealLastExportInFinder()
-            } label: {
-                Label(localization.string("sidebar.revealInFinder"), systemImage: "folder")
+    private var resultDetail: some View {
+        if let lastExportedURL = model.lastExportedURL {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "film")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28)
+
+                Text(lastExportedURL.lastPathComponent)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        } else if let errorMessage = model.lastExportErrorMessage {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+
+                Text(errorMessage)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(5)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private var resultActions: some View {
+        HStack(spacing: 10) {
+            if model.lastExportedURL != nil {
+                Button {
+                    model.revealLastExportInFinder()
+                } label: {
+                    Label(localization.string("sidebar.revealInFinder"), systemImage: "folder")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    model.openLastExport()
+                } label: {
+                    Label(localization.string("exportDialog.openFile"), systemImage: "play.circle")
+                }
+                .buttonStyle(.bordered)
             }
 
-            Button {
-                model.openLastExport()
-            } label: {
-                Label(localization.string("exportDialog.openFile"), systemImage: "play.circle")
-            }
-        }
+            Spacer(minLength: 12)
 
-        Button {
-            model.clearExportResult()
-            dismiss()
-        } label: {
-            Label(localization.string("common.done"), systemImage: "checkmark")
+            Button {
+                model.clearExportResult()
+                dismiss()
+            } label: {
+                Label(localization.string("common.done"), systemImage: "checkmark")
+            }
+            .buttonStyle(.borderedProminent)
         }
-        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+    }
+
+    private func statusGlyph(systemImage: String, color: Color) -> some View {
+        ZStack {
+            Circle()
+                .fill(color.opacity(0.14))
+
+            Image(systemName: systemImage)
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(color)
+        }
+        .frame(width: 48, height: 48)
     }
 
     private var resultTitle: String {
@@ -317,12 +362,12 @@ private struct ExportStatusSheet: View {
 
     private var resultSystemImage: String {
         if model.lastExportedURL != nil {
-            return "checkmark.circle.fill"
+            return "checkmark"
         }
         if model.lastExportWasCancelled {
-            return "xmark.circle.fill"
+            return "xmark"
         }
-        return "exclamationmark.triangle.fill"
+        return "exclamationmark"
     }
 
     private var resultColor: Color {
