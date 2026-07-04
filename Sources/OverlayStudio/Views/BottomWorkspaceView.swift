@@ -5,7 +5,7 @@ import OverlayCore
 struct BottomWorkspaceView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
-    @SceneStorage("bottomWorkspaceTab") private var selectedTabRawValue = BottomWorkspaceTab.output.rawValue
+    @SceneStorage("bottomWorkspaceTab") private var selectedTabRawValue = BottomWorkspaceTab.sync.rawValue
 
     private let columns = [
         GridItem(.flexible(minimum: 220), spacing: 14, alignment: .top),
@@ -47,6 +47,16 @@ struct BottomWorkspaceView: View {
         }
         .background(.bar)
         .controlSize(.small)
+        .onChange(of: model.videoURL) { url in
+            if url != nil {
+                selectedTabRawValue = BottomWorkspaceTab.sync.rawValue
+            }
+        }
+        .onChange(of: model.fitURL) { url in
+            if url != nil {
+                selectedTabRawValue = BottomWorkspaceTab.sync.rawValue
+            }
+        }
     }
 
     private var selectedTab: BottomWorkspaceTab {
