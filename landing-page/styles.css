@@ -201,6 +201,26 @@ svg {
   box-shadow: none;
 }
 
+.site-header .header-cta.secondary:has(.github-mark) {
+  width: 60px;
+  padding: 0;
+  gap: 0;
+}
+
+.site-header .header-cta.secondary:has(.github-mark) span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.site-header .header-cta.secondary:has(.github-mark) .github-mark {
+  width: 22px;
+  height: 22px;
+}
+
 .language-menu {
   position: relative;
 }
