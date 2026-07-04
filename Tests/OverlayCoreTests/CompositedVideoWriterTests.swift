@@ -51,12 +51,54 @@ final class CompositedVideoWriterTests: XCTestCase {
         }
     }
 
+    func testWriterRendersTrimmedCompositedOutput() async throws {
+        let sourceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("composited-trimmed-source-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("composited-trimmed-output-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        defer {
+            Self.removeTemporaryFile(sourceURL)
+            Self.removeTemporaryFile(outputURL)
+        }
+
+        try makeTinySourceVideo(at: sourceURL, frameCount: 4)
+
+        let writer = CompositedVideoWriter(
+            outputURL: outputURL,
+            sourceVideoURL: sourceURL,
+            series: TelemetrySeries(samples: [
+                TelemetrySample(elapsed: 0, distanceMeters: 0),
+                TelemetrySample(elapsed: 2, distanceMeters: 6)
+            ]),
+            config: CompositedVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: 2,
+                startTime: 1,
+                duration: 1,
+                averageBitRate: 200_000,
+                codec: .h264,
+                overlayLayout: OverlayLayout(elements: [])
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableCompositedTestEncoder {
+            throw XCTSkip("Composited video encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
+    }
+
     private static func removeTemporaryFile(_ url: URL) {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try? FileManager.default.removeItem(at: url)
     }
 
-    private func makeTinySourceVideo(at url: URL) throws {
+    private func makeTinySourceVideo(at url: URL, frameCount: Int = 2) throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         let input = AVAssetWriterInput(
             mediaType: .video,
@@ -87,7 +129,7 @@ final class CompositedVideoWriterTests: XCTestCase {
         }
         writer.startSession(atSourceTime: .zero)
 
-        for frameIndex in 0..<2 {
+        for frameIndex in 0..<frameCount {
             while !input.isReadyForMoreMediaData {
                 Thread.sleep(forTimeInterval: 0.001)
             }

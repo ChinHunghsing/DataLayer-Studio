@@ -120,16 +120,13 @@ public final class CompositedVideoWriter {
         let trimStartTime = CMTime(seconds: config.startTime, preferredTimescale: timing.mediaTimeScale)
         let reader = try AVAssetReader(asset: asset)
         reader.timeRange = CMTimeRange(start: trimStartTime, duration: timing.outputDuration)
-        let readerOutput = AVAssetReaderVideoCompositionOutput(
-            videoTracks: [videoTrack],
-            videoSettings: OverlayPixelBufferAttributes.canvas(width: width, height: height)
-        )
-        readerOutput.videoComposition = makeVideoComposition(
+        let readerOutput = AVAssetReaderTrackOutput(
             track: videoTrack,
-            width: width,
-            height: height,
-            timing: timing,
-            startTime: trimStartTime
+            outputSettings: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferMetalCompatibilityKey as String: true,
+                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            ]
         )
         readerOutput.alwaysCopiesSampleData = false
         guard reader.canAdd(readerOutput) else {
@@ -187,6 +184,9 @@ public final class CompositedVideoWriter {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let ciContext = OverlayCIContextFactory.makeContext(profile: hardwareProfile)
         let overlayPool = try TransparentVideoWriter.makePixelBufferPool(width: width, height: height, minimumBufferCount: 2)
+        let outputBounds = CGRect(x: 0, y: 0, width: width, height: height)
+        let sourceTransform = makeSourceTransform(track: videoTrack, width: width, height: height)
+        let background = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 1)).cropped(to: outputBounds)
 
         let renderQueue = DispatchQueue(label: "run.libo.overlay.composited-writer")
         let writeFinished = DispatchSemaphore(value: 0)
@@ -228,12 +228,15 @@ public final class CompositedVideoWriter {
                         let videoTime = exportStartTime + CMTimeGetSeconds(presentationTime)
 
                         try renderer.render(videoTime: videoTime, into: overlayBuffer)
+                        let sourceImage = CIImage(cvPixelBuffer: sourceBuffer)
+                            .transformed(by: sourceTransform)
+                            .composited(over: background)
                         let composed = CIImage(cvPixelBuffer: overlayBuffer)
-                            .composited(over: CIImage(cvPixelBuffer: sourceBuffer))
+                            .composited(over: sourceImage)
                         ciContext.render(
                             composed,
                             to: outputBuffer,
-                            bounds: CGRect(x: 0, y: 0, width: width, height: height),
+                            bounds: outputBounds,
                             colorSpace: colorSpace
                         )
 
@@ -324,13 +327,7 @@ public final class CompositedVideoWriter {
         try validateOutputURL()
     }
 
-    private func makeVideoComposition(
-        track: AVAssetTrack,
-        width: Int,
-        height: Int,
-        timing: TransparentVideoFrameTiming,
-        startTime: CMTime
-    ) -> AVMutableVideoComposition {
+    private func makeSourceTransform(track: AVAssetTrack, width: Int, height: Int) -> CGAffineTransform {
         let outputSize = CGSize(width: width, height: height)
         let naturalSize = track.naturalSize
         let preferredTransform = track.preferredTransform
@@ -342,23 +339,7 @@ public final class CompositedVideoWriter {
         let transform = preferredTransform
             .concatenating(CGAffineTransform(scaleX: scale, y: scale))
             .concatenating(CGAffineTransform(translationX: x, y: y))
-
-        let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
-        layer.setTransform(transform, at: startTime)
-
-        let instruction = AVMutableVideoCompositionInstruction()
-        instruction.timeRange = CMTimeRange(
-            start: startTime,
-            duration: timing.outputDuration
-        )
-        instruction.layerInstructions = [layer]
-
-        let composition = AVMutableVideoComposition()
-        composition.instructions = [instruction]
-        composition.renderSize = outputSize
-        composition.frameDuration = timing.frameDuration
-        composition.renderScale = 1
-        return composition
+        return transform
     }
 
     private func muxOriginalAudio(videoURL: URL, outputURL: URL) throws {
@@ -448,7 +429,7 @@ public final class CompositedVideoWriter {
         semaphore.wait()
 
         guard exportSession.status == .completed else {
-            throw OverlayVideoError.writerFailed(exportSession.error?.localizedDescription ?? "Audio muxing failed.")
+            throw OverlayVideoError.writerFailed(describe(error: exportSession.error, fallback: "Audio muxing failed."))
         }
     }
 
@@ -564,9 +545,17 @@ public final class CompositedVideoWriter {
     }
 
     private func describe(error: Error?, codec: OverlayVideoCodec) -> String {
+        "\(describe(error: error, fallback: "Unknown writer failure")) while using \(codec.displayName)."
+    }
+
+    private func describe(error: Error?, fallback: String) -> String {
         guard let error else {
-            return "Unknown writer failure while using \(codec.displayName)."
+            return fallback
         }
-        return "\(error.localizedDescription) while using \(codec.displayName)."
+        let nsError = error as NSError
+        if nsError.userInfo.isEmpty {
+            return "\(nsError.domain) \(nsError.code): \(nsError.localizedDescription)"
+        }
+        return "\(nsError.domain) \(nsError.code): \(nsError.localizedDescription) \(nsError.userInfo)"
     }
 }
