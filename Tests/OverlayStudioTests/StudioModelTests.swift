@@ -298,6 +298,24 @@ final class StudioModelTests: XCTestCase {
         )
     }
 
+    func testModeSpecificExportReadinessKeepsOverlayAvailableWithoutVideo() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 5, distanceMeters: 20)
+        ])
+        model.exportMode = .video
+
+        XCTAssertFalse(model.canExport)
+        XCTAssertTrue(model.canExport(as: .overlay))
+        XCTAssertNil(model.exportReadinessMessage(for: .overlay))
+        XCTAssertFalse(model.canExport(as: .video))
+        XCTAssertEqual(
+            model.exportReadinessMessage(for: .video),
+            AppLocalizer.currentString("status.chooseVideoForCompositedExport")
+        )
+    }
+
     func testFitOnlyModeIgnoresOffsetSync() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [

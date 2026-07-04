@@ -200,7 +200,7 @@ struct BottomWorkspaceView: View {
                 exportSuccessCard(exportedURL)
             }
 
-            if !model.isExporting, let exportReadinessMessage = model.exportReadinessMessage {
+            if !model.isExporting, let exportReadinessMessage = sharedExportReadinessMessage {
                 Label(exportReadinessMessage, systemImage: "info.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -211,8 +211,13 @@ struct BottomWorkspaceView: View {
             }
 
             exportSummaryCard
-            exportModeControl
         }
+    }
+
+    private var sharedExportReadinessMessage: String? {
+        let overlayMessage = model.exportReadinessMessage(for: .overlay)
+        guard overlayMessage == model.exportReadinessMessage(for: .video) else { return nil }
+        return overlayMessage
     }
 
     private var exportProgressCard: some View {
@@ -239,20 +244,6 @@ struct BottomWorkspaceView: View {
         .accessibilityValue(clampedExportProgress.percentString)
     }
 
-    private var exportModeControl: some View {
-        SidebarControl(title: localization.string("sidebar.exportMode")) {
-            Picker(localization.string("sidebar.exportMode"), selection: $model.exportMode) {
-                ForEach(OverlayExportMode.allCases) { mode in
-                    Text(localization.string(mode.localizationKey)).tag(mode)
-                        .disabled(mode == .video && model.videoURL == nil)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-        }
-        .disabled(model.isExporting)
-    }
-
     private var exportActionFooter: some View {
         Group {
             if model.isExporting {
@@ -264,20 +255,43 @@ struct BottomWorkspaceView: View {
                 }
                 .buttonStyle(.bordered)
             } else {
-                Button {
-                    model.export()
-                } label: {
-                    Label(localization.string(model.exportMode == .video ? "sidebar.exportVideo" : "sidebar.exportOverlay"), systemImage: "play.fill")
-                        .frame(maxWidth: .infinity)
+                HStack(spacing: 10) {
+                    exportButton(
+                        mode: .overlay,
+                        titleKey: "sidebar.exportOverlay",
+                        helpKey: "help.exportTransparentOverlay",
+                        systemImage: "square.on.square"
+                    )
+                    exportButton(
+                        mode: .video,
+                        titleKey: "sidebar.exportVideo",
+                        helpKey: "help.exportCompositedVideo",
+                        systemImage: "play.fill"
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!model.canExport)
-                .help(model.exportReadinessMessage ?? localization.string(model.exportMode == .video ? "help.exportCompositedVideo" : "help.exportTransparentOverlay"))
+                .frame(maxWidth: .infinity)
             }
         }
         .controlSize(.large)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    private func exportButton(
+        mode: OverlayExportMode,
+        titleKey: String,
+        helpKey: String,
+        systemImage: String
+    ) -> some View {
+        Button {
+            model.export(as: mode)
+        } label: {
+            Label(localization.string(titleKey), systemImage: systemImage)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!model.canExport(as: mode))
+        .help(model.exportReadinessMessage(for: mode) ?? localization.string(helpKey))
     }
 
     private var exportSummaryCard: some View {
@@ -287,10 +301,6 @@ struct BottomWorkspaceView: View {
                 .foregroundStyle(.secondary)
 
             LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-                SidebarSummaryRow(
-                    title: localization.string("sidebar.exportSummary.type"),
-                    value: localization.string(model.exportMode.localizationKey)
-                )
                 SidebarSummaryRow(
                     title: localization.string("sidebar.exportSummary.resolution"),
                     value: "\(model.outputWidth)×\(model.outputHeight)"
