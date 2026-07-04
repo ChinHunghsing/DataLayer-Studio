@@ -60,6 +60,7 @@
 - 文件和命令输出里不要使用千分位逗号作为可编辑数值格式。
 - 前端/落地页左右展示图必须按实际展示尺寸优化分辨率，优先转成 WebP。
 - 落地页正式站点是 `https://datalayer-studio.ligh-t-ouch.com`，Cloudflare Pages 项目是 `datalayer-studio`，生产分支是 `landing-page`；上线用 `wrangler pages deploy landing-page --project-name=datalayer-studio --branch=landing-page`，不要用 `--branch=main`，那只会发预览环境。
+- 使用 Cloudflare 时只允许使用免费计划/免费额度内可用的功能；启用任何付费计划、付费 add-on、超额计费或可能产生账单的资源前，必须先明确告知并获得用户确认。
 
 ## 禁止事项
 
