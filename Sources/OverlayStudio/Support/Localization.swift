@@ -316,7 +316,6 @@ enum AppLocalizer {
         "help.exportTransparentOverlay": "Export transparent overlay video",
         "help.exportCompositedVideo": "Export source video with overlay burned in",
 
-        "sidebar.workflowTabs": "Workflow steps",
         "sidebar.source.title": "Source",
         "sidebar.source.subtitle": "Video and activity data",
         "debug.title": "Debug",
@@ -754,7 +753,6 @@ enum AppLocalizer {
         "help.exportTransparentOverlay": "导出透明浮层视频",
         "help.exportCompositedVideo": "导出已叠加数据层的视频",
 
-        "sidebar.workflowTabs": "工作流步骤",
         "sidebar.source.title": "素材",
         "sidebar.source.subtitle": "视频和运动数据",
         "debug.title": "调试",
@@ -1192,7 +1190,6 @@ enum AppLocalizer {
         "help.exportTransparentOverlay": "匯出透明浮層影片",
         "help.exportCompositedVideo": "匯出已疊加資料層的影片",
 
-        "sidebar.workflowTabs": "工作流程步驟",
         "sidebar.source.title": "素材",
         "sidebar.source.subtitle": "影片和運動資料",
         "debug.title": "除錯",
@@ -1630,7 +1627,6 @@ enum AppLocalizer {
         "help.exportTransparentOverlay": "透明オーバーレイ動画を書き出す",
         "help.exportCompositedVideo": "オーバーレイを焼き込んだ動画を書き出す",
 
-        "sidebar.workflowTabs": "ワークフロー手順",
         "sidebar.source.title": "ソース",
         "sidebar.source.subtitle": "動画とアクティビティデータ",
         "debug.title": "デバッグ",
