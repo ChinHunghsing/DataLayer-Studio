@@ -157,7 +157,7 @@
       <section class="section-panel section-shell" id="workflow" aria-labelledby="workflow-title">
         <div class="section-heading" data-reveal>
           <p class="section-eyebrow" data-i18n="workflow.eyebrow">工作流</p>
-          <h2 id="workflow-title" data-i18n="workflow.title">从素材到成片，三步完成</h2>
+          <h2 id="workflow-title" data-i18n="workflow.title">从素材到成片，四步完成</h2>
           <p data-i18n="workflow.copy">把原本分散在运动文件、视频时间线和剪辑软件里的步骤，收束成一条可预览的制作流程。</p>
         </div>
         <div class="section-showcase">
@@ -175,16 +175,24 @@
               <div class="step-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"></path></svg>
               </div>
-              <h3 data-i18n="workflow.step2Title">校准与排布</h3>
-              <p data-i18n="workflow.step2Copy">用偏移、FIT 开始或同步点对齐时间，在画布上拖拽每一层数据组件。</p>
+              <h3 data-i18n="workflow.step2Title">校准时间</h3>
+              <p data-i18n="workflow.step2Copy">用偏移、FIT 开始或同步点对齐运动时间和视频时间。</p>
             </li>
             <li data-reveal>
               <span class="step-index">3</span>
               <div class="step-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"></path></svg>
+              </div>
+              <h3 data-i18n="workflow.step3Title">编排数据层</h3>
+              <p data-i18n="workflow.step3Copy">在画布上拖拽每个 gauge，调整位置、尺寸、字体和颜色。</p>
+            </li>
+            <li data-reveal>
+              <span class="step-index">4</span>
+              <div class="step-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M12 4v11M7 9l5-5 5 5M5 20h14"></path></svg>
               </div>
-              <h3 data-i18n="workflow.step3Title">导出结果</h3>
-              <p data-i18n="workflow.step3Copy">生成透明 Alpha 浮层放进剪辑软件，或直接导出已叠加数据层的视频成片。</p>
+              <h3 data-i18n="workflow.step4Title">导出结果</h3>
+              <p data-i18n="workflow.step4Copy">生成透明 Alpha 浮层，或直接导出已叠加数据层的视频成片。</p>
             </li>
           </ol>
         </div>
@@ -285,48 +293,43 @@
       <section class="section-panel section-shell split-panel" id="output" aria-labelledby="output-title">
         <div class="section-heading" data-reveal>
           <p class="section-eyebrow" data-i18n="output.eyebrow">输出</p>
-          <h2 id="output-title" data-i18n="output.title">为剪辑软件准备的透明输出</h2>
+          <h2 id="output-title" data-i18n="output.title">两种输出，对应两种剪辑方式</h2>
         </div>
-        <div class="section-showcase split-layout">
-          <div class="split-copy" data-reveal>
-            <p data-i18n="output.copy">
-              默认生成带 Alpha 通道的 MOV，适合叠放在 Final Cut Pro、DaVinci Resolve、
-              Premiere 或类似剪辑软件的上层轨道。
-            </p>
-            <dl class="split-facts" aria-label="输出能力" data-i18n-attr="aria-label:output.factsLabel">
-              <div>
-                <dt data-i18n="output.factFormatLabel">格式</dt>
-                <dd data-i18n="output.factFormatValue">透明 Alpha MOV</dd>
-              </div>
-              <div>
-                <dt data-i18n="output.factModeLabel">模式</dt>
-                <dd data-i18n="output.factModeValue">浮层或成片</dd>
-              </div>
-              <div>
-                <dt data-i18n="output.factUseLabel">用途</dt>
-                <dd data-i18n="output.factUseValue">剪辑时间线上层轨道</dd>
-              </div>
-            </dl>
-          </div>
-          <div class="output-visual" data-reveal aria-label="透明 Alpha 输出示意" data-i18n-attr="aria-label:output.visualLabel">
-            <div class="alpha-board">
-              <div class="route-line" aria-hidden="true"></div>
-              <div class="distance-bar" aria-hidden="true">
-                <span></span>
-              </div>
-              <div class="metric-stack" aria-hidden="true">
+        <div class="section-showcase output-modes">
+          <article class="output-mode-card" data-reveal>
+            <div class="mode-copy">
+              <span data-i18n="output.overlayKicker">透明浮层</span>
+              <h3 data-i18n="output.overlayTitle">叠到剪辑软件上层轨道</h3>
+              <p data-i18n="output.overlayCopy">导出带 Alpha 通道的 MOV，保留后期调色、裁剪和节奏控制空间。</p>
+            </div>
+            <div class="alpha-board" aria-hidden="true">
+              <div class="route-line"></div>
+              <div class="distance-bar"><span></span></div>
+              <div class="metric-stack">
                 <b>PACE <strong>4:32</strong></b>
                 <b>HR <strong>168</strong></b>
                 <b>CAD <strong>178</strong></b>
               </div>
-              <div class="weather-chip" aria-hidden="true">23°C</div>
+              <div class="weather-chip">23°C</div>
             </div>
-            <div class="export-flow" aria-hidden="true">
-              <span data-i18n="output.exportAlpha">透明 Alpha</span>
-              <svg viewBox="0 0 120 24"><path d="M2 12h104M96 4l12 8-12 8"></path></svg>
-              <span data-i18n="output.exportSource">你的主视频</span>
+          </article>
+          <article class="output-mode-card" data-reveal>
+            <div class="mode-copy">
+              <span data-i18n="output.videoKicker">合成视频</span>
+              <h3 data-i18n="output.videoTitle">直接得到带数据层的成片</h3>
+              <p data-i18n="output.videoCopy">把原视频、音频和数据层一起输出，适合快速交付或无需再进剪辑软件的场景。</p>
             </div>
-          </div>
+            <div class="composite-board" aria-hidden="true">
+              <div class="route-line"></div>
+              <div class="distance-bar"><span></span></div>
+              <div class="metric-stack">
+                <b>PACE <strong>4:32</strong></b>
+                <b>HR <strong>168</strong></b>
+                <b>CAD <strong>178</strong></b>
+              </div>
+              <div class="weather-chip">23°C</div>
+            </div>
+          </article>
         </div>
       </section>
 
