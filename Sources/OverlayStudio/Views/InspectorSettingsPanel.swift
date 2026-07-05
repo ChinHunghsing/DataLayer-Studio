@@ -985,7 +985,7 @@ private struct InspectorFocusedSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            InspectorSectionTitle(section: section, summary: summary, isFocused: true, showsSummary: true)
+            InspectorSectionTitle(section: section, summary: summary, isFocused: true, showsSummary: false)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
 
