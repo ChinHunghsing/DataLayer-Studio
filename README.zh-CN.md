@@ -33,11 +33,7 @@ DataLayer Studio 是独立项目，不隶属于 Telemetry Overlay，也未获得
 
 | 实时预览 | 排布浮层 | 导出透明浮层 |
 | --- | --- | --- |
-| <img src="assets/appstore/v0.1.2/zh-Hans/desktop/01-preview-overlay.png" alt="DataLayer Studio 实时浮层预览" width="100%"> | <img src="assets/appstore/v0.1.2/zh-Hans/desktop/02-arrange-gauges.png" alt="DataLayer Studio 浮层排布界面" width="100%"> | <img src="assets/appstore/v0.1.2/zh-Hans/desktop/03-export-alpha.png" alt="DataLayer Studio 透明浮层导出界面" width="100%"> |
-
-| 数据对比 | 数据指标 |
-| --- | --- |
-| <img src="assets/appstore/v0.1.2/zh-Hans/desktop/04-data-layer-comparison.png" alt="DataLayer Studio 数据层效果对比" width="100%"> | <img src="assets/appstore/v0.1.2/zh-Hans/desktop/05-data-layer-metrics.png" alt="DataLayer Studio 支持的数据指标" width="100%"> |
+| <img src="assets/appstore/v0.1.6/zh-Hans/desktop/01-preview-overlay.png" alt="DataLayer Studio 实时浮层预览" width="100%"> | <img src="assets/appstore/v0.1.6/zh-Hans/desktop/02-arrange-gauges.png" alt="DataLayer Studio 浮层排布界面" width="100%"> | <img src="assets/appstore/v0.1.6/zh-Hans/desktop/03-export-alpha.png" alt="DataLayer Studio 透明浮层导出界面" width="100%"> |
 
 ## 快速开始
 

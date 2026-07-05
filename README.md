@@ -40,7 +40,7 @@ not include proprietary code or assets from Telemetry Overlay.
 
 | Live overlay preview | Arrange gauges | Export alpha overlay |
 | --- | --- | --- |
-| <img src="assets/appstore/v0.1.2/en-US/desktop/01-preview-overlay.png" alt="DataLayer Studio live overlay preview" width="100%"> | <img src="assets/appstore/v0.1.2/en-US/desktop/02-arrange-gauges.png" alt="DataLayer Studio gauge arrangement screen" width="100%"> | <img src="assets/appstore/v0.1.2/en-US/desktop/03-export-alpha.png" alt="DataLayer Studio alpha overlay export screen" width="100%"> |
+| <img src="assets/appstore/v0.1.6/en-US/desktop/01-preview-overlay.png" alt="DataLayer Studio live overlay preview" width="100%"> | <img src="assets/appstore/v0.1.6/en-US/desktop/02-arrange-gauges.png" alt="DataLayer Studio gauge arrangement screen" width="100%"> | <img src="assets/appstore/v0.1.6/en-US/desktop/03-export-alpha.png" alt="DataLayer Studio alpha overlay export screen" width="100%"> |
 
 ## Quick start
 
