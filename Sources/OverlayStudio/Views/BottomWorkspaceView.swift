@@ -11,8 +11,18 @@ struct BottomWorkspaceView: View {
         GridItem(.flexible(minimum: 220), spacing: 14, alignment: .top),
         GridItem(.flexible(minimum: 220), spacing: 14, alignment: .top)
     ]
+    private var contentHeight: (min: CGFloat, ideal: CGFloat, max: CGFloat) {
+        switch selectedTab {
+        case .output:
+            return (196, 304, 348)
+        case .sync, .trim:
+            return (148, 220, 280)
+        }
+    }
 
     var body: some View {
+        let contentHeight = contentHeight
+
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 12) {
@@ -42,7 +52,7 @@ struct BottomWorkspaceView: View {
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(minHeight: 148, idealHeight: 220, maxHeight: 280)
+            .frame(minHeight: contentHeight.min, idealHeight: contentHeight.ideal, maxHeight: contentHeight.max)
 
             if selectedTab == .output {
                 Divider()
