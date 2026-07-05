@@ -129,6 +129,22 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.layout, layoutBeforeApply)
     }
 
+    func testLayoutPresetsForDisplayPinsDefaultThenSortsByUpdatedAt() {
+        let model = StudioModel()
+        let old = Date(timeIntervalSince1970: 10)
+        let newer = Date(timeIntervalSince1970: 20)
+        let newest = Date(timeIntervalSince1970: 30)
+
+        model.layoutPresets = [
+            LayoutPreset(id: "old", name: "Old", layout: .default, createdAt: old, updatedAt: old),
+            LayoutPreset(id: "newest", name: "Newest", layout: .default, createdAt: newest, updatedAt: newest),
+            LayoutPreset(id: "default", name: "Default", layout: .default, createdAt: newer, updatedAt: newer)
+        ]
+        model.defaultLayoutPresetID = "default"
+
+        XCTAssertEqual(model.layoutPresetsForDisplay.map(\.id), ["default", "newest", "old"])
+    }
+
     func testSanitizedOutputDimensionClampsAndRoundsToEvenPixels() {
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(1), 2)
         XCTAssertEqual(StudioModel.sanitizedOutputDimension(2), 2)

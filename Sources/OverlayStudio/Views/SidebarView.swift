@@ -168,7 +168,7 @@ struct SidebarView: View {
                     .foregroundStyle(.secondary)
             } else {
                 VStack(spacing: 8) {
-                    ForEach(model.layoutPresets) { preset in
+                    ForEach(model.layoutPresetsForDisplay) { preset in
                         LayoutPresetRow(
                             preset: preset,
                             isDefault: model.defaultLayoutPresetID == preset.id,
