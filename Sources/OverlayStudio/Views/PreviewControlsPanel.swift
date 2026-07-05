@@ -23,20 +23,14 @@ struct PreviewControlsPanel: View {
     }
 
     private var controlRow: some View {
-        ViewThatFits(in: .horizontal) {
+        VStack(spacing: 8) {
+            timelineSlider
+
             HStack(spacing: 10) {
                 transportControls
-
-                Divider()
-                    .frame(height: 18)
-
+                Spacer(minLength: 12)
                 zoomControls
-            }
-
-            VStack(spacing: 8) {
-                transportControls
-                zoomControls
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .layoutPriority(1)
             }
         }
     }
@@ -53,18 +47,6 @@ struct PreviewControlsPanel: View {
             }
             .disabled(!state.hasPlayer || state.isExporting)
 
-            PreviewTimelineSlider(
-                value: Binding(
-                    get: { state.previewTime },
-                    set: { model.scrubPreview(to: $0) }
-                ),
-                range: state.previewTimeRange,
-                isEnabled: state.hasSeries && !state.isExporting,
-                accessibilityLabel: localization.string("preview.time", formatTimecode(state.previewTime)),
-                onFrameStep: { model.stepPreviewFrame(by: $0) }
-            )
-            .frame(minWidth: 140)
-
             Button {
                 model.markSportStart()
             } label: {
@@ -72,6 +54,19 @@ struct PreviewControlsPanel: View {
             }
             .disabled(!state.hasPlayer || state.isExporting)
         }
+    }
+
+    private var timelineSlider: some View {
+        PreviewTimelineSlider(
+            value: Binding(
+                get: { state.previewTime },
+                set: { model.scrubPreview(to: $0) }
+            ),
+            range: state.previewTimeRange,
+            isEnabled: state.hasSeries && !state.isExporting,
+            accessibilityLabel: localization.string("preview.time", formatTimecode(state.previewTime)),
+            onFrameStep: { model.stepPreviewFrame(by: $0) }
+        )
         .frame(maxWidth: .infinity)
     }
 
