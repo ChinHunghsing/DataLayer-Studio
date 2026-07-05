@@ -225,6 +225,7 @@ struct PreviewCanvasView: View {
             .contentShape(Rectangle())
             .focusable()
             .focused($focusedElementID, equals: element.id)
+            .previewFocusEffectHidden()
             .onMoveCommand { direction in
                 nudgeElement(element.id, direction: direction)
             }
@@ -1063,6 +1064,17 @@ private struct CanvasOverflowInsets {
             top: max(0, ceil(top)),
             bottom: max(0, ceil(bottom))
         )
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func previewFocusEffectHidden() -> some View {
+        if #available(macOS 14.0, *) {
+            focusEffectDisabled()
+        } else {
+            self
+        }
     }
 }
 
