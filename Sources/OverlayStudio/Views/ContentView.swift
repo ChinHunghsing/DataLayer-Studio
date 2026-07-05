@@ -9,6 +9,8 @@ struct ContentView: View {
     @State private var isDebugConsolePresented = false
     @State private var isExportSheetPresented = false
     @State private var isCancelExportConfirmationPresented = false
+    @State private var isStartupSourcePromptPresented = false
+    @State private var didPresentStartupSourcePrompt = false
 
     var body: some View {
         Group {
@@ -21,6 +23,7 @@ struct ContentView: View {
         .onChange(of: previewInvalidationState) { _ in model.refreshOverlayOrPreview() }
         .onAppear {
             model.setResolvedLanguage(localization.resolvedLanguage)
+            presentStartupSourcePromptIfNeeded()
         }
         .onChange(of: localization.selection) { _ in
             model.setResolvedLanguage(localization.resolvedLanguage)
@@ -47,6 +50,14 @@ struct ContentView: View {
             ExportStatusSheet(
                 model: model,
                 isCancelExportConfirmationPresented: $isCancelExportConfirmationPresented
+            )
+            .environmentObject(localization)
+            .environment(\.locale, localization.locale)
+        }
+        .sheet(isPresented: $isStartupSourcePromptPresented) {
+            StartupSourcePromptView(
+                chooseVideo: { dismissStartupSourcePromptAndRun(model.chooseVideo) },
+                chooseActivity: { dismissStartupSourcePromptAndRun(model.chooseFIT) }
             )
             .environmentObject(localization)
             .environment(\.locale, localization.locale)
@@ -130,6 +141,25 @@ struct ContentView: View {
         }
     }
 
+    private func presentStartupSourcePromptIfNeeded() {
+        guard !didPresentStartupSourcePrompt,
+              model.videoURL == nil,
+              model.fitURL == nil
+        else { return }
+
+        didPresentStartupSourcePrompt = true
+        DispatchQueue.main.async {
+            isStartupSourcePromptPresented = true
+        }
+    }
+
+    private func dismissStartupSourcePromptAndRun(_ action: @escaping () -> Void) {
+        isStartupSourcePromptPresented = false
+        DispatchQueue.main.async {
+            action()
+        }
+    }
+
     private var previewCommandActions: PreviewCommandActions {
         PreviewCommandActions(
             isFullscreen: isPreviewFullscreen,
@@ -170,6 +200,55 @@ struct ContentView: View {
     private var canMoveSelectedElementBackward: Bool {
         guard !model.isExporting, let selectedElementIndex else { return false }
         return selectedElementIndex > 0
+    }
+}
+
+private struct StartupSourcePromptView: View {
+    var chooseVideo: () -> Void
+    var chooseActivity: () -> Void
+
+    @EnvironmentObject private var localization: LocalizationStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(.tint)
+                    .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(localization.string("startupPrompt.title"))
+                        .font(.title3.weight(.semibold))
+
+                    Text(localization.string("startupPrompt.message"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button(action: chooseVideo) {
+                    Label(localization.string("startupPrompt.chooseVideo"), systemImage: "film")
+                }
+
+                Button(action: chooseActivity) {
+                    Label(localization.string("startupPrompt.chooseActivity"), systemImage: "figure.run")
+                }
+
+                Spacer()
+
+                Button(localization.string("startupPrompt.close")) {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+            .controlSize(.large)
+        }
+        .padding(24)
+        .frame(width: 460, alignment: .leading)
     }
 }
 
