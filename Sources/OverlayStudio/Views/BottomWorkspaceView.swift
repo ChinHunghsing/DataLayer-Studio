@@ -14,18 +14,22 @@ struct BottomWorkspaceView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Picker(localization.string("workspace.tabs"), selection: $selectedTabRawValue) {
-                    ForEach(BottomWorkspaceTab.allCases) { tab in
-                        Text(localization.string(tab.localizationKey)).tag(tab.rawValue)
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 12) {
+                    Picker(localization.string("workspace.tabs"), selection: $selectedTabRawValue) {
+                        ForEach(BottomWorkspaceTab.allCases) { tab in
+                            Text(localization.string(tab.localizationKey)).tag(tab.rawValue)
+                        }
                     }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 260)
-                .accessibilityLabel(localization.string("workspace.tabs"))
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 260)
+                    .accessibilityLabel(localization.string("workspace.tabs"))
 
-                Spacer(minLength: 0)
+                    Spacer(minLength: 0)
+                }
+
+                WorkspaceTaskHint(message: localization.string(selectedTab.hintLocalizationKey))
             }
             .padding(.horizontal, 16)
             .padding(.top, 10)
@@ -202,35 +206,19 @@ struct BottomWorkspaceView: View {
         VStack(alignment: .leading, spacing: 10) {
             SidebarSubsectionHeader(title: localization.string("sidebar.render"), systemImage: "paperplane")
 
-            if !model.isExporting, let exportReadinessMessage = sharedExportReadinessMessage {
-                Label(exportReadinessMessage, systemImage: "info.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(localization.string("sidebar.exportDisabled"))
-                    .accessibilityValue(exportReadinessMessage)
-            }
-
             exportSummaryCard
         }
     }
 
-    private var sharedExportReadinessMessage: String? {
-        let overlayMessage = model.exportReadinessMessage(for: .overlay)
-        guard overlayMessage == model.exportReadinessMessage(for: .video) else { return nil }
-        return overlayMessage
-    }
-
     private var exportActionFooter: some View {
-        HStack(spacing: 10) {
-            exportButton(
+        HStack(alignment: .top, spacing: 10) {
+            exportActionSlot(
                 mode: .overlay,
                 titleKey: "sidebar.exportOverlay",
                 helpKey: "help.exportTransparentOverlay",
                 systemImage: "square.on.square"
             )
-            exportButton(
+            exportActionSlot(
                 mode: .video,
                 titleKey: "sidebar.exportVideo",
                 helpKey: "help.exportCompositedVideo",
@@ -241,6 +229,34 @@ struct BottomWorkspaceView: View {
         .controlSize(.large)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    private func exportActionSlot(
+        mode: OverlayExportMode,
+        titleKey: String,
+        helpKey: String,
+        systemImage: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            exportButton(
+                mode: mode,
+                titleKey: titleKey,
+                helpKey: helpKey,
+                systemImage: systemImage
+            )
+
+            if !model.isExporting, let message = model.exportReadinessMessage(for: mode) {
+                Label(message, systemImage: "info.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(localization.string("sidebar.exportDisabled"))
+                    .accessibilityValue(message)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func exportButton(
@@ -408,5 +424,29 @@ private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
         case .output:
             return "workspace.output"
         }
+    }
+
+    var hintLocalizationKey: String {
+        switch self {
+        case .sync:
+            return "workspace.sync.hint"
+        case .trim:
+            return "workspace.trim.hint"
+        case .output:
+            return "workspace.output.hint"
+        }
+    }
+}
+
+private struct WorkspaceTaskHint: View {
+    var message: String
+
+    var body: some View {
+        Label(message, systemImage: "info.circle")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .accessibilityElement(children: .combine)
     }
 }

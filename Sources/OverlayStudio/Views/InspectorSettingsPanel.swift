@@ -602,16 +602,10 @@ struct InspectorSettingsPanel: View {
 
     private func layoutSummary(for element: OverlayElement) -> [String] {
         let frame = currentElement(element.id)?.frame ?? element.frame
-        var parts = [
-            "X \(layoutCoordinateLabel(frame.x))",
-            "Y \(layoutCoordinateLabel(frame.y))",
+        return [
+            "X \(layoutCoordinateLabel(frame.x)) · Y \(layoutCoordinateLabel(frame.y))",
             "\(Int((frame.scale * 100).rounded()))%"
         ]
-        let current = currentElement(element.id) ?? element
-        if current.kind.supportsLengthScale {
-            parts.append("\(localization.string("inspector.length")) \(Int((current.customization.lengthScale * 100).rounded()))%")
-        }
-        return parts
     }
 
     private func contentSummary(for element: OverlayElement) -> [String] {
@@ -639,7 +633,7 @@ struct InspectorSettingsPanel: View {
             parts.append(localization.string("inspector.contentHidden"))
         }
 
-        return parts
+        return Array(parts.prefix(2))
     }
 
     private func appearanceSummary(for element: OverlayElement) -> [String] {
@@ -647,11 +641,10 @@ struct InspectorSettingsPanel: View {
         var parts = [String]()
 
         if current.customization.showsPanel {
-            parts.append(localization.string("inspector.panel"))
+            parts.append("\(localization.string("inspector.panel")) \((current.frame.style.panelOpacity ?? model.layout.style.panelOpacity).percentString)")
             if current.customization.panelBorderIsVisible {
                 parts.append(localization.string("inspector.panelBorder"))
             }
-            parts.append((current.frame.style.panelOpacity ?? model.layout.style.panelOpacity).percentString)
         } else {
             parts.append(localization.string("inspector.panelHidden"))
         }
@@ -663,7 +656,7 @@ struct InspectorSettingsPanel: View {
             parts.append(localization.string("inspector.tickMarks"))
         }
 
-        return parts
+        return Array(parts.prefix(2))
     }
 
     private func typographySummary(for element: OverlayElement) -> [String] {
@@ -680,7 +673,7 @@ struct InspectorSettingsPanel: View {
             if current.customization.showsIcon {
                 parts.append("\(localization.string("inspector.icon")) \(fontSizeLabel(id: element.id, role: .icon, kind: element.kind))")
             }
-            return parts
+            return Array(parts.prefix(2))
         }
         if current.customization.showsLabel {
             parts.append("\(localization.string("inspector.label")) \(fontSizeLabel(id: element.id, role: .label, kind: element.kind))")
@@ -692,7 +685,7 @@ struct InspectorSettingsPanel: View {
         if current.customization.showsIcon {
             parts.append("\(localization.string("inspector.icon")) \(fontSizeLabel(id: element.id, role: .icon, kind: element.kind))")
         }
-        return parts
+        return Array(parts.prefix(2))
     }
 
     private func dataSummary(for element: OverlayElement) -> [String] {
@@ -712,7 +705,7 @@ struct InspectorSettingsPanel: View {
             parts.append("OpenWeather")
         }
 
-        return parts
+        return Array(parts.prefix(2))
     }
 
     private func fontSizeLabel(id: String, role: TypographyRole, kind: OverlayComponentID) -> String {
@@ -1027,8 +1020,12 @@ enum InspectorSection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static let displayOrder: [InspectorSection] = [.layout, .content, .appearance, .typography, .data]
-    static let defaultExpandedSections = Set(displayOrder)
-    static let defaultExpandedSectionsRawValue = displayOrder.map(\.rawValue).joined(separator: ",")
+    static let allSections = Set(displayOrder)
+    static let defaultExpandedSections: Set<InspectorSection> = [.layout, .content]
+    static let defaultExpandedSectionsRawValue = displayOrder
+        .filter { defaultExpandedSections.contains($0) }
+        .map(\.rawValue)
+        .joined(separator: ",")
 
     var localizationKey: String {
         switch self {

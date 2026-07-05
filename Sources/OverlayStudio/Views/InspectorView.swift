@@ -199,7 +199,7 @@ private enum InspectorSectionScope: String, CaseIterable, Identifiable {
         case .all, .layout, .content, .appearance, .typography:
             return true
         case .data:
-            return element.kind.supportsValuePrecision || element.kind == .speed
+            return element.kind.supportsValuePrecision || element.kind == .speed || element.kind == .weather
         }
     }
 }
@@ -244,9 +244,9 @@ private struct InspectorSectionScopeBar: View {
             InspectorSectionActionButton(
                 systemName: "rectangle.expand.vertical",
                 title: localization.string("inspector.expandAllSections"),
-                isDisabled: expandedSections == InspectorSection.defaultExpandedSections
+                isDisabled: expandedSections == InspectorSection.allSections
             ) {
-                expandedSections = InspectorSection.defaultExpandedSections
+                expandedSections = InspectorSection.allSections
             }
 
             InspectorSectionActionButton(
@@ -322,7 +322,7 @@ private struct InspectorSectionScopeBar: View {
     private var sectionActionsMenu: some View {
         Menu {
             Button {
-                expandedSections = InspectorSection.defaultExpandedSections
+                expandedSections = InspectorSection.allSections
             } label: {
                 Label(localization.string("inspector.expandAllSections"), systemImage: "rectangle.expand.vertical")
             }

@@ -264,16 +264,7 @@ struct ExportTrimRangeControl: View {
                 Label(localization.string("sidebar.exportRange"), systemImage: "scissors")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Spacer()
-                Button(localization.string("sidebar.exportRange.full"), action: reset)
-                    .controlSize(.small)
             }
-
-            ExportTrimRangeSlider(
-                start: $start,
-                end: $end,
-                sourceDuration: sourceDuration
-            )
 
             HStack(spacing: 6) {
                 Button {
@@ -287,9 +278,19 @@ struct ExportTrimRangeControl: View {
                 } label: {
                     Label(localization.string("sidebar.exportRange.setEnd"), systemImage: "arrow.right.to.line")
                 }
+
+                Spacer(minLength: 6)
+
+                Button(localization.string("sidebar.exportRange.full"), action: reset)
             }
             .labelStyle(.titleAndIcon)
             .controlSize(.small)
+
+            ExportTrimRangeSlider(
+                start: $start,
+                end: $end,
+                sourceDuration: sourceDuration
+            )
 
             HStack(alignment: .top, spacing: 8) {
                 trimValue(label: localization.string("sidebar.exportRange.start"), value: start)

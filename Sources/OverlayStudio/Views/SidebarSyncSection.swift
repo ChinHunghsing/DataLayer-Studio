@@ -6,14 +6,6 @@ struct SidebarSyncSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SyncInfoBox(
-                title: localization.string("sidebar.sync.currentFrame"),
-                message: currentMappingText,
-                systemImage: "arrow.left.arrow.right"
-            )
-
-            SidebarDivider()
-
             if model.videoURL == nil {
                 SyncInfoBox(
                     title: localization.string("sidebar.sync.noVideo.title"),
@@ -30,7 +22,7 @@ struct SidebarSyncSection: View {
     }
 
     private var matchPointControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Button {
                 model.markSportStart()
             } label: {
@@ -44,6 +36,12 @@ struct SidebarSyncSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            SyncInfoBox(
+                title: localization.string("sidebar.sync.currentFrame"),
+                message: currentMappingText,
+                systemImage: "arrow.left.arrow.right"
+            )
 
             TimecodeField(
                 title: localization.string("sidebar.sync.videoTime"),
