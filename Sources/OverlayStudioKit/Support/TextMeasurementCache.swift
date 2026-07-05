@@ -1,12 +1,14 @@
-import AppKit
+import CoreGraphics
+import CoreText
+import Foundation
 import OverlayCore
 
-enum TextMeasurementCache {
+package enum TextMeasurementCache {
     private static let lock = NSLock()
     private static let maximumCachedWidths = 4_096
     private static var cachedWidths: [TextMeasurementKey: CGFloat] = [:]
 
-    static func width(_ text: String, size: CGFloat, fontName: OverlayFontFamily) -> CGFloat {
+    package static func width(_ text: String, size: CGFloat, fontName: OverlayFontFamily) -> CGFloat {
         let normalizedSize = max(0.1, size.isFinite ? size : 12)
         let key = TextMeasurementKey(
             text: text,
@@ -22,8 +24,14 @@ enum TextMeasurementCache {
         lock.unlock()
 
         let fontSize = CGFloat(key.sizeHundredths) / 100
-        let font = NSFont(name: key.postScriptName, size: fontSize) ?? .systemFont(ofSize: fontSize)
-        let width = ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        let font = CTFontCreateWithName(key.postScriptName as CFString, fontSize, nil)
+        let attributedText = CFAttributedStringCreate(
+            nil,
+            text as CFString,
+            [kCTFontAttributeName: font] as CFDictionary
+        )
+        let line = CTLineCreateWithAttributedString(attributedText!)
+        let width = ceil(CTLineGetTypographicBounds(line, nil, nil, nil))
 
         lock.lock()
         if cachedWidths.count >= maximumCachedWidths {
@@ -34,13 +42,13 @@ enum TextMeasurementCache {
         return width
     }
 
-    static func clear() {
+    package static func clear() {
         lock.lock()
         cachedWidths.removeAll(keepingCapacity: true)
         lock.unlock()
     }
 
-    static var cachedWidthCount: Int {
+    package static var cachedWidthCount: Int {
         lock.lock()
         defer { lock.unlock() }
         return cachedWidths.count

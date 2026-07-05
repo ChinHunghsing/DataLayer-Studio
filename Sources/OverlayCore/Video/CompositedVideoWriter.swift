@@ -455,7 +455,9 @@ public final class CompositedVideoWriter {
             codec: codec,
             hardwareProfile: hardwareProfile
         ) {
+            #if os(macOS)
             settings[AVVideoEncoderSpecificationKey] = encoderSpecification
+            #endif
         }
         settings[AVVideoCompressionPropertiesKey] = [
             AVVideoAverageBitRateKey: averageBitRate,

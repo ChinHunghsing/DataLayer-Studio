@@ -1,15 +1,17 @@
-import AppKit
 import AVFoundation
+import CoreGraphics
 import Foundation
 
-final class VideoFrameService {
+package final class VideoFrameService {
     private let lock = NSLock()
     private let frameQueue = DispatchQueue(label: "run.libo.datalayer-studio.video-frame-service", qos: .userInitiated)
     private var cachedVideoURL: URL?
     private var cachedGenerator: AVAssetImageGenerator?
     private var latestFrameRequestID = 0
 
-    func clearCache() {
+    package init() {}
+
+    package func clearCache() {
         lock.lock()
         defer { lock.unlock() }
 
@@ -19,7 +21,7 @@ final class VideoFrameService {
         cachedGenerator = nil
     }
 
-    func frameImage(videoURL: URL, time: TimeInterval) throws -> NSImage {
+    package func frameImage(videoURL: URL, time: TimeInterval) throws -> CGImage {
         let requestID = nextFrameRequestID()
         let requestedTime = CMTime(seconds: max(0, time), preferredTimescale: 600)
         let cgImage: CGImage = try frameQueue.sync { () throws -> CGImage in
@@ -36,7 +38,7 @@ final class VideoFrameService {
         guard isLatestFrameRequest(requestID) else {
             throw CancellationError()
         }
-        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        return cgImage
     }
 
     private func nextFrameRequestID() -> Int {

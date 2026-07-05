@@ -1,8 +1,10 @@
 import XCTest
 import AppKit
 import AVFoundation
+import CoreGraphics
 import OverlayCore
 @testable import OverlayStudio
+@testable import OverlayStudioKit
 
 @MainActor
 final class StudioModelTests: XCTestCase {
@@ -48,14 +50,14 @@ final class StudioModelTests: XCTestCase {
         model.beginGaugeDragInteraction()
         model.refreshOverlayOnly()
         try await waitForOverlayImage(in: model, timeout: 2)
-        XCTAssertEqual(model.overlayImage?.size.width ?? 0, 1_600, accuracy: 1)
-        XCTAssertEqual(model.overlayImage?.size.height ?? 0, 800, accuracy: 1)
+        XCTAssertEqual(model.overlayImage?.width, 1_600)
+        XCTAssertEqual(model.overlayImage?.height, 800)
 
         model.overlayImage = nil
         model.endGaugeDragInteraction()
         try await waitForOverlayImage(in: model, timeout: 2)
-        XCTAssertEqual(model.overlayImage?.size.width ?? 0, 2_000, accuracy: 1)
-        XCTAssertEqual(model.overlayImage?.size.height ?? 0, 1_000, accuracy: 1)
+        XCTAssertEqual(model.overlayImage?.width, 2_000)
+        XCTAssertEqual(model.overlayImage?.height, 1_000)
     }
 
     func testDeleteSelectedElementCanUndoAndRedo() {
@@ -496,8 +498,8 @@ final class StudioModelTests: XCTestCase {
         try await waitForOverlayImage(in: model)
 
         XCTAssertNotNil(model.overlayImage)
-        XCTAssertEqual(model.overlayImage?.size.width ?? 0, 1_280, accuracy: 1)
-        XCTAssertEqual(model.overlayImage?.size.height ?? 0, 720, accuracy: 1)
+        XCTAssertEqual(model.overlayImage?.width, 1_280)
+        XCTAssertEqual(model.overlayImage?.height, 720)
     }
 
     func testPreviewCanvasStateIgnoresUnrelatedDebugLogChanges() {
@@ -668,7 +670,7 @@ final class StudioModelTests: XCTestCase {
             TelemetrySample(elapsed: 0, distanceMeters: 0),
             TelemetrySample(elapsed: 7, distanceMeters: 30)
         ])
-        model.overlayImage = NSImage(size: CGSize(width: 8, height: 8))
+        model.overlayImage = makeBlankCGImage(width: 8, height: 8)
 
         model.scrubPreview(to: 3)
 
@@ -714,6 +716,20 @@ final class StudioModelTests: XCTestCase {
         while model.overlayImage == nil && Date() < deadline {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
+    }
+
+    private func makeBlankCGImage(width: Int, height: Int) -> CGImage {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        return context.makeImage()!
     }
 
     private func waitUntil(timeout: TimeInterval = 2, _ condition: () -> Bool) async throws {

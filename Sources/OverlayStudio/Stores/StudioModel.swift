@@ -3,6 +3,7 @@ import AVFoundation
 import Foundation
 import OSLog
 import OverlayCore
+import OverlayStudioKit
 import UniformTypeIdentifiers
 @preconcurrency import UserNotifications
 
@@ -87,8 +88,8 @@ final class StudioModel: ObservableObject {
     @Published var previewTime: TimeInterval = 0
     @Published var player: AVPlayer?
     @Published var isPlaying = false
-    @Published var backgroundImage: NSImage?
-    @Published var overlayImage: NSImage?
+    @Published var backgroundImage: CGImage?
+    @Published var overlayImage: CGImage?
     @Published var layout: OverlayLayout
     @Published var selectedElementID: String?
     @Published var layoutPresets: [LayoutPreset]
@@ -1118,7 +1119,7 @@ final class StudioModel: ObservableObject {
         previewRenderTask?.cancel()
         previewRenderTask = Task.detached(priority: .userInitiated) { [videoFrameService, previewRenderer] in
             guard !Task.isCancelled else { return }
-            let background: NSImage?
+            let background: CGImage?
             var warningMessage: String?
             do {
                 background = try videoFrameService.frameImage(videoURL: videoURL, time: time)
@@ -1129,7 +1130,7 @@ final class StudioModel: ObservableObject {
                 warningMessage = Self.previewWarningMessage(videoPreviewFailedTitle, error: error)
             }
             guard !Task.isCancelled else { return }
-            let overlay: NSImage?
+            let overlay: CGImage?
             if let currentSeries {
                 do {
                     overlay = try Self.renderOverlayImage(
@@ -1206,7 +1207,7 @@ final class StudioModel: ObservableObject {
         previewRenderTask?.cancel()
         previewRenderTask = Task.detached(priority: .userInitiated) { [previewRenderer] in
             guard !Task.isCancelled else { return }
-            let overlay: NSImage?
+            let overlay: CGImage?
             let warningMessage: String?
             do {
                 overlay = try Self.renderOverlayImage(
@@ -1381,17 +1382,14 @@ final class StudioModel: ObservableObject {
         timeSync: TelemetryTimeSync,
         layout: OverlayLayout,
         distanceUnit: OverlayDistanceUnit
-    ) throws -> NSImage {
-        try NSImage(
-            cgImage: previewRenderer.renderOverlayImage(
-                series: series,
-                size: size,
-                videoTime: videoTime,
-                timeSync: timeSync,
-                layout: layout,
-                distanceUnit: distanceUnit
-            ),
-            size: NSSize(width: size.width, height: size.height)
+    ) throws -> CGImage {
+        try previewRenderer.renderOverlayImage(
+            series: series,
+            size: size,
+            videoTime: videoTime,
+            timeSync: timeSync,
+            layout: layout,
+            distanceUnit: distanceUnit
         )
     }
 

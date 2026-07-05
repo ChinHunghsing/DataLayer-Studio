@@ -430,7 +430,9 @@ public final class TransparentVideoWriter {
             codec: codec,
             hardwareProfile: hardwareProfile
         ) {
+            #if os(macOS)
             settings[AVVideoEncoderSpecificationKey] = encoderSpecification
+            #endif
         }
 
         if codec == .hevcAlpha {

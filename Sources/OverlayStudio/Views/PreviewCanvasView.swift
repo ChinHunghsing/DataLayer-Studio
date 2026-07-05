@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import SwiftUI
 import OverlayCore
+import OverlayStudioKit
 
 struct PreviewCanvasView: View {
     static let componentDragMinimumDistance: CGFloat = 1
@@ -141,7 +142,7 @@ struct PreviewCanvasView: View {
                     .position(x: displayRect.midX, y: displayRect.midY)
                     .allowsHitTesting(false)
             } else if let background = state.backgroundImage {
-                Image(nsImage: background)
+                Image(decorative: background, scale: 1, orientation: .up)
                     .resizable()
                     .scaledToFill()
                     .frame(width: displayRect.width, height: displayRect.height)
@@ -882,8 +883,8 @@ struct PreviewCanvasView: View {
         return CGSize(width: displaySize.width * scale, height: displaySize.height * scale)
     }
 
-    private func overlayImage(_ image: NSImage, displayRect: CGRect) -> some View {
-        Image(nsImage: image)
+    private func overlayImage(_ image: CGImage, displayRect: CGRect) -> some View {
+        Image(decorative: image, scale: 1, orientation: .up)
             .resizable()
             .frame(width: displayRect.width, height: displayRect.height)
             .position(x: displayRect.midX, y: displayRect.midY)
@@ -1002,8 +1003,8 @@ enum PreviewZoomLimits {
 
 struct PreviewCanvasState: Equatable {
     var player: AVPlayer?
-    var backgroundImage: NSImage?
-    var overlayImage: NSImage?
+    var backgroundImage: CGImage?
+    var overlayImage: CGImage?
     var layout: OverlayLayout
     var selectedElementID: String?
     var showGrid: Bool

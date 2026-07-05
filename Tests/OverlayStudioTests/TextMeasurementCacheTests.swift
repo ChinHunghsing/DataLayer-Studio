@@ -1,6 +1,6 @@
 import XCTest
 import OverlayCore
-@testable import OverlayStudio
+@testable import OverlayStudioKit
 
 final class TextMeasurementCacheTests: XCTestCase {
     override func tearDown() {
