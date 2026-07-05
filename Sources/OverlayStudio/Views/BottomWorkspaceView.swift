@@ -228,12 +228,14 @@ struct BottomWorkspaceView: View {
                 helpKey: "help.exportTransparentOverlay",
                 systemImage: "square.on.square"
             )
-            exportActionSlot(
-                mode: .video,
-                titleKey: "sidebar.exportVideo",
-                helpKey: "help.exportCompositedVideo",
-                systemImage: "play.fill"
-            )
+            if model.videoURL != nil {
+                exportActionSlot(
+                    mode: .video,
+                    titleKey: "sidebar.exportVideo",
+                    helpKey: "help.exportCompositedVideo",
+                    systemImage: "play.fill"
+                )
+            }
         }
         .frame(maxWidth: .infinity)
         .controlSize(.large)

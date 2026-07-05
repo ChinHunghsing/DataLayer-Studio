@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var isCancelExportConfirmationPresented = false
     @State private var isStartupSourcePromptPresented = false
     @State private var didPresentStartupSourcePrompt = false
+    @State private var sourceContinuationPrompt: SourceContinuationPrompt?
 
     var body: some View {
         Group {
@@ -27,6 +28,14 @@ struct ContentView: View {
         }
         .onChange(of: localization.selection) { _ in
             model.setResolvedLanguage(localization.resolvedLanguage)
+        }
+        .onChange(of: model.videoURL) { url in
+            guard url != nil, model.fitURL == nil else { return }
+            sourceContinuationPrompt = .activityAfterVideo
+        }
+        .onChange(of: model.fitURL) { url in
+            guard url != nil, model.videoURL == nil else { return }
+            sourceContinuationPrompt = .videoAfterActivity
         }
         .onChange(of: model.isExporting) { isExporting in
             if isExporting {
@@ -61,6 +70,22 @@ struct ContentView: View {
             )
             .environmentObject(localization)
             .environment(\.locale, localization.locale)
+        }
+        .alert(
+            sourceContinuationPrompt.map { localization.string($0.titleKey) } ?? "",
+            isPresented: sourceContinuationPromptBinding
+        ) {
+            if let prompt = sourceContinuationPrompt {
+                Button(localization.string(prompt.primaryActionKey)) {
+                    continueSourceSelection(from: prompt)
+                }
+
+                Button(localization.string("sourceContinuation.later"), role: .cancel) { }
+            }
+        } message: {
+            if let prompt = sourceContinuationPrompt {
+                Text(localization.string(prompt.messageKey))
+            }
         }
         .focusedSceneValue(\.studioCommandActions, studioCommandActions)
         .focusedSceneValue(\.previewCommandActions, previewCommandActions)
@@ -160,6 +185,29 @@ struct ContentView: View {
         }
     }
 
+    private var sourceContinuationPromptBinding: Binding<Bool> {
+        Binding(
+            get: { sourceContinuationPrompt != nil },
+            set: { isPresented in
+                if !isPresented {
+                    sourceContinuationPrompt = nil
+                }
+            }
+        )
+    }
+
+    private func continueSourceSelection(from prompt: SourceContinuationPrompt) {
+        sourceContinuationPrompt = nil
+        DispatchQueue.main.async {
+            switch prompt {
+            case .activityAfterVideo:
+                model.chooseFIT()
+            case .videoAfterActivity:
+                model.chooseVideo()
+            }
+        }
+    }
+
     private var previewCommandActions: PreviewCommandActions {
         PreviewCommandActions(
             isFullscreen: isPreviewFullscreen,
@@ -200,6 +248,38 @@ struct ContentView: View {
     private var canMoveSelectedElementBackward: Bool {
         guard !model.isExporting, let selectedElementIndex else { return false }
         return selectedElementIndex > 0
+    }
+}
+
+private enum SourceContinuationPrompt {
+    case activityAfterVideo
+    case videoAfterActivity
+
+    var titleKey: String {
+        switch self {
+        case .activityAfterVideo:
+            return "sourceContinuation.activityTitle"
+        case .videoAfterActivity:
+            return "sourceContinuation.videoTitle"
+        }
+    }
+
+    var messageKey: String {
+        switch self {
+        case .activityAfterVideo:
+            return "sourceContinuation.activityMessage"
+        case .videoAfterActivity:
+            return "sourceContinuation.videoMessage"
+        }
+    }
+
+    var primaryActionKey: String {
+        switch self {
+        case .activityAfterVideo:
+            return "startupPrompt.chooseActivity"
+        case .videoAfterActivity:
+            return "startupPrompt.chooseVideo"
+        }
     }
 }
 
