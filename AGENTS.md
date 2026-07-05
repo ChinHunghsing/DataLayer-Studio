@@ -31,6 +31,7 @@
 - `Tests/OverlayCLITests/`：命令行参数和布局预设测试。
 - `Resources/`：App 资源和权限配置。
 - `assets/`：README、营销图、App Store 图片和赞助图片。
+- `assets/resource/`：本地验证素材目录，已被 `.gitignore` 忽略；可放一组视频与配套 FIT，当前这组 FIT 的开表时间是视频开始后第 49 秒。此目录只用于本机调试，不提交到 Git。
 - `scripts/`：本地 app bundle 构建、签名、公证、校验脚本。
 - `.github/`：CI、issue 模板、PR 模板。
 
