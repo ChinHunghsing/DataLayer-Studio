@@ -3,8 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="${APP_NAME:-DataLayer Studio}"
+# TestFlight/App Store builds must pass APP_VERSION from ASC; this date default is only for local app bundles.
 # 构建号规则见 AGENTS.md：yyyyMMddNN，同日多次构建用 APP_BUILD 覆盖 NN。
-APP_VERSION="${APP_VERSION:-0.1.4}"
+APP_VERSION="${APP_VERSION:-$(date +%Y.%m.%d)}"
 APP_BUILD="${APP_BUILD:-$(date +%Y%m%d)01}"
 BUNDLE_IDENTIFIER="${BUNDLE_IDENTIFIER:-run.libo.datalayer-studio}"
 SWIFT_PRODUCT="${SWIFT_PRODUCT:-datalayer-studio}"
