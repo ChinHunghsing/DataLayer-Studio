@@ -13,6 +13,8 @@ SIGN_ENTITLEMENTS="$(mktemp "${TMPDIR:-/tmp}/datalayer-appstore-entitlements.XXX
 SIGNED_ENTITLEMENTS="$(mktemp "${TMPDIR:-/tmp}/datalayer-signed-entitlements.XXXXXX.plist")"
 STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/datalayer-appstore-package.XXXXXX")"
 APP_PATH="$STAGING_DIR/$(basename "$SOURCE_APP_PATH")"
+PACKAGE_STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/datalayer-appstore-payload.XXXXXX")"
+PACKAGE_APP_PATH="$PACKAGE_STAGING_DIR/$(basename "$SOURCE_APP_PATH")"
 
 clean_bundle_metadata() {
     find "$APP_PATH" -name '._*' -type f -delete
@@ -21,7 +23,7 @@ clean_bundle_metadata() {
 
 cleanup() {
     rm -f "$PROFILE_PLIST" "$SIGN_ENTITLEMENTS" "$SIGNED_ENTITLEMENTS"
-    rm -rf "$STAGING_DIR"
+    rm -rf "$STAGING_DIR" "$PACKAGE_STAGING_DIR"
 }
 trap cleanup EXIT
 
@@ -92,7 +94,7 @@ cp "$ENTITLEMENTS_PATH" "$SIGN_ENTITLEMENTS"
     /usr/libexec/PlistBuddy -c "Set :com.apple.developer.team-identifier $TEAM_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 /usr/libexec/PlistBuddy -c "Set :com.apple.developer.ubiquity-kvstore-identifier $SIGN_KVSTORE_IDENTIFIER" "$SIGN_ENTITLEMENTS"
 
-COPYFILE_DISABLE=1 ditto "$SOURCE_APP_PATH" "$APP_PATH"
+COPYFILE_DISABLE=1 ditto --norsrc --noextattr --noqtn --noacl "$SOURCE_APP_PATH" "$APP_PATH"
 cp "$PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
 clean_bundle_metadata
 codesign --force --deep --options runtime --entitlements "$SIGN_ENTITLEMENTS" --sign "$APP_IDENTITY" "$APP_PATH"
@@ -124,8 +126,12 @@ if [[ "$signed_kvstore_identifier" != "$SIGN_KVSTORE_IDENTIFIER" ]]; then
     exit 1
 fi
 
+COPYFILE_DISABLE=1 ditto --norsrc --noextattr --noqtn --noacl "$APP_PATH" "$PACKAGE_APP_PATH"
+find "$PACKAGE_APP_PATH" -name '._*' -type f -delete
+codesign --verify --deep --strict --verbose=2 "$PACKAGE_APP_PATH"
+
 rm -f "$PKG_PATH"
-COPYFILE_DISABLE=1 productbuild --component "$APP_PATH" /Applications --sign "$INSTALLER_IDENTITY" "$PKG_PATH"
+COPYFILE_DISABLE=1 productbuild --component "$PACKAGE_APP_PATH" /Applications --sign "$INSTALLER_IDENTITY" "$PKG_PATH"
 pkgutil --check-signature "$PKG_PATH"
 
 echo "$PKG_PATH"
