@@ -12,6 +12,22 @@
   <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified badge" width="220">
 </p>
 
+## Support
+
+DataLayer Studio is maintained as an independent source-available project. If it
+helps your running-video workflow, sponsorship helps fund testing, sample
+activities, and ongoing maintenance.
+
+Choose any of the channels below. For WeChat Pay or Alipay, scan the QR code.
+
+| Buy Me a Coffee | WeChat Pay | Alipay |
+| --- | --- | --- |
+| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsor QR code" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsor QR code" width="180"> |
+
+Sponsorship is optional and does not purchase a commercial license, priority
+support, or guaranteed feature work. Commercial use still requires a separate
+written license.
+
 DataLayer Studio turns running telemetry into clean video overlays for race
 recaps, training breakdowns, and social clips. Use the macOS editor for visual
 layout work, or the command-line tool for repeatable exports.
@@ -71,22 +87,6 @@ swift run overlay \
   --fit /path/to/activity.fit \
   --output /path/to/overlay.mov
 ```
-
-## Support
-
-DataLayer Studio is maintained as an independent source-available project. If it
-helps your running-video workflow, sponsorship helps fund testing, sample
-activities, and ongoing maintenance.
-
-Choose any of the channels below. For WeChat Pay or Alipay, scan the QR code.
-
-| Buy Me a Coffee | WeChat Pay | Alipay |
-| --- | --- | --- |
-| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsor QR code" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsor QR code" width="180"> |
-
-Sponsorship is optional and does not purchase a commercial license, priority
-support, or guaranteed feature work. Commercial use still requires a separate
-written license.
 
 ## License
 

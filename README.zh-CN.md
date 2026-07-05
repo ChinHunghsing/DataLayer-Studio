@@ -12,6 +12,18 @@
   <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified badge" width="220">
 </p>
 
+## 赞助
+
+DataLayer Studio 是一个独立维护的 source-available 项目。如果它对你的跑步视频制作有帮助，赞助可以支持后续测试、样本整理和持续维护。
+
+可以任选下面任一渠道。微信或支付宝请扫描二维码。
+
+| Buy Me a Coffee | 微信支付 | 支付宝 |
+| --- | --- | --- |
+| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="微信赞助二维码" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="支付宝赞助二维码" width="180"> |
+
+赞助是自愿支持，不等同于购买商业授权、优先支持或功能承诺。商业使用仍需另行获得书面授权。
+
 DataLayer Studio 可以把跑步运动数据做成清爽的视频数据层，适合比赛回顾、训练分析和社交短片。你可以用 macOS 编辑器可视化排版，也可以用命令行批量导出。
 
 它需要：
@@ -64,18 +76,6 @@ swift run overlay \
   --fit /path/to/activity.fit \
   --output /path/to/overlay.mov
 ```
-
-## 赞助
-
-DataLayer Studio 是一个独立维护的 source-available 项目。如果它对你的跑步视频制作有帮助，赞助可以支持后续测试、样本整理和持续维护。
-
-可以任选下面任一渠道。微信或支付宝请扫描二维码。
-
-| Buy Me a Coffee | 微信支付 | 支付宝 |
-| --- | --- | --- |
-| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="微信赞助二维码" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="支付宝赞助二维码" width="180"> |
-
-赞助是自愿支持，不等同于购买商业授权、优先支持或功能承诺。商业使用仍需另行获得书面授权。
 
 ## 授权
 
