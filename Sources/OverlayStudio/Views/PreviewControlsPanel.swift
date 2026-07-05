@@ -46,13 +46,6 @@ struct PreviewControlsPanel: View {
                 )
             }
             .disabled(!state.hasPlayer || state.isExporting)
-
-            Button {
-                model.markSportStart()
-            } label: {
-                Label(localization.string("toolbar.sportStart"), systemImage: "figure.run.circle")
-            }
-            .disabled(!state.hasPlayer || state.isExporting)
         }
     }
 
