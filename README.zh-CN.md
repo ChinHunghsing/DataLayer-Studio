@@ -1,16 +1,62 @@
-# DataLayer Studio
+<p align="center">
+  <img src="Resources/AppIcon.png" alt="DataLayer Studio 图标" width="96">
+</p>
 
-[English](README.md) | [中文](README.zh-CN.md)
+<h1 align="center">DataLayer Studio</h1>
 
-<p>
+<p align="center">
+  把原始跑步运动数据，变成有电影感的视频数据层。<br>
+  同步 <code>.fit</code> 文件与你的素材，在画布上实时排布数据浮层，从 macOS 应用或命令行导出可直接使用的成片。
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.zh-CN.md"><b>中文</b></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/leeeboo/DataLayer-Studio/actions/workflows/ci.yml"><img src="https://github.com/leeeboo/DataLayer-Studio/actions/workflows/ci.yml/badge.svg" alt="CI 状态"></a>
+  <a href="https://github.com/leeeboo/DataLayer-Studio/releases/latest"><img src="https://img.shields.io/github/v/release/leeeboo/DataLayer-Studio?label=release" alt="最新版本"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%2013%2B-blue" alt="平台：macOS 13+">
+  <img src="https://img.shields.io/badge/chip-Apple%20Silicon-black?logo=apple&logoColor=white" alt="需要 Apple Silicon">
+  <img src="https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white" alt="Swift 5.9">
+  <img src="https://img.shields.io/badge/license-source--available-orange" alt="Source-available 许可证">
+</p>
+
+<p align="center">
   <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">
-    <img src="assets/readme/download-on-the-app-store.svg" alt="Download on the App Store" width="180">
+    <img src="assets/readme/download-on-the-app-store.svg" alt="在 App Store 下载" width="180">
   </a>
 </p>
 
-<p>
-  <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified badge" width="220">
+<p align="center">
+  <img src="assets/readme/app-showcase.png" alt="DataLayer Studio 编辑器界面，展示配速、心率、步频与轨迹等数据浮层与跑步素材实时同步预览" width="100%">
 </p>
+
+<p align="center">
+  <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified 徽章" width="220">
+</p>
+
+<br>
+
+## 目录
+
+- [赞助](#赞助)
+- [这是什么](#这是什么)
+- [最低系统要求](#最低系统要求)
+- [亮点](#亮点)
+- [App Store 截图](#app-store-截图)
+- [快速开始](#快速开始)
+- [授权](#授权)
+- [参与贡献](#参与贡献)
+- [使用情况监控](#使用情况监控)
+- [Issue](#issue)
+- [构建](#构建)
+- [图形界面](#图形界面)
+- [命令行用法](#命令行用法)
+- [时间同步](#时间同步)
+- [当前-fit-支持](#当前-fit-支持)
+- [发布](#发布)
 
 ## 赞助
 
@@ -24,6 +70,8 @@ DataLayer Studio 是一个独立维护的 source-available 项目。如果它对
 
 赞助是自愿支持，不等同于购买商业授权、优先支持或功能承诺。商业使用仍需另行获得书面授权。
 
+## 这是什么
+
 DataLayer Studio 可以把跑步运动数据做成清爽的视频数据层，适合比赛回顾、训练分析和社交短片。你可以用 macOS 编辑器可视化排版，也可以用命令行批量导出。
 
 它需要：
@@ -33,7 +81,7 @@ DataLayer Studio 可以把跑步运动数据做成清爽的视频数据层，适
 
 它既可以导出带 alpha 通道的透明 `.mov`，放在 Final Cut Pro、DaVinci Resolve、Premiere 等剪辑软件的上层轨道，也可以直接导出已经叠加数据层的成片。
 
-DataLayer Studio 是独立项目，不隶属于 Telemetry Overlay，也未获得 Telemetry Overlay 或其开发者的认可、赞助或授权。本项目不会读取或修改 `/Applications/Telemetry Overlay.app`，也不包含 Telemetry Overlay 的专有代码或素材。
+> DataLayer Studio 是独立项目，不隶属于 Telemetry Overlay，也未获得 Telemetry Overlay 或其开发者的认可、赞助或授权。本项目不会读取或修改 `/Applications/Telemetry Overlay.app`，也不包含 Telemetry Overlay 的专有代码或素材。
 
 ## 最低系统要求
 
@@ -41,11 +89,13 @@ DataLayer Studio 是独立项目，不隶属于 Telemetry Overlay，也未获得
 
 ## 亮点
 
-- 用匹配点同步视频时间线和 FIT 运动时间。
-- 在实时预览画布上摆放配速、心率、步频、轨迹、距离、时间、天气等数据浮层。
-- 保存可复用布局预设，适配不同视频风格。
-- 导出透明 HEVC/ProRes Alpha 浮层，或导出已合成的数据视频。
-- 命令行和图形界面使用同一套渲染逻辑，适合批量流程。
+| | |
+| --- | --- |
+| 🎯 **精准同步** | 用匹配点、elapsed 偏移或手动同步点，把视频时间线和 FIT 运动时间精确对齐。 |
+| 🖱 **实时排布画布** | 在实时视频预览上摆放配速、心率、步频、轨迹、距离、时间、天气等数据浮层。 |
+| 💾 **可复用预设** | 保存布局预设，跨视频、跨风格重复使用。 |
+| 🎬 **透明或合成导出** | 导出可放入剪辑软件的透明 HEVC/ProRes Alpha 浮层，或直接导出已合成的成片。 |
+| ⚙️ **命令行可编排** | 命令行和图形界面使用同一套渲染逻辑，适合批量与自动化流程。 |
 
 ## App Store 截图
 

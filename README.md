@@ -1,16 +1,62 @@
-# DataLayer Studio
+<p align="center">
+  <img src="Resources/AppIcon.png" alt="DataLayer Studio icon" width="96">
+</p>
 
-[English](README.md) | [中文](README.zh-CN.md)
+<h1 align="center">DataLayer Studio</h1>
 
-<p>
+<p align="center">
+  Turn raw running telemetry into cinematic video overlays.<br>
+  Sync a <code>.fit</code> file to your footage, arrange live gauges on a canvas, and export broadcast-ready overlays — from the macOS app or the command line.
+</p>
+
+<p align="center">
+  <a href="README.md"><b>English</b></a> ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/leeeboo/DataLayer-Studio/actions/workflows/ci.yml"><img src="https://github.com/leeeboo/DataLayer-Studio/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/leeeboo/DataLayer-Studio/releases/latest"><img src="https://img.shields.io/github/v/release/leeeboo/DataLayer-Studio?label=release" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/platform-macOS%2013%2B-blue" alt="Platform: macOS 13+">
+  <img src="https://img.shields.io/badge/chip-Apple%20Silicon-black?logo=apple&logoColor=white" alt="Requires Apple Silicon">
+  <img src="https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white" alt="Swift 5.9">
+  <img src="https://img.shields.io/badge/license-source--available-orange" alt="Source-available license">
+</p>
+
+<p align="center">
   <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">
     <img src="assets/readme/download-on-the-app-store.svg" alt="Download on the App Store" width="180">
   </a>
 </p>
 
-<p>
+<p align="center">
+  <img src="assets/readme/app-showcase.png" alt="DataLayer Studio editor showing a live overlay preview with pace, heart rate, cadence, and route data synced to running footage" width="100%">
+</p>
+
+<p align="center">
   <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified badge" width="220">
 </p>
+
+<br>
+
+## Contents
+
+- [Support](#support)
+- [What it does](#what-it-does)
+- [System requirements](#system-requirements)
+- [Highlights](#highlights)
+- [App Store screenshots](#app-store-screenshots)
+- [Quick start](#quick-start)
+- [License](#license)
+- [Contributing](#contributing)
+- [Monitoring](#monitoring)
+- [Issues](#issues)
+- [Build](#build)
+- [GUI](#gui)
+- [CLI usage](#cli-usage)
+- [Time sync](#time-sync)
+- [Current FIT support](#current-fit-support)
+- [Release](#release)
 
 ## Support
 
@@ -28,6 +74,8 @@ Sponsorship is optional and does not purchase a commercial license, priority
 support, or guaranteed feature work. Commercial use still requires a separate
 written license.
 
+## What it does
+
 DataLayer Studio turns running telemetry into clean video overlays for race
 recaps, training breakdowns, and social clips. Use the macOS editor for visual
 layout work, or the command-line tool for repeatable exports.
@@ -41,10 +89,10 @@ It can export either a transparent alpha `.mov` for Final Cut Pro, DaVinci
 Resolve, Premiere, and similar editors, or a finished video with the overlay
 burned in.
 
-DataLayer Studio is an independent project. It is not affiliated with,
-endorsed by, or sponsored by Telemetry Overlay or its developers. This project
-does not read from or modify `/Applications/Telemetry Overlay.app`, and it does
-not include proprietary code or assets from Telemetry Overlay.
+> DataLayer Studio is an independent project. It is not affiliated with,
+> endorsed by, or sponsored by Telemetry Overlay or its developers. This
+> project does not read from or modify `/Applications/Telemetry Overlay.app`,
+> and it does not include proprietary code or assets from Telemetry Overlay.
 
 ## System requirements
 
@@ -52,11 +100,13 @@ not include proprietary code or assets from Telemetry Overlay.
 
 ## Highlights
 
-- Sync a video with FIT activity time using match points.
-- Arrange pace, heart rate, cadence, route, distance, time, weather, and other gauges on a live preview canvas.
-- Save reusable layout presets for different video styles.
-- Export transparent HEVC/ProRes Alpha overlays or composited videos.
-- Run the same renderer from the CLI for scripted workflows.
+| | |
+| --- | --- |
+| 🎯 **Frame-accurate sync** | Sync a video with FIT activity time using match points, an elapsed offset, or a manual sync point. |
+| 🖱 **Live layout canvas** | Arrange pace, heart rate, cadence, route, distance, time, weather, and other gauges over a live video preview. |
+| 💾 **Reusable presets** | Save layout presets and reuse them across different videos and styles. |
+| 🎬 **Alpha or burned-in export** | Export transparent HEVC/ProRes Alpha overlays for your NLE, or a fully composited video. |
+| ⚙️ **Scriptable CLI** | Drive the same renderer from the command line for repeatable, automatable exports. |
 
 ## App Store screenshots
 
