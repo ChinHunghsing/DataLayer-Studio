@@ -14,6 +14,7 @@
 - GitHub Release 流程：先 `git fetch --tags` 并确认当前分支不落后、工作区干净、目标 tag 不存在；先让 `main` 的 CI 通过，再创建 `vX.Y.Z` tag 并 `git push origin vX.Y.Z`。
 - `v*` tag 会触发 `.github/workflows/release.yml`：运行测试、构建、签名、公证，并创建/更新 GitHub Release，上传 zip 和 sha256。发布后必须用 `gh run list` / `gh run watch` 确认 release workflow 成功，再用 `gh release view <tag>` 核对资产。
 - GitHub Release 资产必须做下载后验证：下载 zip、核对 sha256、解压后运行 `codesign --verify --deep --strict`、`xcrun stapler validate`、`spctl -a -vv -t exec`，三者都通过才算“用户可直接运行”。
+- 在 Codex 沙箱内运行 `codesign` / `stapler` / `spctl` 可能对已签名公证的 GitHub 下载包给出假阴性（例如 `invalid signature`、`kLSDataUnavailableErr`、`internal error in Code Signing subsystem`）；Release 资产验证必须脱沙箱执行这三条命令，只有脱沙箱仍失败才修签名或重打包。
 - release workflow 失败时，先修复并推送新提交，确认 `main` CI 通过后再处理 tag；不要无原因覆盖或移动已发布 tag。
 
 ## 项目结构
