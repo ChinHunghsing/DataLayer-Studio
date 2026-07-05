@@ -3,6 +3,12 @@
 [English](README.md) | [中文](README.zh-CN.md)
 
 <p>
+  <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">
+    <img src="assets/readme/download-on-the-app-store.svg" alt="Download on the App Store" width="180">
+  </a>
+</p>
+
+<p>
   <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified badge" width="220">
 </p>
 
