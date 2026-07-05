@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import OverlayCore
 
@@ -137,6 +138,7 @@ struct LayoutPresetRow: View {
     var apply: () -> Void
     var makeDefault: () -> Void
     var delete: () -> Void
+    @Environment(\.locale) private var locale
     @EnvironmentObject private var localization: LocalizationStore
     @State private var isConfirmingApply = false
     @State private var isConfirmingDelete = false
@@ -154,7 +156,7 @@ struct LayoutPresetRow: View {
                             .foregroundStyle(.tint)
                     }
                 }
-                Text(localization.string("preset.gaugeCount", preset.layout.elements.count))
+                Text(localization.string("preset.createdAt", formattedCreatedAt))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -207,6 +209,19 @@ struct LayoutPresetRow: View {
         } message: {
             Text(localization.string("preset.deleteDialogMessage"))
         }
+    }
+
+    private var formattedCreatedAt: String {
+        preset.createdAt.formatted(
+            .dateTime
+                .year()
+                .month()
+                .day()
+                .hour()
+                .minute()
+                .second()
+                .locale(locale)
+        )
     }
 }
 

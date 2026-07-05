@@ -453,7 +453,7 @@ enum AppLocalizer {
         "sidebar.exportVideo": "Export Video",
 
         "preset.default": "Default",
-        "preset.gaugeCount": "%d gauges",
+        "preset.createdAt": "Created %@",
         "preset.apply": "Load",
         "preset.applyHelp": "Load preset",
         "preset.applyDialogTitle": "Load layout preset?",
@@ -895,7 +895,7 @@ enum AppLocalizer {
         "sidebar.exportVideo": "导出视频",
 
         "preset.default": "默认",
-        "preset.gaugeCount": "%d 个浮层",
+        "preset.createdAt": "创建于 %@",
         "preset.apply": "载入",
         "preset.applyHelp": "载入预设",
         "preset.applyDialogTitle": "载入布局预设？",
@@ -1337,7 +1337,7 @@ enum AppLocalizer {
         "sidebar.exportVideo": "匯出影片",
 
         "preset.default": "預設",
-        "preset.gaugeCount": "%d 個浮層",
+        "preset.createdAt": "建立於 %@",
         "preset.apply": "載入",
         "preset.applyHelp": "載入預設",
         "preset.applyDialogTitle": "載入布局預設？",
@@ -1779,7 +1779,7 @@ enum AppLocalizer {
         "sidebar.exportVideo": "動画を書き出す",
 
         "preset.default": "既定",
-        "preset.gaugeCount": "%d 個のゲージ",
+        "preset.createdAt": "作成 %@",
         "preset.apply": "読み込む",
         "preset.applyHelp": "プリセットを読み込む",
         "preset.applyDialogTitle": "配置プリセットを読み込みますか？",
