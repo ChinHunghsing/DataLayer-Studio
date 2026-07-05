@@ -1,5 +1,6 @@
 .build/
 .DS_Store
+.wrangler/
 
 # Local activity data, videos, exports, and signing secrets.
 # Do not force-add private source media or telemetry files to public PRs.
