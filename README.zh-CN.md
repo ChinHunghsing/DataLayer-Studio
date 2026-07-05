@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/app-showcase.png" alt="DataLayer Studio 编辑器界面，展示配速、心率、步频与轨迹等数据浮层与跑步素材实时同步预览" width="100%">
+  <img src="assets/appstore/v0.1.6/zh-Hans/desktop@2x/01-preview-overlay.png" alt="DataLayer Studio 编辑器界面，展示配速、心率、步频与轨迹等数据浮层与跑步素材实时同步预览" width="100%">
 </p>
 
 <p align="center">
