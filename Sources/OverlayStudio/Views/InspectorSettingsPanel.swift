@@ -645,8 +645,6 @@ struct InspectorSettingsPanel: View {
             if current.customization.panelBorderIsVisible {
                 parts.append(localization.string("inspector.panelBorder"))
             }
-        } else {
-            parts.append(localization.string("inspector.panelHidden"))
         }
         if current.kind.supportsLineWidth {
             parts.append("\(Int(current.customization.lineWidth.rounded())) px")
