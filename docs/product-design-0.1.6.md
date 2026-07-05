@@ -1,8 +1,8 @@
 # DataLayer Studio 产品文档 · 0.1.6 规划基线
 
-> 面向开发团队。第 1–6 章记录 **0.1.5 基线的现状（as-is）**：界面结构、用户可用功能、状态与边界；第 7 章记录团队用的 **设计 Skills 工作流**；第 8 章是 **0.1.6 版本规划**。
+> 面向开发团队。第 1–6 章记录 0.1.5 工作台改造后的基线现状：界面结构、用户可用功能、状态与边界；第 7 章记录团队用的 **设计 Skills 工作流**；第 8 章是 **0.1.6 版本规划**。
 >
-> 版本上下文：线上最新 tag `v0.1.4`；进行中 `0.1.5`（工作台重构，见 `docs/ui-ue-workbench-plan-0.1.5.md`，阶段 1–4 完成、5–9 待做）；本文规划下一个 `0.1.6`。
+> 版本上下文：本文汇总 0.1.5 工作台改造后的产品基线，并收敛 0.1.6 的小范围收尾计划。
 >
 > 对外名称统一写 **DataLayer Studio**。以下描述均以当前 `Sources/OverlayStudio` 代码为准，不含移动端（另见 `docs/ipad-*`、`docs/iphone-*`）。
 
@@ -182,7 +182,7 @@ DataLayer Studio 是一款 **macOS 原生桌面应用**，把运动手表 / 码�
 
 ## 6. 0.1.5 剩余摊子（承接到 0.1.6 的基线）
 
-`ui-ue-workbench-plan-0.1.5.md` 阶段 1–4 完成，阶段 5–9 是未完成的可用性收尾：
+0.1.5 工作台改造阶段 1–4 已完成，阶段 5–9 的可用性收尾承接到 0.1.6：
 
 - **阶段 5 Inspector 二次打磨**：五分段默认展开与顺序、折叠摘要降噪、高频动作前置。
 - **阶段 6 底部工作区流程提示**：同步/裁剪/输出之间不靠猜；导出不可用原因前置到按钮旁。
@@ -212,7 +212,7 @@ DataLayer Studio 是一款 **macOS 原生桌面应用**，把运动手表 / 码�
 
 说明与修正：
 
-- 0.1.5 计划表里的 `build-macos-apps:swiftui-patterns` **当前技能列表中不存在**；macOS 结构/commands/Inspector/split layout 的需求改用 **`swiftui-expert-skill`**，性能相关用 `swiftui-performance`。
+- 早期计划表里的 `build-macos-apps:swiftui-patterns` **当前技能列表中不存在**；macOS 结构/commands/Inspector/split layout 的需求改用 **`swiftui-expert-skill`**，性能相关用 `swiftui-performance`。
 - 更主观的视觉风格升级（`impeccable` / `delight` / `bolder` 等）本轮**不启用**，避免偏离既有产品约定与品牌方向；确需做时先补项目设计上下文再评估。
 
 Skills 只是加速审查与打磨，**不替代**第 1 章红线和第 8 章验证；skill 产出的结论仍要落到 `StudioModel` 共享根因与四语言文案。
