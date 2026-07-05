@@ -1,0 +1,173 @@
+# DataLayer Studio iPadOS 开发与真机测试备忘
+
+| 项目 | 内容 |
+| --- | --- |
+| 状态 | 本地开发备忘 |
+| 日期 | 2026-07-06 |
+| 适用范围 | `OverlayTouch`、未来 iOS/iPadOS Xcode app shell、真机签名与安装启动验证 |
+
+## 0. 原则
+
+- iPadOS/iOS 开发不能影响 macOS 端既有功能、视觉表现、导出结果和构建/发布流程。
+- 当前仓库只提交 SwiftPM 代码；真机验证用的临时 Xcode app shell 放 `/tmp`，不要提交。
+- 本地视频、FIT、导出产物和 `assets/resource/` 都不要提交。
+- 涉及共享层或平台条件编译后，至少跑 macOS 回归：`swift test`、`scripts/build_app_bundle.sh`、`scripts/verify_app_bundle.sh`。
+
+## 1. 已验证环境
+
+- Xcode：26.6，Build `17F113`。
+- SDK：iOS/iPhoneOS 26.5。
+- 真机：M1 iPad Pro，iPadOS 27.0 beta。
+- 结论：iPadOS 27 beta 真机可以安装并启动 Xcode 26.6 / iOS SDK 26.5 构建的最小 App。
+- 当前组织开发团队：`LIGHTOUCH K.K.`，命令行签名使用 `DEVELOPMENT_TEAM=XUQV24QYZM`。
+- 备注：如果钥匙串里同时有 Personal Team 的 Apple Development 证书，不要默认拿它做 `DEVELOPMENT_TEAM`；P0 测试时组织 Team 构建、安装和启动成功。
+
+## 2. 设备准备
+
+1. iPad 用线连接 Mac，并在设备上信任这台 Mac。
+2. 打开 Developer Mode：iPad `Settings` -> `Privacy & Security` -> `Developer Mode`，打开后按系统提示重启并确认。
+3. Xcode `Settings` -> `Apple Accounts` 中确认已登录开发账号，且 `LIGHTOUCH K.K.` 团队可见。
+4. 查设备：
+
+```sh
+xcrun devicectl list devices
+```
+
+5. 查设备详情，把 `$DEVICE_ID` 换成上一步看到的设备标识：
+
+```sh
+xcrun devicectl device info details --device "$DEVICE_ID"
+```
+
+需要看到：
+
+- `developerModeStatus: enabled`
+- `ddiServicesAvailable: true`
+- install / launch capabilities 可用
+
+## 3. 签名检查
+
+查看本机代码签名身份：
+
+```sh
+security find-identity -p codesigning -v
+```
+
+真机 Debug 构建默认传：
+
+```sh
+DEVELOPMENT_TEAM=XUQV24QYZM
+```
+
+不要提交证书、provisioning profile、`.apple.env.local` 或任何私钥。
+
+## 4. SwiftPM iPhoneOS 编译
+
+当前已提交的 iPadOS 入口是 SwiftPM library target：`OverlayTouch`。先确认它能为 iPhoneOS SDK 编译：
+
+```sh
+IOS_SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+IOS_PLATFORM="$(xcrun --sdk iphoneos --show-sdk-platform-path)"
+swift build --target OverlayTouch \
+  --triple arm64-apple-ios26.0 \
+  --sdk "$IOS_SDK" \
+  -Xswiftc -sdk -Xswiftc "$IOS_SDK" \
+  -Xswiftc -F -Xswiftc "$IOS_PLATFORM/Developer/Library/Frameworks"
+```
+
+也可以让 Xcode 直接构建 SwiftPM scheme：
+
+```sh
+xcodebuild -scheme OverlayTouch \
+  -destination generic/platform=iOS \
+  -derivedDataPath /tmp/datalayer-overlaytouch-package-build \
+  build
+```
+
+如果只是改文档，不需要跑这些命令。
+
+## 5. 真机 App 壳验证
+
+在正式 iOS Xcode 工程提交前，用 `/tmp` 下的临时 Xcode app shell 做真机验证。这个 shell 只需要：
+
+```swift
+import OverlayTouch
+import SwiftUI
+
+@main
+struct OverlayTouchHostApp: App {
+    var body: some Scene {
+        WindowGroup {
+            OverlayTouchRootView()
+        }
+    }
+}
+```
+
+临时工程需引用本地 SwiftPM package：`/Users/albert/Develop/Shadow-TV/Overlay`，App bundle id 可用：
+
+```text
+run.libo.datalayer-studio.overlaytouchhost
+```
+
+构建到真机：
+
+```sh
+xcodebuild \
+  -project /tmp/datalayer-overlaytouch-host/OverlayTouchHost.xcodeproj \
+  -scheme OverlayTouchHost \
+  -configuration Debug \
+  -destination id="$DEVICE_ID" \
+  -derivedDataPath /tmp/datalayer-overlaytouch-host/DerivedData \
+  DEVELOPMENT_TEAM=XUQV24QYZM \
+  -allowProvisioningUpdates \
+  -allowProvisioningDeviceRegistration \
+  build
+```
+
+安装：
+
+```sh
+xcrun devicectl device install app \
+  --device "$DEVICE_ID" \
+  /tmp/datalayer-overlaytouch-host/DerivedData/Build/Products/Debug-iphoneos/OverlayTouchHost.app
+```
+
+启动：
+
+```sh
+xcrun devicectl device process launch \
+  --device "$DEVICE_ID" \
+  --terminate-existing \
+  run.libo.datalayer-studio.overlaytouchhost
+```
+
+当前 Xcode 26.6 的 `devicectl` 没有截图子命令；启动后视觉确认需要看 iPad 屏幕。
+
+## 6. 本地样本素材
+
+本地样本放：
+
+```text
+assets/resource/
+```
+
+该目录已被 `.gitignore` 忽略。当前样本是一段视频与配套 FIT，FIT 的开表时间是视频开始后第 49 秒；做同步验证时，应把视频 `00:00:49` 对齐到 FIT elapsed `0`。
+
+## 7. 完成前回归
+
+改 `OverlayCore`、`OverlayStudioKit`、平台条件编译或任何可能影响 macOS 的代码后，至少跑：
+
+```sh
+swift test
+scripts/build_app_bundle.sh
+scripts/verify_app_bundle.sh
+```
+
+改 iPadOS/iOS 入口时，至少跑：
+
+```sh
+swift build --target OverlayTouch
+```
+
+并按第 4 节跑一次 iPhoneOS 编译。需要确认真机链路时，再按第 5 节安装启动。
