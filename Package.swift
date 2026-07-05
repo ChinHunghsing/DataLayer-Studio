@@ -13,7 +13,8 @@ let package = Package(
         .executable(name: "datalayer-studio", targets: ["OverlayStudio"]),
         .executable(name: "overlay-studio", targets: ["OverlayStudio"]),
         .library(name: "OverlayCore", targets: ["OverlayCore"]),
-        .library(name: "OverlayStudioKit", targets: ["OverlayStudioKit"])
+        .library(name: "OverlayStudioKit", targets: ["OverlayStudioKit"]),
+        .library(name: "OverlayTouch", targets: ["OverlayTouch"])
     ],
     targets: [
         .target(
@@ -34,6 +35,11 @@ let package = Package(
             name: "OverlayStudio",
             dependencies: ["OverlayCore", "OverlayStudioKit"],
             path: "Sources/OverlayStudio"
+        ),
+        .target(
+            name: "OverlayTouch",
+            dependencies: ["OverlayCore", "OverlayStudioKit"],
+            path: "Sources/OverlayTouch"
         ),
         .testTarget(
             name: "OverlayCoreTests",
