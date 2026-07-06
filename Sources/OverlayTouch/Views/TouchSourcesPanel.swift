@@ -12,6 +12,7 @@ struct TouchSourcesPanel: View {
     let localizer: TouchLocalizer
 
     @State private var activeImporter: ImporterKind?
+    @State private var isFileImporterPresented = false
     @State private var photosPickerItem: PhotosPickerItem?
     @State private var isImportingPhotosVideo = false
     @State private var photosImportFailed = false
@@ -31,9 +32,9 @@ struct TouchSourcesPanel: View {
         var contentTypes: [UTType] {
             switch self {
             case .video:
-                return [.movie, .video, .mpeg4Movie, .quickTimeMovie]
+                return [.movie, .video, .mpeg4Movie, .quickTimeMovie, .data, .item]
             case .activity:
-                return ["fit", "gpx"].compactMap { UTType(filenameExtension: $0) }
+                return [.data, .item]
             }
         }
     }
@@ -48,15 +49,13 @@ struct TouchSourcesPanel: View {
         }
         .formStyle(.grouped)
         .fileImporter(
-            isPresented: Binding(
-                get: { activeImporter != nil },
-                set: { if !$0 { activeImporter = nil } }
-            ),
+            isPresented: $isFileImporterPresented,
             allowedContentTypes: activeImporter?.contentTypes ?? [.movie],
             allowsMultipleSelection: false
         ) { result in
             let kind = activeImporter
             activeImporter = nil
+            isFileImporterPresented = false
             guard case let .success(urls) = result, let url = urls.first else { return }
             switch kind {
             case .video:
@@ -119,6 +118,7 @@ struct TouchSourcesPanel: View {
 
             Button {
                 activeImporter = .video
+                isFileImporterPresented = true
             } label: {
                 Label(localizer.string("sources.chooseVideo"), systemImage: "folder")
             }
@@ -182,6 +182,7 @@ struct TouchSourcesPanel: View {
 
             Button {
                 activeImporter = .activity
+                isFileImporterPresented = true
             } label: {
                 Label(localizer.string("sources.chooseActivity"), systemImage: "figure.outdoor.cycle")
             }

@@ -70,7 +70,7 @@ Tests/OverlayTouchTests  (依赖 OverlayTouch，在 macOS 上运行)
 
 ## 3. 文件访问与数据流（已实现）
 
-- 导入：`fileImporter`（movie 系 UTType / fit / gpx）+ PhotosPicker（`FileRepresentation` 拷贝到临时目录）+ `onOpenURL`（文档类型声明支持「用 DataLayer Studio 打开」）。拖拽 onDrop 未做。
+- 导入：`fileImporter`（movie 系 UTType + `.data`/`.item` 兜底，FIT/GPX 同样走 data/item 兜底以兼容 Files 动态类型）+ PhotosPicker（`FileRepresentation` 拷贝到临时目录）+ `onOpenURL`（文档类型声明支持「用 DataLayer Studio 打开」）。拖拽 onDrop 未做。
 - security-scoped：视频 URL 的访问权由模型持有（`ScopedResourceAccess`，替换/析构时释放，覆盖导出全程读取）；活动文件在解析期间临时持有。应用容器内文件 `startAccessing` 返回 false 属正常，不视为错误。跨启动 bookmark（「最近使用」）未做。
 - 输出：核心库「临时文件写出 → 校验 → 原子安装」不变；安装目标为 App Documents（Files 可见），文件名自动去重（`-2`/`-3` 后缀），因此**没有覆盖确认流程**。完成后 ShareLink 分享 / `PHPhotoLibrary` 存入照片（add-only 权限）。
 - 残留清理：`removeStaleTemporaryOutputs` 的 pid 探测在 iOS 单进程模型下直接复用。
