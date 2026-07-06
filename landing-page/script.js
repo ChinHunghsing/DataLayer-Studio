@@ -16,6 +16,7 @@ const translations = {
       workflow: "工作流",
       features: "功能",
       output: "输出",
+      guide: "使用说明",
       pricing: "购买",
     },
     actions: {
@@ -114,6 +115,7 @@ const translations = {
       workflow: "工作流程",
       features: "功能",
       output: "輸出",
+      guide: "使用說明",
       pricing: "購買",
     },
     actions: {
@@ -212,6 +214,7 @@ const translations = {
       workflow: "Workflow",
       features: "Features",
       output: "Output",
+      guide: "Guide",
       pricing: "Pricing",
     },
     actions: {
@@ -310,6 +313,7 @@ const translations = {
       workflow: "ワークフロー",
       features: "機能",
       output: "出力",
+      guide: "使い方",
       pricing: "購入",
     },
     actions: {
