@@ -4,7 +4,7 @@
 
 # Local activity data, videos, exports, and signing secrets.
 # Do not force-add private source media or telemetry files to public PRs.
-assets/resource/
+assets/resourses/
 *.fit
 *.FIT
 *.gpx
