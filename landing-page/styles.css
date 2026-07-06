@@ -717,18 +717,13 @@ svg {
 }
 
 .pricing .section-heading {
-  max-width: min(100%, 540px);
+  max-width: 100%;
+  margin-bottom: 0;
 }
 
 .pricing .section-heading h2 {
   white-space: normal;
   text-wrap: balance;
-}
-
-@media (min-width: 1081px) {
-  .pricing .section-heading {
-    transform: translateY(calc(var(--space-3xl) * 2));
-  }
 }
 
 .split-layout {
@@ -741,6 +736,7 @@ svg {
 .split-copy {
   display: grid;
   gap: var(--space-lg);
+  min-width: 0;
   max-width: 650px;
 }
 

@@ -9,6 +9,7 @@ const landingRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(landingRoot, "..");
 const landingAssets = join(landingRoot, "assets");
 const tempDir = mkdtempSync(join(tmpdir(), "datalayer-localized-assets-"));
+const screenshotVersion = "v0.1.6";
 
 const fontPath = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf";
 let activeTextRuns = null;
@@ -16,9 +17,24 @@ const appIcon = join(landingAssets, "app-icon.png");
 const comparisonSource = join(landingAssets, "data-layer-comparison.webp");
 const metricsSource = join(landingAssets, "data-layer-metrics.webp");
 
-const sourceLocalePath = (language, filename) => {
+const sourceLocalePath = (language, filename, size = "desktop") => {
   const folder = language === "en" ? "en-US" : language;
-  return join(repoRoot, "assets", "appstore", "v0.1.2", folder, "desktop", filename);
+  return join(repoRoot, "assets", "appstore", screenshotVersion, folder, size, filename);
+};
+
+const rawScreenPath = (language) => {
+  const filename = {
+    "zh-Hans": "screen_zh-cn.png",
+    "zh-Hant": "screen_zh-tw.png",
+    en: "screen_en.png",
+    ja: "screen_ja.png",
+  }[language];
+  return join(repoRoot, "assets", "screenshots_raw", screenshotVersion, filename);
+};
+
+const localizedOutputPath = (baseName, language) => {
+  const suffix = language === "zh-Hans" ? "" : `-${language}`;
+  return join(landingAssets, `${baseName}${suffix}.webp`);
 };
 
 const languages = {
@@ -33,14 +49,14 @@ const languages = {
         ["大小", "7.5", "MB"],
       ],
       whatsNew: "更新",
-      update: ["增加合成视频导出，改善暂停后的实际时间显示，并更新 App Store 截图。"],
+      update: ["更新 0.1.6 工作台截图，优化预览控制、组件检查器与布局状态展示。"],
       versionHistory: "版本历史",
-      version: "版本 0.1.3",
-      time: "5小时前",
+      version: "版本 0.1.6",
+      time: "刚刚",
       preview: "预览",
       platform: "Mac",
       body: [
-        "0.1.3 中，除了透明 Alpha 叠加层，也可以导出合成完成的视频。",
+        "0.1.6 中，工作台界面进一步收敛，让预览、排布和导出更清晰。",
         "让跑步影片变成清晰、易读、带数据层的训练记录。",
         "DataLayer Studio 面向跑者、教练和内容创作者，把运动数据精准同步到真实视频，并输出可编辑的透明叠加层或完成视频。",
       ],
@@ -60,14 +76,14 @@ const languages = {
         ["大小", "7.5", "MB"],
       ],
       whatsNew: "更新項目",
-      update: ["加入合成影片輸出，改善暫停後的實際時間顯示，並更新 App Store 截圖。"],
+      update: ["更新 0.1.6 工作台截圖，優化預覽控制、元件檢查器與版面狀態顯示。"],
       versionHistory: "版本記錄",
-      version: "版本 0.1.3",
-      time: "5 小時前",
+      version: "版本 0.1.6",
+      time: "剛剛",
       preview: "預覽",
       platform: "Mac",
       body: [
-        "0.1.3 中，除了透明 Alpha 疊加層，也可以輸出合成完成的影片。",
+        "0.1.6 中，工作台介面更加收斂，讓預覽、排版和輸出更清楚。",
         "讓跑步影片成為清楚、好讀、帶有資料層的訓練紀錄。",
         "DataLayer Studio 面向跑者、教練和內容創作者，把運動資料精準同步到真實影片，並輸出可編輯的透明疊加層或完成影片。",
       ],
@@ -108,14 +124,14 @@ const languages = {
         ["Size", "7.5", "MB"],
       ],
       whatsNew: "What's New",
-      update: ["Added composited video export, improved real-time display after pause, and refreshed App Store screenshots."],
+      update: ["Refreshed the 0.1.6 workspace screenshots and improved the presentation of preview controls, inspector settings, and layout state."],
       versionHistory: "Version History",
-      version: "Version 0.1.3",
-      time: "5h ago",
+      version: "Version 0.1.6",
+      time: "Just now",
       preview: "Preview",
       platform: "Mac",
       body: [
-        "In 0.1.3, DataLayer Studio can export finished composited video in addition to transparent Alpha overlays.",
+        "In 0.1.6, the workspace is more focused, making preview, arrangement, and export clearer.",
         "Turn running footage into clear, readable video with data layers.",
         "DataLayer Studio helps runners, coaches, and creators sync activity data to real footage and export editable transparent overlays or finished videos.",
       ],
@@ -156,14 +172,14 @@ const languages = {
         ["サイズ", "7.5", "MB"],
       ],
       whatsNew: "アップデート",
-      update: ["合成済み動画の書き出しを追加し、一時停止後の実時刻表示を改善。App Store スクリーンショットも更新しました。"],
+      update: ["0.1.6 のワークスペース画像を更新し、プレビュー操作、インスペクタ設定、レイアウト状態の見え方を改善しました。"],
       versionHistory: "バージョン履歴",
-      version: "バージョン 0.1.3",
-      time: "5時間前",
+      version: "バージョン 0.1.6",
+      time: "たった今",
       preview: "プレビュー",
       platform: "Mac",
       body: [
-        "0.1.3 では、透明 Alpha オーバーレイに加えて、データを合成済みの完成動画も書き出せます。",
+        "0.1.6 では、ワークスペースをより整理し、プレビュー、配置、書き出しを確認しやすくしました。",
         "ランニング映像を、見やすいデータレイヤー付きの動画に。",
         "DataLayer Studio は、ランナー、コーチ、動画クリエイターが運動データを実際の映像と正確に同期し、読みやすいゲージを配置して、透明な Alpha オーバーレイまたは完成動画を書き出せる macOS アプリです。",
       ],
@@ -295,15 +311,29 @@ const baseBackground = () => {
 };
 
 const generateAppShowcase = (language) => {
-  const source = sourceLocalePath(language, "01-preview-overlay.png");
-  const output = join(landingAssets, `app-showcase-${language}.webp`);
+  const source = rawScreenPath(language);
+  const output = localizedOutputPath("app-showcase", language);
   magick([
     source,
-    "-crop",
-    "1090x684+175+200",
-    "+repage",
     "-resize",
-    "1800x1129!",
+    "1800x1130!",
+    "-depth",
+    "8",
+    "-strip",
+    output,
+  ]);
+};
+
+const generateShowcaseImage = (language, baseName, sourceFilename) => {
+  const source = sourceLocalePath(language, sourceFilename, "desktop");
+  const output = localizedOutputPath(baseName, language);
+  magick([
+    source,
+    "-resize",
+    "1440x900!",
+    "-depth",
+    "8",
+    "-strip",
     output,
   ]);
 };
@@ -433,21 +463,10 @@ const generateAppStore = (language, copy) => {
 
 mkdirSync(landingAssets, { recursive: true });
 
-const comparisonPlainCrop = join(tempDir, "comparison-plain.png");
-const comparisonOverlayCrop = join(tempDir, "comparison-overlay.png");
-magick([comparisonSource, "-crop", "630x354+75+295", "+repage", comparisonPlainCrop]);
-magick([comparisonSource, "-crop", "630x354+735+295", "+repage", comparisonOverlayCrop]);
-
-for (const language of ["zh-Hant", "en", "ja"]) {
-  generateAppShowcase(language);
-  generateComparison(language, languages[language].comparison, {
-    plain: comparisonPlainCrop,
-    overlay: comparisonOverlayCrop,
-  });
-  generateMetrics(language, languages[language].metrics);
-}
-
 for (const language of Object.keys(languages)) {
+  generateAppShowcase(language);
+  generateShowcaseImage(language, "data-layer-comparison", "01-preview-overlay.png");
+  generateShowcaseImage(language, "data-layer-metrics", "02-arrange-gauges.png");
   generateAppStore(language, languages[language].appStore);
 }
 
