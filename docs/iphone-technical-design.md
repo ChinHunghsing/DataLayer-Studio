@@ -2,30 +2,31 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | 提案（未排期，未开工；本文不改动任何现有代码） |
-| 日期 | 2026-07-04 |
+| 状态 | 提案（未开工；iPad 版已实施，本文已按现状与 2026-07-06「移动端仅成片」决策修订） |
+| 日期 | 2026-07-06 |
 | 适用平台 | iOS / iPhone（与 iPad 共用同一 iOS App target） |
-| 最低系统版本 | iOS 26（已定，声明与理由见 iPad 技术文档 §2.4；设备下限 iPhone 11 / SE 第 2 代，A13） |
-| 商业模式 | 已定：统一定价，一次购买三端使用（Universal Purchase，见 iPad 技术文档 §9） |
+| 最低系统版本 | iOS 26（已定，`Package.swift` 已声明 `.iOS("26.0")`；设备下限 iPhone 11 / SE 第 2 代，A13） |
+| 商业模式 | 已定：统一定价，一次购买三端使用（Universal Purchase，见 iPad 技术文档 §8） |
 | 关联文档 | `docs/iphone-product-design.md`、`docs/ipad-technical-design.md`（共享架构以该文档为准，本文只展开 iPhone 特有部分） |
 
 ## 0. 结论摘要
 
-- 可行性与 iPad 版同源：核心渲染/导出引擎（`Sources/OverlayCore`）零 AppKit 依赖，iOS 直接复用；平台绑定点清单、共享层抽取（OverlayStudioKit）、文件访问、iCloud 预设同步、购买校验、CI/发布方案见 `docs/ipad-technical-design.md` §1–§5、§8–§13，本文不重复。
+- 可行性已被 iPad 版实施证实：核心引擎 100% 复用，iPad 编辑器与平台中立会话模型 `TouchStudioModel` 已落在 `Sources/OverlayTouch`（现状架构、文件访问、iCloud 预设同步、导出生命周期、发布前置项见 `docs/ipad-technical-design.md`，本文不重复）。
+- **已定决策（2026-07-06）：iOS App（iPad 与 iPhone）只导出合成成片（HEVC/H.264），不提供透明浮层导出**；`TouchStudioModel.exportMode` 已是常量 `.video`，iPhone 形态直接继承。
 - iPhone 特有的技术工作集中在五处：**相册直读管线**（PHAsset → AVAsset，避免大视频落盘拷贝）、**自动对齐**（视频创建时间 × FIT 绝对时间，新共享能力）、**compact 界面层**（sheet 化检查器与竖屏画布手势）、**更严格的导出生命周期**（热/电/锁屏 + 可选 Live Activity）、**内置竖版模板资产管线**。
 - 硬阻塞项：无。最大的不确定性是自动对齐依赖的视频时间元数据质量（§3.2），需真实素材库验证并设计兜底。
 
 ## 1. 与共享架构的关系
 
 ```
-OverlayCore（不动） ← OverlayStudioKit（共享层，iPad 文档 §3） ← OverlayTouch（iOS 壳）
+OverlayCore（不动） ← OverlayStudioKit ← OverlayTouch（iOS 界面层 + 会话模型，已实现 iPad idiom）
                                                                   ├── iPad idiom（regular）
                                                                   └── iPhone idiom（compact）
 ```
 
 - 最低系统版本 iOS 26（与 iPad 端同一声明 `.iOS("26.0")`）：iPhone 侧设备下限为 iPhone 11 / SE 第 2 代（A13），全系 HEVC 硬编，UI 直接按 iOS 26 原生外观实现、无版本分支。
 - idiom 分流依据 **size class**（`horizontalSizeClass == .compact` 走 iPhone 布局），不用 `UIDevice.userInterfaceIdiom`——这样 iPad Slide Over/分屏的 compact 场景自动获得 iPhone 布局，一举两得。
-- `StudioSessionModel`、平台服务协议、导出生命周期模块（`ExportRuntimeGuarding`）、文件访问（security-scoped + bookmark）、Info.plist/entitlements/隐私清单等完全共享，见 iPad 技术文档 §3–§7。
+- 会话模型即已实现的 `TouchStudioModel`（原提案的 `StudioSessionModel` 下沉未做，见 iPad 技术文档 §2.2）；导出运行时保护（`TouchExportRuntimeGuarding`）、security-scoped 文件访问、四语言 `TouchLocalization` 均已实现并直接共享；bookmark（最近使用）、正式 Info.plist/entitlements/隐私清单仍是待办。
 - 渲染一致性是硬约束：iPhone 上任何「轻编辑」都只是 UI 裁剪，写回的仍是完整 `OverlayLayout`，三端像素级一致。
 
 ## 2. 界面层技术要点（compact idiom）
@@ -56,7 +57,7 @@ OverlayCore（不动） ← OverlayStudioKit（共享层，iPad 文档 §3） �
 1. 共享层引入视频源抽象：`VideoSource = fileURL(ScopedFileReference) | photoLibrary(PHAsset)`，统一解析为 `AVAsset` 供预览（AVPlayer、AVAssetImageGenerator 本就接受 AVAsset）。
 2. 核心库**新增接受 `AVAsset` 的初始化重载**（`CompositedVideoWriter`、`VideoMetadata`；`AVAssetReader(asset:)` 内部实现不变），保留 URL 版本以维持 CLI 与 macOS 兼容——这是本方案对 OverlayCore 唯一的功能性新增，属加法不改行为。
 3. PHAsset → `PHImageManager.requestAVAsset(forVideo:options:)`，`deliveryMode = .highQualityFormat`、`isNetworkAccessAllowed = true`（iCloud 照片库素材带下载进度回调，UI 呈现）。
-4. 慢动作视频返回 `AVComposition`：预览与 AVAssetReader 均可直接消费（自然带变速效果）；对纯浮层导出无影响（浮层导出根本不读源视频，仅用其尺寸/帧率/时长——这也意味着 iPhone 可支持「只有 FIT、没有视频」的浮层导出，产品上作为隐藏能力保留）。
+4. 慢动作视频返回 `AVComposition`：预览与 AVAssetReader 均可直接消费（自然带变速效果）。
 5. 生命周期：PHAsset 的 AVAsset 不涉及 security-scoped 访问；但导出进行中要持有强引用并处理照片库对象失效（用户删除素材）→ 中断并给可读错误。
 
 ### 3.2 自动对齐（新共享能力，iPhone 首发）
@@ -66,7 +67,7 @@ OverlayCore（不动） ← OverlayStudioKit（共享层，iPad 文档 §3） �
 - 已知精度陷阱（需样本库实测）：相机时钟漂移、创建时间记录的是「开始拍摄」还是「写文件」、跨时区、剪辑过的视频元数据丢失。因此定位为**给初值**，UI 必须跟「对齐确认 + 帧微调」页，兜底进入手动三模式（共享实现）。
 - 该模块放 OverlayStudioKit，iPad/Mac 后续直接受益。
 
-### 3.3 导出生命周期（在 iPad 文档 §7 基础上加严）
+### 3.3 导出生命周期（在 iPad 已实现的 v1 策略基础上加严，见 iPad 技术文档 §5）
 
 - iPhone 单手/移动场景下切走概率远高于 iPad，中断提示与「一键重来」的可达性要求更高（完成/中断状态用全屏卡片而非状态栏文字）。
 - 热策略：iPhone 散热差，`thermalState == .serious` 时在进度条下方常驻提示；`.critical` 时暂停确认（继续/取消）——暂停实现为取消+保留参数一键重来（AVAssetWriter 无真暂停）。
@@ -82,9 +83,9 @@ OverlayCore（不动） ← OverlayStudioKit（共享层，iPad 文档 §3） �
 
 ### 3.5 导出参数的 iPhone 侧默认
 
-- 产物类型默认「成片（HEVC）」；浮层（HEVC-alpha）收进次要位置；ProRes 4444 仅在 `OverlayHardwareProfile` 探测到硬件编码器（iPhone 13 Pro 起的 Pro 机型）时出现在高级选项。
+- 产物只有合成成片（已定决策）：编码默认 HEVC，高级里可切 H.264；无浮层/ProRes 选项。
 - 画质档位映射：1080p / 4K / 跟随源 → 现有宽高/码率参数（码率沿用「跟随源码率」逻辑，高级里可改）；帧率默认跟随源。
-- 上限钳位随 iPad 文档 §6.2 的设备矩阵结论，iPhone 侧 UI 默认不提供超过 4K 的档位。
+- 上限钳位待真机设备矩阵实测定案（iPad 技术文档 §8-1 的基准表工作）；iPhone 侧 UI 默认不提供超过 4K 的档位。
 
 ## 4. 性能与内存预算（iPhone 修正值）
 
@@ -92,18 +93,18 @@ OverlayCore（不动） ← OverlayStudioKit（共享层，iPad 文档 §3） �
 | --- | --- |
 | 导出峰值内存 | 流式管线下 1080p < 100MB、4K < 300MB 量级（BGRA 帧 33MB × 池深 ~6 + 编码器内部）；对 iOS 26 下限机型中内存最小的 iPhone SE 第 2 代（3GB RAM）仍有安全余量；**保持「禁止整段缓存帧」红线** |
 | 预览 | iPhone 视图尺寸小，预览渲染负载低于 iPad；AVAssetImageGenerator scrub 不变 |
-| 4K HEVC-alpha 导出速度 | A 系设备低于 M 系 iPad，P0 基准表需覆盖至少一台非 Pro A 系机型；导出页的预估耗时区间用该表标定 |
+| 4K HEVC 合成导出速度 | A 系设备低于 M 系 iPad，真机基准表需覆盖至少一台非 Pro A 系机型；导出页的预估耗时区间用该表标定 |
 | 电量 | 长导出属高功耗场景，纳入 M4 实测（30 分钟素材导出的电量消耗），必要时在文案中管理预期 |
 
 ## 5. 测试策略（增量）
 
-- 模拟器矩阵：iPhone SE（最小屏）/ 标准 6.1 英寸 / Pro Max，compact 布局与 sheet 交互 UI 测试；写出用例的编码器限制同 iPad 文档 §11（模拟器无硬编，真机验收）。
+- 模拟器矩阵：iPhone SE（最小屏）/ 标准 6.1 英寸 / Pro Max，compact 布局与 sheet 交互 UI 测试；模拟器无硬编、软编可验证链路（同 iPad 技术文档 §4.3），性能验收在真机。
 - 自动对齐：构造元数据样本库（正常/缺创建时间/跨时区/剪辑过/慢动作）做表驱动单测。
 - 相册管线：iCloud 未下载素材、下载中取消、导出中素材被删除三条异常路径。
 - 竖版模板：9:16/1:1 画幅下全组件渲染快照测试（补充现有 OverlayRendererTests 的横版基线）。
 - 真机热测：连续两次 4K 导出观察 thermalState 阶梯与提示触发。
 
-## 6. 工作量粗估（在 iPad 计划 P0–P1 完成的前提上）
+## 6. 工作量粗估（在 iPad v1 编辑器与 `TouchStudioModel` 已实现的基础上）
 
 | 项 | 粗估 |
 | --- | --- |
