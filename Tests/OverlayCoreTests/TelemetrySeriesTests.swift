@@ -48,6 +48,30 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 2).distanceMeters ?? -1, 20, accuracy: 0.001)
     }
 
+    func testComputesTotalAscentFromAltitudeAndIgnoresSmallNoise() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, altitudeMeters: 10),
+            TelemetrySample(elapsed: 1, altitudeMeters: 10.4),
+            TelemetrySample(elapsed: 2, altitudeMeters: 12.4),
+            TelemetrySample(elapsed: 3, altitudeMeters: 11.4),
+            TelemetrySample(elapsed: 4, altitudeMeters: 14.4)
+        ])
+
+        XCTAssertEqual(series.sample(at: 0).totalAscentMeters ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 1).totalAscentMeters ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 2).totalAscentMeters ?? -1, 2.4, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 4).totalAscentMeters ?? -1, 5.4, accuracy: 0.001)
+    }
+
+    func testLeavesTotalAscentEmptyWhenAltitudeIsMissing() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, distanceMeters: 3)
+        ])
+
+        XCTAssertNil(series.sample(at: 1).totalAscentMeters)
+    }
+
     func testDerivesStartSpeedFromDistanceDeltaWhenFITSpeedIsMissing() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, distanceMeters: 0),
@@ -203,12 +227,12 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.samples.last?.elapsed, 2)
     }
 
-    func testActivityTrimRebasesElapsedDistanceAndCalories() {
+    func testActivityTrimRebasesElapsedDistanceCaloriesAndAscent() {
         let startDate = Date(timeIntervalSince1970: 1_787_000_000)
         let series = TelemetrySeries(samples: [
-            TelemetrySample(elapsed: 0, date: startDate, distanceMeters: 0, speedMetersPerSecond: 5, totalCalories: 0),
-            TelemetrySample(elapsed: 10, date: startDate.addingTimeInterval(10), distanceMeters: 100, speedMetersPerSecond: 5, totalCalories: 20),
-            TelemetrySample(elapsed: 20, date: startDate.addingTimeInterval(20), distanceMeters: 250, speedMetersPerSecond: 5, totalCalories: 50)
+            TelemetrySample(elapsed: 0, date: startDate, altitudeMeters: 10, distanceMeters: 0, speedMetersPerSecond: 5, totalCalories: 0),
+            TelemetrySample(elapsed: 10, date: startDate.addingTimeInterval(10), altitudeMeters: 30, distanceMeters: 100, speedMetersPerSecond: 5, totalCalories: 20),
+            TelemetrySample(elapsed: 20, date: startDate.addingTimeInterval(20), altitudeMeters: 60, distanceMeters: 250, speedMetersPerSecond: 5, totalCalories: 50)
         ])
 
         let trimmed = series.trimmed(by: ActivityTrim(startSeconds: 5, endSeconds: 15))
@@ -217,9 +241,11 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(trimmed.samples.first?.elapsed ?? -1, 0, accuracy: 0.001)
         XCTAssertEqual(trimmed.samples.first?.distanceMeters ?? -1, 0, accuracy: 0.001)
         XCTAssertEqual(trimmed.samples.first?.totalCalories ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(trimmed.samples.first?.totalAscentMeters ?? -1, 0, accuracy: 0.001)
         XCTAssertEqual(trimmed.samples.first?.date?.timeIntervalSince1970 ?? -1, startDate.addingTimeInterval(5).timeIntervalSince1970, accuracy: 0.001)
         XCTAssertEqual(trimmed.sample(at: 10).distanceMeters ?? -1, 125, accuracy: 0.001)
         XCTAssertEqual(trimmed.sample(at: 10).totalCalories ?? -1, 25, accuracy: 0.001)
+        XCTAssertEqual(trimmed.sample(at: 10).totalAscentMeters ?? -1, 25, accuracy: 0.001)
     }
 
     func testActivityTrimMapsOriginalElapsedToDisplayElapsed() {

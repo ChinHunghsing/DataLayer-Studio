@@ -619,6 +619,7 @@ enum AppLocalizer {
         "component.heartRate": "Heart rate",
         "component.cadence": "Cadence",
         "component.calories": "Calories",
+        "component.ascent": "Ascent",
         "component.strideLength": "Stride length",
         "component.power": "Power",
         "component.verticalOscillation": "Vertical oscillation",
@@ -1076,6 +1077,7 @@ enum AppLocalizer {
         "component.heartRate": "心率",
         "component.cadence": "步频",
         "component.calories": "热量",
+        "component.ascent": "累计爬升",
         "component.strideLength": "步幅",
         "component.power": "功率",
         "component.verticalOscillation": "垂直振幅",
@@ -1533,6 +1535,7 @@ enum AppLocalizer {
         "component.heartRate": "心率",
         "component.cadence": "步頻",
         "component.calories": "熱量",
+        "component.ascent": "累計爬升",
         "component.strideLength": "步幅",
         "component.power": "功率",
         "component.verticalOscillation": "垂直振幅",
@@ -1990,6 +1993,7 @@ enum AppLocalizer {
         "component.heartRate": "心拍数",
         "component.cadence": "ピッチ",
         "component.calories": "消費カロリー",
+        "component.ascent": "累積上昇",
         "component.strideLength": "歩幅",
         "component.power": "パワー",
         "component.verticalOscillation": "上下動",
@@ -2115,6 +2119,8 @@ extension OverlayComponentID {
             return "component.cadence"
         case .calories:
             return "component.calories"
+        case .ascent:
+            return "component.ascent"
         case .strideLength:
             return "component.strideLength"
         case .power:

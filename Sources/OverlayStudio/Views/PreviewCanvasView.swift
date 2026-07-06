@@ -445,7 +445,7 @@ struct PreviewCanvasView: View {
         let baseHeight = base.height * scale
 
         switch element.kind {
-        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
+        case .pace, .distance, .heartRate, .cadence, .calories, .ascent, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
@@ -612,7 +612,7 @@ struct PreviewCanvasView: View {
 
     private func isMetricElement(_ element: OverlayElement) -> Bool {
         switch element.kind {
-        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
+        case .pace, .distance, .heartRate, .cadence, .calories, .ascent, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
@@ -748,6 +748,13 @@ struct PreviewCanvasView: View {
                 sample.totalCalories.map { "\(Int($0.rounded()))" } ?? "--",
                 element.customization.unit(default: "KCAL"),
                 element.customization.icon(default: "CAL")
+            )
+        case .ascent:
+            return (
+                element.customization.label(default: "ASC"),
+                formatDecimal(sample.totalAscentMeters, precision: element.customization.valuePrecision ?? 0),
+                element.customization.unit(default: "m"),
+                element.customization.icon(default: "ASC")
             )
         case .strideLength:
             return (

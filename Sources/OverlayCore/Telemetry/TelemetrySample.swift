@@ -6,6 +6,7 @@ public struct TelemetrySample: Equatable {
     public var latitude: Double?
     public var longitude: Double?
     public var altitudeMeters: Double?
+    public var totalAscentMeters: Double?
     public var heartRate: Int?
     public var cadence: Int?
     public var distanceMeters: Double?
@@ -34,6 +35,7 @@ public struct TelemetrySample: Equatable {
         latitude: Double? = nil,
         longitude: Double? = nil,
         altitudeMeters: Double? = nil,
+        totalAscentMeters: Double? = nil,
         heartRate: Int? = nil,
         cadence: Int? = nil,
         distanceMeters: Double? = nil,
@@ -61,6 +63,7 @@ public struct TelemetrySample: Equatable {
         self.latitude = latitude
         self.longitude = longitude
         self.altitudeMeters = altitudeMeters
+        self.totalAscentMeters = totalAscentMeters
         self.heartRate = heartRate
         self.cadence = cadence
         self.distanceMeters = distanceMeters

@@ -20,6 +20,7 @@ public struct TelemetrySeries: Equatable {
     private static let startupSegmentConsistencyRatio = 1.6
     private static let startupSpeedJumpRatio = 1.6
     private static let distanceEpsilon = 0.001
+    private static let minimumAscentDeltaMeters = 1.0
 
     public init(samples: [TelemetrySample]) {
         let sorted = samples.sorted { lhs, rhs in
@@ -35,7 +36,8 @@ public struct TelemetrySeries: Equatable {
         let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(samples: startupSpeedStabilized, interval: Self.resampleInterval)
         let resampled = TelemetrySeries.resampled(samples: cadenceEnriched, interval: Self.resampleInterval)
         let startupSmoothed = TelemetrySeries.smoothedStartupPace(samples: resampled)
-        self.samples = TelemetrySeries.trimmedIncompleteTail(samples: startupSmoothed)
+        let ascentEnriched = TelemetrySeries.enrichedWithTotalAscent(samples: startupSmoothed)
+        self.samples = TelemetrySeries.trimmedIncompleteTail(samples: ascentEnriched)
         self.bounds = TelemetrySeries.computeBounds(samples: self.samples)
     }
 
@@ -118,14 +120,27 @@ public struct TelemetrySeries: Equatable {
         let endSample = sample(at: trimEnd)
         let distanceOffset = startSample.distanceMeters
         let calorieOffset = startSample.totalCalories
+        let ascentOffset = startSample.totalAscentMeters
 
         var trimmedSamples: [TelemetrySample] = [
-            rebasedSample(startSample, trimStart: trimStart, distanceOffset: distanceOffset, calorieOffset: calorieOffset)
+            rebasedSample(
+                startSample,
+                trimStart: trimStart,
+                distanceOffset: distanceOffset,
+                calorieOffset: calorieOffset,
+                ascentOffset: ascentOffset
+            )
         ]
 
         for sample in samples where sample.elapsed > trimStart && sample.elapsed < trimEnd {
             trimmedSamples.append(
-                rebasedSample(sample, trimStart: trimStart, distanceOffset: distanceOffset, calorieOffset: calorieOffset)
+                rebasedSample(
+                    sample,
+                    trimStart: trimStart,
+                    distanceOffset: distanceOffset,
+                    calorieOffset: calorieOffset,
+                    ascentOffset: ascentOffset
+                )
             )
         }
 
@@ -134,7 +149,8 @@ public struct TelemetrySeries: Equatable {
                 endSample,
                 trimStart: trimStart,
                 distanceOffset: distanceOffset,
-                calorieOffset: calorieOffset
+                calorieOffset: calorieOffset,
+                ascentOffset: ascentOffset
             )
             if trimmedSamples.last?.elapsed != rebasedEnd.elapsed {
                 trimmedSamples.append(rebasedEnd)
@@ -157,7 +173,8 @@ public struct TelemetrySeries: Equatable {
         _ sample: TelemetrySample,
         trimStart: TimeInterval,
         distanceOffset: Double?,
-        calorieOffset: Double?
+        calorieOffset: Double?,
+        ascentOffset: Double?
     ) -> TelemetrySample {
         var output = sample
         output.elapsed = max(0, sample.elapsed - trimStart)
@@ -166,6 +183,9 @@ public struct TelemetrySeries: Equatable {
         }
         if let calories = sample.totalCalories, let calorieOffset {
             output.totalCalories = max(0, calories - calorieOffset)
+        }
+        if let ascent = sample.totalAscentMeters, let ascentOffset {
+            output.totalAscentMeters = max(0, ascent - ascentOffset)
         }
         return output
     }
@@ -182,6 +202,7 @@ public struct TelemetrySeries: Equatable {
             latitude: interpolate(a.latitude, b.latitude, fraction: fraction),
             longitude: interpolate(a.longitude, b.longitude, fraction: fraction),
             altitudeMeters: interpolate(a.altitudeMeters, b.altitudeMeters, fraction: fraction),
+            totalAscentMeters: interpolate(a.totalAscentMeters, b.totalAscentMeters, fraction: fraction),
             heartRate: nearest(a.heartRate, b.heartRate, fraction: fraction),
             cadence: interpolateCadence(a.cadence, b.cadence, fraction: fraction),
             distanceMeters: interpolate(a.distanceMeters, b.distanceMeters, fraction: fraction),
@@ -382,6 +403,36 @@ public struct TelemetrySeries: Equatable {
         }
 
         return output
+    }
+
+    private static func enrichedWithTotalAscent(samples: [TelemetrySample]) -> [TelemetrySample] {
+        guard samples.contains(where: { $0.altitudeMeters?.isFinite == true }) else {
+            return samples
+        }
+
+        var referenceAltitude: Double?
+        var totalAscent = 0.0
+        return samples.map { input in
+            var sample = input
+            guard let altitude = input.altitudeMeters, altitude.isFinite else {
+                sample.totalAscentMeters = totalAscent
+                return sample
+            }
+
+            if let baselineAltitude = referenceAltitude {
+                let delta = altitude - baselineAltitude
+                if delta >= minimumAscentDeltaMeters {
+                    totalAscent += delta
+                    referenceAltitude = altitude
+                } else if delta < 0 {
+                    referenceAltitude = altitude
+                }
+            } else {
+                referenceAltitude = altitude
+            }
+            sample.totalAscentMeters = totalAscent
+            return sample
+        }
     }
 
     private static func shouldReplaceSpeed(_ speed: Double?) -> Bool {

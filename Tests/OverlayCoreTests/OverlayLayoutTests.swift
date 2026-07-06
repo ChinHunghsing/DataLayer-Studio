@@ -19,6 +19,7 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(layout.component(.speed).x, 0.025, accuracy: 0.0001)
         XCTAssertEqual(OverlayComponentID.topProgress.title, "Distance")
         XCTAssertEqual(OverlayComponentID.distance.title, "Distance value")
+        XCTAssertEqual(OverlayComponentID.ascent.title, "Ascent")
         XCTAssertEqual(OverlayComponentID.timeDate.title, "Time & Date")
         XCTAssertFalse(layout.elements.contains { $0.kind == .verticalOscillation })
         XCTAssertFalse(layout.elements.contains { $0.kind == .groundContactTime })
@@ -30,6 +31,7 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertFalse(layout.elements.contains { $0.kind == .formPower })
         XCTAssertFalse(layout.elements.contains { $0.kind == .airPower })
         XCTAssertFalse(layout.elements.contains { $0.kind == .legSpringStiffness })
+        XCTAssertFalse(layout.elements.contains { $0.kind == .ascent })
         XCTAssertTrue(OverlayComponentID.allCases.contains(.verticalOscillation))
         XCTAssertTrue(OverlayComponentID.allCases.contains(.groundContactTime))
         XCTAssertTrue(OverlayComponentID.allCases.contains(.groundContactTimePercent))
@@ -40,6 +42,7 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertTrue(OverlayComponentID.allCases.contains(.formPower))
         XCTAssertTrue(OverlayComponentID.allCases.contains(.airPower))
         XCTAssertTrue(OverlayComponentID.allCases.contains(.legSpringStiffness))
+        XCTAssertTrue(OverlayComponentID.allCases.contains(.ascent))
         let topProgress = layout.elements.first { $0.kind == .topProgress }
         XCTAssertEqual(topProgress?.customization.valuePrecision, 1)
         XCTAssertEqual(topProgress?.customization.showsPanel, false)

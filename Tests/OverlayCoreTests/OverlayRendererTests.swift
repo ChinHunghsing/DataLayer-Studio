@@ -128,6 +128,7 @@ final class OverlayRendererTests: XCTestCase {
         let series = TelemetrySeries(samples: [
             TelemetrySample(
                 elapsed: 0,
+                totalAscentMeters: 87,
                 powerWatts: 286,
                 totalCalories: 42,
                 stepLengthMeters: 1.24,
@@ -140,7 +141,8 @@ final class OverlayRendererTests: XCTestCase {
             metricElement(id: "calories", kind: .calories, y: 0.06),
             metricElement(id: "stride", kind: .strideLength, y: 0.16),
             metricElement(id: "power", kind: .power, y: 0.26),
-            metricElement(id: "weather", kind: .weather, y: 0.36)
+            metricElement(id: "ascent", kind: .ascent, y: 0.36),
+            metricElement(id: "weather", kind: .weather, y: 0.46)
         ]
         let renderer = OverlayRenderer(
             series: series,

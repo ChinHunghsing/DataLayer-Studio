@@ -15,6 +15,8 @@ extension OverlayComponentID {
             return "figure.run"
         case .calories:
             return "flame.fill"
+        case .ascent:
+            return "mountain.2.fill"
         case .strideLength:
             return "figure.run.motion"
         case .power:
@@ -54,7 +56,7 @@ extension OverlayComponentID {
 
     var supportsValuePrecision: Bool {
         switch self {
-        case .speed, .distance, .strideLength, .topProgress,
+        case .speed, .distance, .ascent, .strideLength, .topProgress,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .legSpringStiffness:
@@ -71,6 +73,8 @@ extension OverlayComponentID {
             return 1
         case .distance:
             return 2
+        case .ascent:
+            return 0
         case .strideLength:
             return 2
         case .verticalOscillation:
@@ -94,7 +98,7 @@ extension OverlayComponentID {
         switch self {
         case .speed, .route, .topProgress:
             return true
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power,
+        case .pace, .heartRate, .cadence, .calories, .ascent, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness,
@@ -107,7 +111,7 @@ extension OverlayComponentID {
         switch self {
         case .topProgress:
             return true
-        case .speed, .pace, .heartRate, .cadence, .calories, .strideLength, .power,
+        case .speed, .pace, .heartRate, .cadence, .calories, .ascent, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness,

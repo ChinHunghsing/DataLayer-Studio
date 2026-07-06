@@ -114,7 +114,7 @@ public final class OverlayRenderer {
                 drawTopProgress(context: context, sample: sample, canvas: canvas, element: element)
             case .speed:
                 drawSpeed(context: context, sample: sample, canvas: canvas, element: element)
-            case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
+            case .pace, .distance, .heartRate, .cadence, .calories, .ascent, .strideLength, .power,
                  .verticalOscillation, .groundContactTime, .groundContactTimePercent,
                  .groundContactTimeBalance, .verticalRatio, .respirationRate,
                  .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
@@ -330,6 +330,8 @@ public final class OverlayRenderer {
             return ("CAD", sample.cadence.map { "\($0)" } ?? "--", "SPM")
         case .calories:
             return ("CAL", sample.totalCalories.map { "\(Int($0.rounded()))" } ?? "--", "KCAL")
+        case .ascent:
+            return ("ASC", formatDecimal(sample.totalAscentMeters, precision: element.customization.valuePrecision ?? 0), "m")
         case .strideLength:
             return ("STRIDE", formatStrideLength(sample.stepLengthMeters, precision: element.customization.valuePrecision), "m")
         case .power:
@@ -1119,7 +1121,7 @@ public final class OverlayRenderer {
             return CGSize(width: 420, height: 238)
         case .weather:
             return CGSize(width: 136, height: 76)
-        case .pace, .heartRate, .cadence, .calories, .strideLength, .power, .distance,
+        case .pace, .heartRate, .cadence, .calories, .ascent, .strideLength, .power, .distance,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness:
@@ -1288,6 +1290,8 @@ public final class OverlayRenderer {
             return "CAD"
         case .calories:
             return "CAL"
+        case .ascent:
+            return "ASC"
         case .strideLength:
             return "STR"
         case .power:
@@ -1628,7 +1632,7 @@ public final class OverlayRenderer {
 
     private static func isMetricKind(_ kind: OverlayComponentID) -> Bool {
         switch kind {
-        case .pace, .distance, .heartRate, .cadence, .calories, .strideLength, .power,
+        case .pace, .distance, .heartRate, .cadence, .calories, .ascent, .strideLength, .power,
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
