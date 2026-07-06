@@ -9,6 +9,8 @@
 | 商业模式 | 已定：付费买断，统一定价，一次购买 Mac / iPad / iPhone 三端使用（Universal Purchase） |
 | 关联文档 | `docs/ipad-technical-design.md`、`docs/iphone-product-design.md`、`DataLayer-Studio-UX-Review.md` |
 
+> **2026-07-06 已定决策**：iPad 版只导出最终成片（合成 HEVC/H.264 视频），**不提供透明浮层导出**（HEVC-alpha / ProRes 4444）。移动端用户要的是可直接分享的成片，浮层中间产物的供给继续由 Mac 版承担。本文其余提及 iPad 浮层导出、FCP iPad 叠加浮层的段落以本决策为准。
+
 ## 0. 结论摘要
 
 macOS 版 DataLayer Studio 的渲染与导出引擎（FIT/GPX 解析、遥测插值、时间同步、布局模型、CoreGraphics 渲染、HEVC-alpha/ProRes 导出）完全没有 AppKit 依赖，全部构建在 iOS 同样提供的系统框架上，可以原样复用。做 iPad 版在技术上成立，产品上也有清晰的落点：iPad 已经形成 Final Cut Pro for iPad、LumaFusion、DaVinci Resolve for iPad 的剪辑生态，而这些剪辑器都能直接使用本应用导出的透明浮层。iPad 版的目标是**功能与 Mac 版对齐的完整编辑器**，不是精简版。
@@ -73,7 +75,7 @@ macOS 版已经完成的能力：导入视频 + FIT/GPX，三种对表方式（�
 | 布局预设（保存/套用/默认/删除/JSON 导入导出） | ✅ | ✅ |
 | 预设 iCloud 同步 | ✅ | ✅（与 Mac 互通） |
 | OpenWeather 天气获取（用户自备 key，存钥匙串） | ✅ | ✅ |
-| 导出：HEVC-alpha / ProRes 4444 / HEVC / H.264 | ✅ | ✅（ProRes 依设备能力显隐，见技术文档） |
+| 导出：HEVC-alpha / ProRes 4444 / HEVC / H.264 | ✅ | 仅 HEVC / H.264 合成成片（已定：iPad 不做透明浮层导出） |
 | 导出区间裁剪 + 摘要 + 进度 + ETA + 取消 + 完成通知 | ✅ | ✅ |
 | 公里/英里单位、四语言（en/zh-Hans/zh-Hant/ja）、深浅色 | ✅ | ✅ |
 | 调试控制台（日志查看/复制/清空） | ✅ | ✅ |

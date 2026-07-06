@@ -52,31 +52,23 @@ final class TouchStudioModelTests: XCTestCase {
         XCTAssertEqual(model.exportReadinessMessage?.key, "status.chooseFitFile")
     }
 
-    func testActivityLoadEnablesOverlayExportAndResetsTrim() async throws {
+    func testActivityLoadResetsTrimToFullDuration() async throws {
         let model = makeModel()
         try await loadSampleActivity(into: model)
 
-        XCTAssertEqual(model.exportMode, .overlay)
-        XCTAssertTrue(model.canExport)
         XCTAssertEqual(model.effectiveExportTrimStart, 0, accuracy: 0.001)
         XCTAssertEqual(model.effectiveExportTrimEnd, model.series!.duration, accuracy: 0.001)
     }
 
-    func testCompositedExportStillNeedsVideo() async throws {
+    func testExportIsCompositedOnlyAndNeedsVideo() async throws {
         let model = makeModel()
+        XCTAssertEqual(model.exportMode, .video)
+        XCTAssertEqual(model.codec, .hevc)
+        XCTAssertEqual(model.availableCodecs, [.hevc, .h264])
+
         try await loadSampleActivity(into: model)
-        model.exportMode = .video
         XCTAssertFalse(model.canExport)
         XCTAssertEqual(model.exportReadinessMessage?.key, "status.chooseVideoForCompositedExport")
-    }
-
-    func testExportModeSwitchNormalizesCodec() {
-        let model = makeModel()
-        XCTAssertEqual(model.codec, .hevcAlpha)
-        model.exportMode = .video
-        XCTAssertEqual(model.codec.exportMode, .video)
-        model.exportMode = .overlay
-        XCTAssertEqual(model.codec.exportMode, .overlay)
     }
 
     func testTimeSyncIsIdentityWithoutVideo() {

@@ -9,6 +9,8 @@
 | 商业模式 | 已定：统一定价，一次购买三端使用（Universal Purchase，§9） |
 | 关联文档 | `docs/ipad-product-design.md` |
 
+> **2026-07-06 已定决策**：iPad 版只导出最终成片（`CompositedVideoWriter`，HEVC/H.264），不提供透明浮层导出；`TransparentVideoWriter`、HEVC-alpha 金样验证、ProRes 显隐策略等内容仅适用于 macOS 版，iPad 侧不再适用。
+
 ## 0. 结论摘要
 
 - `Sources/OverlayCore`（约 6900 行）**零 AppKit/SwiftUI 依赖**，只用 Foundation、CoreGraphics、CoreText、CoreImage、CoreMedia、CoreVideo、AVFoundation、VideoToolbox、Metal、Darwin——全部在 iOS 上可用。渲染与导出引擎可以不改一行逻辑直接复用（仅需在 `Package.swift` 增加 iOS 平台声明）。

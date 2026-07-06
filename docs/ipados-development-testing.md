@@ -10,7 +10,7 @@
 
 - iPadOS/iOS 开发不能影响 macOS 端既有功能、视觉表现、导出结果和构建/发布流程。
 - 当前仓库只提交 SwiftPM 代码；真机验证用的临时 Xcode app shell 放 `/tmp`，不要提交。
-- 本地视频、FIT、导出产物和 `assets/resource/` 都不要提交。
+- 本地视频、FIT、导出产物和 `assets/resourses/` 都不要提交。
 - 涉及共享层或平台条件编译后，至少跑 macOS 回归：`swift test`、`scripts/build_app_bundle.sh`、`scripts/verify_app_bundle.sh`。
 
 ## 1. 已验证环境
@@ -102,15 +102,17 @@ scripts/build_touch_sim_app.sh
 scripts/build_touch_sim_app.sh --run
 
 # 带本地样本自动载入 + 自动导出（仅模拟器调试路径，正式包不含此行为）
+# iPad 版只导出合成成片，TOUCH_AUTOEXPORT 传任意非空值即可
 TOUCH_AUTOLOAD_VIDEO=/path/to/video.mov \
 TOUCH_AUTOLOAD_FIT=/path/to/activity.fit \
-TOUCH_AUTOEXPORT=video TOUCH_AUTOEXPORT_MAX_SECONDS=20 \
+TOUCH_AUTOEXPORT=1 TOUCH_AUTOEXPORT_MAX_SECONDS=20 \
 scripts/build_touch_sim_app.sh --run
 ```
 
 - 截图验证：`xcrun simctl io <device> screenshot out.png`。
 - 导出产物在 App 沙盒 Documents：`xcrun simctl get_app_container <device> run.libo.datalayer-studio.overlaytouchhost data`。
-- 模拟器没有硬件编码器：`OverlayHardwareProfile` 探测为空，写出设置会自动省略仅硬编支持的加速属性；HEVC/H.264 走软件编码可完整验证导出链路，HEVC-alpha 金样验证仍以真机为准。
+- 模拟器没有硬件编码器：`OverlayHardwareProfile` 探测为空，写出设置会自动省略仅硬编支持的加速属性；HEVC/H.264 走软件编码可完整验证导出链路。
+- iPad 版产品决策（2026-07-06）：只导出最终成片（合成视频），不提供透明浮层导出；透明 HEVC-alpha/ProRes 浮层由 macOS 版承担。
 - 模型层单元测试在 macOS 直接跑：`swift test --filter OverlayTouchTests`。
 
 ## 5. 真机 App 壳验证
@@ -176,7 +178,7 @@ xcrun devicectl device process launch \
 本地样本放：
 
 ```text
-assets/resource/
+assets/resourses/
 ```
 
 该目录已被 `.gitignore` 忽略。当前样本是一段视频与配套 FIT，FIT 的开表时间是视频开始后第 49 秒；做同步验证时，应把视频 `00:00:49` 对齐到 FIT elapsed `0`。

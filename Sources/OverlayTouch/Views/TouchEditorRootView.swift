@@ -220,15 +220,13 @@ public struct TouchEditorRootView: View {
         if let fitPath = environment["TOUCH_AUTOLOAD_FIT"], FileManager.default.fileExists(atPath: fitPath) {
             model.setActivityFile(URL(fileURLWithPath: fitPath), isSecurityScoped: false)
         }
-        guard let autoExport = environment["TOUCH_AUTOEXPORT"],
-              let mode = OverlayExportMode(rawValue: autoExport) else {
+        guard let autoExport = environment["TOUCH_AUTOEXPORT"], !autoExport.isEmpty else {
             return
         }
         Task { @MainActor in
             for _ in 0..<60 {
                 try? await Task.sleep(nanoseconds: 500_000_000)
-                guard model.series != nil, mode == .overlay || model.metadata != nil else { continue }
-                model.exportMode = mode
+                guard model.series != nil, model.metadata != nil else { continue }
                 if let maxSeconds = environment["TOUCH_AUTOEXPORT_MAX_SECONDS"].flatMap(Double.init) {
                     model.setExportTrimEnd(min(model.effectiveExportTrimEnd, maxSeconds))
                 }

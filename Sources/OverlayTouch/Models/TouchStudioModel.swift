@@ -60,13 +60,9 @@ public final class TouchStudioModel: ObservableObject {
     @Published public private(set) var outputHeight = 1080
     @Published public private(set) var outputFPS = 30.0
     @Published public private(set) var bitRateKbps = 12_000
-    @Published public var exportMode: OverlayExportMode = .overlay {
-        didSet {
-            guard oldValue != exportMode else { return }
-            normalizeCodecForExportMode()
-        }
-    }
-    @Published public var codec: OverlayVideoCodec = .hevcAlpha
+    /// iPad 版只导出最终成片：移动端剪辑场景不需要透明浮层中间产物，浮层供给由 Mac 版承担。
+    public let exportMode: OverlayExportMode = .video
+    @Published public var codec: OverlayVideoCodec = .hevc
     @Published public var distanceUnit: OverlayDistanceUnit = .kilometers {
         didSet { persistPreferences() }
     }
@@ -87,7 +83,6 @@ public final class TouchStudioModel: ObservableObject {
 
     private let previewRenderer = OverlayPreviewRenderer()
     private let layoutPresetStore: LayoutPresetStore
-    private let hardwareProfile: OverlayHardwareProfile
     private let runtimeGuard: TouchExportRuntimeGuarding
     private var layoutPresetCloudObserver: NSObjectProtocol?
     private var thermalStateObserver: NSObjectProtocol?
@@ -115,11 +110,9 @@ public final class TouchStudioModel: ObservableObject {
 
     public init(
         layoutPresetStore: LayoutPresetStore = LayoutPresetStore(),
-        hardwareProfile: OverlayHardwareProfile = .current,
         runtimeGuard: TouchExportRuntimeGuarding = TouchExportRuntimeNoopGuard()
     ) {
         self.layoutPresetStore = layoutPresetStore
-        self.hardwareProfile = hardwareProfile
         self.runtimeGuard = runtimeGuard
         let presetState = layoutPresetStore.load()
         let validDefaultPresetID = presetState.presets.contains { $0.id == presetState.defaultPresetID } ? presetState.defaultPresetID : nil
@@ -884,18 +877,7 @@ public final class TouchStudioModel: ObservableObject {
     }
 
     public var availableCodecs: [OverlayVideoCodec] {
-        OverlayVideoCodec.allCases.filter { candidate in
-            guard candidate.exportMode == exportMode else { return false }
-            if candidate == .proRes4444 {
-                return hardwareProfile.canUseHardwareEncoder(for: .proRes4444)
-            }
-            return true
-        }
-    }
-
-    private func normalizeCodecForExportMode() {
-        guard codec.exportMode != exportMode else { return }
-        codec = availableCodecs.first ?? exportMode.defaultCodec
+        OverlayVideoCodec.allCases.filter { $0.exportMode == .video }
     }
 
     public var sourceDimensions: (width: Int, height: Int)? {
@@ -1034,11 +1016,8 @@ public final class TouchStudioModel: ObservableObject {
         if series == nil {
             return "status.chooseFitFile"
         }
-        if exportMode == .video, videoURL == nil {
+        if videoURL == nil {
             return "status.chooseVideoForCompositedExport"
-        }
-        if codec.exportMode != exportMode {
-            return "status.codecExportModeMismatch"
         }
         if outputWidth < 2 || outputWidth > 16_384 || outputWidth % 2 != 0 {
             return "status.outputSizeInvalid"
@@ -1110,7 +1089,6 @@ public final class TouchStudioModel: ObservableObject {
         let cancellationToken = TouchExportCancellationToken()
         exportCancellationToken = cancellationToken
 
-        let currentExportMode = exportMode
         let currentCodec = codec
         let currentTimeSync = timeSync
         let currentLayout = layout
@@ -1130,52 +1108,29 @@ public final class TouchStudioModel: ObservableObject {
 
         exportTask = Task.detached {
             do {
-                switch currentExportMode {
-                case .overlay:
-                    try TransparentVideoWriter(
-                        outputURL: outputURL,
-                        series: series,
-                        config: TransparentVideoWriterConfig(
-                            width: width,
-                            height: height,
-                            framesPerSecond: fps,
-                            startTime: startTime,
-                            duration: duration,
-                            averageBitRate: averageBitRate,
-                            timeSync: currentTimeSync,
-                            codec: currentCodec,
-                            overlayLayout: currentLayout,
-                            distanceUnit: currentDistanceUnit,
-                            activityTrim: currentActivityTrim,
-                            progressHandler: progressHandler,
-                            cancellationHandler: { cancellationToken.isCancelled }
-                        )
-                    ).write()
-                case .video:
-                    guard let sourceVideoURL else {
-                        throw OverlayVideoError.invalidConfiguration("Choose a source video before exporting composited video.")
-                    }
-                    try CompositedVideoWriter(
-                        outputURL: outputURL,
-                        sourceVideoURL: sourceVideoURL,
-                        series: series,
-                        config: CompositedVideoWriterConfig(
-                            width: width,
-                            height: height,
-                            framesPerSecond: fps,
-                            startTime: startTime,
-                            duration: duration,
-                            averageBitRate: averageBitRate,
-                            timeSync: currentTimeSync,
-                            codec: currentCodec,
-                            overlayLayout: currentLayout,
-                            distanceUnit: currentDistanceUnit,
-                            activityTrim: currentActivityTrim,
-                            progressHandler: progressHandler,
-                            cancellationHandler: { cancellationToken.isCancelled }
-                        )
-                    ).write()
+                guard let sourceVideoURL else {
+                    throw OverlayVideoError.invalidConfiguration("Choose a source video before exporting composited video.")
                 }
+                try CompositedVideoWriter(
+                    outputURL: outputURL,
+                    sourceVideoURL: sourceVideoURL,
+                    series: series,
+                    config: CompositedVideoWriterConfig(
+                        width: width,
+                        height: height,
+                        framesPerSecond: fps,
+                        startTime: startTime,
+                        duration: duration,
+                        averageBitRate: averageBitRate,
+                        timeSync: currentTimeSync,
+                        codec: currentCodec,
+                        overlayLayout: currentLayout,
+                        distanceUnit: currentDistanceUnit,
+                        activityTrim: currentActivityTrim,
+                        progressHandler: progressHandler,
+                        cancellationHandler: { cancellationToken.isCancelled }
+                    )
+                ).write()
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     self.finishExport(startedAt: exportStartedAt) {
@@ -1248,7 +1203,7 @@ public final class TouchStudioModel: ObservableObject {
         } else {
             baseName = "datalayer"
         }
-        let suffix = exportMode == .overlay ? "overlay" : "composited"
+        let suffix = "composited"
         let directory = exportsDirectory
         var candidate = directory.appendingPathComponent("\(baseName)-\(suffix).mov")
         var counter = 2

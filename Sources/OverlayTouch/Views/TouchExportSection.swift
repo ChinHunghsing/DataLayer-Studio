@@ -32,13 +32,6 @@ struct TouchExportSection: View {
 
     @ViewBuilder
     private var settingsContent: some View {
-        Picker(localizer.string("export.title"), selection: $model.exportMode) {
-            Text(localizer.string("export.mode.overlay")).tag(OverlayExportMode.overlay)
-            Text(localizer.string("export.mode.video")).tag(OverlayExportMode.video)
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-
         Picker(localizer.string("export.codec"), selection: $model.codec) {
             ForEach(model.availableCodecs) { codec in
                 Text(codec.displayName).tag(codec)
@@ -216,18 +209,16 @@ struct TouchExportSection: View {
                 Label(localizer.string("export.share"), systemImage: "square.and.arrow.up")
             }
 
-            if model.exportMode == .video {
-                Button {
-                    saveToPhotos(exportedURL)
-                } label: {
-                    if isSavingToPhotos {
-                        ProgressView()
-                    } else {
-                        Label(localizer.string("export.saveToPhotos"), systemImage: "photo.badge.plus")
-                    }
+            Button {
+                saveToPhotos(exportedURL)
+            } label: {
+                if isSavingToPhotos {
+                    ProgressView()
+                } else {
+                    Label(localizer.string("export.saveToPhotos"), systemImage: "photo.badge.plus")
                 }
-                .disabled(isSavingToPhotos)
             }
+            .disabled(isSavingToPhotos)
 
             if let photosSaveMessage {
                 Text(photosSaveMessage)
