@@ -16,6 +16,7 @@ struct PreviewTimelineSlider: NSViewRepresentable {
     func makeNSView(context: Context) -> FocusableTimelineSlider {
         let slider = FocusableTimelineSlider(value: value, minValue: range.lowerBound, maxValue: range.upperBound, target: context.coordinator, action: #selector(Coordinator.valueChanged(_:)))
         slider.isContinuous = true
+        slider.focusRingType = .none
         slider.onFrameStep = { context.coordinator.stepFrame(by: $0) }
         slider.setAccessibilityLabel(accessibilityLabel)
         return slider
@@ -67,11 +68,18 @@ final class FocusableTimelineSlider: NSSlider {
     private(set) var isTrackingMouse = false
 
     override var acceptsFirstResponder: Bool { true }
+    override var focusRingType: NSFocusRingType {
+        get { .none }
+        set {}
+    }
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         isTrackingMouse = true
-        defer { isTrackingMouse = false }
+        defer {
+            isTrackingMouse = false
+            needsDisplay = true
+        }
         super.mouseDown(with: event)
     }
 
