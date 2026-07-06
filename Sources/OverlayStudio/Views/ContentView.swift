@@ -496,7 +496,6 @@ private struct ExportStatusSheet: View {
             Spacer(minLength: 12)
 
             Button {
-                model.clearExportResult()
                 dismiss()
             } label: {
                 Label(localization.string("common.done"), systemImage: "checkmark")
