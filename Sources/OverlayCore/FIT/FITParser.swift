@@ -96,6 +96,7 @@ struct RawFITSession {
     var startTime: UInt32?
     var totalElapsedTimeSeconds: TimeInterval?
     var totalTimerTimeSeconds: TimeInterval?
+    var totalDistanceMeters: Double?
     var totalCalories: Int?
 }
 
@@ -289,7 +290,7 @@ public final class FITParser {
             timerStartTimestamps: timerStartTimestamps,
             sessionStartTimestamps: sessionStartTimestamps
         )
-        return TelemetrySeries(samples: samples(
+        let parsedSamples = samples(
             from: records,
             activityStartTimestamp: activityStartTimestamp,
             timerEvents: timerEvents,
@@ -300,7 +301,17 @@ public final class FITParser {
                 activityStartTimestamp: activityStartTimestamp,
                 timerEvents: timerEvents
             )
-        ))
+        )
+        let series = TelemetrySeries(samples: parsedSamples)
+        if let correctedFinalSample = authoritativeFinalSample(
+            sessions: sessions,
+            currentSeries: series,
+            activityStartTimestamp: activityStartTimestamp,
+            timerEvents: timerEvents
+        ) {
+            return TelemetrySeries(samples: series.samples + [correctedFinalSample])
+        }
+        return series
     }
 
     private func append(
@@ -509,6 +520,8 @@ public final class FITParser {
                     session.totalElapsedTimeSeconds = value / 1000
                 case 8:
                     session.totalTimerTimeSeconds = value / 1000
+                case 9:
+                    session.totalDistanceMeters = value / 100
                 case 11:
                     session.totalCalories = Int(value)
                 default:
@@ -691,6 +704,64 @@ public final class FITParser {
         }
 
         return samples
+    }
+
+    private func authoritativeFinalSample(
+        sessions: [RawFITSession],
+        currentSeries: TelemetrySeries,
+        activityStartTimestamp: UInt32?,
+        timerEvents: [RawFITEvent]
+    ) -> TelemetrySample? {
+        guard let activityStartTimestamp else { return nil }
+
+        let candidates = sessions.compactMap { session -> (elapsed: TimeInterval, distance: Double, timestamp: UInt32?)? in
+            guard let elapsed = sessionEndElapsed(
+                session,
+                activityStartTimestamp: activityStartTimestamp,
+                timerEvents: timerEvents
+            ),
+                  elapsed.isFinite,
+                  let distance = session.totalDistanceMeters,
+                  distance.isFinite,
+                  distance >= 0 else {
+                return nil
+            }
+            return (elapsed, distance, session.timestamp)
+        }
+        guard let authoritative = candidates.max(by: { $0.elapsed < $1.elapsed }) else {
+            return nil
+        }
+
+        let currentDuration = currentSeries.duration
+        let currentDistance = currentSeries.sample(at: currentDuration).distanceMeters
+        let needsDurationCorrection = authoritative.elapsed > currentDuration + 0.000_5
+        let needsDistanceCorrection = authoritative.distance > (currentDistance ?? 0) + 0.01
+        guard needsDurationCorrection || needsDistanceCorrection else {
+            return nil
+        }
+
+        var finalSample = currentSeries.sample(at: currentDuration)
+        finalSample.elapsed = max(authoritative.elapsed, currentDuration)
+        finalSample.distanceMeters = max(authoritative.distance, currentDistance ?? 0)
+
+        if let date = currentSeries.date(atElapsed: finalSample.elapsed) {
+            finalSample.date = date
+        } else if let timestamp = authoritative.timestamp {
+            let fitEpoch = Date(timeIntervalSince1970: 631_065_600)
+            finalSample.date = fitEpoch.addingTimeInterval(TimeInterval(timestamp))
+        }
+
+        if let currentDistance,
+           finalSample.elapsed > currentDuration,
+           finalSample.distanceMeters ?? 0 >= currentDistance {
+            let speed = ((finalSample.distanceMeters ?? currentDistance) - currentDistance)
+                / (finalSample.elapsed - currentDuration)
+            if speed.isFinite, speed >= 0 {
+                finalSample.speedMetersPerSecond = speed
+            }
+        }
+
+        return finalSample
     }
 
     private func caloriePoints(

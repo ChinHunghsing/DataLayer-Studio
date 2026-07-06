@@ -324,6 +324,43 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 10).totalCalories ?? -1, 100, accuracy: 0.001)
     }
 
+    func testUsesSessionTotalsWhenTrailingRecordsAreIncomplete() throws {
+        var content = Data()
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendDistanceOnlyRecordDefinition(localMessageType: 1, to: &content)
+        appendSessionSummaryDefinition(localMessageType: 2, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 150, cadence: 80),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_183, latitude: 35.001, longitude: 139.001, distanceMeters: 997.5, speed: 3.0, heartRate: 176, cadence: 88),
+            localMessageType: 0,
+            to: &content
+        )
+        appendDistanceOnlyRecord(timestamp: 1_000_184, distanceMeters: 1_002, localMessageType: 1, to: &content)
+        appendDistanceOnlyRecord(timestamp: 1_000_185, distanceMeters: 1_008, localMessageType: 1, to: &content)
+        appendDistanceOnlyRecord(timestamp: 1_000_186, distanceMeters: 1_013, localMessageType: 1, to: &content)
+        appendDistanceOnlyRecord(timestamp: 1_000_187, distanceMeters: 1_016.67, localMessageType: 1, to: &content)
+        appendSessionSummary(
+            timestamp: 1_000_187,
+            startTime: 1_000_000,
+            totalElapsedMilliseconds: 187_070,
+            totalTimerMilliseconds: 187_070,
+            totalDistanceMeters: 1_016.67,
+            totalCalories: 44,
+            localMessageType: 2,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.duration, 187.07, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 187.07).distanceMeters ?? -1, 1_016.67, accuracy: 0.01)
+        XCTAssertEqual(series.sample(at: 187.07).heartRate, 176)
+    }
+
     func testParsesStandardCompressedSpeedDistanceRecords() throws {
         var content = Data()
         appendCompressedSpeedDistanceRecordDefinition(localMessageType: 0, to: &content)
@@ -463,6 +500,16 @@ private func appendCompressedSpeedDistanceRecordDefinition(localMessageType: UIn
     content.append(contentsOf: [8, 3, 0x0D])
 }
 
+private func appendDistanceOnlyRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(20, to: &content)
+    content.append(2)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [5, 4, 0x86])
+}
+
 private func appendExtendedRecordDefinition(localMessageType: UInt8, to content: inout Data) {
     content.append(0x40 | localMessageType)
     content.append(0x00)
@@ -565,6 +612,20 @@ private func appendSessionDefinition(localMessageType: UInt8, to content: inout 
     content.append(contentsOf: [2, 4, 0x86])
 }
 
+private func appendSessionSummaryDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(18, to: &content)
+    content.append(6)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [2, 4, 0x86])
+    content.append(contentsOf: [7, 4, 0x86])
+    content.append(contentsOf: [8, 4, 0x86])
+    content.append(contentsOf: [9, 4, 0x86])
+    content.append(contentsOf: [11, 2, 0x84])
+}
+
 private func appendFractionalCadenceRecordDefinition(localMessageType: UInt8, to content: inout Data) {
     content.append(0x40 | localMessageType)
     content.append(0x00)
@@ -618,6 +679,17 @@ private func appendRecord(_ record: TestRecord, localMessageType: UInt8, to cont
     appendUInt16(UInt16((record.speed * 1000).rounded()), to: &content)
     content.append(record.heartRate)
     content.append(record.cadence)
+}
+
+private func appendDistanceOnlyRecord(
+    timestamp: UInt32,
+    distanceMeters: Double,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    appendUInt32(UInt32((distanceMeters * 100).rounded()), to: &content)
 }
 
 private func appendExtendedRecord(_ record: TestRecord, localMessageType: UInt8, to content: inout Data) {
@@ -699,6 +771,25 @@ private func appendLapWithTiming(
     appendUInt32(timestamp, to: &content)
     appendUInt32(startTime, to: &content)
     appendUInt32(totalElapsedMilliseconds, to: &content)
+    appendUInt16(totalCalories, to: &content)
+}
+
+private func appendSessionSummary(
+    timestamp: UInt32,
+    startTime: UInt32,
+    totalElapsedMilliseconds: UInt32,
+    totalTimerMilliseconds: UInt32,
+    totalDistanceMeters: Double,
+    totalCalories: UInt16,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    appendUInt32(startTime, to: &content)
+    appendUInt32(totalElapsedMilliseconds, to: &content)
+    appendUInt32(totalTimerMilliseconds, to: &content)
+    appendUInt32(UInt32((totalDistanceMeters * 100).rounded()), to: &content)
     appendUInt16(totalCalories, to: &content)
 }
 
