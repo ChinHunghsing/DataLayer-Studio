@@ -2,15 +2,28 @@ import OverlayCore
 import OverlayStudioKit
 import SwiftUI
 
+/// 对外入口：iOS 上进入 iPad 编辑器，macOS 构建保留 P0 诊断视图。
 public struct OverlayTouchRootView: View {
+    public init() {}
+
+    public var body: some View {
+        #if os(iOS)
+        TouchEditorRootView()
+        #else
+        OverlayTouchDiagnosticsView()
+        #endif
+    }
+}
+
+struct OverlayTouchDiagnosticsView: View {
     private let diagnostics: OverlayTouchDiagnostics
     @Environment(\.locale) private var locale
 
-    public init(diagnostics: OverlayTouchDiagnostics = .current) {
+    init(diagnostics: OverlayTouchDiagnostics = .current) {
         self.diagnostics = diagnostics
     }
 
-    public var body: some View {
+    var body: some View {
         let strings = TouchStrings(locale: locale)
 
         ViewThatFits {
@@ -276,7 +289,7 @@ private extension View {
 }
 
 #Preview {
-    OverlayTouchRootView(
+    OverlayTouchDiagnosticsView(
         diagnostics: OverlayTouchDiagnostics(
             metalDeviceName: "Apple M1",
             encoderSummary: "HEVC with Alpha / HEVC / H.264",

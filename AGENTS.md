@@ -26,10 +26,14 @@
 
 - `Sources/OverlayCore/`：核心库；FIT 解析、遥测序列、时间同步、布局模型、渲染、视频写出都在这里。这里不要依赖 SwiftUI。
 - `Sources/OverlayStudio/`：macOS SwiftUI 图形界面；`Views/` 放界面，`Models/` 放状态模型，`Services/` 放外部服务，`Stores/` 放持久化，`Support/` 放本地化和辅助代码。
+- `Sources/OverlayStudioKit/`：平台中立共享层（禁止 import AppKit/UIKit），macOS 与 iOS 共用。
+- `Sources/OverlayTouch/`：iPadOS/iOS 界面层；iOS 专属代码用 `#if os(iOS)` 门控，macOS 构建必须始终通过；新增文案走 `TouchLocalization.swift` 四语言字典。
+- `Sources/OverlayTouchHost/`：iOS 模拟器调试 App 壳（SwiftPM executable）；配套脚本 `scripts/build_touch_sim_app.sh`，流程见 `docs/ipados-development-testing.md`。
 - `Sources/overlay/`：命令行入口。
 - `Tests/OverlayCoreTests/`：核心逻辑、渲染、视频写出测试。
 - `Tests/OverlayStudioTests/`：界面模型、设置、服务、本地化测试。
 - `Tests/OverlayCLITests/`：命令行参数和布局预设测试。
+- `Tests/OverlayTouchTests/`：iPad 会话模型与四语言文案测试（在 macOS 上运行）。
 - `Resources/`：App 资源和权限配置。
 - `assets/`：README、营销图、App Store 图片和赞助图片。
 - `assets/resource/`：本地验证素材目录，已被 `.gitignore` 忽略；可放一组视频与配套 FIT，当前这组 FIT 的开表时间是视频开始后第 49 秒。此目录只用于本机调试，不提交到 Git。
@@ -55,6 +59,7 @@
 - 改导出、透明通道、合成视频：至少跑 `TransparentVideoWriterTests`、`CompositedVideoWriterTests`、`OverlayRendererTests`。
 - 改 UI 状态、导出设置、预设、天气：至少跑相关 `OverlayStudioTests`。
 - 改 CLI 参数：跑 `OverlayCLITests`。
+- 改 `OverlayTouch`：跑 `OverlayTouchTests`，并按 `docs/ipados-development-testing.md` 跑一次 iPhoneOS/模拟器编译；改到共享层还要跑 macOS 回归。
 
 ## 代码风格
 

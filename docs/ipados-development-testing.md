@@ -4,7 +4,7 @@
 | --- | --- |
 | 状态 | 本地开发备忘 |
 | 日期 | 2026-07-06 |
-| 适用范围 | `OverlayTouch`、未来 iOS/iPadOS Xcode app shell、真机签名与安装启动验证 |
+| 适用范围 | `OverlayTouch`、`OverlayTouchHost` 模拟器壳、未来 iOS/iPadOS Xcode app shell、真机签名与安装启动验证 |
 
 ## 0. 原则
 
@@ -85,6 +85,33 @@ xcodebuild -scheme OverlayTouch \
 ```
 
 如果只是改文档，不需要跑这些命令。
+
+## 4.5 模拟器开发工作流（日常首选）
+
+日常 iPadOS 开发优先用模拟器，不依赖真机与签名。仓库已提交：
+
+- `Sources/OverlayTouch/`：iPad 编辑器（会话模型 + 三栏 UI），iOS 专属代码用 `#if os(iOS)` 门控，macOS 构建仍然通过。
+- `Sources/OverlayTouchHost/`：SwiftPM executable App 壳；macOS 下退化为提示用 CLI。
+- `scripts/build_touch_sim_app.sh`：构建、组装 `.build/ios-sim/DataLayer Studio Touch.app`，`--run` 直接安装启动到 iPad 模拟器。
+
+```sh
+# 只构建组装
+scripts/build_touch_sim_app.sh
+
+# 构建并安装启动（默认 iPad Pro 13-inch (M5)，可用 SIM_DEVICE_NAME 覆盖）
+scripts/build_touch_sim_app.sh --run
+
+# 带本地样本自动载入 + 自动导出（仅模拟器调试路径，正式包不含此行为）
+TOUCH_AUTOLOAD_VIDEO=/path/to/video.mov \
+TOUCH_AUTOLOAD_FIT=/path/to/activity.fit \
+TOUCH_AUTOEXPORT=video TOUCH_AUTOEXPORT_MAX_SECONDS=20 \
+scripts/build_touch_sim_app.sh --run
+```
+
+- 截图验证：`xcrun simctl io <device> screenshot out.png`。
+- 导出产物在 App 沙盒 Documents：`xcrun simctl get_app_container <device> run.libo.datalayer-studio.overlaytouchhost data`。
+- 模拟器没有硬件编码器：`OverlayHardwareProfile` 探测为空，写出设置会自动省略仅硬编支持的加速属性；HEVC/H.264 走软件编码可完整验证导出链路，HEVC-alpha 金样验证仍以真机为准。
+- 模型层单元测试在 macOS 直接跑：`swift test --filter OverlayTouchTests`。
 
 ## 5. 真机 App 壳验证
 

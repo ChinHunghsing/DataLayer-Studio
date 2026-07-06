@@ -14,7 +14,8 @@ let package = Package(
         .executable(name: "overlay-studio", targets: ["OverlayStudio"]),
         .library(name: "OverlayCore", targets: ["OverlayCore"]),
         .library(name: "OverlayStudioKit", targets: ["OverlayStudioKit"]),
-        .library(name: "OverlayTouch", targets: ["OverlayTouch"])
+        .library(name: "OverlayTouch", targets: ["OverlayTouch"]),
+        .executable(name: "overlay-touch-host", targets: ["OverlayTouchHost"])
     ],
     targets: [
         .target(
@@ -41,6 +42,11 @@ let package = Package(
             dependencies: ["OverlayCore", "OverlayStudioKit"],
             path: "Sources/OverlayTouch"
         ),
+        .executableTarget(
+            name: "OverlayTouchHost",
+            dependencies: ["OverlayTouch"],
+            path: "Sources/OverlayTouchHost"
+        ),
         .testTarget(
             name: "OverlayCoreTests",
             dependencies: ["OverlayCore"],
@@ -55,6 +61,11 @@ let package = Package(
             name: "OverlayCLITests",
             dependencies: ["overlay"],
             path: "Tests/OverlayCLITests"
+        ),
+        .testTarget(
+            name: "OverlayTouchTests",
+            dependencies: ["OverlayTouch"],
+            path: "Tests/OverlayTouchTests"
         )
     ]
 )

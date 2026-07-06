@@ -463,14 +463,18 @@ public final class CompositedVideoWriter {
             settings[AVVideoEncoderSpecificationKey] = encoderSpecification
             #endif
         }
-        settings[AVVideoCompressionPropertiesKey] = [
+        var compressionProperties: [String: Any] = [
             AVVideoAverageBitRateKey: averageBitRate,
             AVVideoExpectedSourceFrameRateKey: expectedSourceFrameRate,
             AVVideoMaxKeyFrameIntervalKey: encoderFrameRate,
             AVVideoAllowFrameReorderingKey: false,
-            kVTCompressionPropertyKey_RealTime as String: true,
-            kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality as String: true
+            kVTCompressionPropertyKey_RealTime as String: true
         ]
+        // 软件编码器（如 iOS 模拟器）不接受该加速提示属性，传入会让 AVAssetWriterInput 直接抛异常。
+        if hardwareProfile.canUseHardwareEncoder(for: codec) {
+            compressionProperties[kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality as String] = true
+        }
+        settings[AVVideoCompressionPropertiesKey] = compressionProperties
         return settings
     }
 
