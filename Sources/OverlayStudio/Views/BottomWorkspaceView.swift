@@ -6,6 +6,7 @@ struct BottomWorkspaceView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
     @SceneStorage("bottomWorkspaceTab") private var selectedTabRawValue = BottomWorkspaceTab.sync.rawValue
+    private static let topAnchorID = "bottom-workspace-top"
 
     private let columns = [
         GridItem(.flexible(minimum: 220), spacing: 14, alignment: .top),
@@ -33,11 +34,12 @@ struct BottomWorkspaceView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
-                    .frame(width: 260)
+                    .frame(width: 320, alignment: .leading)
                     .accessibilityLabel(localization.string("workspace.tabs"))
 
                     Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 WorkspaceTaskHint(message: localization.string(selectedTab.hintLocalizationKey))
             }
@@ -47,10 +49,19 @@ struct BottomWorkspaceView: View {
 
             Divider()
 
-            ScrollView(.vertical) {
-                tabContent
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollViewReader { proxy in
+                ScrollView(.vertical) {
+                    Color.clear
+                        .frame(height: 0)
+                        .id(Self.topAnchorID)
+
+                    tabContent
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .onChange(of: selectedTabRawValue) { _ in
+                    proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                }
             }
             .frame(minHeight: contentHeight.min, idealHeight: contentHeight.ideal, maxHeight: contentHeight.max)
 
