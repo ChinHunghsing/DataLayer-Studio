@@ -44,17 +44,26 @@ struct PreviewCanvasView: View {
                 )
             }
         } else {
-            VStack(spacing: 0) {
-                previewViewport(state: canvasState)
-                    .layoutPriority(1)
-                PreviewControlsPanel(
-                    model: model,
-                    state: controlsState,
-                    zoom: $zoom,
-                    isFullscreen: isFullscreen,
-                    onToggleFullscreen: onToggleFullscreen
+            GeometryReader { proxy in
+                let viewportHeight = adaptivePreviewViewportHeight(
+                    containerSize: proxy.size,
+                    state: canvasState
                 )
-                BottomWorkspaceView(model: model)
+
+                VStack(spacing: 0) {
+                    previewViewport(state: canvasState)
+                        .frame(maxHeight: viewportHeight)
+                        .layoutPriority(1)
+                    PreviewControlsPanel(
+                        model: model,
+                        state: controlsState,
+                        zoom: $zoom,
+                        isFullscreen: isFullscreen,
+                        onToggleFullscreen: onToggleFullscreen
+                    )
+                    BottomWorkspaceView(model: model)
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
             }
         }
     }
@@ -909,6 +918,31 @@ struct PreviewCanvasView: View {
             bottom: isFullscreen ? 24 : 20,
             trailing: horizontalPadding
         )
+    }
+
+    private func adaptivePreviewViewportHeight(containerSize: CGSize, state: PreviewCanvasState) -> CGFloat {
+        guard !isFullscreen else { return containerSize.height }
+
+        let insets = previewStageInsets(for: containerSize)
+        let outputAspectRatio = CGFloat(state.outputWidth) / CGFloat(max(1, state.outputHeight))
+        let availableWidth = max(1, containerSize.width - insets.leading - insets.trailing)
+        let previewHeightForWidth = availableWidth / max(0.1, outputAspectRatio)
+        let comfortableSlack = max(36, min(76, containerSize.height * 0.055))
+        let idealHeight = previewHeightForWidth + insets.top + insets.bottom + comfortableSlack
+
+        let centerAspectRatio = containerSize.width / max(1, containerSize.height)
+        let maxViewportRatio: CGFloat
+        if centerAspectRatio < 1.05 {
+            maxViewportRatio = 0.64
+        } else if centerAspectRatio < 1.35 {
+            maxViewportRatio = 0.68
+        } else {
+            maxViewportRatio = 0.72
+        }
+
+        let minimumHeight = min(containerSize.height, max(300, containerSize.height * 0.38))
+        let maximumHeight = max(minimumHeight, containerSize.height * maxViewportRatio)
+        return min(containerSize.height, max(minimumHeight, min(idealHeight, maximumHeight)))
     }
 
     private func verticalPreviewSlackOffset(_ slack: CGFloat) -> CGFloat {
