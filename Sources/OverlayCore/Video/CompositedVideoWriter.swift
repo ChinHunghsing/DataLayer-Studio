@@ -18,6 +18,7 @@ public struct CompositedVideoWriterConfig {
     public var codec: OverlayVideoCodec
     public var overlayLayout: OverlayLayout
     public var distanceUnit: OverlayDistanceUnit
+    public var activityTrim: ActivityTrim
     public var progressHandler: ((Int, Int) -> Void)?
     public var cancellationHandler: (() -> Bool)?
     public var diagnosticsHandler: ((String) -> Void)?
@@ -33,6 +34,7 @@ public struct CompositedVideoWriterConfig {
         codec: OverlayVideoCodec = .hevc,
         overlayLayout: OverlayLayout = .default,
         distanceUnit: OverlayDistanceUnit = .kilometers,
+        activityTrim: ActivityTrim = .none,
         progressHandler: ((Int, Int) -> Void)? = nil,
         cancellationHandler: (() -> Bool)? = nil,
         diagnosticsHandler: ((String) -> Void)? = nil
@@ -47,6 +49,7 @@ public struct CompositedVideoWriterConfig {
         self.codec = codec
         self.overlayLayout = overlayLayout
         self.distanceUnit = distanceUnit
+        self.activityTrim = activityTrim
         self.progressHandler = progressHandler
         self.cancellationHandler = cancellationHandler
         self.diagnosticsHandler = diagnosticsHandler
@@ -178,7 +181,8 @@ public final class CompositedVideoWriter {
                 size: CGSize(width: width, height: height),
                 timeSync: config.timeSync,
                 layout: config.overlayLayout,
-                distanceUnit: config.distanceUnit
+                distanceUnit: config.distanceUnit,
+                activityTrim: config.activityTrim
             )
         )
         let colorSpace = CGColorSpaceCreateDeviceRGB()

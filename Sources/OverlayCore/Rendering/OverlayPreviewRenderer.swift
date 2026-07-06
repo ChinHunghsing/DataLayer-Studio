@@ -41,7 +41,8 @@ public final class OverlayPreviewRenderer {
         videoTime: TimeInterval,
         timeSync: TelemetryTimeSync = .identity,
         layout: OverlayLayout = .default,
-        distanceUnit: OverlayDistanceUnit = .kilometers
+        distanceUnit: OverlayDistanceUnit = .kilometers,
+        activityTrim: ActivityTrim = .none
     ) throws -> CGImage {
         guard size.width.isFinite,
               size.height.isFinite,
@@ -61,7 +62,8 @@ public final class OverlayPreviewRenderer {
                 size: CGSize(width: width, height: height),
                 timeSync: timeSync,
                 layout: layout,
-                distanceUnit: distanceUnit
+                distanceUnit: distanceUnit,
+                activityTrim: activityTrim
             )
         )
         try renderer.render(videoTime: videoTime, into: pixelBuffer)

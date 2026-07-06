@@ -78,6 +78,7 @@ public struct TransparentVideoWriterConfig {
     public var codec: OverlayVideoCodec
     public var overlayLayout: OverlayLayout
     public var distanceUnit: OverlayDistanceUnit
+    public var activityTrim: ActivityTrim
     public var progressHandler: ((Int, Int) -> Void)?
     public var cancellationHandler: (() -> Bool)?
 
@@ -92,6 +93,7 @@ public struct TransparentVideoWriterConfig {
         codec: OverlayVideoCodec = .hevcAlpha,
         overlayLayout: OverlayLayout = .default,
         distanceUnit: OverlayDistanceUnit = .kilometers,
+        activityTrim: ActivityTrim = .none,
         progressHandler: ((Int, Int) -> Void)? = nil,
         cancellationHandler: (() -> Bool)? = nil
     ) {
@@ -105,6 +107,7 @@ public struct TransparentVideoWriterConfig {
         self.codec = codec
         self.overlayLayout = overlayLayout
         self.distanceUnit = distanceUnit
+        self.activityTrim = activityTrim
         self.progressHandler = progressHandler
         self.cancellationHandler = cancellationHandler
     }
@@ -287,7 +290,8 @@ public final class TransparentVideoWriter {
                 size: CGSize(width: width, height: height),
                 timeSync: config.timeSync,
                 layout: config.overlayLayout,
-                distanceUnit: config.distanceUnit
+                distanceUnit: config.distanceUnit,
+                activityTrim: config.activityTrim
             )
         )
 

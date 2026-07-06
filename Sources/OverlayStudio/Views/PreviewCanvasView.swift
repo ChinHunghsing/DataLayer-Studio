@@ -699,8 +699,7 @@ struct PreviewCanvasView: View {
     }
 
     private func currentTelemetrySample() -> TelemetrySample {
-        let elapsed = model.timeSync.fitElapsed(forVideoTime: model.previewTime)
-        return model.series?.sample(at: elapsed) ?? TelemetrySample(elapsed: elapsed)
+        model.displayTelemetrySample(forVideoTime: model.previewTime)
     }
 
     private func metricText(for element: OverlayElement) -> (label: String, value: String, unit: String, icon: String) {
@@ -844,8 +843,7 @@ struct PreviewCanvasView: View {
 
     private func timeDateText(for element: OverlayElement) -> (label: String, elapsed: String, clock: String, date: String, icon: String) {
         let sample = currentTelemetrySample()
-        let rawElapsed = model.timeSync.rawFitElapsed(forVideoTime: model.previewTime)
-        let absoluteDate = model.series?.date(atElapsed: rawElapsed) ?? sample.date
+        let absoluteDate = model.absoluteActivityDate(forVideoTime: model.previewTime) ?? sample.date
         return (
             element.customization.label(default: "TIME"),
             formatClockDuration(sample.elapsed),

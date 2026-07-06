@@ -227,7 +227,8 @@ struct ContentView: View {
             fitStartSeconds: model.fitStartSeconds,
             syncVideoSeconds: model.syncVideoSeconds,
             syncFITSeconds: model.syncFITSeconds,
-            distanceUnit: model.distanceUnit
+            distanceUnit: model.distanceUnit,
+            activityTrim: model.currentActivityTrim
         )
     }
 
@@ -562,4 +563,5 @@ private struct PreviewInvalidationState: Equatable {
     var syncVideoSeconds: Double
     var syncFITSeconds: Double
     var distanceUnit: OverlayDistanceUnit
+    var activityTrim: ActivityTrim
 }

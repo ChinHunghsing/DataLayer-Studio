@@ -107,6 +107,43 @@ public struct TelemetrySeries: Equatable {
         return interpolate(a, b, fraction: fraction, elapsed: elapsed)
     }
 
+    public func trimmed(by trim: ActivityTrim) -> TelemetrySeries {
+        guard !samples.isEmpty else { return self }
+        let sourceDuration = duration
+        guard trim.isActive(for: sourceDuration) else { return self }
+
+        let trimStart = trim.start(in: sourceDuration)
+        let trimEnd = trim.end(in: sourceDuration)
+        let startSample = sample(at: trimStart)
+        let endSample = sample(at: trimEnd)
+        let distanceOffset = startSample.distanceMeters
+        let calorieOffset = startSample.totalCalories
+
+        var trimmedSamples: [TelemetrySample] = [
+            rebasedSample(startSample, trimStart: trimStart, distanceOffset: distanceOffset, calorieOffset: calorieOffset)
+        ]
+
+        for sample in samples where sample.elapsed > trimStart && sample.elapsed < trimEnd {
+            trimmedSamples.append(
+                rebasedSample(sample, trimStart: trimStart, distanceOffset: distanceOffset, calorieOffset: calorieOffset)
+            )
+        }
+
+        if trimEnd > trimStart {
+            let rebasedEnd = rebasedSample(
+                endSample,
+                trimStart: trimStart,
+                distanceOffset: distanceOffset,
+                calorieOffset: calorieOffset
+            )
+            if trimmedSamples.last?.elapsed != rebasedEnd.elapsed {
+                trimmedSamples.append(rebasedEnd)
+            }
+        }
+
+        return TelemetrySeries(samples: trimmedSamples)
+    }
+
     private func interpolate(
         _ a: TelemetrySample,
         _ b: TelemetrySample,
@@ -114,6 +151,23 @@ public struct TelemetrySeries: Equatable {
         elapsed: TimeInterval
     ) -> TelemetrySample {
         Self.interpolate(a, b, fraction: fraction, elapsed: elapsed)
+    }
+
+    private func rebasedSample(
+        _ sample: TelemetrySample,
+        trimStart: TimeInterval,
+        distanceOffset: Double?,
+        calorieOffset: Double?
+    ) -> TelemetrySample {
+        var output = sample
+        output.elapsed = max(0, sample.elapsed - trimStart)
+        if let distance = sample.distanceMeters, let distanceOffset {
+            output.distanceMeters = max(0, distance - distanceOffset)
+        }
+        if let calories = sample.totalCalories, let calorieOffset {
+            output.totalCalories = max(0, calories - calorieOffset)
+        }
+        return output
     }
 
     private static func interpolate(

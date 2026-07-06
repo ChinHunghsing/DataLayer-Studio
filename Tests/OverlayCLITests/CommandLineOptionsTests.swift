@@ -113,6 +113,34 @@ final class CommandLineOptionsTests: XCTestCase {
         XCTAssertEqual(options.layoutPresetReference, "Race Layout")
     }
 
+    func testActivityTrimArgumentsStoreOriginalActivityRange() throws {
+        let options = try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--fit", "activity.fit",
+            "--output", "overlay.mov",
+            "--activity-trim-start", "120.5",
+            "--activity-trim-end", "420.25"
+        ])
+
+        XCTAssertEqual(options.activityTrim.startSeconds, 120.5, accuracy: 0.001)
+        XCTAssertEqual(options.activityTrim.endSeconds ?? -1, 420.25, accuracy: 0.001)
+    }
+
+    func testActivityTrimEndMustNotBeBeforeStart() {
+        XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--fit", "activity.fit",
+            "--output", "overlay.mov",
+            "--activity-trim-start", "60",
+            "--activity-trim-end", "30"
+        ])) { error in
+            guard case CLIError.conflictingArguments(let message) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertTrue(message.contains("--activity-trim-end"))
+        }
+    }
+
     func testDurationArgumentIsNoLongerSupported() {
         XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
             "overlay",

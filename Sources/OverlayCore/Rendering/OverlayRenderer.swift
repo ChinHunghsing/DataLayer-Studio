@@ -9,6 +9,7 @@ public final class OverlayRenderer {
     private static let routeMapHorizontalInset: CGFloat = 26
     private static let routeMapVerticalInset: CGFloat = 34
 
+    private let sourceSeries: TelemetrySeries
     private let series: TelemetrySeries
     private let config: OverlayRenderConfig
     private let visibleElements: [OverlayElement]
@@ -28,13 +29,15 @@ public final class OverlayRenderer {
     }
 
     private init(series: TelemetrySeries, config: OverlayRenderConfig, reusing previous: OverlayRenderer?) {
-        self.series = series
+        self.sourceSeries = series
+        let displaySeries = series.trimmed(by: config.activityTrim)
+        self.series = displaySeries
         self.config = config
         let visibleElements = config.layout.visibleElements
         self.visibleElements = visibleElements
         self.metricElements = visibleElements.filter { Self.isMetricKind($0.kind) }
         self.totalDistanceMeters = previous?.totalDistanceMeters
-            ?? OverlayRenderer.lastFiniteDistance(samples: series.samples) ?? 0
+            ?? OverlayRenderer.lastFiniteDistance(samples: displaySeries.samples) ?? 0
         let routePoints: [RoutePoint]
         if !visibleElements.contains(where: { $0.kind == .route }) {
             routePoints = []
@@ -42,8 +45,8 @@ public final class OverlayRenderer {
             routePoints = previous.routePoints
         } else {
             routePoints = OverlayRenderer.makeRoutePoints(
-                samples: series.samples,
-                bounds: series.bounds,
+                samples: displaySeries.samples,
+                bounds: displaySeries.bounds,
                 limit: config.routePointLimit
             )
         }
@@ -51,7 +54,7 @@ public final class OverlayRenderer {
         self.routePathCache = OverlayRenderer.makeRoutePathCache(
             elements: visibleElements,
             routePoints: routePoints,
-            bounds: series.bounds,
+            bounds: displaySeries.bounds,
             canvasSize: config.size,
             previousElements: previous?.visibleElements ?? [],
             previousCache: previous?.routePathCache ?? [:]
@@ -62,7 +65,7 @@ public final class OverlayRenderer {
     public func withLayout(_ layout: OverlayLayout) -> OverlayRenderer {
         var newConfig = config
         newConfig.layout = layout.sanitized
-        return OverlayRenderer(series: series, config: newConfig, reusing: self)
+        return OverlayRenderer(series: sourceSeries, config: newConfig, reusing: self)
     }
 
     public func render(videoTime: TimeInterval, into pixelBuffer: CVPixelBuffer) throws {
@@ -96,9 +99,13 @@ public final class OverlayRenderer {
         context.setAllowsAntialiasing(true)
 
         let rawTelemetryTime = config.timeSync.rawFitElapsed(forVideoTime: videoTime)
-        let telemetryTime = config.timeSync.fitElapsed(forVideoTime: videoTime)
+        let originalTelemetryTime = config.timeSync.fitElapsed(forVideoTime: videoTime)
+        let telemetryTime = config.activityTrim.displayElapsed(
+            forRawElapsed: originalTelemetryTime,
+            sourceDuration: sourceSeries.duration
+        )
         let sample = series.sample(at: telemetryTime)
-        let absoluteDate = series.date(atElapsed: rawTelemetryTime) ?? sample.date
+        let absoluteDate = sourceSeries.date(atElapsed: rawTelemetryTime) ?? sample.date
         let metricTileWidth = alignedMetricTileWidth(sample: sample, canvas: canvas)
 
         for element in visibleElements {

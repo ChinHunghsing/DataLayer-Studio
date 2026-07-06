@@ -254,6 +254,10 @@ struct ExportTrimRangeControl: View {
     @Binding var end: TimeInterval
     var sourceDuration: TimeInterval
     var currentTime: TimeInterval
+    var titleKey = "sidebar.exportRange"
+    var fullKey = "sidebar.exportRange.full"
+    var setStartKey = "sidebar.exportRange.setStart"
+    var setEndKey = "sidebar.exportRange.setEnd"
     var reset: () -> Void
     var formatTime: (TimeInterval) -> String
     @EnvironmentObject private var localization: LocalizationStore
@@ -261,7 +265,7 @@ struct ExportTrimRangeControl: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Label(localization.string("sidebar.exportRange"), systemImage: "scissors")
+                Label(localization.string(titleKey), systemImage: "scissors")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
@@ -270,18 +274,18 @@ struct ExportTrimRangeControl: View {
                 Button {
                     start = currentTime
                 } label: {
-                    Label(localization.string("sidebar.exportRange.setStart"), systemImage: "arrow.left.to.line")
+                    Label(localization.string(setStartKey), systemImage: "arrow.left.to.line")
                 }
 
                 Button {
                     end = currentTime
                 } label: {
-                    Label(localization.string("sidebar.exportRange.setEnd"), systemImage: "arrow.right.to.line")
+                    Label(localization.string(setEndKey), systemImage: "arrow.right.to.line")
                 }
 
                 Spacer(minLength: 6)
 
-                Button(localization.string("sidebar.exportRange.full"), action: reset)
+                Button(localization.string(fullKey), action: reset)
             }
             .labelStyle(.titleAndIcon)
             .controlSize(.small)
@@ -304,7 +308,7 @@ struct ExportTrimRangeControl: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(localization.string("sidebar.exportRange"))
+        .accessibilityLabel(localization.string(titleKey))
     }
 
     private func trimValue(

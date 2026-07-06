@@ -13,6 +13,7 @@ struct CommandLineOptions {
     var exportMode: OverlayExportMode
     var codec: OverlayVideoCodec
     var distanceUnit: OverlayDistanceUnit
+    var activityTrim: ActivityTrim
     var layoutPresetReference: String?
     var validateFITCRC: Bool
     var inspectOnly: Bool
@@ -30,7 +31,7 @@ struct CommandLineOptions {
             case "--skip-fit-crc", "--inspect":
                 flags.insert(argument)
                 index += 1
-            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--export-mode", "--codec", "--distance-unit", "--layout-preset":
+            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--export-mode", "--codec", "--distance-unit", "--activity-trim-start", "--activity-trim-end", "--layout-preset":
                 guard index + 1 < arguments.count else {
                     throw CLIError.missingValue(argument)
                 }
@@ -62,6 +63,7 @@ struct CommandLineOptions {
             exportMode: exportMode,
             codec: codec,
             distanceUnit: try parseDistanceUnit(values["--distance-unit"]),
+            activityTrim: try parseActivityTrim(values: values),
             layoutPresetReference: values["--layout-preset"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             validateFITCRC: !flags.contains("--skip-fit-crc"),
             inspectOnly: flags.contains("--inspect")
@@ -186,6 +188,17 @@ struct CommandLineOptions {
         }
         return unit
     }
+
+    private static func parseActivityTrim(values: [String: String]) throws -> ActivityTrim {
+        let start = try parseDouble(values["--activity-trim-start"] ?? "0", name: "--activity-trim-start", allowNegative: false)
+        let end = try values["--activity-trim-end"].map {
+            try parseDouble($0, name: "--activity-trim-end", allowNegative: false)
+        }
+        if let end, end < start {
+            throw CLIError.conflictingArguments("--activity-trim-end must be greater than or equal to --activity-trim-start")
+        }
+        return ActivityTrim(startSeconds: start, endSeconds: end)
+    }
 }
 
 enum CLIError: Error, CustomStringConvertible {
@@ -248,6 +261,10 @@ enum CLIError: Error, CustomStringConvertible {
       --bitrate-bps BPS  Legacy explicit bps bitrate.
       --codec NAME       overlay mode: hevc-alpha (default), prores-4444. video mode: hevc (default), h264.
       --distance-unit U  Distance unit for overlay labels: km (default) or m.
+      --activity-trim-start SEC
+                         Rebase overlay data from this original activity elapsed time.
+      --activity-trim-end SEC
+                         Stop overlay data at this original activity elapsed time.
       --layout-preset P  Use a saved GUI layout preset by name/ID, or a GUI-exported JSON file.
       --skip-fit-crc     Parse FIT even if CRC validation fails. Ignored for GPX.
       --inspect          Parse video and activity data, print metadata, do not render.
@@ -346,6 +363,9 @@ func run() async throws {
     print("Codec: \(options.codec.rawValue)")
     print("Bitrate: \(options.averageBitRate / 1000) kbps")
     print("Distance unit: \(options.distanceUnit.rawValue)")
+    if options.activityTrim.isActive(for: series.duration) {
+        print(String(format: "Activity trim: %.3f...%.3f s", options.activityTrim.start(in: series.duration), options.activityTrim.end(in: series.duration)))
+    }
     if let presetName = resolvedLayout.presetName {
         print("Layout preset: \(presetName)")
     } else {
@@ -379,6 +399,7 @@ func run() async throws {
                 codec: options.codec,
                 overlayLayout: resolvedLayout.layout,
                 distanceUnit: options.distanceUnit,
+                activityTrim: options.activityTrim,
                 progressHandler: progressHandler
             )
         ).write()
@@ -400,6 +421,7 @@ func run() async throws {
                 codec: options.codec,
                 overlayLayout: resolvedLayout.layout,
                 distanceUnit: options.distanceUnit,
+                activityTrim: options.activityTrim,
                 progressHandler: progressHandler
             )
         ).write()

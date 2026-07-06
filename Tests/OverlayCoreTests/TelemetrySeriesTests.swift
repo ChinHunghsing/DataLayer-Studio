@@ -203,6 +203,34 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.samples.last?.elapsed, 2)
     }
 
+    func testActivityTrimRebasesElapsedDistanceAndCalories() {
+        let startDate = Date(timeIntervalSince1970: 1_787_000_000)
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: startDate, distanceMeters: 0, speedMetersPerSecond: 5, totalCalories: 0),
+            TelemetrySample(elapsed: 10, date: startDate.addingTimeInterval(10), distanceMeters: 100, speedMetersPerSecond: 5, totalCalories: 20),
+            TelemetrySample(elapsed: 20, date: startDate.addingTimeInterval(20), distanceMeters: 250, speedMetersPerSecond: 5, totalCalories: 50)
+        ])
+
+        let trimmed = series.trimmed(by: ActivityTrim(startSeconds: 5, endSeconds: 15))
+
+        XCTAssertEqual(trimmed.duration, 10, accuracy: 0.001)
+        XCTAssertEqual(trimmed.samples.first?.elapsed ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(trimmed.samples.first?.distanceMeters ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(trimmed.samples.first?.totalCalories ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(trimmed.samples.first?.date?.timeIntervalSince1970 ?? -1, startDate.addingTimeInterval(5).timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(trimmed.sample(at: 10).distanceMeters ?? -1, 125, accuracy: 0.001)
+        XCTAssertEqual(trimmed.sample(at: 10).totalCalories ?? -1, 25, accuracy: 0.001)
+    }
+
+    func testActivityTrimMapsOriginalElapsedToDisplayElapsed() {
+        let trim = ActivityTrim(startSeconds: 20, endSeconds: 80)
+
+        XCTAssertEqual(trim.displayElapsed(forRawElapsed: 0, sourceDuration: 100), 0, accuracy: 0.001)
+        XCTAssertEqual(trim.displayElapsed(forRawElapsed: 20, sourceDuration: 100), 0, accuracy: 0.001)
+        XCTAssertEqual(trim.displayElapsed(forRawElapsed: 35, sourceDuration: 100), 15, accuracy: 0.001)
+        XCTAssertEqual(trim.displayElapsed(forRawElapsed: 120, sourceDuration: 100), 60, accuracy: 0.001)
+    }
+
     func testKeepsImplausibleStartupDistanceAsBaselineOffset() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0),

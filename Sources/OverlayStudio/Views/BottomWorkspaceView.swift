@@ -92,6 +92,8 @@ struct BottomWorkspaceView: View {
 
     private var trimContent: some View {
         VStack(alignment: .leading, spacing: 12) {
+            activityTrimRangeCard
+            SidebarDivider()
             exportTrimRangeCard
             exportSummaryCard
         }
@@ -344,6 +346,34 @@ struct BottomWorkspaceView: View {
             formatTime: formatTrimTime
         )
         .disabled(model.isExporting || model.exportTrimSourceDuration <= 0)
+    }
+
+    private var activityTrimRangeCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ExportTrimRangeControl(
+                start: Binding(
+                    get: { model.effectiveActivityTrimStart },
+                    set: { model.setActivityTrimStart($0) }
+                ),
+                end: Binding(
+                    get: { model.effectiveActivityTrimEnd },
+                    set: { model.setActivityTrimEnd($0) }
+                ),
+                sourceDuration: model.activityTrimSourceDuration,
+                currentTime: model.currentActivityElapsedForTrim,
+                titleKey: "sidebar.activityRange",
+                fullKey: "sidebar.activityRange.full",
+                setStartKey: "sidebar.activityRange.setStart",
+                setEndKey: "sidebar.activityRange.setEnd",
+                reset: { model.resetActivityTrimRange() },
+                formatTime: formatTrimTime
+            )
+            Text(localization.string("sidebar.activityRange.help"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .disabled(model.isExporting || model.activityTrimSourceDuration <= 0)
     }
 
     private var resolutionPresetSelection: Binding<String> {

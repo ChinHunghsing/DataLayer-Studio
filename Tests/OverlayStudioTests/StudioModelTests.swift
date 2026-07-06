@@ -200,6 +200,38 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(StudioModel.sourceVideoBitRateKbps(from: metadata), 12_346)
     }
 
+    func testActivityTrimRebasesPreviewSampleData() {
+        let model = StudioModel()
+        let startDate = Date(timeIntervalSince1970: 1_000)
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: startDate, distanceMeters: 0, totalCalories: 10),
+            TelemetrySample(elapsed: 10, date: startDate.addingTimeInterval(10), distanceMeters: 1_000, totalCalories: 60),
+            TelemetrySample(elapsed: 20, date: startDate.addingTimeInterval(20), distanceMeters: 2_000, totalCalories: 110)
+        ])
+        model.activityTrim = ActivityTrim(startSeconds: 10, endSeconds: 20)
+
+        let sample = model.displayTelemetrySample(forVideoTime: 15)
+
+        XCTAssertEqual(sample.elapsed, 5, accuracy: 0.000_1)
+        XCTAssertEqual(sample.distanceMeters ?? -1, 500, accuracy: 0.000_1)
+        XCTAssertEqual(sample.totalCalories ?? -1, 25, accuracy: 0.000_1)
+    }
+
+    func testActivityTrimKeepsAbsoluteDateOnOriginalTimeline() throws {
+        let model = StudioModel()
+        let startDate = Date(timeIntervalSince1970: 2_000)
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: startDate, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, date: startDate.addingTimeInterval(10), distanceMeters: 1_000),
+            TelemetrySample(elapsed: 20, date: startDate.addingTimeInterval(20), distanceMeters: 2_000)
+        ])
+        model.activityTrim = ActivityTrim(startSeconds: 10, endSeconds: 20)
+
+        let date = try XCTUnwrap(model.absoluteActivityDate(forVideoTime: 15))
+
+        XCTAssertEqual(date.timeIntervalSince1970, 2_015, accuracy: 0.000_1)
+    }
+
     func testSportStartStatusUsesReadableDuration() {
         let model = StudioModel()
         model.setResolvedLanguage(.simplifiedChinese)

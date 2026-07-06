@@ -66,6 +66,7 @@ final class StudioModel: ObservableObject {
     @Published var sourceDuration: TimeInterval = 0
     @Published var exportTrimStartSeconds: TimeInterval = 0
     @Published var exportTrimEndSeconds: TimeInterval = 0
+    @Published var activityTrim: ActivityTrim = .none
     @Published var bitRateKbps = 12_000
     @Published var exportMode: OverlayExportMode = .overlay {
         didSet {
@@ -794,6 +795,75 @@ final class StudioModel: ObservableObject {
         return lowerBound...upperBound
     }
 
+    var activityTrimSourceDuration: TimeInterval {
+        guard let duration = series?.duration, duration.isFinite, duration > 0 else { return 0 }
+        return min(duration, 86_400)
+    }
+
+    var effectiveActivityTrimStart: TimeInterval {
+        sanitizedActivityTrimStart(activityTrim.startSeconds, sourceDuration: activityTrimSourceDuration)
+    }
+
+    var effectiveActivityTrimEnd: TimeInterval {
+        sanitizedActivityTrimEnd(
+            activityTrim.endSeconds,
+            start: effectiveActivityTrimStart,
+            sourceDuration: activityTrimSourceDuration
+        )
+    }
+
+    var effectiveActivityTrimDuration: TimeInterval {
+        max(0, effectiveActivityTrimEnd - effectiveActivityTrimStart)
+    }
+
+    var currentActivityElapsedForTrim: TimeInterval {
+        guard activityTrimSourceDuration > 0 else { return 0 }
+        let rawActivityTime = timeSync.fitElapsed(forVideoTime: previewTime)
+        return min(activityTrimSourceDuration, max(0, rawActivityTime))
+    }
+
+    var currentActivityTrim: ActivityTrim {
+        ActivityTrim(startSeconds: effectiveActivityTrimStart, endSeconds: effectiveActivityTrimEnd)
+    }
+
+    func setActivityTrimStart(_ value: TimeInterval) {
+        guard !isExporting else { return }
+        let sourceDuration = activityTrimSourceDuration
+        let start = sanitizedActivityTrimStart(value, sourceDuration: sourceDuration)
+        let end = sanitizedActivityTrimEnd(activityTrim.endSeconds, start: start, sourceDuration: sourceDuration)
+        activityTrim = ActivityTrim(startSeconds: start, endSeconds: end)
+        refreshOverlayOrPreview()
+    }
+
+    func setActivityTrimEnd(_ value: TimeInterval) {
+        guard !isExporting else { return }
+        let sourceDuration = activityTrimSourceDuration
+        let start = effectiveActivityTrimStart
+        let end = sanitizedActivityTrimEnd(value, start: start, sourceDuration: sourceDuration)
+        activityTrim = ActivityTrim(startSeconds: start, endSeconds: end)
+        refreshOverlayOrPreview()
+    }
+
+    func resetActivityTrimRange() {
+        guard !isExporting else { return }
+        activityTrim = .none
+        refreshOverlayOrPreview()
+    }
+
+    func displayTelemetrySample(forVideoTime videoTime: TimeInterval) -> TelemetrySample {
+        let rawActivityTime = timeSync.fitElapsed(forVideoTime: videoTime)
+        let displayElapsed = activityTrim.displayElapsed(
+            forRawElapsed: rawActivityTime,
+            sourceDuration: series?.duration ?? 0
+        )
+        return series?.trimmed(by: activityTrim).sample(at: displayElapsed) ?? TelemetrySample(elapsed: displayElapsed)
+    }
+
+    func absoluteActivityDate(forVideoTime videoTime: TimeInterval) -> Date? {
+        let rawActivityTime = timeSync.rawFitElapsed(forVideoTime: videoTime)
+        return series?.date(atElapsed: rawActivityTime)
+    }
+
     var exportTrimSourceDuration: TimeInterval {
         let duration = videoURL == nil ? series?.duration ?? 0 : sourceDuration
         guard duration.isFinite, duration > 0 else { return 0 }
@@ -964,6 +1034,7 @@ final class StudioModel: ObservableObject {
         let loadGeneration = fitLoadGeneration
         fitURL = nil
         series = nil
+        activityTrim = .none
         overlayImage = nil
         previewWarning = nil
         fitLoadFailure = nil
@@ -1113,6 +1184,7 @@ final class StudioModel: ObservableObject {
         let currentSync = timeSync
         let currentLayout = layout
         let currentDistanceUnit = distanceUnit
+        let currentActivityTrim = self.currentActivityTrim
         let videoPreviewFailedTitle = localized("status.previewVideoFailed")
         let overlayPreviewFailedTitle = localized("status.previewOverlayFailed")
 
@@ -1140,7 +1212,8 @@ final class StudioModel: ObservableObject {
                         videoTime: time,
                         timeSync: currentSync,
                         layout: currentLayout,
-                        distanceUnit: currentDistanceUnit
+                        distanceUnit: currentDistanceUnit,
+                        activityTrim: currentActivityTrim
                     )
                 } catch is CancellationError {
                     return
@@ -1202,6 +1275,7 @@ final class StudioModel: ObservableObject {
         let currentSync = timeSync
         let currentLayout = layout
         let currentDistanceUnit = distanceUnit
+        let currentActivityTrim = self.currentActivityTrim
         let overlayPreviewFailedTitle = localized("status.previewOverlayFailed")
 
         previewRenderTask?.cancel()
@@ -1217,7 +1291,8 @@ final class StudioModel: ObservableObject {
                     videoTime: time,
                     timeSync: currentSync,
                     layout: currentLayout,
-                    distanceUnit: currentDistanceUnit
+                    distanceUnit: currentDistanceUnit,
+                    activityTrim: currentActivityTrim
                 )
                 warningMessage = nil
             } catch is CancellationError {
@@ -1381,7 +1456,8 @@ final class StudioModel: ObservableObject {
         videoTime: TimeInterval,
         timeSync: TelemetryTimeSync,
         layout: OverlayLayout,
-        distanceUnit: OverlayDistanceUnit
+        distanceUnit: OverlayDistanceUnit,
+        activityTrim: ActivityTrim
     ) throws -> CGImage {
         try previewRenderer.renderOverlayImage(
             series: series,
@@ -1389,7 +1465,8 @@ final class StudioModel: ObservableObject {
             videoTime: videoTime,
             timeSync: timeSync,
             layout: layout,
-            distanceUnit: distanceUnit
+            distanceUnit: distanceUnit,
+            activityTrim: activityTrim
         )
     }
 
@@ -1661,6 +1738,7 @@ final class StudioModel: ObservableObject {
         let currentTimeSync = timeSync
         let currentLayout = layout
         let currentDistanceUnit = distanceUnit
+        let currentActivityTrim = self.currentActivityTrim
         let sourceVideoURL = videoURL
         let progressHandler: (Int, Int) -> Void = { [weak self] completed, total in
             Task { @MainActor in
@@ -1686,6 +1764,7 @@ final class StudioModel: ObservableObject {
                             codec: currentCodec,
                             overlayLayout: currentLayout,
                             distanceUnit: currentDistanceUnit,
+                            activityTrim: currentActivityTrim,
                             progressHandler: progressHandler,
                             cancellationHandler: { cancellationToken.isCancelled }
                         )
@@ -1709,6 +1788,7 @@ final class StudioModel: ObservableObject {
                             codec: currentCodec,
                             overlayLayout: currentLayout,
                             distanceUnit: currentDistanceUnit,
+                            activityTrim: currentActivityTrim,
                             progressHandler: progressHandler,
                             cancellationHandler: { cancellationToken.isCancelled },
                             diagnosticsHandler: { message in
@@ -1986,6 +2066,32 @@ final class StudioModel: ObservableObject {
     private func resetExportTrimRangeToFullDuration() {
         exportTrimStartSeconds = 0
         exportTrimEndSeconds = exportTrimEditingDuration
+    }
+
+    private func sanitizedActivityTrimStart(_ value: TimeInterval, sourceDuration: TimeInterval) -> TimeInterval {
+        guard sourceDuration.isFinite, sourceDuration > 0 else { return 0 }
+        let upperBound = max(0, sourceDuration - Self.minimumExportTrimDuration)
+        let finiteValue = value.isFinite ? value : 0
+        return min(upperBound, max(0, finiteValue))
+    }
+
+    private func sanitizedActivityTrimEnd(
+        _ value: TimeInterval?,
+        start: TimeInterval,
+        sourceDuration: TimeInterval
+    ) -> TimeInterval {
+        guard sourceDuration.isFinite, sourceDuration > 0 else { return 0 }
+        let fallbackEnd = value.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? sourceDuration
+        let minimumEnd = min(sourceDuration, start + Self.minimumExportTrimDuration)
+        return min(sourceDuration, max(minimumEnd, fallbackEnd))
+    }
+
+    private func sanitizedActivityTrimEnd(
+        _ value: TimeInterval,
+        start: TimeInterval,
+        sourceDuration: TimeInterval
+    ) -> TimeInterval {
+        sanitizedActivityTrimEnd(Optional(value), start: start, sourceDuration: sourceDuration)
     }
 
     private func sanitizedExportTrimStart(_ value: TimeInterval, sourceDuration: TimeInterval) -> TimeInterval {

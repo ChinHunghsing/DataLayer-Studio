@@ -35,19 +35,22 @@ public struct OverlayRenderConfig: Equatable {
     public var routePointLimit: Int
     public var layout: OverlayLayout
     public var distanceUnit: OverlayDistanceUnit
+    public var activityTrim: ActivityTrim
 
     public init(
         size: CGSize,
         timeSync: TelemetryTimeSync = .identity,
         routePointLimit: Int = 900,
         layout: OverlayLayout = .default,
-        distanceUnit: OverlayDistanceUnit = .kilometers
+        distanceUnit: OverlayDistanceUnit = .kilometers,
+        activityTrim: ActivityTrim = .none
     ) {
         self.size = size
         self.timeSync = timeSync
         self.routePointLimit = routePointLimit
         self.layout = layout.sanitized
         self.distanceUnit = distanceUnit
+        self.activityTrim = activityTrim
     }
 
     public func matchesIgnoringLayout(_ other: OverlayRenderConfig) -> Bool {
@@ -55,19 +58,22 @@ public struct OverlayRenderConfig: Equatable {
             && timeSync == other.timeSync
             && routePointLimit == other.routePointLimit
             && distanceUnit == other.distanceUnit
+            && activityTrim == other.activityTrim
     }
 
     public init(
         size: CGSize,
         telemetryOffset: TimeInterval,
         routePointLimit: Int = 900,
-        distanceUnit: OverlayDistanceUnit = .kilometers
+        distanceUnit: OverlayDistanceUnit = .kilometers,
+        activityTrim: ActivityTrim = .none
     ) {
         self.init(
             size: size,
             timeSync: .legacyOffset(telemetryOffset),
             routePointLimit: routePointLimit,
-            distanceUnit: distanceUnit
+            distanceUnit: distanceUnit,
+            activityTrim: activityTrim
         )
     }
 }
