@@ -55,7 +55,7 @@ struct ContentView: View {
                 .environmentObject(localization)
                 .environment(\.locale, localization.locale)
         }
-        .sheet(isPresented: $isExportSheetPresented, onDismiss: clearDismissedExportResult) {
+        .sheet(isPresented: $isExportSheetPresented) {
             ExportStatusSheet(
                 model: model,
                 isCancelExportConfirmationPresented: $isCancelExportConfirmationPresented
@@ -159,12 +159,6 @@ struct ContentView: View {
         guard model.isExporting else { return }
         isExportSheetPresented = true
         isCancelExportConfirmationPresented = true
-    }
-
-    private func clearDismissedExportResult() {
-        if !model.isExporting {
-            model.clearExportResult()
-        }
     }
 
     private func presentStartupSourcePromptIfNeeded() {
