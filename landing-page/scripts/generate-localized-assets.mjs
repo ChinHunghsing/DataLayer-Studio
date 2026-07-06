@@ -324,20 +324,6 @@ const generateAppShowcase = (language) => {
   ]);
 };
 
-const generateShowcaseImage = (language, baseName, sourceFilename) => {
-  const source = sourceLocalePath(language, sourceFilename, "desktop");
-  const output = localizedOutputPath(baseName, language);
-  magick([
-    source,
-    "-resize",
-    "1440x900!",
-    "-depth",
-    "8",
-    "-strip",
-    output,
-  ]);
-};
-
 const generateComparison = (language, copy, crops) => {
   const output = join(landingAssets, `data-layer-comparison-${language}.webp`);
   const titleSize = language === "en" ? 43 : 46;
@@ -463,11 +449,22 @@ const generateAppStore = (language, copy) => {
 
 mkdirSync(landingAssets, { recursive: true });
 
+const comparisonPlainCrop = join(tempDir, "comparison-plain.png");
+const comparisonOverlayCrop = join(tempDir, "comparison-overlay.png");
+magick([comparisonSource, "-crop", "630x354+75+295", "+repage", comparisonPlainCrop]);
+magick([comparisonSource, "-crop", "630x354+735+295", "+repage", comparisonOverlayCrop]);
+
 for (const language of Object.keys(languages)) {
   generateAppShowcase(language);
-  generateShowcaseImage(language, "data-layer-comparison", "01-preview-overlay.png");
-  generateShowcaseImage(language, "data-layer-metrics", "02-arrange-gauges.png");
   generateAppStore(language, languages[language].appStore);
+}
+
+for (const language of ["zh-Hant", "en", "ja"]) {
+  generateComparison(language, languages[language].comparison, {
+    plain: comparisonPlainCrop,
+    overlay: comparisonOverlayCrop,
+  });
+  generateMetrics(language, languages[language].metrics);
 }
 
 console.log("Generated localized landing-page assets.");
