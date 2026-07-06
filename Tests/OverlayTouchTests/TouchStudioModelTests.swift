@@ -163,6 +163,7 @@ final class TouchStudioModelTests: XCTestCase {
         try await loadSampleActivity(into: model)
         XCTAssertTrue(model.canAddElement(kind: .route))
         XCTAssertTrue(model.canAddElement(kind: .timeDate))
+        XCTAssertTrue(model.canAddElement(kind: .weather))
         XCTAssertFalse(model.canAddElement(kind: .power))
         XCTAssertFalse(model.canAddElement(kind: .heartRate))
     }

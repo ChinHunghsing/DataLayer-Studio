@@ -226,7 +226,20 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(model.canAddElement(kind: .heartRate))
         XCTAssertTrue(model.canAddElement(kind: .strideLength))
         XCTAssertTrue(model.canAddElement(kind: .ascent))
+        XCTAssertTrue(model.canAddElement(kind: .weather))
         XCTAssertFalse(model.canAddElement(kind: .route))
+    }
+
+    func testWeatherElementCanBeAddedBeforeAPIKeyAndWeatherData() {
+        let model = StudioModel()
+        model.openWeatherAPIKey = ""
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, distanceMeters: 3)
+        ])
+
+        XCTAssertTrue(model.canAddElement(kind: .weather))
+        XCTAssertFalse(model.canAddElement(kind: .heartRate))
     }
 
     func testActivityTrimRebasesPreviewSampleData() {

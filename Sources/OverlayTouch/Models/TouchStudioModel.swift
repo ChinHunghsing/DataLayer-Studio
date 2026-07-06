@@ -590,9 +590,7 @@ public final class TouchStudioModel: ObservableObject {
         case .legSpringStiffness:
             return hasDouble(\.legSpringStiffnessKilonewtonsPerMeter)
         case .weather:
-            return hasInt(\.weatherTemperatureCelsius)
-                || hasInt(\.weatherHumidityPercent)
-                || samples.contains { $0.weatherSummary?.isEmpty == false }
+            return true
         case .distance, .topProgress:
             return hasDouble(\.distanceMeters)
         case .route:

@@ -259,10 +259,7 @@ final class StudioModel: ObservableObject {
         case .legSpringStiffness:
             return hasDouble(\.legSpringStiffnessKilonewtonsPerMeter)
         case .weather:
-            return hasInt(\.weatherTemperatureCelsius)
-                || hasInt(\.weatherHumidityPercent)
-                || samples.contains { $0.weatherSummary?.isEmpty == false }
-                || samples.contains { $0.date != nil && hasRoutePoint($0) }
+            return true
         case .distance, .topProgress:
             return hasDouble(\.distanceMeters)
         case .route:
