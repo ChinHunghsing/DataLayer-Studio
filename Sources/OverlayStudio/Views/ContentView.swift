@@ -89,6 +89,7 @@ struct ContentView: View {
         }
         .focusedSceneValue(\.studioCommandActions, studioCommandActions)
         .focusedSceneValue(\.previewCommandActions, previewCommandActions)
+        .onOpenURL(perform: openActivityFile)
     }
 
     private var editorLayout: some View {
@@ -206,6 +207,13 @@ struct ContentView: View {
                 model.chooseVideo()
             }
         }
+    }
+
+    private func openActivityFile(_ url: URL) {
+        didPresentStartupSourcePrompt = true
+        isStartupSourcePromptPresented = false
+        sourceContinuationPrompt = nil
+        model.openActivityFile(url)
     }
 
     private var previewCommandActions: PreviewCommandActions {

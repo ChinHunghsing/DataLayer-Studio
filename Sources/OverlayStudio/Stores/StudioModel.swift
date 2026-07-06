@@ -411,6 +411,11 @@ final class StudioModel: ObservableObject {
         setFIT(url)
     }
 
+    func openActivityFile(_ url: URL) {
+        guard ["fit", "gpx"].contains(url.pathExtension.lowercased()) else { return }
+        setFIT(url)
+    }
+
     func chooseOutput() {
         guard !isExporting else { return }
         let panel = NSSavePanel()
@@ -1043,6 +1048,12 @@ final class StudioModel: ObservableObject {
 
         fitLoadTask = Task.detached {
             do {
+                let didStartAccessing = url.startAccessingSecurityScopedResource()
+                defer {
+                    if didStartAccessing {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
                 let parsedSeries = try TelemetryFileParser().parse(url: url)
                 guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in

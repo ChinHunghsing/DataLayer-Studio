@@ -88,6 +88,82 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <string>$APP_VERSION</string>
     <key>CFBundleVersion</key>
     <string>$APP_BUILD</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>FIT Activity File</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.garmin.fit</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>fit</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>GPX Activity File</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.topografix.gpx</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>gpx</string>
+            </array>
+        </dict>
+    </array>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.garmin.fit</string>
+            <key>UTTypeDescription</key>
+            <string>FIT Activity File</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>fit</string>
+                </array>
+                <key>public.mime-type</key>
+                <string>application/vnd.ant.fit</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.topografix.gpx</string>
+            <key>UTTypeDescription</key>
+            <string>GPX Activity File</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.xml</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>gpx</string>
+                </array>
+                <key>public.mime-type</key>
+                <string>application/gpx+xml</string>
+            </dict>
+        </dict>
+    </array>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.video</string>
     <key>LSMinimumSystemVersion</key>
