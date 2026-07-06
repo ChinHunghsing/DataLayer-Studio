@@ -47,6 +47,7 @@
 - [亮点](#亮点)
 - [App Store 截图](#app-store-截图)
 - [快速开始](#快速开始)
+- [完整使用说明](#完整使用说明)
 - [授权](#授权)
 - [参与贡献](#参与贡献)
 - [使用情况监控](#使用情况监控)
@@ -126,6 +127,10 @@ swift run overlay \
   --fit /path/to/activity.fit \
   --output /path/to/overlay.mov
 ```
+
+## 完整使用说明
+
+第一次使用 DataLayer Studio，建议阅读 [简体中文完整使用说明](docs/user-guide-zh-CN.md)。文档覆盖素材准备、时间同步、数据层排布、裁剪、输出设置、透明浮层、合成视频、命令行批量导出和常见问题排查。
 
 ## 授权
 
