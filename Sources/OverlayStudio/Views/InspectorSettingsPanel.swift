@@ -1865,6 +1865,7 @@ private struct InspectorEmptyState: View {
                 } label: {
                     Label(localization.string(component.localizationKey), systemImage: component.systemImage)
                 }
+                .disabled(!model.canAddElement(kind: component))
             }
         } label: {
             HStack(spacing: 8) {

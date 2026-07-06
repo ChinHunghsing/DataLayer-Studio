@@ -208,6 +208,70 @@ final class StudioModel: ObservableObject {
         series != nil
     }
 
+    func canAddElement(kind: OverlayComponentID) -> Bool {
+        guard let samples = series?.samples, !samples.isEmpty else { return true }
+
+        func hasDouble(_ keyPath: KeyPath<TelemetrySample, Double?>) -> Bool {
+            samples.contains { $0[keyPath: keyPath]?.isFinite == true }
+        }
+
+        func hasInt(_ keyPath: KeyPath<TelemetrySample, Int?>) -> Bool {
+            samples.contains { $0[keyPath: keyPath] != nil }
+        }
+
+        func hasRoutePoint(_ sample: TelemetrySample) -> Bool {
+            sample.latitude?.isFinite == true && sample.longitude?.isFinite == true
+        }
+
+        switch kind {
+        case .speed, .pace:
+            return hasDouble(\.speedMetersPerSecond) || hasDouble(\.distanceMeters)
+        case .heartRate:
+            return hasInt(\.heartRate)
+        case .cadence:
+            return hasInt(\.cadence)
+        case .calories:
+            return hasDouble(\.totalCalories)
+        case .ascent:
+            return hasDouble(\.totalAscentMeters)
+        case .strideLength:
+            return hasDouble(\.stepLengthMeters)
+        case .power:
+            return hasInt(\.powerWatts)
+        case .verticalOscillation:
+            return hasDouble(\.verticalOscillationCentimeters)
+        case .groundContactTime:
+            return hasDouble(\.groundContactTimeMilliseconds)
+        case .groundContactTimePercent:
+            return hasDouble(\.groundContactTimePercent)
+        case .groundContactTimeBalance:
+            return hasDouble(\.groundContactTimeBalancePercent)
+        case .verticalRatio:
+            return hasDouble(\.verticalRatioPercent)
+        case .respirationRate:
+            return hasDouble(\.respirationRateBreathsPerMinute)
+        case .stepSpeedLoss:
+            return hasDouble(\.stepSpeedLossPercent)
+        case .formPower:
+            return hasInt(\.formPowerWatts)
+        case .airPower:
+            return hasInt(\.airPowerWatts)
+        case .legSpringStiffness:
+            return hasDouble(\.legSpringStiffnessKilonewtonsPerMeter)
+        case .weather:
+            return hasInt(\.weatherTemperatureCelsius)
+                || hasInt(\.weatherHumidityPercent)
+                || samples.contains { $0.weatherSummary?.isEmpty == false }
+                || samples.contains { $0.date != nil && hasRoutePoint($0) }
+        case .distance, .topProgress:
+            return hasDouble(\.distanceMeters)
+        case .route:
+            return samples.contains(where: hasRoutePoint)
+        case .timeDate:
+            return true
+        }
+    }
+
     var canExport: Bool {
         exportReadinessMessage == nil
     }

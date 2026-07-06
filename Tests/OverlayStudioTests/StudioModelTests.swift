@@ -200,6 +200,35 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(StudioModel.sourceVideoBitRateKbps(from: metadata), 12_346)
     }
 
+    func testCanAddElementReflectsLoadedTelemetryData() {
+        let model = StudioModel()
+        XCTAssertTrue(model.canAddElement(kind: .heartRate))
+
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: Date(timeIntervalSince1970: 1_000), latitude: 35, longitude: 139, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, distanceMeters: 3)
+        ])
+
+        XCTAssertTrue(model.canAddElement(kind: .pace))
+        XCTAssertTrue(model.canAddElement(kind: .distance))
+        XCTAssertTrue(model.canAddElement(kind: .route))
+        XCTAssertTrue(model.canAddElement(kind: .weather))
+        XCTAssertFalse(model.canAddElement(kind: .heartRate))
+        XCTAssertFalse(model.canAddElement(kind: .strideLength))
+        XCTAssertFalse(model.canAddElement(kind: .power))
+        XCTAssertFalse(model.canAddElement(kind: .ascent))
+
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, altitudeMeters: 10, heartRate: 120, stepLengthMeters: 1.2),
+            TelemetrySample(elapsed: 1, altitudeMeters: 12)
+        ])
+
+        XCTAssertTrue(model.canAddElement(kind: .heartRate))
+        XCTAssertTrue(model.canAddElement(kind: .strideLength))
+        XCTAssertTrue(model.canAddElement(kind: .ascent))
+        XCTAssertFalse(model.canAddElement(kind: .route))
+    }
+
     func testActivityTrimRebasesPreviewSampleData() {
         let model = StudioModel()
         let startDate = Date(timeIntervalSince1970: 1_000)

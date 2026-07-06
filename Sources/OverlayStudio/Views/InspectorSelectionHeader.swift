@@ -119,6 +119,7 @@ struct InspectorSelectionHeader: View {
                 } label: {
                     Label(localization.string(component.localizationKey), systemImage: component.systemImage)
                 }
+                .disabled(!model.canAddElement(kind: component))
             }
         } label: {
             if compact {

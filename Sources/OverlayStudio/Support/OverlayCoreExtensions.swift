@@ -18,7 +18,7 @@ extension OverlayComponentID {
         case .ascent:
             return "mountain.2.fill"
         case .strideLength:
-            return "figure.run.motion"
+            return "arrow.left.and.right"
         case .power:
             return "bolt.fill"
         case .verticalOscillation:
@@ -40,7 +40,7 @@ extension OverlayComponentID {
         case .airPower:
             return "wind"
         case .legSpringStiffness:
-            return "figure.run.motion"
+            return "arrow.up.and.down"
         case .weather:
             return "cloud.sun.fill"
         case .distance:
