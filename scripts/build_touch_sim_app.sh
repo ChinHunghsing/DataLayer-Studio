@@ -205,6 +205,10 @@ if [[ "${1:-}" == "--run" ]]; then
     if [[ -n "${TOUCH_AUTOEXPORT_MAX_SECONDS:-}" ]]; then
         LAUNCH_ENV+=("SIMCTL_CHILD_TOUCH_AUTOEXPORT_MAX_SECONDS=$TOUCH_AUTOEXPORT_MAX_SECONDS")
     fi
-    env "${LAUNCH_ENV[@]}" xcrun simctl launch --terminate-running-process "$DEVICE_ID" "$BUNDLE_IDENTIFIER"
+    if [[ ${#LAUNCH_ENV[@]} -gt 0 ]]; then
+        env "${LAUNCH_ENV[@]}" xcrun simctl launch --terminate-running-process "$DEVICE_ID" "$BUNDLE_IDENTIFIER"
+    else
+        xcrun simctl launch --terminate-running-process "$DEVICE_ID" "$BUNDLE_IDENTIFIER"
+    fi
     echo "Launched $BUNDLE_IDENTIFIER on $SIM_DEVICE_NAME ($DEVICE_ID)"
 fi
