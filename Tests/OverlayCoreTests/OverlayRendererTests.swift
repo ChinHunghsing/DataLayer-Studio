@@ -294,6 +294,20 @@ final class OverlayRendererTests: XCTestCase {
         XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
     }
 
+    func testRouteProgressPathCacheRendersIdenticalPixelsAcrossRepeatedFrames() throws {
+        let series = TelemetrySeries(samples: makeSamples(count: 64))
+        let size = CGSize(width: 640, height: 360)
+        let layout = OverlayLayout(elements: [OverlayElement.defaultElement(kind: .route)])
+        let cachingRenderer = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layout))
+
+        let scratchBuffer = try makePixelBuffer(width: Int(size.width), height: Int(size.height))
+        try cachingRenderer.render(videoTime: 45, into: scratchBuffer)
+        try cachingRenderer.render(videoTime: 30, into: scratchBuffer)
+
+        let fresh = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layout))
+        try assertRenderersProduceIdenticalPixels(cachingRenderer, fresh, size: size, videoTime: 30)
+    }
+
     func testWithLayoutRendersSameAsFreshRendererWhenMetricMoves() throws {
         let series = TelemetrySeries(samples: makeSamples(count: 64))
         let size = CGSize(width: 640, height: 360)

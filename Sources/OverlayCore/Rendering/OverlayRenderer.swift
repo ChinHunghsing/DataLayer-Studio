@@ -21,6 +21,8 @@ public final class OverlayRenderer {
     private let colorSpace = CGColorSpaceCreateDeviceRGB()
     private let fontCacheLock = NSLock()
     private var fontCache: [TextFontKey: CTFont] = [:]
+    private let routeProgressPathCacheLock = NSLock()
+    private var routeProgressPathCache: [String: RouteProgressPathEntry] = [:]
     private static let textWidthCacheLock = NSLock()
     private static let maximumCachedTextWidths = 16_384
     private static var textWidthCache: [TextWidthKey: CGFloat] = [:]
@@ -659,10 +661,12 @@ public final class OverlayRenderer {
         strokeRoute(routePoints, cachedPath: cachedRoutePath(for: element, canvas: canvas), in: fitRect, context: context)
 
         let elapsedCount = routePointCount(through: sample.elapsed)
-        if elapsedCount > 1 {
+        if elapsedCount > 1,
+           let progressPath = routeProgressPath(for: element, elapsedCount: elapsedCount, fitRect: fitRect) {
             context.setStrokeColor(valueColor(element, fallback: accent))
             context.setLineWidth(lineWidth(element, scale: scale))
-            strokeRoute(routePoints.prefix(elapsedCount), in: fitRect, context: context)
+            context.addPath(progressPath)
+            context.strokePath()
         }
 
         if let current = point(for: sample, in: fitRect, bounds: bounds) {
@@ -1066,6 +1070,29 @@ public final class OverlayRenderer {
     private func cachedRoutePath(for element: OverlayElement, canvas: CGRect) -> CGPath? {
         guard canvas.size == config.size else { return nil }
         return routePathCache[element.id]
+    }
+
+    /// 相邻帧的 elapsedCount 往往不变，按元素缓存最近一条进度路径避免逐帧重建。
+    private func routeProgressPath(for element: OverlayElement, elapsedCount: Int, fitRect: CGRect) -> CGPath? {
+        routeProgressPathCacheLock.lock()
+        if let entry = routeProgressPathCache[element.id],
+           entry.elapsedCount == elapsedCount,
+           entry.fitRect == fitRect {
+            routeProgressPathCacheLock.unlock()
+            return entry.path
+        }
+        routeProgressPathCacheLock.unlock()
+
+        guard let path = Self.routePath(routePoints.prefix(elapsedCount), in: fitRect) else { return nil }
+
+        routeProgressPathCacheLock.lock()
+        routeProgressPathCache[element.id] = RouteProgressPathEntry(
+            elapsedCount: elapsedCount,
+            fitRect: fitRect,
+            path: path
+        )
+        routeProgressPathCacheLock.unlock()
+        return path
     }
 
     private func routePointCount(through elapsed: TimeInterval) -> Int {
@@ -1748,6 +1775,12 @@ private struct RoutePoint {
             y: rect.minY + normalizedY * rect.height
         )
     }
+}
+
+private struct RouteProgressPathEntry {
+    var elapsedCount: Int
+    var fitRect: CGRect
+    var path: CGPath
 }
 
 private struct TextFontKey: Hashable {
