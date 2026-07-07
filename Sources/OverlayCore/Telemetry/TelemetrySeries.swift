@@ -603,7 +603,13 @@ public struct TelemetrySeries: Equatable {
               (first.distanceMeters ?? 0) <= distanceEpsilon else {
             return samples
         }
-        guard shouldApplyStartupCumulativeSmoothing(samples: samples, firstElapsed: first.elapsed) else {
+        let protectedStartIndex = firstStartupCompleteSampleIndex(in: samples) ?? samples.count
+        guard protectedStartIndex > 0,
+              shouldApplyStartupCumulativeSmoothing(
+                  samples: samples,
+                  firstElapsed: first.elapsed,
+                  protectedStartIndex: protectedStartIndex
+              ) else {
             return samples
         }
 
@@ -613,7 +619,7 @@ public struct TelemetrySeries: Equatable {
         var firstStartupIndex: Int?
         let firstElapsed = first.elapsed
 
-        for index in samples.indices {
+        for index in samples.indices where index < protectedStartIndex {
             let sample = samples[index]
             let elapsed = sample.elapsed - firstElapsed
             guard elapsed > 0,
@@ -660,14 +666,18 @@ public struct TelemetrySeries: Equatable {
 
     private static func shouldApplyStartupCumulativeSmoothing(
         samples: [TelemetrySample],
-        firstElapsed: TimeInterval
+        firstElapsed: TimeInterval,
+        protectedStartIndex: Int
     ) -> Bool {
         if shouldReplaceSpeed(samples.first?.speedMetersPerSecond) {
             return true
         }
+        if earlyStartupSpeedDiffersFromCompletePoint(samples: samples, protectedStartIndex: protectedStartIndex) {
+            return true
+        }
         if let firstSpeed = samples.first?.speedMetersPerSecond,
            firstSpeed <= startupRampMinimumSpeedMetersPerSecond * 2 {
-            for sample in samples {
+            for sample in samples.prefix(protectedStartIndex) {
                 let elapsed = sample.elapsed - firstElapsed
                 guard elapsed > 0,
                       elapsed <= maximumStartupPaceSmoothingElapsed,
@@ -688,17 +698,55 @@ public struct TelemetrySeries: Equatable {
                 }
             }
         }
-        return hasStaleStartupSpeedPlateau(samples: samples, firstElapsed: firstElapsed)
+        return hasStaleStartupSpeedPlateau(
+            samples: samples,
+            firstElapsed: firstElapsed,
+            protectedStartIndex: protectedStartIndex
+        )
+    }
+
+    private static func firstStartupCompleteSampleIndex(in samples: [TelemetrySample]) -> Int? {
+        samples.firstIndex { sample in
+            guard let latitude = sample.latitude, latitude.isFinite,
+                  let longitude = sample.longitude, longitude.isFinite,
+                  let distance = sample.distanceMeters, distance.isFinite,
+                  plausibleSpeed(sample.speedMetersPerSecond) != nil,
+                  (sample.heartRate ?? 0) > 0,
+                  (sample.cadence ?? 0) > 0 else {
+                return false
+            }
+            return true
+        }
+    }
+
+    private static func earlyStartupSpeedDiffersFromCompletePoint(
+        samples: [TelemetrySample],
+        protectedStartIndex: Int
+    ) -> Bool {
+        guard protectedStartIndex < samples.count,
+              let targetSpeed = plausibleSpeed(samples[protectedStartIndex].speedMetersPerSecond) else {
+            return false
+        }
+
+        for index in 0..<min(3, protectedStartIndex) {
+            guard let speed = plausibleSpeed(samples[index].speedMetersPerSecond) else { continue }
+            let ratio = max(speed, targetSpeed) / max(min(speed, targetSpeed), 0.000_001)
+            if ratio >= startupSpeedJumpRatio {
+                return true
+            }
+        }
+        return false
     }
 
     private static func hasStaleStartupSpeedPlateau(
         samples: [TelemetrySample],
-        firstElapsed: TimeInterval
+        firstElapsed: TimeInterval,
+        protectedStartIndex: Int
     ) -> Bool {
         var previousSpeed: Double?
         var previousCumulativeSpeed: Double?
 
-        for sample in samples {
+        for sample in samples.prefix(protectedStartIndex) {
             let elapsed = sample.elapsed - firstElapsed
             guard elapsed > 0,
                   elapsed <= maximumStartupPaceSmoothingElapsed,
@@ -731,15 +779,18 @@ public struct TelemetrySeries: Equatable {
 
     private static func smoothedEdgeSpeedPlateaus(samples: [TelemetrySample]) -> [TelemetrySample] {
         guard samples.count > 2 else { return samples }
-        return smoothedTrailingSpeedPlateau(samples: smoothedLeadingSpeedPlateaus(samples: samples))
+        let protectedStartIndex = firstStartupCompleteSampleIndex(in: samples) ?? samples.count
+        return smoothedTrailingSpeedPlateau(
+            samples: smoothedLeadingSpeedPlateaus(samples: samples, protectedStartIndex: protectedStartIndex)
+        )
     }
 
-    private static func smoothedLeadingSpeedPlateaus(samples: [TelemetrySample]) -> [TelemetrySample] {
+    private static func smoothedLeadingSpeedPlateaus(samples: [TelemetrySample], protectedStartIndex: Int) -> [TelemetrySample] {
         guard let firstElapsed = samples.first?.elapsed else { return samples }
 
         var output = samples
         var index = 0
-        while index < output.count - 1 {
+        while index < min(protectedStartIndex, output.count - 1) {
             if output[index].elapsed - firstElapsed > maximumStartupPaceSmoothingElapsed {
                 break
             }
@@ -749,7 +800,7 @@ public struct TelemetrySeries: Equatable {
             }
 
             var end = index
-            while end + 1 < output.count,
+            while end + 1 < protectedStartIndex,
                   output[end + 1].elapsed - firstElapsed <= maximumStartupPaceSmoothingElapsed,
                   let nextRunSpeed = output[end + 1].speedMetersPerSecond,
                   nextRunSpeed.isFinite,
@@ -767,12 +818,14 @@ public struct TelemetrySeries: Equatable {
                 continue
             }
 
+            let replaceEnd = min(end, protectedStartIndex - 1)
+            guard replaceEnd >= index + 1 else { continue }
             output = interpolateSpeeds(
                 samples: output,
                 from: index,
                 to: end + 1,
                 targetSpeed: targetSpeed,
-                replacing: (index + 1)...end
+                replacing: (index + 1)...replaceEnd
             )
         }
 
