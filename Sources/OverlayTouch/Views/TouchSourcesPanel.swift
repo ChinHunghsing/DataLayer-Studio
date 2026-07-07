@@ -9,7 +9,9 @@ import UniformTypeIdentifiers
 /// 左栏：素材导入、对表、布局预设与导出。
 struct TouchSourcesPanel: View {
     @ObservedObject var model: TouchStudioModel
+    let subscriptionStore: MobileSubscriptionStore?
     let localizer: TouchLocalizer
+    let showPaywall: () -> Void
 
     @State private var activeImporter: ImporterKind?
     @State private var isFileImporterPresented = false
@@ -45,7 +47,12 @@ struct TouchSourcesPanel: View {
             activitySection
             syncSection
             presetSection
-            TouchExportSection(model: model, localizer: localizer)
+            TouchExportSection(
+                model: model,
+                subscriptionStore: subscriptionStore,
+                localizer: localizer,
+                showPaywall: showPaywall
+            )
         }
         .formStyle(.grouped)
         .fileImporter(

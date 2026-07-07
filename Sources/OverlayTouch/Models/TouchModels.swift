@@ -20,6 +20,19 @@ public struct TouchMessage: Equatable {
     }
 }
 
+@MainActor
+public protocol SubscriptionEntitlementProviding: AnyObject {
+    var hasActiveExportEntitlement: Bool { get }
+}
+
+@MainActor
+public final class TouchSubscriptionBypass: SubscriptionEntitlementProviding {
+    public static let shared = TouchSubscriptionBypass()
+    public var hasActiveExportEntitlement: Bool { true }
+
+    private init() {}
+}
+
 public enum TouchPresetSyncStatus: Equatable {
     case localOnly
     case ready

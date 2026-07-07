@@ -5,7 +5,7 @@ import SwiftUI
 struct DataLayerStudioMobileApp: App {
     var body: some Scene {
         WindowGroup {
-            OverlayTouchRootView()
+            TouchEditorRootView(enforcesSubscription: true)
         }
     }
 }

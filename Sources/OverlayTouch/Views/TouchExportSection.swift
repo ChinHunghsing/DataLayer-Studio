@@ -5,7 +5,9 @@ import SwiftUI
 /// 导出设置、进度与结果卡片（左栏底部分区）。
 struct TouchExportSection: View {
     @ObservedObject var model: TouchStudioModel
+    let subscriptionStore: MobileSubscriptionStore?
     let localizer: TouchLocalizer
+    let showPaywall: () -> Void
 
     @State private var isSavingToPhotos = false
     @State private var photosSaveMessage: String?
@@ -117,6 +119,14 @@ struct TouchExportSection: View {
             Label(localizer.format(readiness), systemImage: "info.circle")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+        }
+
+        if let subscriptionStore {
+            TouchSubscriptionStatusBlock(
+                subscriptionStore: subscriptionStore,
+                localizer: localizer,
+                showPaywall: showPaywall
+            )
         }
 
         Button {

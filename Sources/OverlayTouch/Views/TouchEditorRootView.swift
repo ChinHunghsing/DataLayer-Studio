@@ -5,6 +5,7 @@ import SwiftUI
 /// iPad 编辑器根视图：regular 宽度三栏常驻，compact 宽度画布优先 + sheet。
 public struct TouchEditorRootView: View {
     @StateObject private var model: TouchStudioModel
+    @StateObject private var subscriptionStore: MobileSubscriptionStore
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
 
@@ -12,6 +13,9 @@ public struct TouchEditorRootView: View {
     @State private var showsInspectorColumn = true
     @State private var activeCompactSheet: CompactSheet?
     @State private var showsSettings = false
+    @State private var showsPaywall = false
+
+    private let enforcesSubscription: Bool
 
     private enum CompactSheet: Int, Identifiable {
         case sources
@@ -20,8 +24,17 @@ public struct TouchEditorRootView: View {
         var id: Int { rawValue }
     }
 
-    public init() {
-        _model = StateObject(wrappedValue: TouchStudioModel(runtimeGuard: TouchExportRuntimeGuard()))
+    public init(enforcesSubscription: Bool = false) {
+        let subscriptionStore = MobileSubscriptionStore()
+        let entitlement: any SubscriptionEntitlementProviding = enforcesSubscription
+            ? subscriptionStore
+            : TouchSubscriptionBypass.shared
+        _subscriptionStore = StateObject(wrappedValue: subscriptionStore)
+        _model = StateObject(wrappedValue: TouchStudioModel(
+            runtimeGuard: TouchExportRuntimeGuard(),
+            subscriptionEntitlement: entitlement
+        ))
+        self.enforcesSubscription = enforcesSubscription
     }
 
     public var body: some View {
@@ -39,7 +52,12 @@ public struct TouchEditorRootView: View {
             switch sheet {
             case .sources:
                 NavigationStack {
-                    TouchSourcesPanel(model: model, localizer: localizer)
+                    TouchSourcesPanel(
+                        model: model,
+                        subscriptionStore: activeSubscriptionStore,
+                        localizer: localizer,
+                        showPaywall: { showsPaywall = true }
+                    )
                         .navigationTitle(localizer.string("sources.title"))
                         .navigationBarTitleDisplayMode(.inline)
                 }
@@ -59,10 +77,25 @@ public struct TouchEditorRootView: View {
             }
             .presentationDetents([.medium])
         }
+        .sheet(isPresented: $showsPaywall) {
+            NavigationStack {
+                TouchSubscriptionPaywallView(
+                    subscriptionStore: subscriptionStore,
+                    localizer: localizer
+                )
+            }
+        }
         .onOpenURL { url in
             model.openIncomingFile(url)
         }
+        .onChange(of: model.subscriptionPaywallRequestID) { _, _ in
+            guard enforcesSubscription else { return }
+            showsPaywall = true
+        }
         .task {
+            if enforcesSubscription {
+                subscriptionStore.start()
+            }
             autoloadSimulatorSamplesIfRequested()
         }
     }
@@ -72,7 +105,12 @@ public struct TouchEditorRootView: View {
         if horizontalSizeClass == .regular {
             HStack(spacing: 0) {
                 if showsSourcesColumn {
-                    TouchSourcesPanel(model: model, localizer: localizer)
+                    TouchSourcesPanel(
+                        model: model,
+                        subscriptionStore: activeSubscriptionStore,
+                        localizer: localizer,
+                        showPaywall: { showsPaywall = true }
+                    )
                         .frame(width: 340)
                     Divider()
                 }
@@ -197,7 +235,36 @@ public struct TouchEditorRootView: View {
             .onChange(of: model.distanceUnit) { _, _ in
                 model.refreshOverlayOnly(coalesceIfBusy: true)
             }
+
+            if let activeSubscriptionStore {
+                Section(localizer.string("settings.subscription")) {
+                    TouchSubscriptionStatusBlock(
+                        subscriptionStore: activeSubscriptionStore,
+                        localizer: localizer,
+                        showPaywall: { showsPaywall = true }
+                    )
+
+                    Button(localizer.string("paywall.restore")) {
+                        Task { await activeSubscriptionStore.restore() }
+                    }
+
+                    Button(localizer.string("paywall.manage")) {
+                        Task { await activeSubscriptionStore.showManageSubscriptions() }
+                    }
+
+                    Button(localizer.string("paywall.redeem")) {
+                        Task { await activeSubscriptionStore.redeemOfferCode() }
+                    }
+
+                    Link(localizer.string("paywall.eula"), destination: MobileSubscriptionStore.standardEULAURL)
+                    Link(localizer.string("paywall.privacy"), destination: MobileSubscriptionStore.privacyURL)
+                }
+            }
         }
+    }
+
+    private var activeSubscriptionStore: MobileSubscriptionStore? {
+        enforcesSubscription ? subscriptionStore : nil
     }
 
     private var sourceTitle: String {

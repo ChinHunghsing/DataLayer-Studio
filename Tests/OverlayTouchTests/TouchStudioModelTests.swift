@@ -1,12 +1,26 @@
 import OverlayCore
+import AVFoundation
 import XCTest
 @testable import OverlayTouch
 
 @MainActor
 final class TouchStudioModelTests: XCTestCase {
-    private func makeModel() -> TouchStudioModel {
+    private final class FakeSubscriptionEntitlement: SubscriptionEntitlementProviding {
+        var hasActiveExportEntitlement: Bool
+
+        init(hasActiveExportEntitlement: Bool) {
+            self.hasActiveExportEntitlement = hasActiveExportEntitlement
+        }
+    }
+
+    private func makeModel(
+        subscriptionEntitlement: (any SubscriptionEntitlementProviding)? = nil
+    ) -> TouchStudioModel {
         let defaults = UserDefaults(suiteName: "touch-tests-\(UUID().uuidString)")!
-        return TouchStudioModel(layoutPresetStore: LayoutPresetStore(defaults: defaults))
+        return TouchStudioModel(
+            layoutPresetStore: LayoutPresetStore(defaults: defaults),
+            subscriptionEntitlement: subscriptionEntitlement
+        )
     }
 
     private func writeSampleGPX() throws -> URL {
@@ -44,6 +58,71 @@ final class TouchStudioModelTests: XCTestCase {
         }
         XCTAssertNil(model.activityLoadFailure?.detail)
         XCTAssertNotNil(model.series, "GPX sample did not load in time")
+    }
+
+    private func writeTinyVideo() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("touch-video-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+        let input = AVAssetWriterInput(
+            mediaType: .video,
+            outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: 16,
+                AVVideoHeightKey: 16
+            ]
+        )
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+                kCVPixelBufferWidthKey as String: 16,
+                kCVPixelBufferHeightKey as String: 16
+            ]
+        )
+        writer.add(input)
+        XCTAssertTrue(writer.startWriting())
+        writer.startSession(atSourceTime: .zero)
+
+        for frame in 0..<2 {
+            while !input.isReadyForMoreMediaData {
+                Thread.sleep(forTimeInterval: 0.001)
+            }
+            var pixelBuffer: CVPixelBuffer?
+            CVPixelBufferCreate(nil, 16, 16, kCVPixelFormatType_32ARGB, nil, &pixelBuffer)
+            if let pixelBuffer {
+                CVPixelBufferLockBaseAddress(pixelBuffer, [])
+                if let base = CVPixelBufferGetBaseAddress(pixelBuffer) {
+                    memset(base, 0x22, CVPixelBufferGetDataSize(pixelBuffer))
+                }
+                CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
+                adaptor.append(pixelBuffer, withPresentationTime: CMTime(value: CMTimeValue(frame), timescale: 1))
+            }
+        }
+        input.markAsFinished()
+
+        let semaphore = DispatchSemaphore(value: 0)
+        writer.finishWriting {
+            semaphore.signal()
+        }
+        semaphore.wait()
+        XCTAssertEqual(writer.status, .completed)
+        return url
+    }
+
+    private func loadSampleVideo(into model: TouchStudioModel) async throws -> URL {
+        let url = try writeTinyVideo()
+        model.setVideo(url, isSecurityScoped: false)
+        for _ in 0..<200 {
+            if model.metadata != nil || model.videoLoadFailure != nil {
+                break
+            }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        XCTAssertNil(model.videoLoadFailure?.detail)
+        XCTAssertNotNil(model.metadata, "Video sample did not load in time")
+        return url
     }
 
     func testExportReadinessRequiresActivity() {
@@ -166,5 +245,21 @@ final class TouchStudioModelTests: XCTestCase {
         XCTAssertTrue(model.canAddElement(kind: .weather))
         XCTAssertFalse(model.canAddElement(kind: .power))
         XCTAssertFalse(model.canAddElement(kind: .heartRate))
+    }
+
+    func testExportWithoutSubscriptionRequestsPaywall() async throws {
+        let entitlement = FakeSubscriptionEntitlement(hasActiveExportEntitlement: false)
+        let model = makeModel(subscriptionEntitlement: entitlement)
+        let videoURL = try await loadSampleVideo(into: model)
+        defer { try? FileManager.default.removeItem(at: videoURL) }
+        try await loadSampleActivity(into: model)
+
+        XCTAssertTrue(model.canExport)
+
+        model.export()
+
+        XCTAssertFalse(model.isExporting)
+        XCTAssertEqual(model.statusMessage.key, "status.exportNeedsSubscription")
+        XCTAssertEqual(model.subscriptionPaywallRequestID, 1)
     }
 }

@@ -79,11 +79,13 @@ public final class TouchStudioModel: ObservableObject {
     @Published public private(set) var lastExportElapsedSeconds: TimeInterval?
     @Published public private(set) var lastExportErrorMessage: String?
     @Published public private(set) var lastExportWasCancelled = false
+    @Published public private(set) var subscriptionPaywallRequestID = 0
     @Published public private(set) var thermalStateIsSerious = false
 
     private let previewRenderer = OverlayPreviewRenderer()
     private let layoutPresetStore: LayoutPresetStore
     private let runtimeGuard: TouchExportRuntimeGuarding
+    private let subscriptionEntitlement: any SubscriptionEntitlementProviding
     private var layoutPresetCloudObserver: NSObjectProtocol?
     private var thermalStateObserver: NSObjectProtocol?
     private var playerTimeObserverToken: Any?
@@ -110,10 +112,12 @@ public final class TouchStudioModel: ObservableObject {
 
     public init(
         layoutPresetStore: LayoutPresetStore = LayoutPresetStore(),
-        runtimeGuard: TouchExportRuntimeGuarding = TouchExportRuntimeNoopGuard()
+        runtimeGuard: TouchExportRuntimeGuarding = TouchExportRuntimeNoopGuard(),
+        subscriptionEntitlement: (any SubscriptionEntitlementProviding)? = nil
     ) {
         self.layoutPresetStore = layoutPresetStore
         self.runtimeGuard = runtimeGuard
+        self.subscriptionEntitlement = subscriptionEntitlement ?? TouchSubscriptionBypass.shared
         let presetState = layoutPresetStore.load()
         let validDefaultPresetID = presetState.presets.contains { $0.id == presetState.defaultPresetID } ? presetState.defaultPresetID : nil
         self.layoutPresets = presetState.presets
@@ -1062,6 +1066,11 @@ public final class TouchStudioModel: ObservableObject {
         guard !isExporting else { return }
         if let exportReadinessMessageKey {
             setStatus(exportReadinessMessageKey)
+            return
+        }
+        guard subscriptionEntitlement.hasActiveExportEntitlement else {
+            setStatus("status.exportNeedsSubscription")
+            subscriptionPaywallRequestID += 1
             return
         }
         guard let series, let duration = exportDuration else {
