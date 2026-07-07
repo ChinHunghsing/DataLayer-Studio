@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var isCancelExportConfirmationPresented = false
     @State private var isStartupSourcePromptPresented = false
     @State private var didPresentStartupSourcePrompt = false
+    @State private var suppressStartupSourcePrompt = false
     @State private var sourceContinuationPrompt: SourceContinuationPrompt?
 
     var body: some View {
@@ -163,12 +164,16 @@ struct ContentView: View {
 
     private func presentStartupSourcePromptIfNeeded() {
         guard !didPresentStartupSourcePrompt,
+              !suppressStartupSourcePrompt,
               model.videoURL == nil,
               model.fitURL == nil
         else { return }
 
         didPresentStartupSourcePrompt = true
         DispatchQueue.main.async {
+            guard !suppressStartupSourcePrompt,
+                  model.videoURL == nil,
+                  model.fitURL == nil else { return }
             isStartupSourcePromptPresented = true
         }
     }
@@ -204,6 +209,7 @@ struct ContentView: View {
     }
 
     private func openActivityFile(_ url: URL) {
+        suppressStartupSourcePrompt = true
         didPresentStartupSourcePrompt = true
         isStartupSourcePromptPresented = false
         sourceContinuationPrompt = nil
