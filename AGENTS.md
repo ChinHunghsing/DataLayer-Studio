@@ -34,6 +34,7 @@
 - `Sources/OverlayTouch/`：iPadOS/iOS 界面层；iOS 专属代码用 `#if os(iOS)` 门控，macOS 构建必须始终通过；新增文案走 `TouchLocalization.swift` 四语言字典。
 - `Sources/OverlayTouchHost/`：iOS 模拟器调试 App 壳（SwiftPM executable）；配套脚本 `scripts/build_touch_sim_app.sh`，流程见 `docs/ipados-development-testing.md`。
 - `Sources/overlay/`：命令行入口。
+- `App/`：iOS 正式壳工程 `DataLayerStudioMobile.xcodeproj`（bundle id `run.libo.datalayer-studio.mobile`，独立 App record；entitlements 与 `.storekit` 订阅配置在 `App/DataLayerStudioMobile/`）；商业模式与红线见 `docs/mobile-subscription-design.md`。
 - `Tests/OverlayCoreTests/`：核心逻辑、渲染、视频写出测试。
 - `Tests/OverlayStudioTests/`：界面模型、设置、服务、本地化测试。
 - `Tests/OverlayCLITests/`：命令行参数和布局预设测试。

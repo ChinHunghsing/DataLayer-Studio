@@ -11,14 +11,29 @@
 
 - iPadOS/iOS 开发不能影响 macOS 端既有功能、视觉表现、导出结果和构建/发布流程。
 - **日常开发优先用模拟器（§1）**，真机只用于性能/热基准、硬编行为和中断路径验证（§4）。
-- 仓库只提交 SwiftPM 代码；真机验证用的临时 Xcode app shell 放 `/tmp`，不提交。
+- 正式 iOS 壳工程在 `App/DataLayerStudioMobile.xcodeproj`（已入库）；除此之外不提交其他 Xcode 工程，历史 `/tmp` 临时壳只作备忘（§4.2）。不提交证书、provisioning profile、xcuserdata。
 - 本地视频、FIT、导出产物和 `assets/resourses/` 都不提交。
 - iPad 版只导出合成成片（2026-07-06 已定决策）；透明 HEVC-alpha/ProRes 浮层仅属 macOS/CLI，iOS 侧无需验证。
 - 涉及共享层（`OverlayCore`、`OverlayStudioKit`）或平台条件编译后，必跑 macOS 回归（§5）。
 
 ## 1. 模拟器开发工作流（日常首选）
 
-相关代码：`Sources/OverlayTouch/`（编辑器）、`Sources/OverlayTouchHost/`（SwiftPM executable 壳）、`scripts/build_touch_sim_app.sh`（构建、组装 `.build/ios-sim/DataLayer Studio Touch.app`、安装启动）。
+两条通道：
+
+- **SwiftPM 壳（纯命令行快速迭代）**：`Sources/OverlayTouchHost/` + `scripts/build_touch_sim_app.sh`，见下方命令。
+- **正式 Xcode 壳（涉及 StoreKit / 签名 / entitlements / 真机时用）**：`App/DataLayerStudioMobile.xcodeproj`，bundle id `run.libo.datalayer-studio.mobile`，共享 scheme 已挂 `.storekit` 配置（StoreKit 本地测试须经 Xcode scheme 运行）。
+
+```sh
+# 正式壳：模拟器构建
+xcodebuild -project App/DataLayerStudioMobile.xcodeproj -scheme DataLayerStudioMobile \
+  -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' build
+
+# 正式壳：真机 SDK 签名构建（自动签名，App ID 已注册）
+xcodebuild -project App/DataLayerStudioMobile.xcodeproj -scheme DataLayerStudioMobile \
+  -destination generic/platform=iOS -allowProvisioningUpdates build
+```
+
+SwiftPM 壳相关代码：`Sources/OverlayTouch/`（编辑器）、`Sources/OverlayTouchHost/`（executable 壳）、`scripts/build_touch_sim_app.sh`（构建、组装 `.build/ios-sim/DataLayer Studio Touch.app`、安装启动）。
 
 ```sh
 # 只构建组装
@@ -86,6 +101,8 @@ swift build --target OverlayTouch \
 ## 4. 真机验证流程
 
 真机当前的验证目标：合成 HEVC 硬编导出的性能/热基准、导出中退后台/来电中断路径、触控/Pencil 手感。
+
+正式壳工程已可直接构建真机包（§1 的 generic/platform=iOS 命令 + `-destination id=$DEVICE_ID` 安装）；下述 `/tmp` 临时壳流程保留作备忘，新验证优先走正式壳。
 
 ### 4.1 设备准备
 

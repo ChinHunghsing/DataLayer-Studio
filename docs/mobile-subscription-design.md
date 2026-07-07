@@ -178,7 +178,7 @@ App Store Server Notifications V2 订阅事件（`SUBSCRIBED` / `DID_RENEW` / `E
 | 阶段 | 内容 | 出口标准 | 粗估 |
 | --- | --- | --- | --- |
 | S0 决策定稿 | ✅ 已完成（2026-07-07）：拆 record、导出锁免费层、$1.99 月 / $19.99 年、送 3 个月码、bundle id `.mobile`；§6 文档已修订 | 本文档状态已改「已定」 | — |
-| S1 正式 Xcode 壳 | universal iOS target（新 bundle id）、entitlements（KVS 标识）、PrivacyInfo、.storekit 配置 | 真机可装、StoreKit 本地测试可跑 | 2–3 天 |
+| S1 正式 Xcode 壳 | ✅ 已完成（2026-07-07）：`App/DataLayerStudioMobile.xcodeproj`（universal target，bundle id `.mobile`）、KVS entitlements（模拟器/真机双验证）、`.storekit` 两档 SKU+7 天试用并挂入共享 scheme；App ID 已随自动签名注册。PrivacyInfo 留到 S2 随订阅代码补 | 模拟器构建启动通过；真机签名构建通过 | — |
 | S2 订阅模块 | MobileSubscriptionStore + 导出门 + paywall + 设置分区 + 四语言文案 + 单测 | §3.5 验收清单本地全绿 | 3–5 天 |
 | S3 ASC 配置与联调 | 新 record、订阅组/两档 SKU/试用、Offer Code 首批码、CN/JP 价格点核对、沙盒验证 | 沙盒全路径通过（含兑换码） | 1–2 天 |
 | S4 Mac KVS 小版本 | Mac 版落实 KVS 显式标识并发布 | 三端预设同步联调通过 | 1 天 + 审核周期 |

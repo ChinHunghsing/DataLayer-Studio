@@ -1,0 +1,90 @@
+{
+  "identifier" : "D0000000-0000-0000-0000-000000000001",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "D0000000-0000-0000-0000-0000000000A1",
+      "localizations" : [
+
+      ],
+      "name" : "DataLayer Studio Mobile",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "1.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "D0000000-0000-0000-0000-0000000000B1",
+          "introductoryOffer" : {
+            "internalID" : "D0000000-0000-0000-0000-0000000000C1",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "Export composited videos. Billed monthly.",
+              "displayName" : "DataLayer Studio Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "run.libo.datalayerstudio.mobile.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Monthly",
+          "subscriptionGroupID" : "D0000000-0000-0000-0000-0000000000A1",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "19.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "D0000000-0000-0000-0000-0000000000B2",
+          "introductoryOffer" : {
+            "internalID" : "D0000000-0000-0000-0000-0000000000C2",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "Export composited videos. Billed yearly.",
+              "displayName" : "DataLayer Studio Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "run.libo.datalayerstudio.mobile.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Yearly",
+          "subscriptionGroupID" : "D0000000-0000-0000-0000-0000000000A1",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

@@ -15,7 +15,7 @@
 - `Sources/OverlayCore`（渲染/解析/写出引擎）如提案预期 **100% 复用，未改一行逻辑**；唯一改动是一处编码器兼容性修复（§4.2），macOS 行为不变。
 - iPad 界面与会话模型落在新 target `Sources/OverlayTouch`（约 4200 行）；**原提案的 P1「StudioModel 拆分下沉」没有做**，iPad 会话模型独立实现（差异与代价见 §2.3）。
 - 日常开发用模拟器闭环：SwiftPM executable 壳 + `scripts/build_touch_sim_app.sh` 一键构建安装启动，导入→对表→排布→导出全链路已在 iPad Pro 13-inch (M5) 模拟器验证。
-- 仓库仍是纯 SwiftPM，没有 Xcode 工程；真机验证用 `/tmp` 临时壳（见开发测试文档），正式发布壳是遗留项（§8）。
+- 正式 iOS 壳工程已提交：`App/DataLayerStudioMobile.xcodeproj`（bundle id `run.libo.datalayer-studio.mobile`，引用本地 SwiftPM 包的 OverlayTouch；iCloud KVS entitlements 与 `.storekit` 订阅配置随工程提交）。macOS 构建流程不变（SwiftPM + 脚本）。
 
 ## 1. 已落地架构
 
@@ -64,9 +64,14 @@ Tests/OverlayTouchTests  (依赖 OverlayTouch，在 macOS 上运行)
 
 **收敛路线（建议在检查器补齐之后做）**：以 `TouchStudioModel` 为蓝本反向抽取（它已经是平台中立的），把对表/导出编排/预设持久化逐块移入 OverlayStudioKit，macOS `StudioModel` 与 `TouchStudioModel` 分别改为薄壳。原提案 §1.3 的 AppKit 绑定点清单仍然有效，做下沉时从 git 历史（2026-07-04 版本文档）取用。
 
-### 2.3 工程形态：暂无 Xcode 工程
+### 2.3 工程形态：正式 Xcode 壳已建（2026-07-07）
 
-提案中的 `App/DataLayerStudio.xcodeproj` 尚未建。当前：模拟器用 SwiftPM 壳 + 脚本组装 .app（Info.plist 内嵌在脚本里生成，含 fit/gpx UTI、四语言 `CFBundleLocalizations`、`UIFileSharingEnabled`、照片写入权限文案）；真机用 `/tmp` 临时 Xcode 壳。正式发布壳（签名、entitlements、`PrivacyInfo.xcprivacy`、universal target）是发布前置项（§8）。
+`App/DataLayerStudioMobile.xcodeproj`：手写 pbxproj 的最小壳（约定见订阅方案 S1），代码只有一个 @main 文件，全部功能来自本地 SwiftPM 包（`XCLocalSwiftPackageReference` 指向仓库根，产品依赖 OverlayTouch）。要点：
+
+- target universal（iPhone+iPad），bundle id `run.libo.datalayer-studio.mobile`，最低 iOS 26，自动签名 `DEVELOPMENT_TEAM=XUQV24QYZM`；App ID 已注册（含 iCloud KVS capability）。
+- `App/DataLayerStudioMobile/`：Info.plist（fit/gpx UTI、四语言、Files 可见、照片写入文案、`ITSAppUsesNonExemptEncryption=NO`）、entitlements（KVS 标识 `$(TeamIdentifierPrefix)run.libo.datalayer-studio`，与 Mac 共享）、`DataLayerStudio.storekit`（月/年两档 + 7 天试用，挂在共享 scheme 的 LaunchAction 上）、AppIcon（复用 Resources/AppIcon.png）。
+- `scripts/build_touch_sim_app.sh` 的 SwiftPM 壳保留为纯命令行快速迭代通道；涉及 StoreKit/签名/真机的验证走 Xcode 工程。
+- `PrivacyInfo.xcprivacy` 留到 S2 随订阅代码一起补。
 
 ## 3. 文件访问与数据流（已实现）
 
@@ -112,7 +117,7 @@ AVPlayer 播放 + `OverlayPreviewRenderer` 浮层 CGImage 双层结构；播放�
 3. **CI 增加 iOS 编译信号**：至少把 `swift build --target OverlayTouch`（iphonesimulator triple）加进 CI，防止 macOS 侧改动悄悄弄断 iOS 编译。
 4. **M3 平台特性**：onDrop 拖拽、多 Scene、键盘全键位（方向键微调 / ⌥⌘↑↓ / ⌘±）、Pencil/指针悬停、画布捏合缩放与网格吸附。
 5. **P1 共享层下沉**（择机）：按 §2.3 路线收敛双份编排。
-6. **发布前置**：正式 Xcode 壳工程（**bundle id 已定 `run.libo.datalayer-studio.mobile`，独立 App record，红线：不得把 iOS platform 挂入 6782545770**）；订阅门与 Paywall（StoreKit 2，月 $1.99 / 年 $19.99 / 试用 7 天 / Mac 用户 3 个月 Offer Code，完整方案与实施计划见 `docs/mobile-subscription-design.md`）；`PrivacyInfo.xcprivacy`；Mac 端 iCloud KVS 标识（§6，跨 record 共享同一标识）；天气；无障碍/四语言验收；App Store 素材（iPad 13/11 英寸截图，构建号 `yyyyMMddNN`）。
+6. **发布前置**：~~正式 Xcode 壳工程~~（✅ 已完成，见 §2.3；独立 App record 红线不变：不得把 iOS platform 挂入 6782545770）；订阅门与 Paywall（StoreKit 2，月 $1.99 / 年 $19.99 / 试用 7 天 / Mac 用户 3 个月 Offer Code，完整方案与实施计划见 `docs/mobile-subscription-design.md`）；`PrivacyInfo.xcprivacy`；Mac 端 iCloud KVS 标识（§6，跨 record 共享同一标识）；天气；无障碍/四语言验收；App Store 素材（iPad 13/11 英寸截图，构建号 `yyyyMMddNN`）。
 
 ## 9. 风险登记（更新）
 

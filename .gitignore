@@ -67,3 +67,5 @@ cloudflare/app-store-webhook/
 node_modules/
 package.json
 package-lock.json
+xcuserdata/
+DerivedData/
