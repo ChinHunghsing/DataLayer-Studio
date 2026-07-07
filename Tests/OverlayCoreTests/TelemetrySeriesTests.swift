@@ -340,6 +340,101 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 6).speedMetersPerSecond ?? -1, 2.2, accuracy: 0.001)
     }
 
+    private static func catchUpStartSamples() -> [TelemetrySample] {
+        // 建模自华为式设备 1000m 测速跑：距离前 5 秒冻结后猛补，速度场滞后爬升到 t=10 才进入平台
+        var samples: [TelemetrySample] = [TelemetrySample(elapsed: 0, distanceMeters: 0)]
+        let distances: [Double] = [0, 0, 0, 0, 9, 18, 25, 32, 39, 46, 53.5, 61]
+        let speeds: [Double?] = [nil, nil, 0, 0, 2.172, 4.347, 4.733, 5.119, 5.608, 6.1, 6.119, 6.139]
+        let cadences: [Int?] = [nil, nil, nil, nil, nil, nil, nil, nil, 220, 218, 216, 212]
+        for index in 0..<distances.count {
+            samples.append(TelemetrySample(
+                elapsed: TimeInterval(index + 1),
+                latitude: 34.68 + Double(index) * 0.0001,
+                longitude: 135.53 + Double(index) * 0.0001,
+                heartRate: 125 + index,
+                cadence: cadences[index],
+                distanceMeters: distances[index],
+                speedMetersPerSecond: speeds[index]
+            ))
+        }
+        return samples
+    }
+
+    func testStartupCatchUpRampReplacesLaggedDeviceSpeeds() {
+        let series = TelemetrySeries(samples: Self.catchUpStartSamples())
+
+        // 配速单调爬升，无断崖：任意相邻秒速度比值不超过跳变阈值
+        var previousSpeed = series.sample(at: 0).speedMetersPerSecond ?? 0
+        for second in 1...10 {
+            let speed = series.sample(at: TimeInterval(second)).speedMetersPerSecond ?? -1
+            XCTAssertGreaterThanOrEqual(speed, previousSpeed - 0.001, "t=\(second) 配速不应回落")
+            // 站立起点到首秒的比值天然偏大，断崖检查只在进入移动后生效
+            if previousSpeed > 1 {
+                XCTAssertLessThan(speed / previousSpeed, 1.6, "t=\(second) 不应出现配速断崖")
+            }
+            previousSpeed = speed
+        }
+        // 稳定点及之后保留设备原始速度
+        XCTAssertEqual(series.sample(at: 10).speedMetersPerSecond ?? -1, 6.1, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 11).speedMetersPerSecond ?? -1, 6.119, accuracy: 0.001)
+        // 修正段在稳定点之前就应接近目标速度（旧行为 t=6 仍显示 4.347）
+        XCTAssertGreaterThan(series.sample(at: 6).speedMetersPerSecond ?? -1, 5.0)
+        // 稳定点实测距离锚保持不变，重排后的距离无补账跳变
+        XCTAssertEqual(series.sample(at: 10).distanceMeters ?? -1, 46, accuracy: 0.001)
+        var previousDistance = series.sample(at: 0).distanceMeters ?? 0
+        for second in 1...10 {
+            let distance = series.sample(at: TimeInterval(second)).distanceMeters ?? -1
+            XCTAssertLessThan(distance - previousDistance, 7, "t=\(second) 距离不应有补账跳变")
+            XCTAssertGreaterThanOrEqual(distance, previousDistance)
+            previousDistance = distance
+        }
+    }
+
+    func testStartupCatchUpCadenceFollowsRamp() {
+        let series = TelemetrySeries(samples: Self.catchUpStartSamples())
+
+        // 步频跟随同一条加速斜坡，t=7 应接近目标而不是线性爬升的中段值
+        XCTAssertGreaterThan(series.sample(at: 7).cadence ?? -1, 200)
+        XCTAssertGreaterThan(series.sample(at: 2).cadence ?? -1, 90)
+        XCTAssertEqual(series.sample(at: 9).cadence ?? -1, 220)
+    }
+
+    func testStartupCatchUpDoesNotTriggerWhenDistanceMatchesSpeed() {
+        // 建模自佳明式设备：速度与距离段一致，起跑无补账
+        let distances: [Double] = [0, 1.69, 4.42, 6.48, 9.02, 11.75, 14.15, 16.2]
+        let speeds: [Double] = [3.386, 3.386, 1.983, 1.983, 2.205, 2.298, 2.465, 2.465]
+        var samples: [TelemetrySample] = []
+        for index in 0..<distances.count {
+            samples.append(TelemetrySample(
+                elapsed: TimeInterval(index),
+                latitude: 34.67 + Double(index) * 0.0001,
+                longitude: 135.51 + Double(index) * 0.0001,
+                heartRate: 87 + index,
+                cadence: 166,
+                distanceMeters: distances[index],
+                speedMetersPerSecond: speeds[index]
+            ))
+        }
+        let series = TelemetrySeries(samples: samples)
+
+        XCTAssertNil(TelemetrySeries.startupCatchUpCorrection(in: samples))
+        XCTAssertEqual(series.sample(at: 0).speedMetersPerSecond ?? -1, 3.386, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 2).speedMetersPerSecond ?? -1, 1.983, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 5).speedMetersPerSecond ?? -1, 2.298, accuracy: 0.001)
+    }
+
+    func testStartupCatchUpIsIdempotentAcrossReinitialization() {
+        // FITParser 会带着 lap 锚点重新初始化 TelemetrySeries，修正不能被叠加
+        let series = TelemetrySeries(samples: Self.catchUpStartSamples())
+        let reinitialized = TelemetrySeries(samples: series.samples)
+
+        for (lhs, rhs) in zip(series.samples, reinitialized.samples) {
+            XCTAssertEqual(lhs.elapsed, rhs.elapsed, accuracy: 0.001)
+            XCTAssertEqual(lhs.speedMetersPerSecond ?? -1, rhs.speedMetersPerSecond ?? -1, accuracy: 0.001)
+            XCTAssertEqual(lhs.distanceMeters ?? -1, rhs.distanceMeters ?? -1, accuracy: 0.01)
+        }
+    }
+
     func testStartupPaceKeepsReliableDeviceSpeedBeforeCadenceStarts() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, distanceMeters: 0),

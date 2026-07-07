@@ -20,6 +20,8 @@ public struct TelemetrySeries: Equatable {
     private static let startupSegmentConsistencyRatio = 1.6
     private static let startupSpeedJumpRatio = 1.6
     private static let startupStaleSpeedToleranceMetersPerSecond = 0.05
+    private static let startupCatchUpIntegralRatio = 1.2
+    private static let minimumStartupCatchUpRampDuration: TimeInterval = 2
     private static let distanceEpsilon = 0.001
     private static let minimumAscentDeltaMeters = 1.0
 
@@ -33,21 +35,31 @@ public struct TelemetrySeries: Equatable {
 
         let normalized = TelemetrySeries.normalized(samples: sorted)
         let startupCompleteElapsed = TelemetrySeries.firstStartupCompleteSampleElapsed(in: normalized)
+        let startupCatchUp = TelemetrySeries.startupCatchUpCorrection(in: normalized)
         let speedEnriched = TelemetrySeries.enrichedWithDistanceDerivedSpeed(samples: normalized)
         let startupSpeedStabilized = TelemetrySeries.stabilizedStartupSpeedJumps(
             samples: speedEnriched,
             protectedStartElapsed: startupCompleteElapsed
         )
         let resampled = TelemetrySeries.resampled(samples: startupSpeedStabilized, interval: Self.resampleInterval)
-        let startupSmoothed = TelemetrySeries.smoothedStartupPace(
-            samples: resampled,
-            protectedStartElapsed: startupCompleteElapsed
-        )
+        let startupSmoothed: [TelemetrySample]
+        if let startupCatchUp {
+            startupSmoothed = TelemetrySeries.appliedStartupCatchUp(samples: resampled, correction: startupCatchUp)
+        } else {
+            startupSmoothed = TelemetrySeries.smoothedStartupPace(
+                samples: resampled,
+                protectedStartElapsed: startupCompleteElapsed
+            )
+        }
         let edgeSmoothed = TelemetrySeries.smoothedEdgeSpeedPlateaus(
             samples: startupSmoothed,
             protectedStartElapsed: startupCompleteElapsed
         )
-        let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(samples: edgeSmoothed, interval: Self.resampleInterval)
+        let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(
+            samples: edgeSmoothed,
+            interval: Self.resampleInterval,
+            catchUp: startupCatchUp
+        )
         let ascentEnriched = TelemetrySeries.enrichedWithTotalAscent(samples: cadenceEnriched)
         self.samples = TelemetrySeries.trimmedIncompleteTail(samples: ascentEnriched)
         self.bounds = TelemetrySeries.computeBounds(samples: self.samples)
@@ -539,7 +551,8 @@ public struct TelemetrySeries: Equatable {
 
     private static func enrichedWithStartupCadence(
         samples: [TelemetrySample],
-        interval: TimeInterval
+        interval: TimeInterval,
+        catchUp: StartupCatchUpCorrection? = nil
     ) -> [TelemetrySample] {
         guard samples.count > 1,
               interval > 0,
@@ -565,7 +578,8 @@ public struct TelemetrySeries: Equatable {
                 at: output[index].elapsed,
                 firstElapsed: first.elapsed,
                 targetElapsed: target.elapsed,
-                targetCadence: targetCadence
+                targetCadence: targetCadence,
+                catchUp: catchUp
             )
         }
 
@@ -577,7 +591,8 @@ public struct TelemetrySeries: Equatable {
                     at: elapsed,
                     firstElapsed: first.elapsed,
                     targetElapsed: target.elapsed,
-                    targetCadence: targetCadence
+                    targetCadence: targetCadence,
+                    catchUp: catchUp
                 )
                 output.append(sample)
             }
@@ -596,8 +611,14 @@ public struct TelemetrySeries: Equatable {
         at elapsed: TimeInterval,
         firstElapsed: TimeInterval,
         targetElapsed: TimeInterval,
-        targetCadence: Int
+        targetCadence: Int,
+        catchUp: StartupCatchUpCorrection? = nil
     ) -> Int {
+        if let catchUp {
+            let progress = min(1, max(0, (elapsed - firstElapsed) / catchUp.rampDuration))
+            let eased = pow(progress, 1 / startupPaceSmoothingExponent)
+            return max(0, Int((Double(targetCadence) * eased).rounded()))
+        }
         let span = max(targetElapsed - firstElapsed, 0.000_001)
         let progress = min(1, max(0, (elapsed - firstElapsed) / span))
         return max(0, Int((Double(targetCadence) * progress).rounded()))
@@ -625,6 +646,163 @@ public struct TelemetrySeries: Equatable {
         let span = max(b.elapsed - a.elapsed, 0.000_001)
         let fraction = min(1, max(0, (elapsed - a.elapsed) / span))
         return interpolate(a, b, fraction: fraction, elapsed: elapsed)
+    }
+
+    struct StartupCatchUpCorrection {
+        var stabilizationElapsed: TimeInterval
+        var targetSpeed: Double
+        var rampDuration: TimeInterval
+    }
+
+    /// 检测起跑“距离补账”签名：设备距离先冻结再猛补，速度场滞后爬升。
+    /// 四个条件同时成立才触发：速度进入平台、单调爬升达到跳变比、
+    /// 距离段速度大幅超过同秒设备速度、累计距离明显超过设备速度积分。
+    static func startupCatchUpCorrection(in samples: [TelemetrySample]) -> StartupCatchUpCorrection? {
+        guard samples.count > 3, let first = samples.first else { return nil }
+        let firstElapsed = first.elapsed
+
+        func movingSpeed(at index: Int) -> Double? {
+            guard let value = samples[index].speedMetersPerSecond,
+                  value.isFinite,
+                  value >= minimumMovingSpeedMetersPerSecond else {
+                return nil
+            }
+            return value
+        }
+
+        guard let movingIndex = samples.indices.first(where: { index in
+            samples[index].elapsed - firstElapsed <= maximumStartupPaceSmoothingElapsed
+                && movingSpeed(at: index) != nil
+        }) else { return nil }
+
+        var stabilizationIndex: Int?
+        var index = movingIndex + 1
+        while index + 2 < samples.count,
+              samples[index].elapsed - firstElapsed <= maximumStartupPaceSmoothingElapsed {
+            if let current = movingSpeed(at: index),
+               let next = movingSpeed(at: index + 1),
+               let afterNext = movingSpeed(at: index + 2),
+               abs(next - current) <= startupStaleSpeedToleranceMetersPerSecond,
+               abs(afterNext - next) <= startupStaleSpeedToleranceMetersPerSecond {
+                stabilizationIndex = index
+                break
+            }
+            index += 1
+        }
+        guard let stabilizationIndex,
+              let targetSpeed = plausibleSpeed(samples[stabilizationIndex].speedMetersPerSecond),
+              let firstMovingSpeed = movingSpeed(at: movingIndex) else {
+            return nil
+        }
+        let stabilizationElapsed = samples[stabilizationIndex].elapsed - firstElapsed
+        guard stabilizationElapsed > 0,
+              targetSpeed / firstMovingSpeed >= startupSpeedJumpRatio else {
+            return nil
+        }
+
+        var previousSpeed = firstMovingSpeed
+        for index in (movingIndex + 1)...stabilizationIndex {
+            guard let speed = movingSpeed(at: index) else { continue }
+            guard speed >= previousSpeed - startupStaleSpeedToleranceMetersPerSecond else { return nil }
+            previousSpeed = speed
+        }
+
+        // 段速度只作为“距离在补账”的证据，不设合理速度上限
+        var distanceRunsAhead = false
+        for index in max(movingIndex, 1)...stabilizationIndex {
+            guard let speed = movingSpeed(at: index),
+                  let previousDistance = samples[index - 1].distanceMeters,
+                  let distance = samples[index].distanceMeters else {
+                continue
+            }
+            let deltaTime = samples[index].elapsed - samples[index - 1].elapsed
+            guard deltaTime > 0 else { continue }
+            if (distance - previousDistance) / deltaTime >= startupSpeedJumpRatio * speed {
+                distanceRunsAhead = true
+                break
+            }
+        }
+        guard distanceRunsAhead else { return nil }
+
+        guard let anchorDistance = samples[stabilizationIndex].distanceMeters else { return nil }
+        let coveredDistance = anchorDistance - (first.distanceMeters ?? 0)
+        guard coveredDistance > distanceEpsilon else { return nil }
+        var speedIntegral = 0.0
+        for index in 1...stabilizationIndex {
+            let deltaTime = samples[index].elapsed - samples[index - 1].elapsed
+            guard deltaTime > 0 else { continue }
+            let previous = samples[index - 1].speedMetersPerSecond ?? 0
+            let current = samples[index].speedMetersPerSecond ?? 0
+            speedIntegral += (max(previous.isFinite ? previous : 0, 0) + max(current.isFinite ? current : 0, 0)) / 2 * deltaTime
+        }
+        guard coveredDistance > startupCatchUpIntegralRatio * speedIntegral else { return nil }
+
+        // 斜坡时长由“修正后速度积分 ≈ 稳定点实测距离”解出，保证配速与里程自洽
+        let exponent = 1 / startupPaceSmoothingExponent
+        let baseSpeed = startupRampMinimumSpeedMetersPerSecond
+        let coefficient = (targetSpeed - baseSpeed) * (1 - 1 / (exponent + 1))
+        guard coefficient > 0 else { return nil }
+        let rawDuration = (targetSpeed * stabilizationElapsed - coveredDistance) / coefficient
+        let rampDuration = min(max(rawDuration, minimumStartupCatchUpRampDuration), stabilizationElapsed)
+
+        return StartupCatchUpCorrection(
+            stabilizationElapsed: stabilizationElapsed,
+            targetSpeed: targetSpeed,
+            rampDuration: rampDuration
+        )
+    }
+
+    private static func appliedStartupCatchUp(
+        samples: [TelemetrySample],
+        correction: StartupCatchUpCorrection
+    ) -> [TelemetrySample] {
+        guard let first = samples.first else { return samples }
+        let firstElapsed = first.elapsed
+        let baseSpeed = startupRampMinimumSpeedMetersPerSecond
+        let exponent = 1 / startupPaceSmoothingExponent
+
+        func rampSpeed(at elapsed: TimeInterval) -> Double {
+            guard elapsed > 0 else { return baseSpeed }
+            guard elapsed < correction.rampDuration else { return correction.targetSpeed }
+            let progress = pow(elapsed / correction.rampDuration, exponent)
+            return baseSpeed + (correction.targetSpeed - baseSpeed) * progress
+        }
+
+        var output = samples
+        var lastCorrectedIndex: Int?
+        for index in samples.indices {
+            let elapsed = samples[index].elapsed - firstElapsed
+            guard elapsed < correction.stabilizationElapsed - 0.000_001 else { break }
+            output[index].speedMetersPerSecond = rampSpeed(at: elapsed)
+            lastCorrectedIndex = index
+        }
+        guard let lastCorrectedIndex, lastCorrectedIndex + 1 < output.count else { return output }
+
+        // 距离按修正后的速度积分重排并缩放，稳定点及之后的实测距离保持不变
+        let anchorIndex = lastCorrectedIndex + 1
+        let startDistance = first.distanceMeters ?? 0
+        guard let anchorDistance = output[anchorIndex].distanceMeters else { return output }
+        let coveredDistance = anchorDistance - startDistance
+        guard coveredDistance > distanceEpsilon else { return output }
+
+        var integrals = [Double](repeating: 0, count: anchorIndex + 1)
+        for index in 1...anchorIndex {
+            let deltaTime = output[index].elapsed - output[index - 1].elapsed
+            guard deltaTime > 0 else {
+                integrals[index] = integrals[index - 1]
+                continue
+            }
+            let previous = output[index - 1].speedMetersPerSecond ?? baseSpeed
+            let current = output[index].speedMetersPerSecond ?? correction.targetSpeed
+            integrals[index] = integrals[index - 1] + (previous + current) / 2 * deltaTime
+        }
+        let total = integrals[anchorIndex]
+        guard total > distanceEpsilon else { return output }
+        let scale = coveredDistance / total
+        for index in 0...lastCorrectedIndex {
+            output[index].distanceMeters = startDistance + integrals[index] * scale
+        }
+        return output
     }
 
     private static func smoothedStartupPace(
