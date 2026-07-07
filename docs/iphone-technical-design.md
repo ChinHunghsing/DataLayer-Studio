@@ -6,7 +6,7 @@
 | 日期 | 2026-07-06 |
 | 适用平台 | iOS / iPhone（与 iPad 共用同一 iOS App target） |
 | 最低系统版本 | iOS 26（已定，`Package.swift` 已声明 `.iOS("26.0")`；设备下限 iPhone 11 / SE 第 2 代，A13） |
-| 商业模式 | 已定：统一定价，一次购买三端使用（Universal Purchase，见 iPad 技术文档 §8） |
+| 商业模式 | 已定（2026-07-07）：iOS 免费下载 + 订阅（与 iPad 同一 App 同一订阅），macOS 保持买断；方案见 `docs/mobile-subscription-design.md` |
 | 关联文档 | `docs/iphone-product-design.md`、`docs/ipad-technical-design.md`（共享架构以该文档为准，本文只展开 iPhone 特有部分） |
 
 ## 0. 结论摘要

@@ -2,16 +2,17 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | 提案（待确认后实施；采纳即废止「三端 Universal Purchase 统一买断」决策） |
+| 状态 | **已定**（2026-07-07 拍板，进入实施；原「三端 Universal Purchase 统一买断」决策废止） |
 | 日期 | 2026-07-07 |
 | 适用平台 | iOS / iPadOS（iPad 与 iPhone 为同一 iOS App）；macOS 版**完全不动** |
-| 商业模式目标 | iOS：免费下载 + 仅按月自动续订订阅 + 新用户免费试用一周；macOS：维持现状买断制 |
+| 已定参数 | 月付 **$1.99**；年付 **$19.99**（≈10 个月价）；新用户免费试用 7 天；Mac 买断用户送 3 个月订阅码；iOS bundle id `run.libo.datalayer-studio.mobile`；免费层 = 编辑/预览全免费、导出需订阅；macOS 维持买断不动 |
 | 关联文档 | `docs/ipad-product-design.md`、`docs/ipad-technical-design.md`、`docs/iphone-product-design.md` |
 
 ## 0. 结论摘要
 
 - **必须把 iOS 版做成独立 App record（新 bundle id），不能加入现有 Mac 的 App record（6782545770）。** App Store 的 App 价格是按 App record 设置的、跨平台共享一个价格；同一 record 里做不到「Mac 收费下载 + iOS 免费下载」。
-- iOS 版：免费下载；单一订阅组、单一 SKU「按月自动续订」；「新用户免费一周」用订阅的**推介优惠（Introductory Offer：7 天免费试用）**实现，资格由 Apple 按「每个 Apple 账户 × 每个订阅组一次」自动判定，无需自建新用户识别。
+- iOS 版：免费下载；单一订阅组、两档 SKU——**月付 $1.99、年付 $19.99（约 10 个月价，省 2 个月）**；「新用户免费一周」用订阅的**推介优惠（Introductory Offer：7 天免费试用）**实现（两档均配），资格由 Apple 按「每个 Apple 账户 × 每个订阅组一次」自动判定，无需自建新用户识别。
+- **Mac 买断用户补偿（已定）**：送 3 个月免费订阅，用 ASC 订阅 **Offer Code** 实现（免费型 / 时长 3 个月），发放机制见 §1.7。
 - 免费层建议：**导入/对表/排布/预览全部免费，导出成片需要有效订阅（含试用期）**。转化点放在导出，审核友好（免费 App 有实际可用性）、试用价值感知最强。
 - 客户端纯 StoreKit 2 实现（`Transaction.currentEntitlements` + `Transaction.updates`），不引入服务器依赖；App Store Server Notifications V2 仅作运营统计（可选，复用现有 `.env.local` 基建）。
 - 布局预设 iCloud 同步**不受拆分 record 影响**：iCloud KVS 标识是 entitlement 层概念，同一开发团队下不同 App 可声明同一标识共享数据。
@@ -25,12 +26,12 @@
 | --- | --- | --- |
 | App record | 现有 6782545770，**不动** | **新建**（新 bundle id） |
 | 获取方式 | 付费下载（买断），另有 GitHub 公证版直下渠道 | 免费下载 |
-| 解锁模式 | 一次买断全功能（现状 `PurchaseAuthorizationStore` 不变） | 按月自动续订订阅（仅此一档） |
-| 新用户优惠 | — | 7 天免费试用（推介优惠，自动续订前可随时取消） |
+| 解锁模式 | 一次买断全功能（现状 `PurchaseAuthorizationStore` 不变） | 自动续订订阅：月付 $1.99 / 年付 $19.99（≈10 个月价） |
+| 新用户优惠 | — | 7 天免费试用（推介优惠，两档均配，自动续订前可随时取消）；Mac 买断用户另有 3 个月 Offer Code（§1.7） |
 | 免费能力 | —（买断即全量） | 导入、对表、排布、实时预览全量免费；导出需订阅 |
 | iPad/iPhone 互通 | — | 同一 App、同一订阅，天然双端通用 |
 
-订阅只做月付一档是刻意收敛：SKU 单一、Paywall 无比价噪音；未来加年付属同一订阅组内加 SKU，随时可做、不破坏现有用户。
+两档 SKU 同组同级（服务内容一致，仅计费周期不同）：Paywall 默认高亮年付并标注「相当于 10 个月价」；组内升降级由系统按比例结算，无需自建逻辑。
 
 ### 1.2 为什么必须拆分 App record（方案对比）
 
@@ -59,7 +60,7 @@
 
 ### 1.4 试用设计（新用户免费一周）
 
-- 机制：订阅 SKU 上配置**推介优惠 → Free Trial → 1 周**。用户点「开始免费试用」即完成订阅（试用期 $0），第 8 天起自动续订月费，期间可随时在系统订阅管理里取消。
+- 机制：**月付与年付两个 SKU 均配置推介优惠 → Free Trial → 1 周**。用户点「开始免费试用」即完成订阅（试用期 $0），第 8 天起自动续订月费，期间可随时在系统订阅管理里取消。
 - 资格：Apple 自动管控，**每个 Apple 账户在该订阅组只享一次**；卸载重装、换设备不重置。客户端用 `product.subscription.introductoryOffer` + `isEligibleForIntroOffer` 区分显示「免费试用 7 天，之后 ¥X/月」或「¥X/月」。
 - 触发时机：**首次点「导出」时弹 Paywall**（价值先行），设置页常驻订阅入口。不做首启强制弹窗。
 - 文案红线（审核 3.1 要求）：试用按钮附近必须完整写明「试用 7 天后自动续订 ¥X/月，可随时取消」、恢复购买入口、管理订阅入口、EULA 与隐私政策链接。
@@ -70,21 +71,31 @@
 - Mac 买断用户在 iOS 上**需要另行订阅**。沟通策略：
   - 定位话术：Mac 是「一次买断的专业工作台」，移动端是「按需订阅的随身出片工具」，两条产品线各自定价；
   - 预设 iCloud 同步仍然三端互通（免费能力），Mac 用户不订阅也能在 iPad 上继续调布局、预览，只是导出需订阅；
-  - 可选补偿手段（开放问题 §7）：给 Mac 用户发订阅 Offer Code（延长免费期），不承诺永久免费。
+  - **补偿（已定）**：Mac 买断用户送 3 个月免费订阅（Offer Code），机制与发放见 §1.7。
 - App Store 元数据、落地页、README 的「一次购买三端使用」表述在采纳后全部更新。
 
-### 1.6 定价框架（数字待定，开放问题）
+### 1.6 定价（已定）
 
-- 单一月费。参考锚点：月费 × 8–12 ≈ Mac 买断价的观感区间；对照竞品（Telemetry Overlay 等为桌面买断，移动端无直接对标，有定价自由度）。
-- 按地区价格表用 ASC 价格点自动生成，重点市场（CN/US/JP）手工核对观感价（如 ¥12/¥18 档）。
-- 已加入 App Store Small Business Program 的话佣金 15%，月费定价时按净收入测算。
+- **月付 $1.99 / 年付 $19.99**（美元为基准价；年付 ≈ 10 个月价，Paywall 标注「省 2 个月」）。
+- 其他地区由 ASC 价格点自动生成，S3 阶段手工核对 CN/JP 观感价（$1.99 档对应的人民币/日元价格点确认后回填元数据）。
+- 已加入 App Store Small Business Program 的话佣金 15%，净收入按此测算。
+
+### 1.7 Mac 买断用户补偿：3 个月 Offer Code（已定）
+
+- ASC 配置：订阅 Offer Code → 免费型（Free）→ 时长 3 个月 → 资格勾选新订阅者/已流失订阅者（覆盖 Mac 用户首次领取与回流）；月付 SKU 上配置即可（3 个月免费后按 $1.99/月续订，可随时取消）。
+- 兑换路径：App 内 `presentOfferCodeRedeemSheet`（iOS 16+）+ App Store「兑换代码」通用入口。
+- 发放机制分两级：
+  1. **v1（人工/半自动）**：一次性码（one-time use）分批生成；Mac App 在购买校验通过（`PurchaseAuthorizationStore.state == .allowed` 且有收据）时显示「领取 iOS 3 个月订阅」入口，引导邮件/表单申请，人工核对后发码。启动成本为零。
+  2. **v2（自动，量大再做）**：Cloudflare Worker 自动发码——Mac App 提交 `AppTransaction` JWS，Worker 用 App Store Server API 验签后从 KV 码池发码（复用 `.env.local` 凭据；Cloudflare 免费额度内可行，启用前按项目约定再确认）。
+- 注意：Offer Code 有配额（每 App 每季度上限 150,000 个），一次性码有有效期（生成后约 6 个月），按季度小批量滚动生成；**不用公开自定义码**（会泄漏被任意兑换）。
+- GitHub 直下版 Mac 用户无收据、无法在线核验，走人工渠道个案处理（量极小）。
 
 ## 2. 用户体验（产品）
 
 ### 2.1 Paywall
 
-- 用系统 `SubscriptionStoreView`（iOS 17+，本项目最低 26）实现，视觉跟随 App 深色气质做轻定制；单 SKU 无比价布局。
-- 内容：权益列表（导出全档位成片 + 后续增值项）、试用条款全文、价格与周期、恢复购买、管理订阅、EULA/隐私链接。
+- 用系统 `SubscriptionStoreView`（iOS 17+，本项目最低 26）实现，视觉跟随 App 深色气质做轻定制；两档 SKU 并列，默认高亮年付（标注「相当于 10 个月价 · 省 2 个月」）。
+- 内容：权益列表（导出全档位成片 + 后续增值项）、试用条款全文、价格与周期、恢复购买、管理订阅、**兑换代码入口（Offer Code，供 Mac 用户领取的 3 个月码）**、EULA/隐私链接。
 - 入口：① 无有效订阅时点「导出」→ paywall sheet；② 设置页「订阅」分区常驻。
 
 ### 2.2 订阅状态的 UI 表达
@@ -107,9 +118,11 @@
 
 ### 3.1 App Store Connect 配置（一次性）
 
-1. 新建 iOS bundle id：建议 `run.libo.datalayer-studio.mobile`（正式壳工程用它；现有 `…overlaytouchhost` 仅是模拟器调试壳 id，不上架）。
+1. 新建 iOS bundle id：**已定 `run.libo.datalayer-studio.mobile`**（正式壳工程用它；现有 `…overlaytouchhost` 仅是模拟器调试壳 id，不上架）。
 2. ASC 新建 App record（platform iOS，免费），四语言元数据；`asc` 工作流 platform 参数用 `IOS`，构建号沿用 `yyyyMMddNN`。
-3. 创建订阅组（如 `DataLayer Studio Mobile`）→ 组内一个自动续订 SKU（如 product id `run.libo.datalayer.studio.mobile.monthly`，时长 1 个月）→ 配置推介优惠：Free Trial / 1 周 / 所有地区。
+3. 创建订阅组（如 `DataLayer Studio Mobile`）→ 组内两个自动续订 SKU：月付 $1.99（1 个月）与年付 $19.99（1 年）→ 两档均配置推介优惠：Free Trial / 1 周 / 所有地区。
+   - product id 建议 `run.libo.datalayerstudio.mobile.monthly` / `…yearly`（**内购 product id 只允许字母数字、句点、下划线，不能带连字符**，故与 bundle id 写法不同）。
+   - 月付 SKU 另配 Offer Code（免费 3 个月，§1.7）。
 4. 订阅需签署最新付费应用协议（Mac 已收费，银行/税务信息已在，确认协议版本即可）。
 5. Billing Grace Period 建议开启（账单问题宽限，减少误伤流失）。
 6. 隐私标签与 `PrivacyInfo.xcprivacy` 同现状（不收集数据；订阅交易由 Apple 处理，不新增采集）。
@@ -123,7 +136,7 @@
 状态机 EntitlementState: .unknown → .subscribed(expiry:, inTrial:) | .gracePeriod | .notSubscribed
 职责：
 - start(): 读 Transaction.currentEntitlements 建立初始状态；挂 Transaction.updates 长驻监听（续订/退款/撤销实时生效）
-- products(): Product.products(for: [monthlyID])；isEligibleForIntroOffer 决定 CTA 文案
+- products(): Product.products(for: [monthlyID, yearlyID])；isEligibleForIntroOffer 决定 CTA 文案
 - purchase(): product.purchase() → 校验 VerificationResult → transaction.finish()
 - restore(): AppStore.sync() + 重扫
 - 离线容忍：最近一次已验证的到期时间戳存 UserDefaults；无网时按缓存到期时间 + 一天容差判定，避免离线闪锁
@@ -147,7 +160,7 @@
 - 单测（macOS，`OverlayTouchTests`）：fake entitlement provider 驱动导出门（无权益→状态文案 / 有权益→放行）、状态机转移、离线缓存容差；paywall 文案四语言键位对齐。
 - StoreKit 本地测试：**依赖 Xcode 工程**（`.storekit` 配置文件 + Xcode scheme / `SKTestSession`），SwiftPM 手工组装的模拟器壳做不了——因此**正式 Xcode 壳工程从「发布前置」提前为本方案的实施前置**。`.storekit` 里配好月订 + 7 天试用，本地验证购买/试用/续订/退款/撤销全路径（Xcode 可加速时间流逝模拟续订周期）。
 - Sandbox / TestFlight：沙盒账户走真实 ASC 配置验证推介优惠资格显示、宽限期；TestFlight 内订阅自动走沙盒。
-- 验收清单：试用开始→到期自动转正扣费（沙盒加速）；试用中取消→到期降级；恢复购买跨设备；iPad/iPhone 同账户互通；导出中过期不中断；离线启动不闪锁。
+- 验收清单：试用开始→到期自动转正扣费（沙盒加速）；试用中取消→到期降级；月↔年组内升降级按比例结算；Offer Code 兑换 3 个月→到期转正；恢复购买跨设备；iPad/iPhone 同账户互通；导出中过期不中断；离线启动不闪锁。
 
 ### 3.6 服务器侧（可选，不阻塞 v1）
 
@@ -165,10 +178,10 @@ App Store Server Notifications V2 订阅事件（`SUBSCRIBED` / `DID_RENEW` / `E
 
 | 阶段 | 内容 | 出口标准 | 粗估 |
 | --- | --- | --- | --- |
-| S0 决策定稿 | 确认拆 record、免费层切法、价格、bundle id；修订 §6 文档 | 本文档状态改「已定」 | 0.5 天 |
+| S0 决策定稿 | ✅ 已完成（2026-07-07）：拆 record、导出锁免费层、$1.99 月 / $19.99 年、送 3 个月码、bundle id `.mobile`；§6 文档已修订 | 本文档状态已改「已定」 | — |
 | S1 正式 Xcode 壳 | universal iOS target（新 bundle id）、entitlements（KVS 标识）、PrivacyInfo、.storekit 配置 | 真机可装、StoreKit 本地测试可跑 | 2–3 天 |
 | S2 订阅模块 | MobileSubscriptionStore + 导出门 + paywall + 设置分区 + 四语言文案 + 单测 | §3.5 验收清单本地全绿 | 3–5 天 |
-| S3 ASC 配置与联调 | 新 record、订阅组/SKU/试用、沙盒验证 | 沙盒全路径通过 | 1–2 天 |
+| S3 ASC 配置与联调 | 新 record、订阅组/两档 SKU/试用、Offer Code 首批码、CN/JP 价格点核对、沙盒验证 | 沙盒全路径通过（含兑换码） | 1–2 天 |
 | S4 Mac KVS 小版本 | Mac 版落实 KVS 显式标识并发布 | 三端预设同步联调通过 | 1 天 + 审核周期 |
 | S5 TestFlight → 提审 | 内测 + 元数据 + 审核 | 上架 | 1–2 周（含审核） |
 
@@ -193,10 +206,12 @@ App Store Server Notifications V2 订阅事件（`SUBSCRIBED` / `DID_RENEW` / `E
 - `AGENTS.md`：iOS 的 ASC 流程补充（新 App record id、platform IOS、订阅 SKU 约定）——待 S3 配置完成后回填实际 id。
 - 落地页与 README 的「一次购买三端使用」表述。
 
-## 7. 开放问题（需要用户拍板）
+## 7. 已拍板决策与剩余开放问题
 
-1. **月费定价**（含 CN/US/JP 观感价核对）。
-2. 免费层切法确认：按 §1.3 推荐（导出锁）还是其他？
-3. Mac 买断用户补偿：不补偿 / Offer Code 延长试用 / 限时折扣？
-4. iOS 正式 bundle id 定名（建议 `run.libo.datalayer-studio.mobile`）。
-5. 年付 SKU 引入时机（建议观察 2–3 个月留存后决定）。
+已拍板（2026-07-07）：① 月付 $1.99；② 免费层按 §1.3 推荐（导出锁）；③ Mac 买断用户送 3 个月 Offer Code；④ bundle id `run.libo.datalayer-studio.mobile`；⑤ 年付与月付同期上线，定价 $19.99（≈10 个月价）。
+
+剩余开放问题：
+
+1. CN/JP 观感价核对（S3 阶段按 ASC 价格点确认后回填元数据）。
+2. Offer Code 发码 v2 自动化（Cloudflare Worker）的启动时机——按 v1 人工渠道的申请量决定；启用前按项目约定确认免费额度。
+3. Family Sharing 是否开启（建议先关，留作增长手段；开启后不可关闭）。

@@ -112,9 +112,7 @@ AVPlayer 播放 + `OverlayPreviewRenderer` 浮层 CGImage 双层结构；播放�
 3. **CI 增加 iOS 编译信号**：至少把 `swift build --target OverlayTouch`（iphonesimulator triple）加进 CI，防止 macOS 侧改动悄悄弄断 iOS 编译。
 4. **M3 平台特性**：onDrop 拖拽、多 Scene、键盘全键位（方向键微调 / ⌥⌘↑↓ / ⌘±）、Pencil/指针悬停、画布捏合缩放与网格吸附。
 5. **P1 共享层下沉**（择机）：按 §2.3 路线收敛双份编排。
-6. **发布前置**：正式 Xcode 壳工程（bundle id `run.libo.datalayer-studio`，同一 App record 加 iOS platform，Universal Purchase 单向挂接注意事项见下）；购买校验门（StoreKit 2 `AppTransaction` 复用，`SecCodeCopySelf` 已属 macOS-only 路径）；`PrivacyInfo.xcprivacy`；Mac 端 iCloud KVS 标识（§6）；天气；无障碍/四语言验收；App Store 素材（iPad 13/11 英寸截图，构建号 `yyyyMMddNN`）。
-
-Universal Purchase 注意：挂接是单向操作，之后不能拆回独立 SKU；调价作用于三端同一价格。
+6. **发布前置**：正式 Xcode 壳工程（**bundle id 已定 `run.libo.datalayer-studio.mobile`，独立 App record，红线：不得把 iOS platform 挂入 6782545770**）；订阅门与 Paywall（StoreKit 2，月 $1.99 / 年 $19.99 / 试用 7 天 / Mac 用户 3 个月 Offer Code，完整方案与实施计划见 `docs/mobile-subscription-design.md`）；`PrivacyInfo.xcprivacy`；Mac 端 iCloud KVS 标识（§6，跨 record 共享同一标识）；天气；无障碍/四语言验收；App Store 素材（iPad 13/11 英寸截图，构建号 `yyyyMMddNN`）。
 
 ## 9. 风险登记（更新）
 
