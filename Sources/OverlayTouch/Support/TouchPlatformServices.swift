@@ -4,16 +4,17 @@ import Foundation
 import UIKit
 
 /// 导出期间保持屏幕常亮，退后台时用后台任务争取收尾窗口。
-/// AVAssetWriter 无法在挂起中继续；窗口内完不成由取消回调结束写出。
+/// AVAssetWriter 无法在挂起中继续；窗口到期先触发 `onBackgroundExpiration` 取消写出，再释放后台任务。
 public final class TouchExportRuntimeGuard: TouchExportRuntimeGuarding {
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
 
     public init() {}
 
-    public func exportDidStart() {
+    public func exportDidStart(onBackgroundExpiration: @escaping () -> Void) {
         UIApplication.shared.isIdleTimerDisabled = true
         endBackgroundTask()
         backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "datalayer-export") { [weak self] in
+            onBackgroundExpiration()
             self?.endBackgroundTask()
         }
     }

@@ -87,8 +87,13 @@ public final class MobileSubscriptionStore: ObservableObject, SubscriptionEntitl
     public func start() {
         guard updatesTask == nil else { return }
         updatesTask = Task { [weak self] in
-            for await _ in Transaction.updates {
+            for await result in Transaction.updates {
                 await self?.refreshEntitlements()
+                // 续订、Offer Code 兑换与 StoreKit 视图发起的购买都经由该流到达；
+                // 权益已按 currentEntitlements 刷新，必须 finish，否则每次启动重投未完成交易。
+                if case let .verified(transaction) = result {
+                    await transaction.finish()
+                }
             }
         }
         refreshTask = Task { [weak self] in

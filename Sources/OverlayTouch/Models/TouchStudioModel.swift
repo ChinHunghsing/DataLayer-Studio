@@ -621,7 +621,7 @@ public final class TouchStudioModel: ObservableObject {
     }
 
     public func undoLayoutChange() {
-        guard let snapshot = undoStack.popLast() else { return }
+        guard !isExporting, let snapshot = undoStack.popLast() else { return }
         redoStack.append(LayoutSnapshot(layout: layout, selectedElementID: selectedElementID))
         layout = snapshot.layout
         selectedElementID = snapshot.selectedElementID
@@ -630,7 +630,7 @@ public final class TouchStudioModel: ObservableObject {
     }
 
     public func redoLayoutChange() {
-        guard let snapshot = redoStack.popLast() else { return }
+        guard !isExporting, let snapshot = redoStack.popLast() else { return }
         undoStack.append(LayoutSnapshot(layout: layout, selectedElementID: selectedElementID))
         layout = snapshot.layout
         selectedElementID = snapshot.selectedElementID
@@ -1091,7 +1091,11 @@ public final class TouchStudioModel: ObservableObject {
         lastExportErrorMessage = nil
         lastExportWasCancelled = false
         setStatus("status.exporting")
-        runtimeGuard.exportDidStart()
+        runtimeGuard.exportDidStart { [weak self] in
+            Task { @MainActor in
+                self?.cancelExport()
+            }
+        }
 
         let cancellationToken = TouchExportCancellationToken()
         exportCancellationToken = cancellationToken
@@ -1241,9 +1245,9 @@ public final class TouchStudioModel: ObservableObject {
             forName: ProcessInfo.thermalStateDidChangeNotification,
             object: nil,
             queue: .main
-        ) { _ in
+        ) { [weak self] _ in
             let isSerious = ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue
-            Task { @MainActor [weak self] in
+            Task { @MainActor in
                 self?.thermalStateIsSerious = isSerious
             }
         }

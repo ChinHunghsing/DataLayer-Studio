@@ -152,6 +152,7 @@ struct TouchSourcesPanel: View {
                     return
                 }
                 model.setVideo(movie.url, isSecurityScoped: false)
+                TouchImportedMovie.removeStaleImportedFiles(keeping: movie.url)
             } catch {
                 photosImportFailed = true
             }
@@ -327,6 +328,8 @@ struct TouchSourcesPanel: View {
 
 /// 照片图库视频经 FileRepresentation 拷贝到临时目录后导入。
 struct TouchImportedMovie: Transferable {
+    static let importedFilePrefix = "photos-import-"
+
     let url: URL
 
     static var transferRepresentation: some TransferRepresentation {
@@ -335,10 +338,25 @@ struct TouchImportedMovie: Transferable {
         } importing: { received in
             let fileExtension = received.file.pathExtension.isEmpty ? "mov" : received.file.pathExtension
             let destination = FileManager.default.temporaryDirectory
-                .appendingPathComponent("photos-import-\(UUID().uuidString)")
+                .appendingPathComponent("\(importedFilePrefix)\(UUID().uuidString)")
                 .appendingPathExtension(fileExtension)
             try FileManager.default.copyItem(at: received.file, to: destination)
             return TouchImportedMovie(url: destination)
+        }
+    }
+
+    /// 导入的视频可达数 GB，替换素材或跨会话残留会持续占用存储，必须主动清理。
+    static func removeStaleImportedFiles(keeping keptURL: URL? = nil) {
+        let fileManager = FileManager.default
+        guard let entries = try? fileManager.contentsOfDirectory(
+            at: fileManager.temporaryDirectory,
+            includingPropertiesForKeys: nil
+        ) else { return }
+        for entry in entries where entry.lastPathComponent.hasPrefix(importedFilePrefix) {
+            if let keptURL, entry.standardizedFileURL == keptURL.standardizedFileURL {
+                continue
+            }
+            try? fileManager.removeItem(at: entry)
         }
     }
 }

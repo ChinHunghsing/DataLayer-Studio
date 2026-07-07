@@ -96,6 +96,7 @@ public struct TouchEditorRootView: View {
             if enforcesSubscription {
                 subscriptionStore.start()
             }
+            TouchImportedMovie.removeStaleImportedFiles()
             autoloadSimulatorSamplesIfRequested()
         }
     }

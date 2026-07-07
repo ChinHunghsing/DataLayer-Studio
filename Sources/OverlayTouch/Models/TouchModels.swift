@@ -118,13 +118,14 @@ public enum TouchLayoutLimits {
 }
 
 /// 导出期间的运行时保护（iOS：常亮屏幕 + 后台收尾窗口；macOS 测试环境：空实现）。
+/// 后台收尾窗口到期时通过 `onBackgroundExpiration` 让调用方取消写出，避免写手挂起在半途。
 public protocol TouchExportRuntimeGuarding {
-    func exportDidStart()
+    func exportDidStart(onBackgroundExpiration: @escaping () -> Void)
     func exportDidEnd()
 }
 
 public struct TouchExportRuntimeNoopGuard: TouchExportRuntimeGuarding {
     public init() {}
-    public func exportDidStart() {}
+    public func exportDidStart(onBackgroundExpiration: @escaping () -> Void) {}
     public func exportDidEnd() {}
 }
