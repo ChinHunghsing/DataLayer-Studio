@@ -204,6 +204,42 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertGreaterThan(series.sample(at: 10).speedMetersPerSecond ?? -1, series.sample(at: 6).speedMetersPerSecond ?? 0)
     }
 
+    func testStartupPaceTrustsStableReportedSpeedWhenCumulativeAverageLags() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, distanceMeters: 0),
+            TelemetrySample(elapsed: 2, distanceMeters: 0),
+            TelemetrySample(elapsed: 3, distanceMeters: 0, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 4, distanceMeters: 0, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 5, distanceMeters: 9, speedMetersPerSecond: 2.172),
+            TelemetrySample(elapsed: 6, distanceMeters: 18, speedMetersPerSecond: 4.347),
+            TelemetrySample(elapsed: 7, distanceMeters: 25, speedMetersPerSecond: 4.733),
+            TelemetrySample(elapsed: 8, distanceMeters: 32, speedMetersPerSecond: 5.119),
+            TelemetrySample(elapsed: 9, distanceMeters: 39, speedMetersPerSecond: 5.608),
+            TelemetrySample(elapsed: 10, distanceMeters: 46, speedMetersPerSecond: 6.100),
+            TelemetrySample(elapsed: 11, distanceMeters: 53.5, speedMetersPerSecond: 6.119),
+            TelemetrySample(elapsed: 12, distanceMeters: 61, speedMetersPerSecond: 6.139),
+            TelemetrySample(elapsed: 13, distanceMeters: 67.5, speedMetersPerSecond: 6.150),
+            TelemetrySample(elapsed: 14, distanceMeters: 74, speedMetersPerSecond: 6.164),
+            TelemetrySample(elapsed: 15, distanceMeters: 80.5, speedMetersPerSecond: 6.156),
+            TelemetrySample(elapsed: 16, distanceMeters: 87, speedMetersPerSecond: 6.150),
+            TelemetrySample(elapsed: 17, distanceMeters: 92, speedMetersPerSecond: 6.139),
+            TelemetrySample(elapsed: 18, distanceMeters: 97, speedMetersPerSecond: 6.131),
+            TelemetrySample(elapsed: 19, distanceMeters: 103, speedMetersPerSecond: 6.111),
+            TelemetrySample(elapsed: 20, distanceMeters: 109, speedMetersPerSecond: 6.092),
+            TelemetrySample(elapsed: 21, distanceMeters: 115, speedMetersPerSecond: 6.067),
+            TelemetrySample(elapsed: 22, distanceMeters: 121, speedMetersPerSecond: 6.042),
+            TelemetrySample(elapsed: 23, distanceMeters: 126, speedMetersPerSecond: 6.017),
+            TelemetrySample(elapsed: 24, distanceMeters: 131, speedMetersPerSecond: 5.992),
+            TelemetrySample(elapsed: 25, distanceMeters: 137, speedMetersPerSecond: 5.969),
+            TelemetrySample(elapsed: 26, distanceMeters: 143, speedMetersPerSecond: 5.947),
+            TelemetrySample(elapsed: 27, distanceMeters: 148.5, speedMetersPerSecond: 5.931)
+        ])
+
+        XCTAssertEqual(series.sample(at: 11).speedMetersPerSecond ?? -1, 6.119, accuracy: 0.001)
+        XCTAssertLessThan(1000 / (series.sample(at: 11).speedMetersPerSecond ?? 1), 165)
+    }
+
     func testStartupPaceUsesCumulativeDistanceWhenReportedSpeedStalls() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 1.8),

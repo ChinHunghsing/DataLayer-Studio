@@ -20,6 +20,9 @@ public struct TelemetrySeries: Equatable {
     private static let startupSegmentConsistencyRatio = 1.6
     private static let startupSpeedJumpRatio = 1.6
     private static let startupStaleSpeedToleranceMetersPerSecond = 0.05
+    private static let startupReportedSpeedTrustElapsed: TimeInterval = 10
+    private static let startupReportedSpeedStabilityToleranceMetersPerSecond = 0.35
+    private static let startupReportedSpeedDistanceSupportRatio = 1.35
     private static let distanceEpsilon = 0.001
     private static let minimumAscentDeltaMeters = 1.0
 
@@ -630,7 +633,13 @@ public struct TelemetrySeries: Equatable {
                 continue
             }
 
-            let smoothedSpeed = max(lastStartupSpeed ?? startupRampMinimumSpeedMetersPerSecond, cumulativeSpeed)
+            let candidateSpeed = trustedStartupReportedSpeed(
+                samples: samples,
+                index: index,
+                firstElapsed: firstElapsed,
+                cumulativeSpeed: cumulativeSpeed
+            ) ?? cumulativeSpeed
+            let smoothedSpeed = max(lastStartupSpeed ?? startupRampMinimumSpeedMetersPerSecond, candidateSpeed)
             output[index].speedMetersPerSecond = smoothedSpeed
             lastStartupSpeed = smoothedSpeed
             if firstStartupSpeed == nil {
@@ -656,6 +665,58 @@ public struct TelemetrySeries: Equatable {
             }
         }
         return output
+    }
+
+    private static func trustedStartupReportedSpeed(
+        samples: [TelemetrySample],
+        index: Int,
+        firstElapsed: TimeInterval,
+        cumulativeSpeed: Double
+    ) -> Double? {
+        let sample = samples[index]
+        let elapsed = sample.elapsed - firstElapsed
+        guard elapsed >= startupReportedSpeedTrustElapsed,
+              let reportedSpeed = plausibleSpeed(sample.speedMetersPerSecond),
+              reportedSpeed > cumulativeSpeed + startupStaleSpeedToleranceMetersPerSecond else {
+            return nil
+        }
+
+        guard startupReportedSpeedIsStable(samples: samples, index: index, reportedSpeed: reportedSpeed),
+              startupReportedSpeedHasDistanceSupport(samples: samples, index: index, reportedSpeed: reportedSpeed) else {
+            return nil
+        }
+
+        return reportedSpeed
+    }
+
+    private static func startupReportedSpeedIsStable(
+        samples: [TelemetrySample],
+        index: Int,
+        reportedSpeed: Double
+    ) -> Bool {
+        let neighbors = [index - 1, index + 1].filter { samples.indices.contains($0) }
+        return neighbors.contains { neighborIndex in
+            guard let neighborSpeed = plausibleSpeed(samples[neighborIndex].speedMetersPerSecond) else {
+                return false
+            }
+            return abs(neighborSpeed - reportedSpeed) <= startupReportedSpeedStabilityToleranceMetersPerSecond
+        }
+    }
+
+    private static func startupReportedSpeedHasDistanceSupport(
+        samples: [TelemetrySample],
+        index: Int,
+        reportedSpeed: Double
+    ) -> Bool {
+        let segmentSpeeds = [
+            distanceSpeed(samples: samples, from: index - 1, to: index),
+            distanceSpeed(samples: samples, from: index, to: index + 1)
+        ].compactMap { plausibleSpeed($0) }
+
+        guard let supportedSpeed = segmentSpeeds.max() else {
+            return false
+        }
+        return reportedSpeed <= supportedSpeed * startupReportedSpeedDistanceSupportRatio
     }
 
     private static func shouldApplyStartupCumulativeSmoothing(
@@ -758,6 +819,9 @@ public struct TelemetrySeries: Equatable {
             }
 
             defer { index = max(end + 1, index + 1) }
+            guard !hasTrustedStartupReportedSpeed(samples: output, index: index, firstElapsed: firstElapsed) else {
+                continue
+            }
             guard end > index,
                   end + 1 < output.count,
                   let nextSpeed = output[end + 1].speedMetersPerSecond,
@@ -777,6 +841,34 @@ public struct TelemetrySeries: Equatable {
         }
 
         return output
+    }
+
+    private static func hasTrustedStartupReportedSpeed(
+        samples: [TelemetrySample],
+        index: Int,
+        firstElapsed: TimeInterval
+    ) -> Bool {
+        let sample = samples[index]
+        let elapsed = sample.elapsed - firstElapsed
+        guard elapsed > 0,
+              let distance = sample.distanceMeters,
+              distance > distanceEpsilon else {
+            return false
+        }
+
+        let cumulativeSpeed = distance / elapsed
+        guard cumulativeSpeed.isFinite,
+              cumulativeSpeed >= minimumMovingSpeedMetersPerSecond,
+              cumulativeSpeed <= maximumPlausibleStartupSpeedMetersPerSecond else {
+            return false
+        }
+
+        return trustedStartupReportedSpeed(
+            samples: samples,
+            index: index,
+            firstElapsed: firstElapsed,
+            cumulativeSpeed: cumulativeSpeed
+        ) != nil
     }
 
     private static func smoothedTrailingSpeedPlateau(samples: [TelemetrySample]) -> [TelemetrySample] {
