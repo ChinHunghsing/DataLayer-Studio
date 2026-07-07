@@ -105,6 +105,7 @@ struct RawFITLap {
     var startTime: UInt32?
     var totalElapsedTimeSeconds: TimeInterval?
     var totalTimerTimeSeconds: TimeInterval?
+    var totalDistanceMeters: Double?
     var totalCalories: Int?
 }
 
@@ -147,6 +148,7 @@ private struct CompressedDistanceAccumulator {
 public final class FITParser {
     private let validateCRC: Bool
     private let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
+    private let lapAnchorDistanceToleranceMeters = 25.0
 
     public init(validateCRC: Bool = true) {
         self.validateCRC = validateCRC
@@ -302,7 +304,17 @@ public final class FITParser {
                 timerEvents: timerEvents
             )
         )
-        let series = TelemetrySeries(samples: parsedSamples)
+        var series = TelemetrySeries(samples: parsedSamples)
+        let lapAnchorSamples = authoritativeLapSamples(
+            laps: laps,
+            sessions: sessions,
+            currentSeries: series,
+            activityStartTimestamp: activityStartTimestamp ?? records.compactMap(\.timestamp).min(),
+            timerEvents: timerEvents
+        )
+        if !lapAnchorSamples.isEmpty {
+            series = TelemetrySeries(samples: series.samples + lapAnchorSamples)
+        }
         if let correctedFinalSample = authoritativeFinalSample(
             sessions: sessions,
             currentSeries: series,
@@ -535,6 +547,8 @@ public final class FITParser {
                     lap.totalElapsedTimeSeconds = value / 1000
                 case 8:
                     lap.totalTimerTimeSeconds = value / 1000
+                case 9:
+                    lap.totalDistanceMeters = value / 100
                 case 11:
                     lap.totalCalories = Int(value)
                 default:
@@ -762,6 +776,82 @@ public final class FITParser {
         }
 
         return finalSample
+    }
+
+    private func authoritativeLapSamples(
+        laps: [RawFITLap],
+        sessions: [RawFITSession],
+        currentSeries: TelemetrySeries,
+        activityStartTimestamp: UInt32?,
+        timerEvents: [RawFITEvent]
+    ) -> [TelemetrySample] {
+        guard let activityStartTimestamp else { return [] }
+
+        let sessionEnd = sessions.compactMap {
+            sessionEndElapsed($0, activityStartTimestamp: activityStartTimestamp, timerEvents: timerEvents)
+        }.max()
+        let sortedLaps = laps.sorted {
+            ($0.startTime ?? $0.timestamp ?? 0) < ($1.startTime ?? $1.timestamp ?? 0)
+        }
+
+        var cumulativeDistance = 0.0
+        var previousAnchorDistance = 0.0
+        var anchors: [TelemetrySample] = []
+
+        for lap in sortedLaps {
+            guard let lapDistance = lap.totalDistanceMeters,
+                  lapDistance.isFinite,
+                  lapDistance > 0,
+                  let duration = lap.totalTimerTimeSeconds ?? lap.totalElapsedTimeSeconds,
+                  duration.isFinite,
+                  duration > 0 else {
+                continue
+            }
+            cumulativeDistance += lapDistance
+
+            let startElapsed: TimeInterval
+            if let startTime = lap.startTime {
+                startElapsed = timerElapsed(
+                    for: startTime,
+                    activityStartTimestamp: activityStartTimestamp,
+                    timerEvents: timerEvents
+                )
+            } else if let timestamp = lap.timestamp {
+                startElapsed = timerElapsed(
+                    for: timestamp,
+                    activityStartTimestamp: activityStartTimestamp,
+                    timerEvents: timerEvents
+                ) - duration
+            } else {
+                continue
+            }
+
+            let anchorElapsed = startElapsed + duration
+            guard anchorElapsed.isFinite,
+                  anchorElapsed > 0,
+                  cumulativeDistance > previousAnchorDistance + 0.001 else {
+                continue
+            }
+            if let sessionEnd, anchorElapsed > sessionEnd + 0.001 {
+                continue
+            }
+
+            var anchor = currentSeries.sample(at: anchorElapsed)
+            guard let currentDistance = anchor.distanceMeters,
+                  abs(currentDistance - cumulativeDistance) <= lapAnchorDistanceToleranceMeters else {
+                continue
+            }
+
+            anchor.elapsed = anchorElapsed
+            anchor.distanceMeters = cumulativeDistance
+            if let date = currentSeries.date(atElapsed: anchorElapsed) {
+                anchor.date = date
+            }
+            anchors.append(anchor)
+            previousAnchorDistance = cumulativeDistance
+        }
+
+        return anchors
     }
 
     private func caloriePoints(

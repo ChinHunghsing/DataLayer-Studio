@@ -15,7 +15,7 @@ public struct TelemetrySeries: Equatable {
     private static let startupRampMinimumSpeedMetersPerSecond = 0.35
     private static let startupRampSpeedRatio = 0.25
     private static let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
-    private static let maximumStartupPaceSmoothingElapsed: TimeInterval = 10
+    private static let maximumStartupPaceSmoothingElapsed: TimeInterval = 15
     private static let startupPaceSmoothingExponent = 1.7
     private static let startupSegmentConsistencyRatio = 1.6
     private static let startupSpeedJumpRatio = 1.6
@@ -277,7 +277,7 @@ public struct TelemetrySeries: Equatable {
             var sample = input
 
             if let distance = input.distanceMeters {
-                accumulatedDistance = max(0, distance - firstDistance)
+                accumulatedDistance = max(accumulatedDistance, max(0, distance - firstDistance))
             } else if
                 let previousInput,
                 let prevLat = previousInput.latitude,
@@ -597,63 +597,98 @@ public struct TelemetrySeries: Equatable {
 
     private static func smoothedStartupPace(samples: [TelemetrySample]) -> [TelemetrySample] {
         guard samples.count > 1,
-              let targetIndex = samples.firstIndex(where: { sample in
-                  guard let distance = sample.distanceMeters, distance > distanceEpsilon else { return false }
-                  let speed = sample.speedMetersPerSecond ?? (sample.elapsed > 0 ? distance / sample.elapsed : nil)
-                  guard let speed, speed.isFinite else { return false }
-                  return speed >= minimumMovingSpeedMetersPerSecond
-                      && speed <= maximumPlausibleStartupSpeedMetersPerSecond
-              }) else {
+              let first = samples.first,
+              (first.distanceMeters ?? 0) <= distanceEpsilon else {
             return samples
         }
-
-        let target = samples[targetIndex]
-        guard targetIndex > 0,
-              target.elapsed > 0,
-              target.elapsed <= maximumStartupPaceSmoothingElapsed else {
+        guard shouldApplyStartupCumulativeSmoothing(samples: samples, firstElapsed: first.elapsed) else {
             return samples
         }
-        guard samples[..<targetIndex].allSatisfy({ ($0.distanceMeters ?? 0) <= distanceEpsilon }) else {
-            return samples
-        }
-
-        let targetSpeed = target.speedMetersPerSecond ?? ((target.distanceMeters ?? 0) / target.elapsed)
-        guard targetSpeed.isFinite,
-              targetSpeed >= minimumMovingSpeedMetersPerSecond,
-              targetSpeed <= maximumPlausibleStartupSpeedMetersPerSecond else {
-            return samples
-        }
-        guard samples[..<targetIndex].contains(where: { sample in
-            shouldReplaceStartupSpeed(sample.speedMetersPerSecond, targetSpeed: targetSpeed)
-                && (sample.distanceMeters ?? 0) <= distanceEpsilon
-                && (sample.speedMetersPerSecond ?? 0) > targetSpeed
-        }) else {
-            return samples
-        }
-
-        let startSpeed = min(
-            targetSpeed,
-            max(startupRampMinimumSpeedMetersPerSecond, targetSpeed * startupRampSpeedRatio)
-        )
 
         var output = samples
-        for index in 0..<targetIndex {
+        var lastStartupSpeed: Double?
+        var firstStartupSpeed: Double?
+        var firstStartupIndex: Int?
+        let firstElapsed = first.elapsed
+
+        for index in samples.indices {
             let sample = samples[index]
-            let progress = min(1, max(0, sample.elapsed / target.elapsed))
-            let easedProgress = pow(progress, startupPaceSmoothingExponent)
-            let rampSpeed = startSpeed + ((targetSpeed - startSpeed) * easedProgress)
-            if shouldReplaceStartupSpeed(sample.speedMetersPerSecond, targetSpeed: targetSpeed)
-                || (sample.distanceMeters ?? 0) <= distanceEpsilon {
-                output[index].speedMetersPerSecond = rampSpeed
+            let elapsed = sample.elapsed - firstElapsed
+            guard elapsed > 0,
+                  elapsed <= maximumStartupPaceSmoothingElapsed,
+                  let distance = sample.distanceMeters,
+                  distance > distanceEpsilon else {
+                continue
+            }
+
+            let cumulativeSpeed = distance / elapsed
+            guard cumulativeSpeed.isFinite,
+                  cumulativeSpeed >= minimumMovingSpeedMetersPerSecond,
+                  cumulativeSpeed <= maximumPlausibleStartupSpeedMetersPerSecond else {
+                continue
+            }
+
+            let smoothedSpeed = max(lastStartupSpeed ?? startupRampMinimumSpeedMetersPerSecond, cumulativeSpeed)
+            output[index].speedMetersPerSecond = smoothedSpeed
+            lastStartupSpeed = smoothedSpeed
+            if firstStartupSpeed == nil {
+                firstStartupSpeed = smoothedSpeed
+                firstStartupIndex = index
+            }
+        }
+
+        if let firstStartupSpeed {
+            let startSpeed = min(
+                firstStartupSpeed,
+                max(startupRampMinimumSpeedMetersPerSecond, firstStartupSpeed * startupRampSpeedRatio)
+            )
+            output[0].speedMetersPerSecond = startSpeed
+            if let firstStartupIndex, firstStartupIndex > 0 {
+                let targetElapsed = max(samples[firstStartupIndex].elapsed - firstElapsed, 0.000_001)
+                for index in 1..<firstStartupIndex {
+                    let elapsed = samples[index].elapsed - firstElapsed
+                    let progress = min(1, max(0, elapsed / targetElapsed))
+                    let easedProgress = pow(progress, startupPaceSmoothingExponent)
+                    output[index].speedMetersPerSecond = startSpeed + ((firstStartupSpeed - startSpeed) * easedProgress)
+                }
             }
         }
         return output
     }
 
-    private static func shouldReplaceStartupSpeed(_ speed: Double?, targetSpeed: Double) -> Bool {
-        guard let speed, speed.isFinite else { return true }
-        guard speed >= minimumMovingSpeedMetersPerSecond else { return true }
-        return speed > targetSpeed * 1.75
+    private static func shouldApplyStartupCumulativeSmoothing(
+        samples: [TelemetrySample],
+        firstElapsed: TimeInterval
+    ) -> Bool {
+        if shouldReplaceSpeed(samples.first?.speedMetersPerSecond) {
+            return true
+        }
+        guard let firstSpeed = samples.first?.speedMetersPerSecond,
+              firstSpeed <= startupRampMinimumSpeedMetersPerSecond * 2 else {
+            return false
+        }
+
+        for sample in samples {
+            let elapsed = sample.elapsed - firstElapsed
+            guard elapsed > 0,
+                  elapsed <= maximumStartupPaceSmoothingElapsed,
+                  let distance = sample.distanceMeters,
+                  distance > distanceEpsilon,
+                  let speed = sample.speedMetersPerSecond,
+                  speed.isFinite else {
+                continue
+            }
+
+            let cumulativeSpeed = distance / elapsed
+            guard cumulativeSpeed.isFinite,
+                  cumulativeSpeed >= minimumMovingSpeedMetersPerSecond else {
+                continue
+            }
+            if speed / cumulativeSpeed >= 2 {
+                return true
+            }
+        }
+        return false
     }
 
     private static func trimmedIncompleteTail(samples: [TelemetrySample]) -> [TelemetrySample] {
