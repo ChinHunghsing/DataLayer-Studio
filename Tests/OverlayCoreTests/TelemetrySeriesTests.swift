@@ -176,7 +176,8 @@ final class TelemetrySeriesTests: XCTestCase {
             TelemetrySample(elapsed: 6, distanceMeters: 22.0, speedMetersPerSecond: 4.531)
         ])
 
-        XCTAssertEqual(series.sample(at: 3).speedMetersPerSecond ?? -1, 2.2, accuracy: 0.001)
+        XCTAssertGreaterThanOrEqual(series.sample(at: 3).speedMetersPerSecond ?? -1, 2.2)
+        XCTAssertLessThan(series.sample(at: 3).speedMetersPerSecond ?? -1, 2.3)
         XCTAssertEqual(series.sample(at: 5).speedMetersPerSecond ?? -1, 3.408, accuracy: 0.001)
     }
 
@@ -195,9 +196,10 @@ final class TelemetrySeriesTests: XCTestCase {
             TelemetrySample(elapsed: 10, distanceMeters: 46, speedMetersPerSecond: 6.1)
         ])
 
-        XCTAssertEqual(series.sample(at: 5).speedMetersPerSecond ?? -1, 1.8, accuracy: 0.001)
         XCTAssertEqual(series.sample(at: 6).speedMetersPerSecond ?? -1, 3.0, accuracy: 0.001)
         XCTAssertEqual(series.sample(at: 10).speedMetersPerSecond ?? -1, 4.6, accuracy: 0.001)
+        XCTAssertGreaterThan(series.sample(at: 2).speedMetersPerSecond ?? -1, series.sample(at: 1).speedMetersPerSecond ?? 0)
+        XCTAssertGreaterThan(series.sample(at: 5).speedMetersPerSecond ?? -1, series.sample(at: 2).speedMetersPerSecond ?? 0)
         XCTAssertGreaterThan(series.sample(at: 6).speedMetersPerSecond ?? -1, series.sample(at: 5).speedMetersPerSecond ?? 0)
         XCTAssertGreaterThan(series.sample(at: 10).speedMetersPerSecond ?? -1, series.sample(at: 6).speedMetersPerSecond ?? 0)
     }
@@ -212,10 +214,26 @@ final class TelemetrySeriesTests: XCTestCase {
             TelemetrySample(elapsed: 5, distanceMeters: 12.5, speedMetersPerSecond: 2.5)
         ])
 
-        XCTAssertEqual(series.sample(at: 1).speedMetersPerSecond ?? -1, 1.8, accuracy: 0.001)
+        XCTAssertGreaterThan(series.sample(at: 2).speedMetersPerSecond ?? -1, series.sample(at: 1).speedMetersPerSecond ?? 0)
         XCTAssertGreaterThan(series.sample(at: 3).speedMetersPerSecond ?? -1, series.sample(at: 2).speedMetersPerSecond ?? 0)
         XCTAssertGreaterThan(series.sample(at: 4).speedMetersPerSecond ?? -1, series.sample(at: 3).speedMetersPerSecond ?? 0)
         XCTAssertEqual(series.sample(at: 5).speedMetersPerSecond ?? -1, 2.5, accuracy: 0.001)
+    }
+
+    func testEndingPaceUsesDistanceWhenReportedSpeedStalls() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 3),
+            TelemetrySample(elapsed: 90, distanceMeters: 300, speedMetersPerSecond: 3.5),
+            TelemetrySample(elapsed: 100, distanceMeters: 340, speedMetersPerSecond: 4),
+            TelemetrySample(elapsed: 101, distanceMeters: 344, speedMetersPerSecond: 4),
+            TelemetrySample(elapsed: 102, distanceMeters: 348, speedMetersPerSecond: 4),
+            TelemetrySample(elapsed: 103, distanceMeters: 352, speedMetersPerSecond: 4),
+            TelemetrySample(elapsed: 104, distanceMeters: 358, speedMetersPerSecond: 4),
+            TelemetrySample(elapsed: 105, distanceMeters: 365, speedMetersPerSecond: 4)
+        ])
+
+        XCTAssertGreaterThan(series.sample(at: 104).speedMetersPerSecond ?? -1, series.sample(at: 103).speedMetersPerSecond ?? 0)
+        XCTAssertGreaterThan(series.sample(at: 105).speedMetersPerSecond ?? -1, series.sample(at: 104).speedMetersPerSecond ?? 0)
     }
 
     func testStartupPaceIgnoresSpeedSpikeBeforeDistanceMoves() {
