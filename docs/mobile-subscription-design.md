@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | **已定**（2026-07-07 拍板，进入实施；原「三端 Universal Purchase 统一买断」决策废止） |
+| 状态 | **已定并实施中**（2026-07-07 拍板；S2 订阅导出门代码已接入，S3 ASC/沙盒联调待做；原「三端 Universal Purchase 统一买断」决策废止） |
 | 日期 | 2026-07-07 |
 | 适用平台 | iOS / iPadOS（iPad 与 iPhone 为同一 iOS App）；macOS 版**完全不动** |
 | 已定参数 | 月付 **$1.99**；年付 **$19.99**（≈10 个月价）；新用户免费试用 7 天；Mac 买断用户送 3 个月订阅码（发码 v1 人工渠道）；Family Sharing 不开启；iOS bundle id `run.libo.datalayer-studio.mobile`；免费层 = 编辑/预览全免费、导出需订阅；macOS 维持买断不动 |
@@ -15,6 +15,7 @@
 - **Mac 买断用户补偿（已定）**：送 3 个月免费订阅，用 ASC 订阅 **Offer Code** 实现（免费型 / 时长 3 个月），发放机制见 §1.7。
 - 免费层建议：**导入/对表/排布/预览全部免费，导出成片需要有效订阅（含试用期）**。转化点放在导出，审核友好（免费 App 有实际可用性）、试用价值感知最强。
 - 客户端纯 StoreKit 2 实现（`Transaction.currentEntitlements` + `Transaction.updates`），不引入服务器依赖；App Store Server Notifications V2 仅作运营统计（可选，复用现有 `.env.local` 基建）。
+- S2 客户端代码已落地：正式 iOS 壳启用订阅导出门，开发/SwiftPM 调试壳默认放行；`PrivacyInfo.xcprivacy` 已挂入 iOS target。
 - 布局预设 iCloud 同步**不受拆分 record 影响**：iCloud KVS 标识是 entitlement 层概念，同一开发团队下不同 App 可声明同一标识共享数据。
 - **时间窗口红线：在本方案定稿前，绝不能把 iOS platform 添加进现有 App record**——Universal Purchase 挂接是单向操作，一旦挂上就无法拆出独立定价。目前 iOS 未上架、未挂接，拆分零成本。
 
@@ -111,7 +112,7 @@
 
 ### 2.4 新增文案（四语言，`TouchLocalization.swift`）
 
-关键 key（en/zh-Hans/zh-Hant/ja 四表同步，测试拦截漏改）：`paywall.title`、`paywall.feature.export`、`paywall.trial.cta`（免费试用 7 天）、`paywall.trial.terms`（试用后自动续订说明）、`paywall.subscribe.cta`、`paywall.restore`、`paywall.manage`、`paywall.eula` / `paywall.privacy`、`subscription.state.trial` / `.active` / `.gracePeriod` / `.none`、`status.exportNeedsSubscription`。
+关键 key（en/zh-Hans/zh-Hant/ja 四表同步，测试拦截漏改）：`paywall.title`、`paywall.feature.export`、`paywall.trial.cta`（免费试用 7 天）、`paywall.trial.terms`（试用后自动续订说明）、`paywall.subscribe.cta`、`paywall.restore`、`paywall.manage`、`paywall.redeem`、`paywall.eula` / `paywall.privacy`、`subscription.state.unknown` / `.trial` / `.active` / `.gracePeriod` / `.none`、`subscription.restored` / `.pending` / `.error`、`settings.subscription`、`status.exportNeedsSubscription`。
 
 ## 3. 技术方案
 
@@ -129,7 +130,7 @@
 
 ### 3.2 客户端架构（StoreKit 2，无服务器依赖）
 
-新增 `Sources/OverlayTouch/Stores/MobileSubscriptionStore.swift`（`@MainActor ObservableObject`；StoreKit 2 API macOS 12+ 同样可编译，模型保持平台中立以便 macOS 上跑单测）：
+已新增 `Sources/OverlayTouch/Stores/MobileSubscriptionStore.swift`（`@MainActor ObservableObject`；StoreKit 2 API macOS 12+ 同样可编译，模型保持平台中立以便 macOS 上跑单测）：
 
 ```
 状态机 EntitlementState: .unknown → .subscribed(expiry:, inTrial:) | .gracePeriod | .notSubscribed
@@ -178,8 +179,8 @@ App Store Server Notifications V2 订阅事件（`SUBSCRIBED` / `DID_RENEW` / `E
 | 阶段 | 内容 | 出口标准 | 粗估 |
 | --- | --- | --- | --- |
 | S0 决策定稿 | ✅ 已完成（2026-07-07）：拆 record、导出锁免费层、$1.99 月 / $19.99 年、送 3 个月码、bundle id `.mobile`；§6 文档已修订 | 本文档状态已改「已定」 | — |
-| S1 正式 Xcode 壳 | ✅ 已完成（2026-07-07）：`App/DataLayerStudioMobile.xcodeproj`（universal target，bundle id `.mobile`）、KVS entitlements（模拟器/真机双验证）、`.storekit` 两档 SKU+7 天试用并挂入共享 scheme；App ID 已随自动签名注册。PrivacyInfo 留到 S2 随订阅代码补 | 模拟器构建启动通过；真机签名构建通过 | — |
-| S2 订阅模块 | MobileSubscriptionStore + 导出门 + paywall + 设置分区 + 四语言文案 + 单测 | §3.5 验收清单本地全绿 | 3–5 天 |
+| S1 正式 Xcode 壳 | ✅ 已完成（2026-07-07）：`App/DataLayerStudioMobile.xcodeproj`（universal target，bundle id `.mobile`）、KVS entitlements（模拟器/真机双验证）、`.storekit` 两档 SKU+7 天试用并挂入共享 scheme；App ID 已随自动签名注册 | 模拟器构建启动通过；真机签名构建通过 | — |
+| S2 订阅模块 | ✅ 已完成（2026-07-07）：MobileSubscriptionStore + 导出门 + Paywall + 设置分区 + 四语言文案 + `PrivacyInfo.xcprivacy` + 单测；正式 iOS 壳强制订阅，开发壳放行 | `OverlayTouchTests`、全量 `swift test`、iOS 模拟器 build、macOS bundle build/verify 全绿；StoreKit 沙盒路径移交 S3 | — |
 | S3 ASC 配置与联调 | 新 record、订阅组/两档 SKU/试用、Offer Code 首批码、CN/JP 价格点核对、沙盒验证 | 沙盒全路径通过（含兑换码） | 1–2 天 |
 | S4 Mac KVS 小版本 | Mac 版落实 KVS 显式标识并发布 | 三端预设同步联调通过 | 1 天 + 审核周期 |
 | S5 TestFlight → 提审 | 内测 + 元数据 + 审核 | 上架 | 1–2 周（含审核） |
@@ -199,8 +200,7 @@ App Store Server Notifications V2 订阅事件（`SUBSCRIBED` / `DID_RENEW` / `E
 
 ## 6. 采纳后需同步修订的文档
 
-- `docs/ipad-product-design.md`：头表商业模式行、§1 分工表加商业模式行、§7 发布前置中“购买校验门（Universal Purchase）”改为本方案订阅门。
-- `docs/ipad-technical-design.md`：§8-6 发布前置（bundle id、Universal Purchase 注意段整段替换）、风险表。
+- `docs/ipad-product-design.md` / `docs/ipad-technical-design.md`：已同步 S2 代码落地状态；S3 完成后继续回填 ASC/沙盒验收结果。
 - `docs/iphone-product-design.md` / `docs/iphone-technical-design.md`：头表商业模式行、§10/§9 商业化段。
 - `AGENTS.md`：iOS 的 ASC 流程补充（新 App record id、platform IOS、订阅 SKU 约定）——待 S3 配置完成后回填实际 id。
 - 落地页与 README 的「一次购买三端使用」表述。

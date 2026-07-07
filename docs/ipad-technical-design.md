@@ -2,11 +2,11 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | **实施中**（本文描述已落地架构与剩余技术工作，由 2026-07-04 提案版重写） |
+| 状态 | **实施中**（本文描述已落地架构与剩余技术工作，由 2026-07-04 提案版重写；订阅导出门已接入） |
 | 日期 | 2026-07-06 |
 | 适用平台 | iPadOS（与 iPhone 共用同一 iOS App target；iPhone 差异见 `docs/iphone-technical-design.md`） |
 | 最低系统版本 | iOS / iPadOS 26（`Package.swift` 已声明 `.iOS("26.0")`；macOS 维持 13） |
-| 对应提交 | `4220ee2`、`7ff081b`（main） |
+| 对应提交 | `4220ee2`、`7ff081b`、`f5aa6d4`（main） |
 | 关联文档 | `docs/ipad-product-design.md`、`docs/ipados-development-testing.md` |
 
 ## 0. 现状摘要
@@ -16,6 +16,7 @@
 - iPad 界面与会话模型落在新 target `Sources/OverlayTouch`（约 4200 行）；**原提案的 P1「StudioModel 拆分下沉」没有做**，iPad 会话模型独立实现（差异与代价见 §2.3）。
 - 日常开发用模拟器闭环：SwiftPM executable 壳 + `scripts/build_touch_sim_app.sh` 一键构建安装启动，导入→对表→排布→导出全链路已在 iPad Pro 13-inch (M5) 模拟器验证。
 - 正式 iOS 壳工程已提交：`App/DataLayerStudioMobile.xcodeproj`（bundle id `run.libo.datalayer-studio.mobile`，引用本地 SwiftPM 包的 OverlayTouch；iCloud KVS entitlements 与 `.storekit` 订阅配置随工程提交）。macOS 构建流程不变（SwiftPM + 脚本）。
+- 正式 iOS 壳已开启订阅导出门：`MobileSubscriptionStore` 使用 StoreKit 2 本地验签，导出入口唯一拦截点在 `TouchStudioModel.export()`；开发/SwiftPM 调试壳默认注入放行 provider，避免影响快速迭代。
 
 ## 1. 已落地架构
 
@@ -38,11 +39,13 @@ Tests/OverlayTouchTests  (依赖 OverlayTouch，在 macOS 上运行)
 | --- | --- |
 | `Models/TouchStudioModel.swift`（~1340 行） | 会话模型：素材载入（含 security-scoped 生命周期）、对表（三模式 → `TelemetryTimeSync`）、播放与时间轴、浮层预览渲染调度（合并/节流/拖动降采样 1600px/上限 3200px）、布局编辑 + 100 级快照撤销、预设 CRUD + iCloud KVS 观察、导出参数校验与执行（进度/ETA/取消）、偏好持久化、热状态监控 |
 | `Models/TouchModels.swift` | 枚举、分辨率/帧率预设表、组件基础尺寸、`TouchExportRuntimeGuarding` 协议 |
+| `Stores/MobileSubscriptionStore.swift` | StoreKit 2 订阅状态：月/年 SKU、`Transaction.currentEntitlements`、`Transaction.updates`、购买/恢复、宽限期、Offer Code/管理订阅入口、离线缓存容差 |
 | `Support/TouchLocalization.swift` | 四语言字典（en/zh-Hans/zh-Hant/ja）+ 组件图标映射；`tables` 为 internal 供键位对齐测试 |
 | `Support/TouchPlatformServices.swift` | UIKit 门控：导出中屏幕常亮 + `beginBackgroundTask` 收尾窗口；`PHPhotoLibrary` 存片 |
 | `Views/TouchEditorRootView.swift` | 根视图：regular 三栏 / compact sheet、工具栏、设置 sheet、onOpenURL、模拟器调试环境变量入口 |
 | `Views/TouchSourcesPanel.swift` | 素材导入（fileImporter + PhotosPicker/Transferable 拷贝）、对表、预设 |
 | `Views/TouchExportSection.swift` | 导出设置/进度/结果卡片（ShareLink、存照片） |
+| `Views/TouchSubscriptionViews.swift` | iOS-only Paywall 与订阅状态块（`SubscriptionStoreView` + 恢复购买/管理订阅/兑换代码/EULA/隐私入口） |
 | `Views/TouchCanvasView.swift` | 画布（AVPlayerLayer + 浮层 CGImage 叠加、触控选中/拖动、粗估命中热区 ≥44pt）+ 时间轴 |
 | `Views/TouchInspectorPanel.swift` | 添加组件 + 选中组件设置子集 |
 | `OverlayTouchRootView.swift` | 对外入口：iOS → 编辑器；macOS → P0 诊断视图 |
@@ -69,9 +72,9 @@ Tests/OverlayTouchTests  (依赖 OverlayTouch，在 macOS 上运行)
 `App/DataLayerStudioMobile.xcodeproj`：手写 pbxproj 的最小壳（约定见订阅方案 S1），代码只有一个 @main 文件，全部功能来自本地 SwiftPM 包（`XCLocalSwiftPackageReference` 指向仓库根，产品依赖 OverlayTouch）。要点：
 
 - target universal（iPhone+iPad），bundle id `run.libo.datalayer-studio.mobile`，最低 iOS 26，自动签名 `DEVELOPMENT_TEAM=XUQV24QYZM`；App ID 已注册（含 iCloud KVS capability）。
-- `App/DataLayerStudioMobile/`：Info.plist（fit/gpx UTI、四语言、Files 可见、照片写入文案、`ITSAppUsesNonExemptEncryption=NO`）、entitlements（KVS 标识 `$(TeamIdentifierPrefix)run.libo.datalayer-studio`，与 Mac 共享）、`DataLayerStudio.storekit`（月/年两档 + 7 天试用，挂在共享 scheme 的 LaunchAction 上）、AppIcon（复用 Resources/AppIcon.png）。
+- `App/DataLayerStudioMobile/`：Info.plist（fit/gpx UTI、四语言、Files 可见、照片写入文案、`ITSAppUsesNonExemptEncryption=NO`）、entitlements（KVS 标识 `$(TeamIdentifierPrefix)run.libo.datalayer-studio`，与 Mac 共享）、`DataLayerStudio.storekit`（月/年两档 + 7 天试用，挂在共享 scheme 的 LaunchAction 上）、`PrivacyInfo.xcprivacy`（UserDefaults required-reason API；不声明追踪）、AppIcon（复用 Resources/AppIcon.png）。
 - `scripts/build_touch_sim_app.sh` 的 SwiftPM 壳保留为纯命令行快速迭代通道；涉及 StoreKit/签名/真机的验证走 Xcode 工程。
-- `PrivacyInfo.xcprivacy` 留到 S2 随订阅代码一起补。
+- `DataLayerStudioMobileApp` 直接启动 `TouchEditorRootView(enforcesSubscription: true)`；SwiftPM/开发入口仍默认不强制订阅。
 
 ## 3. 文件访问与数据流（已实现）
 
@@ -105,27 +108,30 @@ AVPlayer 播放 + `OverlayPreviewRenderer` 浮层 CGImage 双层结构；播放�
 
 ## 7. 测试与验证（现状）
 
-- `Tests/OverlayTouchTests`（macOS 运行，`swift test --filter OverlayTouchTests`）：模型行为 9 项（导出就绪/区间钳位/元素增删复制层级/撤销重做/预设 CRUD/遥测可用性过滤，用临时 GPX 走真实解析路径）+ 本地化 5 项（四表键位对齐、语言解析、格式化）。
+- `Tests/OverlayTouchTests`（macOS 运行，`swift test --filter OverlayTouchTests`）：模型行为 10 项（导出就绪/订阅门/区间钳位/元素增删复制层级/撤销重做/预设 CRUD/遥测可用性过滤，用临时 GPX 与微型视频走真实解析路径）+ 订阅状态 1 项（订阅、宽限期、离线缓存容差、过期/未订阅）+ 本地化 5 项（四表键位对齐、语言解析、格式化）。
 - 模拟器 E2E：`scripts/build_touch_sim_app.sh --run` + `TOUCH_AUTOLOAD_VIDEO/FIT`、`TOUCH_AUTOEXPORT`（任意非空值）、`TOUCH_AUTOEXPORT_MAX_SECONDS` 环境变量自动载入样本并导出（仅 `targetEnvironment(simulator)` 编译，正式包无此行为）；产物从 `simctl get_app_container … data` 的 Documents 取出核验。
-- macOS 回归基线：全量 `swift test` + `scripts/build_app_bundle.sh` + `scripts/verify_app_bundle.sh`，v1 合入时全绿。
+- macOS 回归基线：全量 `swift test` + `scripts/build_app_bundle.sh` + `scripts/verify_app_bundle.sh`，v1 与订阅门合入时全绿。
+- iOS 编译基线：`xcodebuild -project App/DataLayerStudioMobile.xcodeproj -scheme DataLayerStudioMobile -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)' build`，订阅门合入时通过。
 - CI 未加 iOS job（§8）。
 
 ## 8. 剩余技术工作（建议顺序）
 
-1. **真机验证**：/tmp 壳装真机（流程见开发测试文档 §5），跑合成 HEVC 硬编导出，产出性能/热基准表；手测导出中退后台/来电中断。
-2. **检查器补齐 + 运动数据裁切 UI**：纯 OverlayTouch 内工作，无共享层风险。
-3. **CI 增加 iOS 编译信号**：至少把 `swift build --target OverlayTouch`（iphonesimulator triple）加进 CI，防止 macOS 侧改动悄悄弄断 iOS 编译。
-4. **M3 平台特性**：onDrop 拖拽、多 Scene、键盘全键位（方向键微调 / ⌥⌘↑↓ / ⌘±）、Pencil/指针悬停、画布捏合缩放与网格吸附。
-5. **P1 共享层下沉**（择机）：按 §2.3 路线收敛双份编排。
-6. **发布前置**：~~正式 Xcode 壳工程~~（✅ 已完成，见 §2.3；独立 App record 红线不变：不得把 iOS platform 挂入 6782545770）；订阅门与 Paywall（StoreKit 2，月 $1.99 / 年 $19.99 / 试用 7 天 / Mac 用户 3 个月 Offer Code，完整方案与实施计划见 `docs/mobile-subscription-design.md`）；`PrivacyInfo.xcprivacy`；Mac 端 iCloud KVS 标识（§6，跨 record 共享同一标识）；天气；无障碍/四语言验收；App Store 素材（iPad 13/11 英寸截图，构建号 `yyyyMMddNN`）。
+1. **StoreKit/ASC 联调**：创建独立 iOS App record、订阅组、月/年 SKU、7 天试用与 3 个月 Offer Code；用沙盒账户验证购买、恢复、取消到期、退款/撤销、兑换入口。
+2. **真机验证**：正式 Xcode 壳装真机（流程见开发测试文档 §5），跑合成 HEVC 硬编导出，产出性能/热基准表；手测导出中退后台/来电中断。
+3. **检查器补齐 + 运动数据裁切 UI**：纯 OverlayTouch 内工作，无共享层风险。
+4. **CI 增加 iOS 编译信号**：至少把 `swift build --target OverlayTouch`（iphonesimulator triple）或正式 Xcode 壳模拟器 build 加进 CI，防止 macOS 侧改动悄悄弄断 iOS 编译。
+5. **M3 平台特性**：onDrop 拖拽、多 Scene、键盘全键位（方向键微调 / ⌥⌘↑↓ / ⌘±）、Pencil/指针悬停、画布捏合缩放与网格吸附。
+6. **P1 共享层下沉**（择机）：按 §2.3 路线收敛双份编排。
+7. **发布前置**：~~正式 Xcode 壳工程~~、~~订阅门与 Paywall~~、~~`PrivacyInfo.xcprivacy`~~ 已完成；仍需 ASC/StoreKit 沙盒联调、Mac 端 iCloud KVS 标识（§6，跨 record 共享同一标识）、天气、无障碍/四语言验收、App Store 素材（iPad 13/11 英寸截图，构建号 `yyyyMMddNN`）。
 
 ## 9. 风险登记（更新）
 
 | 风险 | 概率 | 影响 | 缓解 |
 | --- | --- | --- | --- |
 | 双份编排随功能迭代漂移（iPad 模型 vs Mac StudioModel） | 中 | 中 | 改对表/导出语义时两边同改并跑双端测试；尽早排期 P1 下沉 |
-| 真机硬编行为与模拟器软编差异（性能/属性支持） | 中 | 中 | §8-1 真机基准前置；新增 VT 属性沿用 §4.2 门控 |
+| 真机硬编行为与模拟器软编差异（性能/属性支持） | 中 | 中 | §8-2 真机基准前置；新增 VT 属性沿用 §4.2 门控 |
 | 导出中挂起/热限制导致失败率上升 | 中 | 中 | 生命周期模块已接；真机中断手测补上 |
-| CI 无 iOS 信号，iOS 编译被无意弄断 | 高（当前状态） | 低-中 | §8-3 尽快加编译 job |
+| StoreKit/ASC 线上配置与本地 `.storekit` 漂移 | 中 | 中 | S3 用 `asc` 建 SKU 后逐项核对 product id、试用、Family Sharing、Offer Code，并跑沙盒全路径 |
+| CI 无 iOS 信号，iOS 编译被无意弄断 | 高（当前状态） | 低-中 | §8-4 尽快加编译 job |
 | iCloud KVS 标识依赖 Mac 版先行发版 | 确定 | 低 | 作为独立小版本提前发 |
 | 画布粗估热区在极端自定义下偏差大 | 低 | 低 | 精确边界待与 macOS 实现一起下沉共享 |
