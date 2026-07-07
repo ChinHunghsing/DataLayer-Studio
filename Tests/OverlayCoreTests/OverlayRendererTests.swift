@@ -329,15 +329,17 @@ final class OverlayRendererTests: XCTestCase {
     }
 
     func testWithLayoutRendersSameAsFreshRendererWhenTrimIsActive() throws {
-        let samples = (0..<64).map { index in
-            TelemetrySample(
+        var samples: [TelemetrySample] = []
+        for index in 0..<64 {
+            let offset: Double = Double(index) * 0.00001
+            samples.append(TelemetrySample(
                 elapsed: TimeInterval(index),
-                latitude: 35 + Double(index) * 0.00001,
-                longitude: 139 + Double(index) * 0.00001,
+                latitude: 35 + offset,
+                longitude: 139 + offset,
                 heartRate: 140 + index % 20,
                 distanceMeters: Double(index) * 3.2,
                 speedMetersPerSecond: 3.2
-            )
+            ))
         }
         let series = TelemetrySeries(samples: samples)
         let size = CGSize(width: 640, height: 360)
