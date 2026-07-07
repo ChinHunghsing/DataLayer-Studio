@@ -461,7 +461,48 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 7).speedMetersPerSecond ?? -1, 4.733, accuracy: 0.001)
     }
 
+    func testKeepsSlowlyDriftingTailWithoutDistanceContradiction() {
+        // 尾段速度缓变、距离段速与之基本一致（比值 < 1.6）时不得重绘真实数据
+        var samples: [TelemetrySample] = []
+        var distance = 0.0
+        for second in 0...20 {
+            if second > 0 {
+                distance += second % 2 == 1 ? 4.8 : 5.4
+            }
+            samples.append(TelemetrySample(
+                elapsed: TimeInterval(second),
+                latitude: 35 + Double(second) * 0.0001,
+                longitude: 139 + Double(second) * 0.0001,
+                heartRate: 150,
+                cadence: 180,
+                distanceMeters: distance,
+                speedMetersPerSecond: 4.91
+            ))
+        }
+        let series = TelemetrySeries(samples: samples)
+
+        XCTAssertEqual(series.sample(at: 18).speedMetersPerSecond ?? -1, 4.91, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 20).speedMetersPerSecond ?? -1, 4.91, accuracy: 0.001)
+    }
+
     func testTrimsIncompleteTailAfterUsuallyAvailableChannelsDisappear() {
+        // 尾巴只剩心率/步频等元数据、没有位移证据时才裁剪
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, latitude: 35, longitude: 139, heartRate: 130, cadence: 190, distanceMeters: 0, speedMetersPerSecond: 3),
+            TelemetrySample(elapsed: 1, latitude: 35.0001, longitude: 139.0001, heartRate: 131, cadence: 192, distanceMeters: 3, speedMetersPerSecond: 3),
+            TelemetrySample(elapsed: 2, latitude: 35.0002, longitude: 139.0002, heartRate: 132, cadence: 192, distanceMeters: 6, speedMetersPerSecond: 3),
+            TelemetrySample(elapsed: 3, heartRate: 133, cadence: 192),
+            TelemetrySample(elapsed: 4, heartRate: 134)
+        ])
+
+        XCTAssertEqual(series.duration, 2)
+        XCTAssertEqual(series.samples.last?.elapsed, 2)
+        XCTAssertEqual(series.sample(at: 4).distanceMeters ?? -1, 6, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 4).cadence, 192)
+    }
+
+    func testKeepsMovingTailWhenPositionDisappears() {
+        // GPS 先丢但距离/速度仍在更新的真实尾段不能被裁剪
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, latitude: 35, longitude: 139, heartRate: 130, cadence: 190, distanceMeters: 0, speedMetersPerSecond: 3),
             TelemetrySample(elapsed: 1, latitude: 35.0001, longitude: 139.0001, heartRate: 131, cadence: 192, distanceMeters: 3, speedMetersPerSecond: 3),
@@ -470,10 +511,9 @@ final class TelemetrySeriesTests: XCTestCase {
             TelemetrySample(elapsed: 4, heartRate: 134, distanceMeters: 12, speedMetersPerSecond: 3)
         ])
 
-        XCTAssertEqual(series.duration, 2)
-        XCTAssertEqual(series.samples.last?.elapsed, 2)
-        XCTAssertEqual(series.sample(at: 4).distanceMeters ?? -1, 6, accuracy: 0.001)
-        XCTAssertEqual(series.sample(at: 4).cadence, 192)
+        XCTAssertEqual(series.duration, 4)
+        XCTAssertEqual(series.sample(at: 4).distanceMeters ?? -1, 12, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 4).speedMetersPerSecond ?? -1, 3, accuracy: 0.001)
     }
 
     func testDoesNotTrimTailForChannelsAbsentThroughoutActivity() {

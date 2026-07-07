@@ -1092,6 +1092,11 @@ public struct TelemetrySeries: Equatable {
         guard abs(targetSpeed - lastSpeed) > startupStaleSpeedToleranceMetersPerSecond else {
             return samples
         }
+        // 证据门控：平台区间内必须有距离段速度与平台速度明显矛盾（速度停滞而距离在走，
+        // 或距离停滞而速度停在高位），否则视为真实缓变数据，不重绘
+        guard hasTrailingDistanceEvidence(samples: samples, from: start - 1, plateauSpeed: lastSpeed) else {
+            return samples
+        }
 
         return interpolateSpeeds(
             samples: samples,
@@ -1100,6 +1105,30 @@ public struct TelemetrySeries: Equatable {
             targetSpeed: targetSpeed,
             replacing: start...(samples.count - 1)
         )
+    }
+
+    /// 尾段重绘的距离证据：区间内存在与平台速度比值达到跳变阈值的距离段速度。
+    /// 只统计不短于一个重采样间隔的段，锚点/最终样本插入产生的亚秒合成段不作证据。
+    private static func hasTrailingDistanceEvidence(
+        samples: [TelemetrySample],
+        from start: Int,
+        plateauSpeed: Double
+    ) -> Bool {
+        guard plateauSpeed > 0, start >= 0 else { return false }
+        for index in (start + 1)..<samples.count {
+            guard let previousDistance = samples[index - 1].distanceMeters,
+                  let distance = samples[index].distanceMeters else {
+                continue
+            }
+            let deltaTime = samples[index].elapsed - samples[index - 1].elapsed
+            guard deltaTime >= resampleInterval - 0.001 else { continue }
+            let segmentSpeed = (distance - previousDistance) / deltaTime
+            let ratio = max(segmentSpeed, plateauSpeed) / max(min(segmentSpeed, plateauSpeed), 0.000_001)
+            if ratio >= startupSpeedJumpRatio {
+                return true
+            }
+        }
+        return false
     }
 
     private static func interpolateSpeeds(
@@ -1161,12 +1190,49 @@ public struct TelemetrySeries: Equatable {
 
         var lastCompleteIndex = samples.count - 1
         while lastCompleteIndex > 0,
-              !expected.isComplete(samples[lastCompleteIndex]) {
+              !expected.isComplete(samples[lastCompleteIndex]),
+              !hasTrailingMotionEvidence(samples: samples, at: lastCompleteIndex) {
             lastCompleteIndex -= 1
         }
 
-        guard lastCompleteIndex < samples.count - 1 else { return samples }
-        return Array(samples[...lastCompleteIndex])
+        var output = lastCompleteIndex < samples.count - 1
+            ? Array(samples[...lastCompleteIndex])
+            : samples
+
+        // 保留下来的运动尾段若缺心率/步频，延用最后已知值，保持叠加显示连续
+        var lastFullyCompleteIndex = output.count - 1
+        while lastFullyCompleteIndex > 0,
+              !expected.isComplete(output[lastFullyCompleteIndex]) {
+            lastFullyCompleteIndex -= 1
+        }
+        if lastFullyCompleteIndex < output.count - 1 {
+            for index in (lastFullyCompleteIndex + 1)..<output.count {
+                if output[index].heartRate == nil {
+                    output[index].heartRate = output[index - 1].heartRate
+                }
+                if output[index].cadence == nil {
+                    output[index].cadence = output[index - 1].cadence
+                }
+            }
+        }
+        return output
+    }
+
+    /// 尾段样本只要仍有位移或移动速度证据就保留；只裁掉纯心率/元数据尾巴。
+    /// 归一化会给所有样本补距离和速度，所以证据必须看“距离是否仍在增长”而不是字段是否存在。
+    private static func hasTrailingMotionEvidence(samples: [TelemetrySample], at index: Int) -> Bool {
+        let sample = samples[index]
+        if let speed = sample.speedMetersPerSecond,
+           speed.isFinite,
+           speed >= minimumMovingSpeedMetersPerSecond {
+            return true
+        }
+        guard index > 0,
+              let distance = sample.distanceMeters,
+              let previousDistance = samples[index - 1].distanceMeters else {
+            return false
+        }
+        return distance - previousDistance > distanceEpsilon
     }
 
     private static func resampled(samples: [TelemetrySample], interval: TimeInterval) -> [TelemetrySample] {

@@ -361,6 +361,93 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 187.07).heartRate, 176)
     }
 
+    func testFinalSampleSpeedIgnoresImplausibleSessionTailSpike() throws {
+        // 会话总距离比末条记录多 2m、时长只多 0.01s：不应产生 200 m/s 的末帧速度
+        var content = Data()
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendSessionSummaryDefinition(localMessageType: 2, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 4.5, heartRate: 150, cadence: 80),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_185, latitude: 35.001, longitude: 139.001, distanceMeters: 1_008, speed: 4.5, heartRate: 176, cadence: 88),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_186, latitude: 35.0011, longitude: 139.0011, distanceMeters: 1_012, speed: 4.5, heartRate: 176, cadence: 88),
+            localMessageType: 0,
+            to: &content
+        )
+        appendSessionSummary(
+            timestamp: 1_000_186,
+            startTime: 1_000_000,
+            totalElapsedMilliseconds: 186_010,
+            totalTimerMilliseconds: 186_010,
+            totalDistanceMeters: 1_014,
+            totalCalories: 44,
+            localMessageType: 2,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.duration, 186.01, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 186.01).distanceMeters ?? -1, 1_014, accuracy: 0.01)
+        XCTAssertLessThanOrEqual(series.sample(at: 186.01).speedMetersPerSecond ?? 999, 12)
+    }
+
+    func testSkipsLapAnchorBeyondSessionTotalDistance() throws {
+        // 分段累计和（410m）超过会话总距离（405m）时，该锚点不能凭空抬高距离
+        var content = Data()
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendLapSummaryDefinition(localMessageType: 1, to: &content)
+        appendSessionSummaryDefinition(localMessageType: 2, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 4.0, heartRate: 150, cadence: 80),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_100, latitude: 35.001, longitude: 139.001, distanceMeters: 400, speed: 4.0, heartRate: 160, cadence: 84),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_101, latitude: 35.0011, longitude: 139.0011, distanceMeters: 404, speed: 4.0, heartRate: 160, cadence: 84),
+            localMessageType: 0,
+            to: &content
+        )
+        appendLapSummary(
+            timestamp: 1_000_101,
+            startTime: 1_000_000,
+            totalElapsedMilliseconds: 101_000,
+            totalTimerMilliseconds: 101_000,
+            totalDistanceMeters: 410,
+            totalCalories: 20,
+            localMessageType: 1,
+            to: &content
+        )
+        appendSessionSummary(
+            timestamp: 1_000_101,
+            startTime: 1_000_000,
+            totalElapsedMilliseconds: 101_500,
+            totalTimerMilliseconds: 101_500,
+            totalDistanceMeters: 405,
+            totalCalories: 20,
+            localMessageType: 2,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        XCTAssertEqual(series.sample(at: 101).distanceMeters ?? -1, 404, accuracy: 0.01)
+        XCTAssertEqual(series.sample(at: 101.5).distanceMeters ?? -1, 405, accuracy: 0.01)
+        XCTAssertLessThanOrEqual(series.sample(at: 101.5).speedMetersPerSecond ?? 999, 12)
+    }
+
     func testUsesLapDistanceSummaryAsSplitAnchorWhenRecordDistanceIsContinuous() throws {
         var content = Data()
         appendStandardRecordDefinition(localMessageType: 0, to: &content)

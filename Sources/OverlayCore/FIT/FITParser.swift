@@ -149,6 +149,7 @@ public final class FITParser {
     private let validateCRC: Bool
     private let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
     private let lapAnchorDistanceToleranceMeters = 25.0
+    private let minimumFinalSampleSpeedWindowSeconds: TimeInterval = 1
 
     public init(validateCRC: Bool = true) {
         self.validateCRC = validateCRC
@@ -768,9 +769,13 @@ public final class FITParser {
         if let currentDistance,
            finalSample.elapsed > currentDuration,
            finalSample.distanceMeters ?? 0 >= currentDistance {
-            let speed = ((finalSample.distanceMeters ?? currentDistance) - currentDistance)
-                / (finalSample.elapsed - currentDuration)
-            if speed.isFinite, speed >= 0 {
+            let deltaTime = finalSample.elapsed - currentDuration
+            let speed = ((finalSample.distanceMeters ?? currentDistance) - currentDistance) / deltaTime
+            // 时间窗过短或速度不合理时保留继承的末样本速度，避免末帧配速尖峰或归零
+            if deltaTime >= minimumFinalSampleSpeedWindowSeconds,
+               speed.isFinite,
+               speed >= 0,
+               speed <= maximumPlausibleStartupSpeedMetersPerSecond {
                 finalSample.speedMetersPerSecond = speed
             }
         }
@@ -790,6 +795,7 @@ public final class FITParser {
         let sessionEnd = sessions.compactMap {
             sessionEndElapsed($0, activityStartTimestamp: activityStartTimestamp, timerEvents: timerEvents)
         }.max()
+        let sessionDistance = sessions.compactMap(\.totalDistanceMeters).filter(\.isFinite).max()
         let sortedLaps = laps.sorted {
             ($0.startTime ?? $0.timestamp ?? 0) < ($1.startTime ?? $1.timestamp ?? 0)
         }
@@ -808,6 +814,10 @@ public final class FITParser {
                 continue
             }
             cumulativeDistance += lapDistance
+            // 分段累计和可能超出会话实测总里程，超出的锚点会凭空抬高距离，跳过
+            if let sessionDistance, cumulativeDistance > sessionDistance + 0.01 {
+                continue
+            }
 
             let startElapsed: TimeInterval
             if let startTime = lap.startTime {
@@ -826,7 +836,24 @@ public final class FITParser {
                 continue
             }
 
-            let anchorElapsed = startElapsed + duration
+            var anchorElapsed = startElapsed + duration
+            // 记录距离已在结束时间戳处精确到达分段累计值时，锚点直接落在该时刻，
+            // 避免 start+duration 略早于记录时间线时把补账距离挤进极短时间造成段速尖峰；
+            // 记录仍落后于分段累计的场合保持 start+duration，让锚点继续修正记录滞后
+            if let timestamp = lap.timestamp {
+                let timestampElapsed = timerElapsed(
+                    for: timestamp,
+                    activityStartTimestamp: activityStartTimestamp,
+                    timerEvents: timerEvents
+                )
+                if timestampElapsed.isFinite,
+                   timestampElapsed > 0,
+                   abs(timestampElapsed - anchorElapsed) > 0.000_5,
+                   let candidateDistance = currentSeries.sample(at: timestampElapsed).distanceMeters,
+                   abs(candidateDistance - cumulativeDistance) <= 0.01 {
+                    anchorElapsed = timestampElapsed
+                }
+            }
             guard anchorElapsed.isFinite,
                   anchorElapsed > 0,
                   cumulativeDistance > previousAnchorDistance + 0.001 else {
