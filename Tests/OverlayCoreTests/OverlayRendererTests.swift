@@ -314,6 +314,44 @@ final class OverlayRendererTests: XCTestCase {
         try assertRenderersProduceIdenticalPixels(reused, fresh, size: size, videoTime: 30)
     }
 
+    func testWithLayoutRendersSameAsFreshRendererWhenTrimIsActive() throws {
+        let samples = (0..<64).map { index in
+            TelemetrySample(
+                elapsed: TimeInterval(index),
+                latitude: 35 + Double(index) * 0.00001,
+                longitude: 139 + Double(index) * 0.00001,
+                heartRate: 140 + index % 20,
+                distanceMeters: Double(index) * 3.2,
+                speedMetersPerSecond: 3.2
+            )
+        }
+        let series = TelemetrySeries(samples: samples)
+        let size = CGSize(width: 640, height: 360)
+        let trim = ActivityTrim(startSeconds: 10, endSeconds: 50)
+        let layoutA = OverlayLayout(elements: [
+            OverlayElement.defaultElement(kind: .route),
+            OverlayElement.defaultElement(kind: .pace),
+            OverlayElement.defaultElement(kind: .topProgress)
+        ])
+        var layoutB = layoutA
+        layoutB.updateElement(id: "pace") { element in
+            element.frame.x = 0.42
+            element.frame.y = 0.31
+        }
+
+        let base = OverlayRenderer(
+            series: series,
+            config: OverlayRenderConfig(size: size, layout: layoutA, activityTrim: trim)
+        )
+        let reused = base.withLayout(layoutB)
+        let fresh = OverlayRenderer(
+            series: series,
+            config: OverlayRenderConfig(size: size, layout: layoutB, activityTrim: trim)
+        )
+
+        try assertRenderersProduceIdenticalPixels(reused, fresh, size: size, videoTime: 30)
+    }
+
     func testWithLayoutComputesRoutePointsWhenRouteBecomesVisible() throws {
         let series = TelemetrySeries(samples: makeSamples(count: 64))
         let size = CGSize(width: 640, height: 360)

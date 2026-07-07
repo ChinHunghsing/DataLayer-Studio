@@ -34,7 +34,14 @@ public final class OverlayRenderer {
 
     private init(series: TelemetrySeries, config: OverlayRenderConfig, reusing previous: OverlayRenderer?) {
         self.sourceSeries = series
-        let displaySeries = series.trimmed(by: config.activityTrim)
+        let displaySeries: TelemetrySeries
+        if let previous,
+           previous.config.activityTrim == config.activityTrim,
+           previous.sourceSeries == series {
+            displaySeries = previous.series
+        } else {
+            displaySeries = series.trimmed(by: config.activityTrim)
+        }
         self.series = displaySeries
         self.config = config
         let visibleElements = config.layout.visibleElements
