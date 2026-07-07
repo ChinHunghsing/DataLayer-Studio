@@ -19,6 +19,7 @@ public struct TelemetrySeries: Equatable {
     private static let startupPaceSmoothingExponent = 1.7
     private static let startupSegmentConsistencyRatio = 1.6
     private static let startupSpeedJumpRatio = 1.6
+    private static let startupStaleSpeedToleranceMetersPerSecond = 0.05
     private static let distanceEpsilon = 0.001
     private static let minimumAscentDeltaMeters = 1.0
 
@@ -663,10 +664,38 @@ public struct TelemetrySeries: Equatable {
         if shouldReplaceSpeed(samples.first?.speedMetersPerSecond) {
             return true
         }
-        guard let firstSpeed = samples.first?.speedMetersPerSecond,
-              firstSpeed <= startupRampMinimumSpeedMetersPerSecond * 2 else {
-            return false
+        if let firstSpeed = samples.first?.speedMetersPerSecond,
+           firstSpeed <= startupRampMinimumSpeedMetersPerSecond * 2 {
+            for sample in samples {
+                let elapsed = sample.elapsed - firstElapsed
+                guard elapsed > 0,
+                      elapsed <= maximumStartupPaceSmoothingElapsed,
+                      let distance = sample.distanceMeters,
+                      distance > distanceEpsilon,
+                      let speed = sample.speedMetersPerSecond,
+                      speed.isFinite else {
+                    continue
+                }
+
+                let cumulativeSpeed = distance / elapsed
+                guard cumulativeSpeed.isFinite,
+                      cumulativeSpeed >= minimumMovingSpeedMetersPerSecond else {
+                    continue
+                }
+                if speed / cumulativeSpeed >= 2 {
+                    return true
+                }
+            }
         }
+        return hasStaleStartupSpeedPlateau(samples: samples, firstElapsed: firstElapsed)
+    }
+
+    private static func hasStaleStartupSpeedPlateau(
+        samples: [TelemetrySample],
+        firstElapsed: TimeInterval
+    ) -> Bool {
+        var previousSpeed: Double?
+        var previousCumulativeSpeed: Double?
 
         for sample in samples {
             let elapsed = sample.elapsed - firstElapsed
@@ -684,10 +713,18 @@ public struct TelemetrySeries: Equatable {
                   cumulativeSpeed >= minimumMovingSpeedMetersPerSecond else {
                 continue
             }
-            if speed / cumulativeSpeed >= 2 {
+
+            if let previousSpeed,
+               let previousCumulativeSpeed,
+               abs(speed - previousSpeed) <= startupStaleSpeedToleranceMetersPerSecond,
+               cumulativeSpeed > previousCumulativeSpeed + startupStaleSpeedToleranceMetersPerSecond {
                 return true
             }
+
+            previousSpeed = speed
+            previousCumulativeSpeed = cumulativeSpeed
         }
+
         return false
     }
 

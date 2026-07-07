@@ -202,6 +202,22 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertGreaterThan(series.sample(at: 10).speedMetersPerSecond ?? -1, series.sample(at: 6).speedMetersPerSecond ?? 0)
     }
 
+    func testStartupPaceUsesCumulativeDistanceWhenReportedSpeedStalls() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 1.8),
+            TelemetrySample(elapsed: 1, distanceMeters: 1.8, speedMetersPerSecond: 1.8),
+            TelemetrySample(elapsed: 2, distanceMeters: 3.6, speedMetersPerSecond: 1.8),
+            TelemetrySample(elapsed: 3, distanceMeters: 5.9, speedMetersPerSecond: 1.8),
+            TelemetrySample(elapsed: 4, distanceMeters: 8.8, speedMetersPerSecond: 1.8),
+            TelemetrySample(elapsed: 5, distanceMeters: 12.5, speedMetersPerSecond: 2.5)
+        ])
+
+        XCTAssertEqual(series.sample(at: 1).speedMetersPerSecond ?? -1, 1.8, accuracy: 0.001)
+        XCTAssertGreaterThan(series.sample(at: 3).speedMetersPerSecond ?? -1, series.sample(at: 2).speedMetersPerSecond ?? 0)
+        XCTAssertGreaterThan(series.sample(at: 4).speedMetersPerSecond ?? -1, series.sample(at: 3).speedMetersPerSecond ?? 0)
+        XCTAssertEqual(series.sample(at: 5).speedMetersPerSecond ?? -1, 2.5, accuracy: 0.001)
+    }
+
     func testStartupPaceIgnoresSpeedSpikeBeforeDistanceMoves() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0),
