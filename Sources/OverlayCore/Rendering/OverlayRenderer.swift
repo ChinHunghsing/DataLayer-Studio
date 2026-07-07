@@ -9,11 +9,12 @@ public final class OverlayRenderer {
     private static let routeMapHorizontalInset: CGFloat = 26
     private static let routeMapVerticalInset: CGFloat = 34
 
+    private typealias MetricContent = (label: String, value: String, unit: String)
+
     private let sourceSeries: TelemetrySeries
     private let series: TelemetrySeries
     private let config: OverlayRenderConfig
     private let visibleElements: [OverlayElement]
-    private let metricElements: [OverlayElement]
     private let routePoints: [RoutePoint]
     private let routePathCache: [String: CGPath]
     private let totalDistanceMeters: Double
@@ -38,7 +39,6 @@ public final class OverlayRenderer {
         self.config = config
         let visibleElements = config.layout.visibleElements
         self.visibleElements = visibleElements
-        self.metricElements = visibleElements.filter { Self.isMetricKind($0.kind) }
         self.totalDistanceMeters = previous?.totalDistanceMeters
             ?? OverlayRenderer.lastFiniteDistance(samples: displaySeries.samples) ?? 0
         let routePoints: [RoutePoint]
@@ -109,9 +109,10 @@ public final class OverlayRenderer {
         )
         let sample = series.sample(at: telemetryTime)
         let absoluteDate = sourceSeries.date(atElapsed: rawTelemetryTime) ?? sample.date
-        let metricTileWidth = alignedMetricTileWidth(sample: sample, canvas: canvas)
+        let metricContents = metricContentsByVisibleIndex(sample: sample)
+        let metricTileWidth = alignedMetricTileWidth(contents: metricContents, canvas: canvas)
 
-        for element in visibleElements {
+        for (index, element) in visibleElements.enumerated() {
             switch element.kind {
             case .topProgress:
                 drawTopProgress(context: context, sample: sample, canvas: canvas, element: element)
@@ -121,7 +122,7 @@ public final class OverlayRenderer {
                  .verticalOscillation, .groundContactTime, .groundContactTimePercent,
                  .groundContactTimeBalance, .verticalRatio, .respirationRate,
                  .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
-                if let content = metricContent(for: element, sample: sample) {
+                if let content = metricContents[index] {
                     drawMetricComponent(
                         element,
                         label: content.label,
@@ -469,9 +470,19 @@ public final class OverlayRenderer {
         }
     }
 
-    private func alignedMetricTileWidth(sample: TelemetrySample, canvas: CGRect) -> CGFloat? {
-        let widths = metricElements.compactMap { element -> CGFloat? in
-            guard let content = metricContent(for: element, sample: sample) else { return nil }
+    private func metricContentsByVisibleIndex(sample: TelemetrySample) -> [Int: MetricContent] {
+        var contents: [Int: MetricContent] = [:]
+        for (index, element) in visibleElements.enumerated() where Self.isMetricKind(element.kind) {
+            if let content = metricContent(for: element, sample: sample) {
+                contents[index] = content
+            }
+        }
+        return contents
+    }
+
+    private func alignedMetricTileWidth(contents: [Int: MetricContent], canvas: CGRect) -> CGFloat? {
+        let widths = contents.map { index, content -> CGFloat in
+            let element = visibleElements[index]
             let scale = componentScale(element, canvas: canvas)
             let textScale = scale * componentTextScale(element)
             let rect = componentRect(element, baseSize: baseSize(for: element.kind), canvas: canvas)
