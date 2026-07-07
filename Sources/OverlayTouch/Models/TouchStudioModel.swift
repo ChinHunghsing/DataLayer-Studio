@@ -1247,7 +1247,8 @@ public final class TouchStudioModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             let isSerious = ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue
-            Task { @MainActor in
+            guard let self else { return }
+            Task { @MainActor [weak self] in
                 self?.thermalStateIsSerious = isSerious
             }
         }
