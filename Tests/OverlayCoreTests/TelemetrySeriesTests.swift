@@ -294,6 +294,19 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 4).distanceMeters ?? -1, 0, accuracy: 0.001)
     }
 
+    func testStartupMissingSpeedDoesNotCreateImplausibleSpikeBeforeDeviceZeroes() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, distanceMeters: 100),
+            TelemetrySample(elapsed: 2, distanceMeters: 100, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 3, distanceMeters: 113, speedMetersPerSecond: 2)
+        ])
+
+        XCTAssertLessThan(series.sample(at: 1).speedMetersPerSecond ?? 99, 1)
+        XCTAssertLessThan(series.sample(at: 2).speedMetersPerSecond ?? 99, 1)
+        XCTAssertEqual(series.sample(at: 3).speedMetersPerSecond ?? -1, 2, accuracy: 0.001)
+    }
+
     func testTrimsIncompleteTailAfterUsuallyAvailableChannelsDisappear() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, latitude: 35, longitude: 139, heartRate: 130, cadence: 190, distanceMeters: 0, speedMetersPerSecond: 3),

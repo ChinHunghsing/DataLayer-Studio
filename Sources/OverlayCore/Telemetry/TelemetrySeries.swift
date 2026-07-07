@@ -270,13 +270,20 @@ public struct TelemetrySeries: Equatable {
         guard !samples.isEmpty else { return [] }
 
         let firstDistance = startupDistanceBaseline(samples: samples)
+        let firstElapsed = samples.first?.elapsed ?? 0
         var previousInput: TelemetrySample?
         var previousOutput: TelemetrySample?
+        var hasSeenReportedMovingSpeed = false
         var accumulatedDistance = 0.0
         var output: [TelemetrySample] = []
 
         for input in samples {
             var sample = input
+            if let reportedSpeed = input.speedMetersPerSecond,
+               reportedSpeed.isFinite,
+               reportedSpeed >= minimumMovingSpeedMetersPerSecond {
+                hasSeenReportedMovingSpeed = true
+            }
 
             if let distance = input.distanceMeters {
                 accumulatedDistance = max(accumulatedDistance, max(0, distance - firstDistance))
@@ -297,13 +304,17 @@ public struct TelemetrySeries: Equatable {
 
             sample.distanceMeters = accumulatedDistance
 
-            if sample.speedMetersPerSecond == nil,
-               let previousOutput,
-               input.elapsed > previousOutput.elapsed {
-                let deltaDistance = accumulatedDistance - (previousOutput.distanceMeters ?? accumulatedDistance)
-                let deltaTime = input.elapsed - previousOutput.elapsed
-                if deltaDistance >= 0, deltaTime > 0 {
-                    sample.speedMetersPerSecond = deltaDistance / deltaTime
+            if sample.speedMetersPerSecond == nil {
+                if !hasSeenReportedMovingSpeed,
+                   input.elapsed - firstElapsed <= maximumStartupPaceSmoothingElapsed {
+                    sample.speedMetersPerSecond = 0
+                } else if let previousOutput,
+                          input.elapsed > previousOutput.elapsed {
+                    let deltaDistance = accumulatedDistance - (previousOutput.distanceMeters ?? accumulatedDistance)
+                    let deltaTime = input.elapsed - previousOutput.elapsed
+                    if deltaDistance >= 0, deltaTime > 0 {
+                        sample.speedMetersPerSecond = deltaDistance / deltaTime
+                    }
                 }
             }
 
@@ -376,6 +387,7 @@ public struct TelemetrySeries: Equatable {
     private static func enrichedWithDistanceDerivedSpeed(samples: [TelemetrySample]) -> [TelemetrySample] {
         guard samples.count > 1 else { return samples }
 
+        let firstElapsed = samples.first?.elapsed ?? 0
         var output = samples
         for index in 0..<(samples.count - 1) {
             let current = output[index]
@@ -391,6 +403,10 @@ public struct TelemetrySeries: Equatable {
 
             let segmentSpeed = deltaDistance / deltaTime
             guard segmentSpeed >= minimumMovingSpeedMetersPerSecond else { continue }
+            guard current.elapsed - firstElapsed > maximumStartupPaceSmoothingElapsed ||
+                  segmentSpeed <= maximumPlausibleStartupSpeedMetersPerSecond else {
+                continue
+            }
 
             if shouldReplaceSpeed(output[index].speedMetersPerSecond) {
                 output[index].speedMetersPerSecond = speedForSegmentStart(
