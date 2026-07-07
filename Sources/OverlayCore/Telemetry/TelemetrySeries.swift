@@ -34,11 +34,11 @@ public struct TelemetrySeries: Equatable {
         let normalized = TelemetrySeries.normalized(samples: sorted)
         let speedEnriched = TelemetrySeries.enrichedWithDistanceDerivedSpeed(samples: normalized)
         let startupSpeedStabilized = TelemetrySeries.stabilizedStartupSpeedJumps(samples: speedEnriched)
-        let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(samples: startupSpeedStabilized, interval: Self.resampleInterval)
-        let resampled = TelemetrySeries.resampled(samples: cadenceEnriched, interval: Self.resampleInterval)
+        let resampled = TelemetrySeries.resampled(samples: startupSpeedStabilized, interval: Self.resampleInterval)
         let startupSmoothed = TelemetrySeries.smoothedStartupPace(samples: resampled)
         let edgeSmoothed = TelemetrySeries.smoothedEdgeSpeedPlateaus(samples: startupSmoothed)
-        let ascentEnriched = TelemetrySeries.enrichedWithTotalAscent(samples: edgeSmoothed)
+        let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(samples: edgeSmoothed, interval: Self.resampleInterval)
+        let ascentEnriched = TelemetrySeries.enrichedWithTotalAscent(samples: cadenceEnriched)
         self.samples = TelemetrySeries.trimmedIncompleteTail(samples: ascentEnriched)
         self.bounds = TelemetrySeries.computeBounds(samples: self.samples)
     }
@@ -251,9 +251,7 @@ public struct TelemetrySeries: Equatable {
     }
 
     private static func interpolateCadence(_ a: Int?, _ b: Int?, fraction: Double) -> Int? {
-        guard let lhs = a, let rhs = b else {
-            return nearest(a, b, fraction: fraction)
-        }
+        guard let lhs = a, let rhs = b else { return nil }
         guard lhs == 0 || rhs == 0 else {
             return nearest(a, b, fraction: fraction)
         }

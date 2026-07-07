@@ -307,6 +307,65 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 3).speedMetersPerSecond ?? -1, 2, accuracy: 0.001)
     }
 
+    func testStartupPaceIgnoresDeviceZeroesWhenDistanceTrendShowsMovement() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, distanceMeters: 0.8),
+            TelemetrySample(elapsed: 2, distanceMeters: 1.7),
+            TelemetrySample(elapsed: 3, distanceMeters: 2.7),
+            TelemetrySample(elapsed: 4, distanceMeters: 2.7, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 5, distanceMeters: 2.7, speedMetersPerSecond: 0),
+            TelemetrySample(
+                elapsed: 6,
+                latitude: 35,
+                longitude: 139,
+                heartRate: 140,
+                cadence: 180,
+                distanceMeters: 9,
+                speedMetersPerSecond: 2.2
+            ),
+            TelemetrySample(
+                elapsed: 7,
+                latitude: 35.0001,
+                longitude: 139.0001,
+                heartRate: 142,
+                cadence: 182,
+                distanceMeters: 12,
+                speedMetersPerSecond: 2.4
+            )
+        ])
+
+        XCTAssertGreaterThan(series.sample(at: 4).speedMetersPerSecond ?? -1, series.sample(at: 3).speedMetersPerSecond ?? 0)
+        XCTAssertGreaterThan(series.sample(at: 5).speedMetersPerSecond ?? -1, series.sample(at: 4).speedMetersPerSecond ?? 0)
+        XCTAssertEqual(series.sample(at: 6).speedMetersPerSecond ?? -1, 2.2, accuracy: 0.001)
+    }
+
+    func testStartupPaceSmoothingIgnoresCadenceBackfillWhenFindingFirstCompleteSample() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 0.45),
+            TelemetrySample(elapsed: 1, latitude: 35, longitude: 139, heartRate: 125, distanceMeters: 1.8, speedMetersPerSecond: 1.8),
+            TelemetrySample(elapsed: 2, latitude: 35.0001, longitude: 139.0001, heartRate: 126, distanceMeters: 3.6, speedMetersPerSecond: 1.8),
+            TelemetrySample(elapsed: 3, latitude: 35.0002, longitude: 139.0002, heartRate: 127, distanceMeters: 5.4, speedMetersPerSecond: 1.8),
+            TelemetrySample(elapsed: 4, latitude: 35.0003, longitude: 139.0003, heartRate: 128, distanceMeters: 7.2, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 5, latitude: 35.0004, longitude: 139.0004, heartRate: 129, distanceMeters: 9, speedMetersPerSecond: 0),
+            TelemetrySample(
+                elapsed: 6,
+                latitude: 35.0005,
+                longitude: 139.0005,
+                heartRate: 130,
+                cadence: 180,
+                distanceMeters: 12,
+                speedMetersPerSecond: 3
+            )
+        ])
+
+        XCTAssertGreaterThan(series.sample(at: 2).speedMetersPerSecond ?? -1, series.sample(at: 1).speedMetersPerSecond ?? 0)
+        XCTAssertGreaterThan(series.sample(at: 3).speedMetersPerSecond ?? -1, series.sample(at: 2).speedMetersPerSecond ?? 0)
+        XCTAssertGreaterThan(series.sample(at: 4).speedMetersPerSecond ?? -1, series.sample(at: 3).speedMetersPerSecond ?? 0)
+        XCTAssertGreaterThan(series.sample(at: 5).speedMetersPerSecond ?? -1, series.sample(at: 4).speedMetersPerSecond ?? 0)
+        XCTAssertEqual(series.sample(at: 6).speedMetersPerSecond ?? -1, 3, accuracy: 0.001)
+    }
+
     func testTrimsIncompleteTailAfterUsuallyAvailableChannelsDisappear() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, latitude: 35, longitude: 139, heartRate: 130, cadence: 190, distanceMeters: 0, speedMetersPerSecond: 3),
