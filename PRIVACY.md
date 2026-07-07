@@ -7,7 +7,7 @@ can contain private location, health, and training data.
 
 The app and command-line tool process input files locally on the Mac where they
 run. The current implementation does not include analytics SDKs, custom in-app
-event tracking, telemetry upload, account login, cloud sync, or network transfer code.
+event tracking, telemetry upload, account login, cloud sync, or background network transfer code.
 Source videos, exported overlays, layout presets, and rendered preview frames
 are not uploaded.
 
@@ -18,6 +18,12 @@ and your OpenWeather API key. Source videos, rendered preview frames, exported
 overlays, layout presets, heart-rate samples, cadence, pace, power, and the FIT
 file itself are not sent to OpenWeather. Weather responses are cached locally to
 avoid repeated requests while previewing or adjusting the timeline.
+
+The iOS subscription screen includes user-initiated links to Apple's standard
+EULA and this privacy policy. Opening those links leaves the app and may contact
+Apple or GitHub under their own privacy policies; DataLayer Studio does not send
+source videos, activity files, layout presets, or rendered previews with those
+links.
 
 ## Apple App Analytics
 
