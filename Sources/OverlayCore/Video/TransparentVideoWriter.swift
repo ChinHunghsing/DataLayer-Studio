@@ -313,46 +313,48 @@ public final class TransparentVideoWriter {
         input.requestMediaDataWhenReady(on: renderQueue) {
             while input.isReadyForMoreMediaData, frameIndex < frameCount, renderError == nil {
                 do {
-                    if cancellationHandler?() == true {
-                        throw OverlayVideoError.cancelled
-                    }
+                    try autoreleasepool {
+                        if cancellationHandler?() == true {
+                            throw OverlayVideoError.cancelled
+                        }
 
-                    guard let pool = adaptor.pixelBufferPool else {
-                        throw OverlayVideoError.cannotCreatePixelBuffer
-                    }
-                    let appendBuffer = try Self.makePixelBuffer(from: pool)
-                    let renderBuffer: CVPixelBuffer
-                    if let alphaRenderPool {
-                        renderBuffer = try Self.makePixelBuffer(from: alphaRenderPool)
-                    } else {
-                        renderBuffer = appendBuffer
-                    }
+                        guard let pool = adaptor.pixelBufferPool else {
+                            throw OverlayVideoError.cannotCreatePixelBuffer
+                        }
+                        let appendBuffer = try Self.makePixelBuffer(from: pool)
+                        let renderBuffer: CVPixelBuffer
+                        if let alphaRenderPool {
+                            renderBuffer = try Self.makePixelBuffer(from: alphaRenderPool)
+                        } else {
+                            renderBuffer = appendBuffer
+                        }
 
-                    let presentationTime = timing.presentationTime(for: frameIndex)
-                    let videoTime = exportStartTime + CMTimeGetSeconds(presentationTime)
-                    try renderer.render(videoTime: videoTime, into: renderBuffer)
-                    if let alphaContext {
-                        Self.prepareHEVCAlphaForEncoding(
-                            from: renderBuffer,
-                            to: appendBuffer,
-                            context: alphaContext,
-                            colorSpace: alphaColorSpace
-                        )
-                    } else {
-                        Self.preparePremultipliedAlphaForEncoding(on: appendBuffer)
-                    }
-                    guard try Self.appendPixelBuffer(
-                        appendBuffer,
-                        to: input,
-                        at: presentationTime,
-                        duration: timing.frameDuration
-                    ) else {
-                        throw OverlayVideoError.writerFailed(self.describe(error: writer.error, codec: codec))
-                    }
+                        let presentationTime = timing.presentationTime(for: frameIndex)
+                        let videoTime = exportStartTime + CMTimeGetSeconds(presentationTime)
+                        try renderer.render(videoTime: videoTime, into: renderBuffer)
+                        if let alphaContext {
+                            Self.prepareHEVCAlphaForEncoding(
+                                from: renderBuffer,
+                                to: appendBuffer,
+                                context: alphaContext,
+                                colorSpace: alphaColorSpace
+                            )
+                        } else {
+                            Self.preparePremultipliedAlphaForEncoding(on: appendBuffer)
+                        }
+                        guard try Self.appendPixelBuffer(
+                            appendBuffer,
+                            to: input,
+                            at: presentationTime,
+                            duration: timing.frameDuration
+                        ) else {
+                            throw OverlayVideoError.writerFailed(self.describe(error: writer.error, codec: codec))
+                        }
 
-                    frameIndex += 1
-                    if frameIndex == frameCount || frameIndex % Int(max(1, fps)) == 0 {
-                        progressHandler?(frameIndex, frameCount)
+                        frameIndex += 1
+                        if frameIndex == frameCount || frameIndex % Int(max(1, fps)) == 0 {
+                            progressHandler?(frameIndex, frameCount)
+                        }
                     }
                 } catch {
                     renderError = error
