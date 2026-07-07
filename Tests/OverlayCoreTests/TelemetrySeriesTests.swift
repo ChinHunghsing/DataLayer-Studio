@@ -340,30 +340,30 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 6).speedMetersPerSecond ?? -1, 2.2, accuracy: 0.001)
     }
 
-    func testStartupPaceSmoothingIgnoresCadenceBackfillWhenFindingFirstCompleteSample() {
+    func testStartupPaceKeepsReliableDeviceSpeedBeforeCadenceStarts() {
         let series = TelemetrySeries(samples: [
-            TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 0.45),
-            TelemetrySample(elapsed: 1, latitude: 35, longitude: 139, heartRate: 125, distanceMeters: 1.8, speedMetersPerSecond: 1.8),
-            TelemetrySample(elapsed: 2, latitude: 35.0001, longitude: 139.0001, heartRate: 126, distanceMeters: 3.6, speedMetersPerSecond: 1.8),
-            TelemetrySample(elapsed: 3, latitude: 35.0002, longitude: 139.0002, heartRate: 127, distanceMeters: 5.4, speedMetersPerSecond: 1.8),
-            TelemetrySample(elapsed: 4, latitude: 35.0003, longitude: 139.0003, heartRate: 128, distanceMeters: 7.2, speedMetersPerSecond: 0),
-            TelemetrySample(elapsed: 5, latitude: 35.0004, longitude: 139.0004, heartRate: 129, distanceMeters: 9, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, latitude: 35, longitude: 139, heartRate: 125, distanceMeters: 0),
+            TelemetrySample(elapsed: 2, latitude: 35.0001, longitude: 139.0001, heartRate: 126, distanceMeters: 0),
+            TelemetrySample(elapsed: 3, latitude: 35.0002, longitude: 139.0002, heartRate: 127, distanceMeters: 0, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 4, latitude: 35.0003, longitude: 139.0003, heartRate: 128, distanceMeters: 0, speedMetersPerSecond: 0),
+            TelemetrySample(elapsed: 5, latitude: 35.0004, longitude: 139.0004, heartRate: 129, distanceMeters: 9, speedMetersPerSecond: 2.172),
+            TelemetrySample(elapsed: 6, latitude: 35.0005, longitude: 139.0005, heartRate: 130, distanceMeters: 18, speedMetersPerSecond: 4.347),
             TelemetrySample(
-                elapsed: 6,
-                latitude: 35.0005,
-                longitude: 139.0005,
-                heartRate: 130,
+                elapsed: 7,
+                latitude: 35.0006,
+                longitude: 139.0006,
+                heartRate: 131,
                 cadence: 180,
-                distanceMeters: 12,
-                speedMetersPerSecond: 3
+                distanceMeters: 25,
+                speedMetersPerSecond: 4.733
             )
         ])
 
-        XCTAssertGreaterThan(series.sample(at: 2).speedMetersPerSecond ?? -1, series.sample(at: 1).speedMetersPerSecond ?? 0)
-        XCTAssertGreaterThan(series.sample(at: 3).speedMetersPerSecond ?? -1, series.sample(at: 2).speedMetersPerSecond ?? 0)
-        XCTAssertGreaterThan(series.sample(at: 4).speedMetersPerSecond ?? -1, series.sample(at: 3).speedMetersPerSecond ?? 0)
-        XCTAssertGreaterThan(series.sample(at: 5).speedMetersPerSecond ?? -1, series.sample(at: 4).speedMetersPerSecond ?? 0)
-        XCTAssertEqual(series.sample(at: 6).speedMetersPerSecond ?? -1, 3, accuracy: 0.001)
+        XCTAssertLessThan(series.sample(at: 4).speedMetersPerSecond ?? 99, series.sample(at: 5).speedMetersPerSecond ?? 0)
+        XCTAssertEqual(series.sample(at: 5).speedMetersPerSecond ?? -1, 2.172, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 6).speedMetersPerSecond ?? -1, 4.347, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 7).speedMetersPerSecond ?? -1, 4.733, accuracy: 0.001)
     }
 
     func testTrimsIncompleteTailAfterUsuallyAvailableChannelsDisappear() {

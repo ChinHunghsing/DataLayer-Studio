@@ -32,11 +32,21 @@ public struct TelemetrySeries: Equatable {
         }
 
         let normalized = TelemetrySeries.normalized(samples: sorted)
+        let startupCompleteElapsed = TelemetrySeries.firstStartupCompleteSampleElapsed(in: normalized)
         let speedEnriched = TelemetrySeries.enrichedWithDistanceDerivedSpeed(samples: normalized)
-        let startupSpeedStabilized = TelemetrySeries.stabilizedStartupSpeedJumps(samples: speedEnriched)
+        let startupSpeedStabilized = TelemetrySeries.stabilizedStartupSpeedJumps(
+            samples: speedEnriched,
+            protectedStartElapsed: startupCompleteElapsed
+        )
         let resampled = TelemetrySeries.resampled(samples: startupSpeedStabilized, interval: Self.resampleInterval)
-        let startupSmoothed = TelemetrySeries.smoothedStartupPace(samples: resampled)
-        let edgeSmoothed = TelemetrySeries.smoothedEdgeSpeedPlateaus(samples: startupSmoothed)
+        let startupSmoothed = TelemetrySeries.smoothedStartupPace(
+            samples: resampled,
+            protectedStartElapsed: startupCompleteElapsed
+        )
+        let edgeSmoothed = TelemetrySeries.smoothedEdgeSpeedPlateaus(
+            samples: startupSmoothed,
+            protectedStartElapsed: startupCompleteElapsed
+        )
         let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(samples: edgeSmoothed, interval: Self.resampleInterval)
         let ascentEnriched = TelemetrySeries.enrichedWithTotalAscent(samples: cadenceEnriched)
         self.samples = TelemetrySeries.trimmedIncompleteTail(samples: ascentEnriched)
@@ -471,7 +481,10 @@ public struct TelemetrySeries: Equatable {
         )
     }
 
-    private static func stabilizedStartupSpeedJumps(samples: [TelemetrySample]) -> [TelemetrySample] {
+    private static func stabilizedStartupSpeedJumps(
+        samples: [TelemetrySample],
+        protectedStartElapsed: TimeInterval?
+    ) -> [TelemetrySample] {
         guard samples.count > 2 else { return samples }
 
         var output = samples
@@ -479,6 +492,9 @@ public struct TelemetrySeries: Equatable {
             let previous = samples[index - 1]
             let current = samples[index]
             let next = samples[index + 1]
+            if let protectedStartElapsed, current.elapsed >= protectedStartElapsed {
+                break
+            }
             guard current.elapsed <= maximumStartupPaceSmoothingElapsed,
                   let currentSpeed = current.speedMetersPerSecond,
                   currentSpeed.isFinite,
@@ -611,13 +627,16 @@ public struct TelemetrySeries: Equatable {
         return interpolate(a, b, fraction: fraction, elapsed: elapsed)
     }
 
-    private static func smoothedStartupPace(samples: [TelemetrySample]) -> [TelemetrySample] {
+    private static func smoothedStartupPace(
+        samples: [TelemetrySample],
+        protectedStartElapsed: TimeInterval?
+    ) -> [TelemetrySample] {
         guard samples.count > 1,
               let first = samples.first,
               (first.distanceMeters ?? 0) <= distanceEpsilon else {
             return samples
         }
-        let protectedStartIndex = firstStartupCompleteSampleIndex(in: samples) ?? samples.count
+        let protectedStartIndex = protectedStartIndex(in: samples, elapsed: protectedStartElapsed)
         guard protectedStartIndex > 0,
               shouldApplyStartupCumulativeSmoothing(
                   samples: samples,
@@ -678,6 +697,11 @@ public struct TelemetrySeries: Equatable {
         return output
     }
 
+    private static func firstStartupCompleteSampleElapsed(in samples: [TelemetrySample]) -> TimeInterval? {
+        guard let index = firstStartupCompleteSampleIndex(in: samples) else { return nil }
+        return samples[index].elapsed
+    }
+
     private static func shouldApplyStartupCumulativeSmoothing(
         samples: [TelemetrySample],
         firstElapsed: TimeInterval,
@@ -723,10 +747,8 @@ public struct TelemetrySeries: Equatable {
         samples.firstIndex { sample in
             guard let latitude = sample.latitude, latitude.isFinite,
                   let longitude = sample.longitude, longitude.isFinite,
-                  let distance = sample.distanceMeters, distance.isFinite,
                   plausibleSpeed(sample.speedMetersPerSecond) != nil,
-                  (sample.heartRate ?? 0) > 0,
-                  (sample.cadence ?? 0) > 0 else {
+                  (sample.heartRate ?? 0) > 0 else {
                 return false
             }
             return true
@@ -791,12 +813,22 @@ public struct TelemetrySeries: Equatable {
         return false
     }
 
-    private static func smoothedEdgeSpeedPlateaus(samples: [TelemetrySample]) -> [TelemetrySample] {
+    private static func smoothedEdgeSpeedPlateaus(
+        samples: [TelemetrySample],
+        protectedStartElapsed: TimeInterval?
+    ) -> [TelemetrySample] {
         guard samples.count > 2 else { return samples }
-        let protectedStartIndex = firstStartupCompleteSampleIndex(in: samples) ?? samples.count
+        let protectedStartIndex = protectedStartIndex(in: samples, elapsed: protectedStartElapsed)
         return smoothedTrailingSpeedPlateau(
             samples: smoothedLeadingSpeedPlateaus(samples: samples, protectedStartIndex: protectedStartIndex)
         )
+    }
+
+    private static func protectedStartIndex(in samples: [TelemetrySample], elapsed: TimeInterval?) -> Int {
+        guard let elapsed else {
+            return firstStartupCompleteSampleIndex(in: samples) ?? samples.count
+        }
+        return samples.firstIndex { $0.elapsed >= elapsed } ?? samples.count
     }
 
     private static func smoothedLeadingSpeedPlateaus(samples: [TelemetrySample], protectedStartIndex: Int) -> [TelemetrySample] {
@@ -827,8 +859,17 @@ public struct TelemetrySeries: Equatable {
                   end + 1 < output.count,
                   let nextSpeed = output[end + 1].speedMetersPerSecond,
                   nextSpeed.isFinite,
-                  nextSpeed > runSpeed + startupStaleSpeedToleranceMetersPerSecond,
-                  let targetSpeed = plausibleSpeed(max(nextSpeed, distanceSpeed(samples: output, from: index, to: end + 1) ?? nextSpeed)) else {
+                  nextSpeed > runSpeed + startupStaleSpeedToleranceMetersPerSecond else {
+                continue
+            }
+
+            let targetCandidate: Double
+            if end + 1 >= protectedStartIndex {
+                targetCandidate = nextSpeed
+            } else {
+                targetCandidate = max(nextSpeed, distanceSpeed(samples: output, from: index, to: end + 1) ?? nextSpeed)
+            }
+            guard let targetSpeed = plausibleSpeed(targetCandidate) else {
                 continue
             }
 
