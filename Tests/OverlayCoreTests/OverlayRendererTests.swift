@@ -5,6 +5,7 @@ import XCTest
 final class OverlayRendererTests: XCTestCase {
     override func tearDown() {
         OverlayRenderer.clearTextWidthCacheForTesting()
+        OverlayRenderer.clearTextLineCacheForTesting()
         super.tearDown()
     }
 
@@ -48,6 +49,50 @@ final class OverlayRendererTests: XCTestCase {
 
         XCTAssertGreaterThan(countAfterFirstRender, 0)
         XCTAssertEqual(OverlayRenderer.textWidthCacheCountForTesting, countAfterFirstRender)
+    }
+
+    func testTextLineCacheRendersIdenticalPixelsColdAndWarm() throws {
+        let series = TelemetrySeries(samples: makeSamples(count: 64))
+        let size = CGSize(width: 640, height: 360)
+        let layout = OverlayLayout(elements: [
+            OverlayElement.defaultElement(kind: .speed),
+            OverlayElement.defaultElement(kind: .pace),
+            OverlayElement.defaultElement(kind: .timeDate),
+            OverlayElement.defaultElement(kind: .topProgress)
+        ])
+        let renderer = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layout))
+        let coldBuffer = try makePixelBuffer(width: Int(size.width), height: Int(size.height))
+        let warmBuffer = try makePixelBuffer(width: Int(size.width), height: Int(size.height))
+
+        OverlayRenderer.clearTextLineCacheForTesting()
+        try renderer.render(videoTime: 30, into: coldBuffer)
+        let countAfterColdRender = OverlayRenderer.textLineCacheCountForTesting
+        try renderer.render(videoTime: 30, into: warmBuffer)
+
+        XCTAssertGreaterThan(countAfterColdRender, 0)
+        XCTAssertEqual(OverlayRenderer.textLineCacheCountForTesting, countAfterColdRender)
+        XCTAssertEqual(
+            try pixelBytes(pixelBuffer: coldBuffer),
+            try pixelBytes(pixelBuffer: warmBuffer),
+            "Warm text-line cache must not change rendered pixels"
+        )
+    }
+
+    func testTextLineCacheIsSharedAcrossRendererInstances() throws {
+        let series = TelemetrySeries(samples: makeSamples(count: 64))
+        let size = CGSize(width: 640, height: 360)
+        let layout = OverlayLayout(elements: [OverlayElement.defaultElement(kind: .pace)])
+        let firstRenderer = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layout))
+        let secondRenderer = OverlayRenderer(series: series, config: OverlayRenderConfig(size: size, layout: layout))
+        let pixelBuffer = try makePixelBuffer(width: Int(size.width), height: Int(size.height))
+
+        OverlayRenderer.clearTextLineCacheForTesting()
+        try firstRenderer.render(videoTime: 30, into: pixelBuffer)
+        let countAfterFirstRender = OverlayRenderer.textLineCacheCountForTesting
+        try secondRenderer.render(videoTime: 30, into: pixelBuffer)
+
+        XCTAssertGreaterThan(countAfterFirstRender, 0)
+        XCTAssertEqual(OverlayRenderer.textLineCacheCountForTesting, countAfterFirstRender)
     }
 
     func testMetricTilesShareAlignedWidthWhenOneValueNeedsMoreSpace() throws {

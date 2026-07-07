@@ -23,6 +23,9 @@ public final class OverlayRenderer {
     private static let textWidthCacheLock = NSLock()
     private static let maximumCachedTextWidths = 16_384
     private static var textWidthCache: [TextWidthKey: CGFloat] = [:]
+    private static let textLineCacheLock = NSLock()
+    private static let maximumCachedTextLines = 8_192
+    private static var textLineCache: [TextLineKey: CTLine] = [:]
 
     public convenience init(series: TelemetrySeries, config: OverlayRenderConfig) {
         self.init(series: series, config: config, reusing: nil)
@@ -1337,6 +1340,25 @@ public final class OverlayRenderer {
         color: CGColor,
         fontName: CFString
     ) {
+        let line = cachedTextLine(text, size: size, color: color, fontName: fontName)
+        context.textPosition = baseline
+        CTLineDraw(line, context)
+    }
+
+    private func cachedTextLine(_ text: String, size: CGFloat, color: CGColor, fontName: CFString) -> CTLine {
+        let key = TextLineKey(
+            fontKey: normalizedFontKey(fontName, size: size),
+            text: text,
+            colorKey: TextColorKey(color)
+        )
+
+        Self.textLineCacheLock.lock()
+        if let line = Self.textLineCache[key] {
+            Self.textLineCacheLock.unlock()
+            return line
+        }
+        Self.textLineCacheLock.unlock()
+
         let font = cachedFont(fontName, size: size)
         let attributes: [NSAttributedString.Key: Any] = [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
@@ -1344,8 +1366,14 @@ public final class OverlayRenderer {
         ]
         let attributed = NSAttributedString(string: text, attributes: attributes)
         let line = CTLineCreateWithAttributedString(attributed)
-        context.textPosition = baseline
-        CTLineDraw(line, context)
+
+        Self.textLineCacheLock.lock()
+        if Self.textLineCache.count >= Self.maximumCachedTextLines {
+            Self.textLineCache.removeAll(keepingCapacity: true)
+        }
+        Self.textLineCache[key] = line
+        Self.textLineCacheLock.unlock()
+        return line
     }
 
     private func drawRightAlignedText(
@@ -1426,6 +1454,18 @@ public final class OverlayRenderer {
         textWidthCacheLock.lock()
         defer { textWidthCacheLock.unlock() }
         return textWidthCache.count
+    }
+
+    static func clearTextLineCacheForTesting() {
+        textLineCacheLock.lock()
+        textLineCache.removeAll(keepingCapacity: true)
+        textLineCacheLock.unlock()
+    }
+
+    static var textLineCacheCountForTesting: Int {
+        textLineCacheLock.lock()
+        defer { textLineCacheLock.unlock() }
+        return textLineCache.count
     }
 
     private func fillRoundedRect(_ context: CGContext, _ rect: CGRect, radius: CGFloat, color: CGColor) {
@@ -1700,6 +1740,22 @@ private struct TextFontKey: Hashable {
 private struct TextWidthKey: Hashable {
     var fontKey: TextFontKey
     var text: String
+}
+
+private struct TextColorKey: Hashable {
+    var colorSpaceName: String?
+    var components: [CGFloat]
+
+    init(_ color: CGColor) {
+        self.colorSpaceName = (color.colorSpace?.name).map { $0 as String }
+        self.components = color.components ?? []
+    }
+}
+
+private struct TextLineKey: Hashable {
+    var fontKey: TextFontKey
+    var text: String
+    var colorKey: TextColorKey
 }
 
 private enum Colors {
