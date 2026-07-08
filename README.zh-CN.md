@@ -30,7 +30,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/appstore/v0.1.6/zh-Hans/desktop@2x/01-preview-overlay.png" alt="DataLayer Studio 编辑器界面，展示配速、心率、步频与轨迹等数据浮层与跑步素材实时同步预览" width="100%">
+  <img src="assets/appstore/v0.2.0/zh-Hans/desktop@2x/01-preview-overlay.png" alt="DataLayer Studio 编辑器界面，展示配速、心率、步频与轨迹等数据浮层与跑步素材实时同步预览" width="100%">
 </p>
 
 <p align="center">
@@ -102,7 +102,7 @@ DataLayer Studio 可以把跑步运动数据做成清爽的视频数据层，适
 
 | 实时预览 | 排布浮层 | 导出透明浮层 |
 | --- | --- | --- |
-| <img src="assets/appstore/v0.1.6/zh-Hans/desktop/01-preview-overlay.png" alt="DataLayer Studio 实时浮层预览" width="100%"> | <img src="assets/appstore/v0.1.6/zh-Hans/desktop/02-arrange-gauges.png" alt="DataLayer Studio 浮层排布界面" width="100%"> | <img src="assets/appstore/v0.1.6/zh-Hans/desktop/03-export-alpha.png" alt="DataLayer Studio 透明浮层导出界面" width="100%"> |
+| <img src="assets/appstore/v0.2.0/zh-Hans/desktop/01-preview-overlay.png" alt="DataLayer Studio 实时浮层预览" width="100%"> | <img src="assets/appstore/v0.2.0/zh-Hans/desktop/02-arrange-gauges.png" alt="DataLayer Studio 浮层排布界面" width="100%"> | <img src="assets/appstore/v0.2.0/zh-Hans/desktop/03-export-alpha.png" alt="DataLayer Studio 透明浮层导出界面" width="100%"> |
 
 ## 快速开始
 
