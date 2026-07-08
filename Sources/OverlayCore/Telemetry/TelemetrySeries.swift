@@ -22,6 +22,12 @@ public struct TelemetrySeries: Equatable {
     private static let startupStaleSpeedToleranceMetersPerSecond = 0.05
     private static let startupCatchUpIntegralRatio = 1.2
     private static let minimumStartupCatchUpRampDuration: TimeInterval = 2
+    private static let resumptionQuietSpeedMetersPerSecond = 2.0
+    private static let resumptionMinimumQuietDuration: TimeInterval = 5
+    private static let resumptionRunningSpeedFloorMetersPerSecond = 2.5
+    private static let resumptionPlateauPersistenceDuration: TimeInterval = 5
+    private static let resumptionRunningCadenceStepsPerMinute = 140
+    private static let resumptionQuietSegmentSpeedMetersPerSecond = 2.5
     private static let distanceEpsilon = 0.001
     private static let minimumAscentDeltaMeters = 1.0
 
@@ -51,8 +57,12 @@ public struct TelemetrySeries: Equatable {
                 protectedStartElapsed: startupCompleteElapsed
             )
         }
-        let edgeSmoothed = TelemetrySeries.smoothedEdgeSpeedPlateaus(
+        let resumptionSmoothed = TelemetrySeries.appliedMotionResumptions(
             samples: startupSmoothed,
+            corrections: TelemetrySeries.motionResumptionCorrections(in: normalized)
+        )
+        let edgeSmoothed = TelemetrySeries.smoothedEdgeSpeedPlateaus(
+            samples: resumptionSmoothed,
             protectedStartElapsed: startupCompleteElapsed
         )
         let cadenceEnriched = TelemetrySeries.enrichedWithStartupCadence(
@@ -801,6 +811,245 @@ public struct TelemetrySeries: Equatable {
         let scale = coveredDistance / total
         for index in 0...lastCorrectedIndex {
             output[index].distanceMeters = startDistance + integrals[index] * scale
+        }
+        return output
+    }
+
+    struct MotionResumptionCorrection {
+        var anchorElapsed: TimeInterval
+        var stabilizationElapsed: TimeInterval
+        var baseSpeed: Double
+        var targetSpeed: Double
+        var rampDuration: TimeInterval
+    }
+
+    /// 检测组间休息后的奔跑恢复点：静息（走路/站立）之后设备距离猛补、速度滞后爬升的形态，
+    /// 与活动起跑的补账签名同源。在既有四条件之上增加两道闸：
+    /// 稳定平台必须是持续的奔跑速度（排除“走两步就停下喝水”的微移动），
+    /// 距离超前证据必须有跑步步频或后续持续位移佐证（排除站立时的 GPS 漂移脉冲）。
+    static func motionResumptionCorrections(in samples: [TelemetrySample]) -> [MotionResumptionCorrection] {
+        guard samples.count > 4, let first = samples.first, let last = samples.last else { return [] }
+        let firstElapsed = first.elapsed
+
+        func deviceSpeed(_ index: Int) -> Double {
+            guard let value = samples[index].speedMetersPerSecond, value.isFinite else { return 0 }
+            return max(0, value)
+        }
+        func segmentSpeed(into index: Int) -> Double? {
+            guard index > 0,
+                  let distance = samples[index].distanceMeters,
+                  let previous = samples[index - 1].distanceMeters else { return nil }
+            let deltaTime = samples[index].elapsed - samples[index - 1].elapsed
+            guard deltaTime > 0 else { return nil }
+            return (distance - previous) / deltaTime
+        }
+
+        var corrections: [MotionResumptionCorrection] = []
+        // 活动起跑窗口由起跑补账路径处理，恢复点扫描从窗口之后开始
+        var index = samples.firstIndex {
+            $0.elapsed - firstElapsed > maximumStartupPaceSmoothingElapsed
+        } ?? samples.count
+
+        while index < samples.count {
+            // 静息区：连续低于静息速度阈值且时长达标
+            while index < samples.count, deviceSpeed(index) >= resumptionQuietSpeedMetersPerSecond {
+                index += 1
+            }
+            guard index < samples.count else { break }
+            let quietStart = index
+            while index < samples.count, deviceSpeed(index) < resumptionQuietSpeedMetersPerSecond {
+                index += 1
+            }
+            guard index < samples.count else { break }
+            let quietEnd = index - 1
+            guard samples[quietEnd].elapsed - samples[quietStart].elapsed >= resumptionMinimumQuietDuration else {
+                continue
+            }
+
+            // 稳定点：静息结束后一个窗口内速度进入奔跑平台
+            var stabilization: Int?
+            var probe = index
+            while probe + 2 < samples.count,
+                  samples[probe].elapsed - samples[quietEnd].elapsed <= maximumStartupPaceSmoothingElapsed {
+                let v0 = deviceSpeed(probe)
+                let v1 = deviceSpeed(probe + 1)
+                let v2 = deviceSpeed(probe + 2)
+                if v0 >= resumptionRunningSpeedFloorMetersPerSecond,
+                   abs(v1 - v0) <= startupStaleSpeedToleranceMetersPerSecond,
+                   abs(v2 - v1) <= startupStaleSpeedToleranceMetersPerSecond {
+                    stabilization = probe
+                    break
+                }
+                probe += 1
+            }
+            guard let stabilization,
+                  let targetSpeed = plausibleSpeed(samples[stabilization].speedMetersPerSecond) else {
+                continue
+            }
+
+            // 平台必须持续：稳定点之后一段时间内速度不塌回
+            let persistenceEnd = samples[stabilization].elapsed + resumptionPlateauPersistenceDuration
+            guard last.elapsed >= persistenceEnd else { continue }
+            var persistent = true
+            var check = stabilization
+            while check < samples.count, samples[check].elapsed <= persistenceEnd {
+                if deviceSpeed(check) < targetSpeed * 0.8 {
+                    persistent = false
+                    break
+                }
+                check += 1
+            }
+            guard persistent else { continue }
+
+            // 锚点：从静息区末端向前回退，跳过发射时的距离补账段，
+            // 锚点之前的走动/喝水/站立保持原始数据
+            var anchor = quietEnd
+            while anchor > quietStart,
+                  let segment = segmentSpeed(into: anchor),
+                  segment >= resumptionQuietSegmentSpeedMetersPerSecond {
+                anchor -= 1
+            }
+            let anchorElapsed = samples[anchor].elapsed
+            let stabilizationElapsed = samples[stabilization].elapsed
+            let windowDuration = stabilizationElapsed - anchorElapsed
+            guard windowDuration > 1,
+                  windowDuration <= maximumStartupPaceSmoothingElapsed * 2 else {
+                continue
+            }
+
+            let baseSpeed = max(deviceSpeed(anchor), startupRampMinimumSpeedMetersPerSecond)
+            guard targetSpeed / max(baseSpeed, minimumMovingSpeedMetersPerSecond) >= startupSpeedJumpRatio else {
+                continue
+            }
+
+            // 单调爬升（低于移动阈值的样本不参与判定）
+            var previousSpeed = 0.0
+            var monotone = true
+            for candidate in (anchor + 1)...stabilization {
+                let speed = deviceSpeed(candidate)
+                guard speed >= minimumMovingSpeedMetersPerSecond else { continue }
+                if speed < previousSpeed - startupStaleSpeedToleranceMetersPerSecond {
+                    monotone = false
+                    break
+                }
+                previousSpeed = speed
+            }
+            guard monotone else { continue }
+
+            // 距离超前证据 + 佐证（跑步步频，或其后 3 秒距离保持奔跑量级）
+            var evidence = false
+            for candidate in (anchor + 1)...stabilization {
+                guard let segment = segmentSpeed(into: candidate) else { continue }
+                let device = max(deviceSpeed(candidate), minimumMovingSpeedMetersPerSecond)
+                guard segment >= startupSpeedJumpRatio * device else { continue }
+                if (samples[candidate].cadence ?? 0) >= resumptionRunningCadenceStepsPerMinute {
+                    evidence = true
+                    break
+                }
+                let horizon = samples[candidate].elapsed + 3
+                var follower = candidate
+                while follower + 1 < samples.count, samples[follower + 1].elapsed <= horizon {
+                    follower += 1
+                }
+                if follower > candidate,
+                   let followDistance = samples[follower].distanceMeters,
+                   let candidateDistance = samples[candidate].distanceMeters,
+                   samples[follower].elapsed > samples[candidate].elapsed,
+                   (followDistance - candidateDistance) / (samples[follower].elapsed - samples[candidate].elapsed)
+                       >= resumptionRunningSpeedFloorMetersPerSecond {
+                    evidence = true
+                    break
+                }
+            }
+            guard evidence else { continue }
+
+            // 累计距离明显超过设备速度积分
+            guard let anchorDistance = samples[anchor].distanceMeters,
+                  let stabilizationDistance = samples[stabilization].distanceMeters else {
+                continue
+            }
+            let coveredDistance = stabilizationDistance - anchorDistance
+            guard coveredDistance > distanceEpsilon else { continue }
+            var speedIntegral = 0.0
+            for candidate in (anchor + 1)...stabilization {
+                let deltaTime = samples[candidate].elapsed - samples[candidate - 1].elapsed
+                guard deltaTime > 0 else { continue }
+                speedIntegral += (deviceSpeed(candidate - 1) + deviceSpeed(candidate)) / 2 * deltaTime
+            }
+            guard coveredDistance > startupCatchUpIntegralRatio * speedIntegral else { continue }
+
+            let exponent = 1 / startupPaceSmoothingExponent
+            let coefficient = (targetSpeed - baseSpeed) * (1 - 1 / (exponent + 1))
+            guard coefficient > 0 else { continue }
+            let rawDuration = (targetSpeed * windowDuration - coveredDistance) / coefficient
+            let rampDuration = min(max(rawDuration, minimumStartupCatchUpRampDuration), windowDuration)
+
+            corrections.append(MotionResumptionCorrection(
+                anchorElapsed: anchorElapsed,
+                stabilizationElapsed: stabilizationElapsed,
+                baseSpeed: baseSpeed,
+                targetSpeed: targetSpeed,
+                rampDuration: rampDuration
+            ))
+            index = max(check, stabilization + 1)
+        }
+        return corrections
+    }
+
+    private static func appliedMotionResumptions(
+        samples: [TelemetrySample],
+        corrections: [MotionResumptionCorrection]
+    ) -> [TelemetrySample] {
+        guard !corrections.isEmpty else { return samples }
+
+        var output = samples
+        let exponent = 1 / startupPaceSmoothingExponent
+        for correction in corrections {
+            guard let anchorIndex = output.lastIndex(where: { $0.elapsed <= correction.anchorElapsed + 0.000_5 }),
+                  let stabilizationIndex = output.firstIndex(where: { $0.elapsed >= correction.stabilizationElapsed - 0.000_5 }),
+                  anchorIndex < stabilizationIndex else {
+                continue
+            }
+
+            func rampSpeed(at elapsed: TimeInterval) -> Double {
+                let time = elapsed - correction.anchorElapsed
+                guard time > 0 else { return correction.baseSpeed }
+                guard time < correction.rampDuration else { return correction.targetSpeed }
+                let progress = pow(time / correction.rampDuration, exponent)
+                return correction.baseSpeed + (correction.targetSpeed - correction.baseSpeed) * progress
+            }
+
+            for index in (anchorIndex + 1)..<stabilizationIndex {
+                output[index].speedMetersPerSecond = rampSpeed(at: output[index].elapsed)
+            }
+
+            // 距离按修正后的速度积分重排并缩放，锚点与稳定点的实测距离保持不变
+            guard let anchorDistance = output[anchorIndex].distanceMeters,
+                  let stabilizationDistance = output[stabilizationIndex].distanceMeters else {
+                continue
+            }
+            let coveredDistance = stabilizationDistance - anchorDistance
+            guard coveredDistance > distanceEpsilon else { continue }
+
+            let span = stabilizationIndex - anchorIndex
+            var integrals = [Double](repeating: 0, count: span + 1)
+            for offset in 1...span {
+                let index = anchorIndex + offset
+                let deltaTime = output[index].elapsed - output[index - 1].elapsed
+                guard deltaTime > 0 else {
+                    integrals[offset] = integrals[offset - 1]
+                    continue
+                }
+                let previous = output[index - 1].speedMetersPerSecond ?? correction.baseSpeed
+                let current = output[index].speedMetersPerSecond ?? correction.targetSpeed
+                integrals[offset] = integrals[offset - 1] + (previous + current) / 2 * deltaTime
+            }
+            let total = integrals[span]
+            guard total > distanceEpsilon else { continue }
+            let scale = coveredDistance / total
+            for offset in 1..<span {
+                output[anchorIndex + offset].distanceMeters = anchorDistance + integrals[offset] * scale
+            }
         }
         return output
     }

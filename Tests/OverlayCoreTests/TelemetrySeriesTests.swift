@@ -461,6 +461,129 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 7).speedMetersPerSecond ?? -1, 4.733, accuracy: 0.001)
     }
 
+    private static func intervalRestSamples(
+        rest: (Int) -> (speed: Double, distanceDelta: Double, cadence: Int),
+        launch: [(speed: Double, distanceDelta: Double, cadence: Int)]
+    ) -> [TelemetrySample] {
+        // 0-19s 匀速奔跑，20-24s 减速，25-44s 组间休息，45s 起进入给定的发射序列
+        var samples: [TelemetrySample] = []
+        var distance = 0.0
+        func append(elapsed: Int, speed: Double, delta: Double, cadence: Int) {
+            distance += delta
+            samples.append(TelemetrySample(
+                elapsed: TimeInterval(elapsed),
+                latitude: 35 + Double(elapsed) * 0.0001,
+                longitude: 139 + Double(elapsed) * 0.0001,
+                heartRate: 150,
+                cadence: cadence,
+                distanceMeters: distance,
+                speedMetersPerSecond: speed
+            ))
+        }
+        for second in 0...19 {
+            append(elapsed: second, speed: 5.0, delta: second == 0 ? 0 : 5, cadence: 180)
+        }
+        let decel: [(Double, Double)] = [(4.0, 4), (3.0, 3), (2.0, 2), (1.5, 1.5), (1.2, 1.2)]
+        for (offset, entry) in decel.enumerated() {
+            append(elapsed: 20 + offset, speed: entry.0, delta: entry.1, cadence: 150)
+        }
+        for second in 25...44 {
+            let phase = rest(second)
+            append(elapsed: second, speed: phase.speed, delta: phase.distanceDelta, cadence: phase.cadence)
+        }
+        for (offset, entry) in launch.enumerated() {
+            append(elapsed: 45 + offset, speed: entry.speed, delta: entry.distanceDelta, cadence: entry.cadence)
+        }
+        return samples
+    }
+
+    func testMotionResumptionRampReplacesLaggedIntervalStart() {
+        // 建模自 400m 间歇：组间走路后发射，距离猛补而速度滞后爬升
+        let launch: [(speed: Double, distanceDelta: Double, cadence: Int)] = [
+            (1.5, 6, 0), (2.5, 8, 180), (3.5, 7, 212), (4.5, 7, 212), (5.5, 6.5, 212),
+            (6.0, 6, 212), (6.05, 6, 212), (6.1, 6, 212), (6.1, 6, 212), (6.1, 6, 212),
+            (6.1, 6, 212), (6.1, 6, 212), (6.1, 6, 212), (6.1, 6, 212), (6.1, 6, 212)
+        ]
+        let samples = Self.intervalRestSamples(
+            rest: { _ in (1.0, 1.0, 110) },
+            launch: launch
+        )
+        let corrections = TelemetrySeries.motionResumptionCorrections(in: samples)
+        XCTAssertEqual(corrections.count, 1)
+
+        let series = TelemetrySeries(samples: samples)
+        // 休息段保持原始数据
+        XCTAssertEqual(series.sample(at: 40).speedMetersPerSecond ?? -1, 1.0, accuracy: 0.001)
+        // 发射后 3 秒内到达组配速（旧数据要 6 秒后才到）
+        XCTAssertGreaterThan(series.sample(at: 47).speedMetersPerSecond ?? -1, 5.5)
+        // 爬升单调，稳定点之后保留设备原始速度
+        var previous = series.sample(at: 44).speedMetersPerSecond ?? 0
+        for second in 45...52 {
+            let speed = series.sample(at: TimeInterval(second)).speedMetersPerSecond ?? -1
+            XCTAssertGreaterThanOrEqual(speed, previous - 0.001, "t=\(second) 不应回落")
+            previous = speed
+        }
+        XCTAssertEqual(series.sample(at: 52).speedMetersPerSecond ?? -1, 6.1, accuracy: 0.001)
+        // 稳定点距离锚保持不变（发射后第 6 秒，累计 = 休息末 126.7 + 40.5）
+        XCTAssertEqual(series.sample(at: 50).distanceMeters ?? -1, 167.2, accuracy: 0.01)
+    }
+
+    func testMotionResumptionIgnoresWalkAndStopBouts() {
+        // 组间“走两步停下喝水”与站立 GPS 漂移脉冲不得触发修正
+        let samples = Self.intervalRestSamples(
+            rest: { second in
+                switch second {
+                case 27...29: return (0.6, 2.0, 124)   // 走两步
+                case 30...33: return (0.0, 0.0, 0)     // 停下喝水
+                case 34: return (0.0, 1.5, 0)          // GPS 漂移脉冲
+                case 35: return (0.0, 1.5, 0)
+                default: return (0.3, 0.0, 0)
+                }
+            },
+            launch: []
+        )
+        XCTAssertTrue(TelemetrySeries.motionResumptionCorrections(in: samples).isEmpty)
+
+        let series = TelemetrySeries(samples: samples)
+        for second in 25...44 {
+            XCTAssertLessThan(
+                series.sample(at: TimeInterval(second)).speedMetersPerSecond ?? 0,
+                2.5,
+                "休息段 t=\(second) 不应出现奔跑级速度"
+            )
+        }
+    }
+
+    func testMotionResumptionSkipsGradualRecovery() {
+        // 渐进恢复：速度与距离一致地慢慢加回来，距离不超前，不得修正
+        var speed = 1.0
+        var launch: [(speed: Double, distanceDelta: Double, cadence: Int)] = []
+        for _ in 0..<15 {
+            speed = min(6.0, speed + 0.4)
+            launch.append((speed, speed, 180))
+        }
+        let samples = Self.intervalRestSamples(rest: { _ in (1.0, 1.0, 110) }, launch: launch)
+
+        XCTAssertTrue(TelemetrySeries.motionResumptionCorrections(in: samples).isEmpty)
+    }
+
+    func testMotionResumptionIsIdempotentAcrossReinitialization() {
+        let launch: [(speed: Double, distanceDelta: Double, cadence: Int)] = [
+            (1.5, 6, 0), (2.5, 8, 180), (3.5, 7, 212), (4.5, 7, 212), (5.5, 6.5, 212),
+            (6.0, 6, 212), (6.05, 6, 212), (6.1, 6, 212), (6.1, 6, 212), (6.1, 6, 212),
+            (6.1, 6, 212), (6.1, 6, 212), (6.1, 6, 212), (6.1, 6, 212), (6.1, 6, 212)
+        ]
+        let samples = Self.intervalRestSamples(rest: { _ in (1.0, 1.0, 110) }, launch: launch)
+        let series = TelemetrySeries(samples: samples)
+        let reinitialized = TelemetrySeries(samples: series.samples)
+
+        for (lhs, rhs) in zip(series.samples, reinitialized.samples) {
+            XCTAssertEqual(lhs.elapsed, rhs.elapsed, accuracy: 0.001)
+            XCTAssertEqual(lhs.speedMetersPerSecond ?? -1, rhs.speedMetersPerSecond ?? -1, accuracy: 0.001)
+            XCTAssertEqual(lhs.distanceMeters ?? -1, rhs.distanceMeters ?? -1, accuracy: 0.01)
+        }
+    }
+
     func testKeepsSlowlyDriftingTailWithoutDistanceContradiction() {
         // 尾段速度缓变、距离段速与之基本一致（比值 < 1.6）时不得重绘真实数据
         var samples: [TelemetrySample] = []
