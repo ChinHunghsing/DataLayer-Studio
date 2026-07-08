@@ -197,7 +197,7 @@ struct SidebarView: View {
             Spacer(minLength: 0)
         }
         .padding(8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .shellGroupSurface(cornerRadius: 8)
     }
 
     private var layoutPresetSyncStatusIcon: String {
@@ -306,7 +306,7 @@ struct ExportTrimRangeControl: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .shellGroupSurface(cornerRadius: 8)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(localization.string(titleKey))
     }

@@ -36,17 +36,55 @@ struct PreviewControlsPanel: View {
     }
 
     private var transportControls: some View {
-        HStack(spacing: 8) {
-            Button {
+        HStack(spacing: 2) {
+            transportButton(
+                systemImage: "backward.frame.fill",
+                help: localization.string("preview.previousFrame")
+            ) {
+                model.stepPreviewFrame(by: -1)
+            }
+            .disabled(!state.hasSeries || state.isExporting)
+
+            transportButton(
+                systemImage: state.isPlaying ? "pause.fill" : "play.fill",
+                help: state.isPlaying ? localization.string("preview.pause") : localization.string("preview.play"),
+                isPrimary: true
+            ) {
                 model.togglePlayback()
-            } label: {
-                Label(
-                    state.isPlaying ? localization.string("preview.pause") : localization.string("preview.play"),
-                    systemImage: state.isPlaying ? "pause.fill" : "play.fill"
-                )
             }
             .disabled(!state.hasPlayer || state.isExporting)
+
+            transportButton(
+                systemImage: "forward.frame.fill",
+                help: localization.string("preview.nextFrame")
+            ) {
+                model.stepPreviewFrame(by: 1)
+            }
+            .disabled(!state.hasSeries || state.isExporting)
         }
+        .padding(2)
+        .background(ShellStyle.tileFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func transportButton(
+        systemImage: String,
+        help: String,
+        isPrimary: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: isPrimary ? 13 : 11, weight: .semibold))
+                .frame(width: isPrimary ? 30 : 24, height: 24)
+                .foregroundStyle(isPrimary ? Color.accentColor : Color.secondary)
+                .background(
+                    isPrimary ? AnyShapeStyle(.background) : AnyShapeStyle(Color.clear),
+                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     private var timelineSlider: some View {
@@ -117,18 +155,28 @@ struct PreviewControlsPanel: View {
     }
 
     private var statusRow: some View {
-        HStack {
+        HStack(spacing: 10) {
             Text(formatTimecode(state.previewTime))
-            Spacer()
+                .font(.system(.callout, design: .monospaced).weight(.semibold))
+                .foregroundStyle(.primary)
+
             if state.syncMode == .syncPoint, state.syncFITSeconds == 0 {
-                Text(localization.string("preview.sportStartAt", formatTimecode(state.syncVideoSeconds)))
-                    .foregroundStyle(.tint)
+                ShellStatusChip(
+                    localization.string("preview.sportStartAt", formatTimecode(state.syncVideoSeconds)),
+                    systemImage: "flag.checkered",
+                    kind: .active
+                )
             }
-            Spacer()
-            Text("\(state.outputWidth)x\(state.outputHeight)")
+
+            Spacer(minLength: 8)
+
+            Text(verbatim: "\(state.outputWidth)×\(state.outputHeight)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(ShellStyle.tileFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
-        .font(.caption.monospacedDigit())
-        .foregroundStyle(.secondary)
     }
 
     @ViewBuilder

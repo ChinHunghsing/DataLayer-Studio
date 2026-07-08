@@ -13,11 +13,11 @@ struct SidebarWorkflowSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
                 Text(step)
-                    .font(.caption.weight(.bold))
+                    .font(.caption2.weight(.bold))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .background(Color.secondary.opacity(0.16), in: Circle())
+                    .frame(width: 22, height: 22)
+                    .background(ShellStyle.tileFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Label(title, systemImage: systemImage)
@@ -56,19 +56,25 @@ struct SidebarDivider: View {
 }
 
 struct FilePickRow: View {
+    enum Accessory {
+        /// 素材行：已载入 / 待选 状态芯片
+        case status
+        /// 目标行：已设置显示对勾，否则显示 chevron
+        case disclosure
+    }
+
     var title: String
     var subtitle: String
     var systemImage: String
     var isLoaded: Bool
+    var accessory: Accessory = .status
     var action: () -> Void
+    @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(isLoaded ? Color.accentColor : Color.secondary)
-                    .frame(width: 18)
+            HStack(spacing: 11) {
+                ShellIconTile(systemImage: systemImage, isActive: isLoaded)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
@@ -77,16 +83,31 @@ struct FilePickRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .truncationMode(.middle)
                 }
-                Spacer()
-                Image(systemName: isLoaded ? "checkmark.circle.fill" : "chevron.right")
-                    .foregroundStyle(isLoaded ? Color.accentColor : Color.secondary.opacity(0.65))
+                Spacer(minLength: 8)
+                accessoryView
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .shellGroupSurface(cornerRadius: 8)
+    }
+
+    @ViewBuilder
+    private var accessoryView: some View {
+        switch accessory {
+        case .status:
+            if isLoaded {
+                ShellStatusChip(localization.string("shell.loaded"), systemImage: "checkmark", kind: .active)
+            } else {
+                ShellStatusChip(localization.string("shell.pending"), kind: .pending)
+            }
+        case .disclosure:
+            Image(systemName: isLoaded ? "checkmark.circle.fill" : "chevron.right")
+                .foregroundStyle(isLoaded ? Color.accentColor : Color.secondary.opacity(0.65))
+        }
     }
 }
 
@@ -188,7 +209,7 @@ struct LayoutPresetRow: View {
         }
         .buttonStyle(.borderless)
         .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .shellGroupSurface(cornerRadius: 8)
         .confirmationDialog(
             localization.string("preset.applyDialogTitle"),
             isPresented: $isConfirmingApply,

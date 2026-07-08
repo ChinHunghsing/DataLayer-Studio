@@ -27,15 +27,18 @@ struct BottomWorkspaceView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 12) {
-                    Picker(localization.string("workspace.tabs"), selection: $selectedTabRawValue) {
-                        ForEach(BottomWorkspaceTab.allCases) { tab in
-                            Text(localization.string(tab.localizationKey)).tag(tab.rawValue)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
+                    ShellSegmentedTabs(
+                        tabs: BottomWorkspaceTab.allCases.map { tab in
+                            ShellSegmentedTabs.Tab(
+                                id: tab.rawValue,
+                                title: localization.string(tab.localizationKey),
+                                systemImage: tab.systemImage
+                            )
+                        },
+                        selection: $selectedTabRawValue,
+                        accessibilityLabel: localization.string("workspace.tabs")
+                    )
                     .frame(width: 320, alignment: .leading)
-                    .accessibilityLabel(localization.string("workspace.tabs"))
 
                     Spacer(minLength: 0)
                 }
@@ -164,6 +167,7 @@ struct BottomWorkspaceView: View {
                     subtitle: model.outputURL?.lastPathComponent ?? localization.string("sidebar.askWhenExporting"),
                     systemImage: "square.and.arrow.down",
                     isLoaded: model.outputURL != nil,
+                    accessory: .disclosure,
                     action: model.chooseOutput
                 )
             }
@@ -234,19 +238,23 @@ struct BottomWorkspaceView: View {
     }
 
     private var exportActionFooter: some View {
-        HStack(alignment: .top, spacing: 10) {
+        let hasVideo = model.videoURL != nil
+
+        return HStack(alignment: .top, spacing: 10) {
             exportActionSlot(
                 mode: .overlay,
                 titleKey: "sidebar.exportOverlay",
                 helpKey: "help.exportTransparentOverlay",
-                systemImage: "square.on.square"
+                systemImage: "square.on.square",
+                isPrimary: !hasVideo
             )
-            if model.videoURL != nil {
+            if hasVideo {
                 exportActionSlot(
                     mode: .video,
                     titleKey: "sidebar.exportVideo",
                     helpKey: "help.exportCompositedVideo",
-                    systemImage: "play.fill"
+                    systemImage: "play.fill",
+                    isPrimary: true
                 )
             }
         }
@@ -260,14 +268,16 @@ struct BottomWorkspaceView: View {
         mode: OverlayExportMode,
         titleKey: String,
         helpKey: String,
-        systemImage: String
+        systemImage: String,
+        isPrimary: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             exportButton(
                 mode: mode,
                 titleKey: titleKey,
                 helpKey: helpKey,
-                systemImage: systemImage
+                systemImage: systemImage,
+                isPrimary: isPrimary
             )
 
             if !model.isExporting, let message = model.exportReadinessMessage(for: mode) {
@@ -284,21 +294,25 @@ struct BottomWorkspaceView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
     private func exportButton(
         mode: OverlayExportMode,
         titleKey: String,
         helpKey: String,
-        systemImage: String
+        systemImage: String,
+        isPrimary: Bool
     ) -> some View {
-        Button {
-            model.export(as: mode)
-        } label: {
-            Label(localization.string(titleKey), systemImage: systemImage)
-                .frame(maxWidth: .infinity)
+        let label = Label(localization.string(titleKey), systemImage: systemImage)
+            .frame(maxWidth: .infinity)
+        let button = Button { model.export(as: mode) } label: { label }
+            .disabled(model.isExporting || !model.canExport(as: mode))
+            .help(model.exportReadinessMessage(for: mode) ?? localization.string(helpKey))
+
+        if isPrimary {
+            button.buttonStyle(.borderedProminent)
+        } else {
+            button.buttonStyle(.bordered)
         }
-        .buttonStyle(.borderedProminent)
-        .disabled(model.isExporting || !model.canExport(as: mode))
-        .help(model.exportReadinessMessage(for: mode) ?? localization.string(helpKey))
     }
 
     private var exportSummaryCard: some View {
@@ -336,7 +350,7 @@ struct BottomWorkspaceView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .shellGroupSurface(cornerRadius: 8)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(localization.string("sidebar.exportSummary"))
     }
@@ -487,6 +501,17 @@ private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
             return "workspace.trim.hint"
         case .output:
             return "workspace.output.hint"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .sync:
+            return "arrow.left.arrow.right"
+        case .trim:
+            return "scissors"
+        case .output:
+            return "slider.horizontal.3"
         }
     }
 }

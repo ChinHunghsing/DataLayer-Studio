@@ -298,6 +298,6 @@ private struct SyncInfoBox: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .shellGroupSurface(cornerRadius: 8)
     }
 }
