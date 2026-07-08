@@ -7,22 +7,21 @@ struct OutputPanelView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
 
-    private let columns = [
-        GridItem(.flexible(minimum: 200), spacing: 14, alignment: .top),
-        GridItem(.flexible(minimum: 200), spacing: 14, alignment: .top)
-    ]
+    private var isCustomResolution: Bool {
+        model.selectedResolutionPresetID == OutputResolutionPreset.customID
+    }
 
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 14) {
-                outputSettingsSection
+                pictureCard
+                    .disabled(model.isExporting)
+                encodingCard
+                    .disabled(model.isExporting)
+                destinationRow
                     .disabled(model.isExporting)
 
-                SidebarDivider()
-
                 ExportSummaryCard(model: model)
-
-                SidebarDivider()
 
                 exportActionFooter
             }
@@ -30,112 +29,142 @@ struct OutputPanelView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .controlSize(.small)
-        .frame(minHeight: 360, idealHeight: 520, maxHeight: 620)
+        .frame(minHeight: 340, idealHeight: 460, maxHeight: 600)
     }
 
-    private var outputSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SidebarSubsectionHeader(title: localization.string("workspace.outputSettings"), systemImage: "slider.horizontal.3")
+    // MARK: 画面
 
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                resolutionControl
-
-                HStack(spacing: 10) {
-                    CompactNumberIntField(title: localization.string("sidebar.width"), suffix: "px", value: intBinding(
-                        get: { model.outputWidth },
-                        set: { model.setOutputWidth($0) },
-                        range: 2...16_384
-                    ))
-                    CompactNumberIntField(title: localization.string("sidebar.height"), suffix: "px", value: intBinding(
-                        get: { model.outputHeight },
-                        set: { model.setOutputHeight($0) },
-                        range: 2...16_384
-                    ))
+    private var pictureCard: some View {
+        settingsCard(title: localization.string("output.section.picture"), systemImage: "aspectratio") {
+            settingRow(localization.string("sidebar.resolution")) {
+                Picker(localization.string("sidebar.resolution"), selection: resolutionPresetSelection) {
+                    if let sourceTitle = model.sourceResolutionPresetTitle {
+                        Text(sourceTitle).tag(OutputResolutionPreset.sourceID)
+                    }
+                    ForEach(OutputResolutionPreset.fixed) { preset in
+                        Text(localization.string(preset.localizationKey)).tag(preset.id)
+                    }
+                    Text(localization.string("sidebar.custom")).tag(OutputResolutionPreset.customID)
                 }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+            }
 
-                frameRateControl
+            if isCustomResolution {
+                rowDivider
+                settingRow(localization.string("output.dimensions")) {
+                    HStack(spacing: 6) {
+                        InlineIntField(value: model.outputWidth, range: 2...16_384) { model.setOutputWidth($0) }
+                        Text(verbatim: "×").foregroundStyle(.secondary)
+                        InlineIntField(value: model.outputHeight, range: 2...16_384) { model.setOutputHeight($0) }
+                        Text(verbatim: "px").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
 
-                NumberField(title: localization.string("sidebar.fps"), suffix: "fps", value: doubleBinding(
-                    get: { model.outputFPS },
-                    set: { model.setOutputFPS($0) },
-                    range: 1...240
-                ))
-
-                NumberIntField(title: localization.string("sidebar.bitrate"), suffix: "kbps", value: intBinding(
-                    get: { model.bitRateKbps },
-                    set: { model.setBitRateKbps($0) },
-                    range: 1...1_000_000
-                ))
-
-                distanceUnitControl
-
-                codecControl
-
-                FilePickRow(
-                    title: localization.string("sidebar.saveAs"),
-                    subtitle: model.outputURL?.lastPathComponent ?? localization.string("sidebar.askWhenExporting"),
-                    systemImage: "square.and.arrow.down",
-                    isLoaded: model.outputURL != nil,
-                    accessory: .disclosure,
-                    action: model.chooseOutput
-                )
+            rowDivider
+            settingRow(localization.string("sidebar.frameRate")) {
+                Picker(localization.string("sidebar.frameRate"), selection: frameRatePresetSelection) {
+                    if let sourceTitle = model.sourceFrameRatePresetTitle {
+                        Text(sourceTitle).tag(OutputFrameRatePreset.sourceID)
+                    }
+                    ForEach(OutputFrameRatePreset.fixed) { preset in
+                        Text(preset.title).tag(preset.id)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
             }
         }
     }
 
-    private var resolutionControl: some View {
-        SidebarControl(title: localization.string("sidebar.resolution")) {
-            Picker(localization.string("sidebar.resolution"), selection: resolutionPresetSelection) {
-                if let sourceTitle = model.sourceResolutionPresetTitle {
-                    Text(sourceTitle).tag(OutputResolutionPreset.sourceID)
+    // MARK: 编码与单位
+
+    private var encodingCard: some View {
+        settingsCard(title: localization.string("output.section.encoding"), systemImage: "slider.horizontal.3") {
+            settingRow(localization.string("sidebar.codec")) {
+                Picker(localization.string("sidebar.codec"), selection: $model.codec) {
+                    ForEach(model.availableCodecs) { codec in
+                        Text(localization.string(codec.localizationKey)).tag(codec)
+                    }
                 }
-                ForEach(OutputResolutionPreset.fixed) { preset in
-                    Text(localization.string(preset.localizationKey)).tag(preset.id)
-                }
-                Text(localization.string("sidebar.custom")).tag(OutputResolutionPreset.customID)
+                .labelsHidden()
+                .fixedSize()
             }
-            .labelsHidden()
-            .pickerStyle(.menu)
+            rowDivider
+            settingRow(localization.string("sidebar.bitrate")) {
+                HStack(spacing: 6) {
+                    InlineIntField(value: model.bitRateKbps, range: 1...1_000_000) { model.setBitRateKbps($0) }
+                    Text(verbatim: "kbps").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            rowDivider
+            settingRow(localization.string("sidebar.distanceUnit")) {
+                Picker(localization.string("sidebar.distanceUnit"), selection: $model.distanceUnit) {
+                    ForEach(OverlayDistanceUnit.allCases) { unit in
+                        Text(localization.string(unit.localizationKey)).tag(unit)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .fixedSize()
+            }
         }
     }
 
-    private var frameRateControl: some View {
-        SidebarControl(title: localization.string("sidebar.frameRate")) {
-            Picker(localization.string("sidebar.frameRate"), selection: frameRatePresetSelection) {
-                if let sourceTitle = model.sourceFrameRatePresetTitle {
-                    Text(sourceTitle).tag(OutputFrameRatePreset.sourceID)
-                }
-                ForEach(OutputFrameRatePreset.fixed) { preset in
-                    Text(preset.title).tag(preset.id)
-                }
-                Text(localization.string("sidebar.custom")).tag(OutputFrameRatePreset.customID)
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-        }
+    private var destinationRow: some View {
+        FilePickRow(
+            title: localization.string("sidebar.saveAs"),
+            subtitle: model.outputURL?.lastPathComponent ?? localization.string("sidebar.askWhenExporting"),
+            systemImage: "square.and.arrow.down",
+            isLoaded: model.outputURL != nil,
+            accessory: .disclosure,
+            action: model.chooseOutput
+        )
     }
 
-    private var distanceUnitControl: some View {
-        SidebarControl(title: localization.string("sidebar.distanceUnit")) {
-            Picker(localization.string("sidebar.distanceUnit"), selection: $model.distanceUnit) {
-                ForEach(OverlayDistanceUnit.allCases) { unit in
-                    Text(localization.string(unit.localizationKey)).tag(unit)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
+    // MARK: 组件
+
+    @ViewBuilder
+    private func settingsCard<Content: View>(
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Label(title, systemImage: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+            content()
         }
+        .padding(.bottom, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .shellGroupSurface()
     }
 
-    private var codecControl: some View {
-        SidebarControl(title: localization.string("sidebar.codec")) {
-            Picker(localization.string("sidebar.codec"), selection: $model.codec) {
-                ForEach(model.availableCodecs) { codec in
-                    Text(localization.string(codec.localizationKey)).tag(codec)
-                }
-            }
-            .labelsHidden()
+    private func settingRow<Control: View>(
+        _ label: String,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        HStack(spacing: 10) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+            Spacer(minLength: 8)
+            control()
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+    }
+
+    private var rowDivider: some View {
+        Divider().padding(.horizontal, 12)
     }
 
     private var exportActionFooter: some View {
@@ -227,32 +256,45 @@ struct OutputPanelView: View {
             set: { model.applyFrameRatePreset(id: $0) }
         )
     }
+}
 
-    private func intBinding(
-        get: @escaping () -> Int,
-        set: @escaping (Int) -> Void,
-        range: ClosedRange<Int>
-    ) -> Binding<Int> {
-        Binding(
-            get: { min(range.upperBound, max(range.lowerBound, get())) },
-            set: { set(min(range.upperBound, max(range.lowerBound, $0))) }
-        )
+/// 面板内联整数输入：只用纯数字文本，避免千分位逗号；失焦或回车时提交并夹取。
+private struct InlineIntField: View {
+    var value: Int
+    var range: ClosedRange<Int>
+    var set: (Int) -> Void
+
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField("", text: $draft)
+            .textFieldStyle(.roundedBorder)
+            .multilineTextAlignment(.trailing)
+            .frame(width: 74)
+            .focused($focused)
+            .onSubmit(commit)
+            .onAppear { draft = String(value) }
+            .onChange(of: value) { newValue in
+                if !focused { draft = String(newValue) }
+            }
+            .onChange(of: focused) { isFocused in
+                if isFocused {
+                    draft = String(value)
+                } else {
+                    commit()
+                }
+            }
     }
 
-    private func doubleBinding(
-        get: @escaping () -> Double,
-        set: @escaping (Double) -> Void,
-        range: ClosedRange<Double>
-    ) -> Binding<Double> {
-        Binding(
-            get: {
-                let value = get()
-                return min(range.upperBound, max(range.lowerBound, value.isFinite ? value : range.lowerBound))
-            },
-            set: {
-                set(min(range.upperBound, max(range.lowerBound, $0.isFinite ? $0 : range.lowerBound)))
-            }
-        )
+    private func commit() {
+        guard let parsed = Int(draft.filter(\.isNumber)), draft.contains(where: \.isNumber) else {
+            draft = String(value)
+            return
+        }
+        let clamped = min(range.upperBound, max(range.lowerBound, parsed))
+        set(clamped)
+        draft = String(clamped)
     }
 }
 

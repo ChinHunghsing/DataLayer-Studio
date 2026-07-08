@@ -94,26 +94,34 @@ struct ContentView: View {
     }
 
     private var editorLayout: some View {
-        HStack(spacing: 0) {
-            SidebarView(model: model)
-                .frame(width: 330)
-                .background(.bar)
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                SidebarView(model: model)
+                    .frame(width: 330)
+                    .background(.bar)
+
+                Divider()
+
+                PreviewCanvasView(
+                    model: model,
+                    zoom: $previewZoom,
+                    isFullscreen: false,
+                    onToggleFullscreen: { isPreviewFullscreen = true }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                Divider()
+
+                InspectorView(model: model)
+                    .frame(width: 390)
+                    .background(.bar)
+            }
+            .frame(maxHeight: .infinity)
 
             Divider()
 
-            PreviewCanvasView(
-                model: model,
-                zoom: $previewZoom,
-                isFullscreen: false,
-                onToggleFullscreen: { isPreviewFullscreen = true }
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider()
-
-            InspectorView(model: model)
-                .frame(width: 390)
-                .background(.bar)
+            // 参考 DaVinci：下半部分贯穿左右，两侧面板不够高时各自滚动
+            BottomWorkspaceView(model: model)
         }
     }
 
