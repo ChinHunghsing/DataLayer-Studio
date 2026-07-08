@@ -842,7 +842,8 @@ final class StudioModel: ObservableObject {
         isPlaying = true
         overlayPlaybackLastTick = Date()
         let timer = Timer(timeInterval: Self.overlayPlaybackTickInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.advanceOverlayPlayback() }
+            guard let self else { return }
+            Task { @MainActor in self.advanceOverlayPlayback() }
         }
         RunLoop.main.add(timer, forMode: .common)
         overlayPlaybackTimer = timer
