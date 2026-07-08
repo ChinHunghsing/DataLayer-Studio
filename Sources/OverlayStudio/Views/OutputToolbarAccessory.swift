@@ -19,11 +19,10 @@ struct OutputToolbarButton: View {
         .help(localization.string("toolbar.output"))
         .padding(.top, 4)
         .padding(.trailing, 12)
-        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+        .sheet(isPresented: $isPresented) {
             OutputPanelView(model: model)
                 .environmentObject(localization)
                 .environment(\.locale, localization.locale)
-                .frame(width: 520)
         }
         .onChange(of: model.isExporting) { isExporting in
             if isExporting {

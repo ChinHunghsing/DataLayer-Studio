@@ -2,10 +2,11 @@ import Foundation
 import SwiftUI
 import OverlayCore
 
-/// 顶部“输出”按钮弹出的输出面板：集中所有输出设置、导出摘要与导出动作。
+/// 居中弹出的输出 sheet：集中所有输出设置、导出摘要与导出动作。
 struct OutputPanelView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
+    @Environment(\.dismiss) private var dismiss
     @State private var forceCustomResolution = false
 
     private var isCustomResolution: Bool {
@@ -13,24 +14,38 @@ struct OutputPanelView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 14) {
-                pictureCard
-                    .disabled(model.isExporting)
-                encodingCard
-                    .disabled(model.isExporting)
-                destinationRow
-                    .disabled(model.isExporting)
-
-                ExportSummaryCard(model: model)
-
-                exportActionFooter
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Label(localization.string("toolbar.output"), systemImage: "square.and.arrow.up")
+                    .font(.headline)
+                Spacer(minLength: 8)
+                Button(localization.string("common.done")) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+
+            Divider()
+
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 14) {
+                    pictureCard
+                        .disabled(model.isExporting)
+                    encodingCard
+                        .disabled(model.isExporting)
+                    destinationRow
+                        .disabled(model.isExporting)
+
+                    ExportSummaryCard(model: model)
+
+                    exportActionFooter
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .controlSize(.small)
-        .frame(minHeight: 340, idealHeight: 460, maxHeight: 600)
+        .frame(width: 600, height: 680)
     }
 
     // MARK: 画面
