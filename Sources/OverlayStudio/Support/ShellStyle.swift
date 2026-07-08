@@ -1,37 +1,59 @@
+import AppKit
 import SwiftUI
 
 /// 全局控制外壳（侧栏 · 控制条 · 工作区 · 检查器）共享的视觉令牌与基础组件。
-/// 目标是把检查器已有的克制描边语言铺满整个操作区域，避免毛玻璃卡片堆叠。
+/// 目标是一套清晰、有层次的卡片语言：可见的抬升表面 + 描边 + 柔和阴影，读起来高级。
 enum ShellStyle {
-    // 分组表面
-    static let groupFill = Color.secondary.opacity(0.026)
-    static let groupStroke = Color.secondary.opacity(0.072)
+    /// 抬升卡片填充：浅色下近白、深色下比面板更亮一档，跨主题都能从 `.bar` 面板上浮起来。
+    static let cardFill = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedWhite: 1, alpha: 0.07)
+            : NSColor(calibratedWhite: 1, alpha: 0.92)
+    })
+    /// 卡片描边
+    static let cardStroke = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return isDark
+            ? NSColor(calibratedWhite: 1, alpha: 0.10)
+            : NSColor(calibratedWhite: 0, alpha: 0.10)
+    })
+    /// 卡片阴影
+    static let cardShadow = Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        return NSColor(calibratedWhite: 0, alpha: isDark ? 0.34 : 0.14)
+    })
+
     // 行内分隔线
-    static let rowSeparator = Color.secondary.opacity(0.10)
+    static let rowSeparator = Color.secondary.opacity(0.12)
     // 图标块 / 中性填充
-    static let tileFill = Color.secondary.opacity(0.10)
-    static let hoverFill = Color.secondary.opacity(0.045)
+    static let tileFill = Color.secondary.opacity(0.16)
+    static let hoverFill = Color.secondary.opacity(0.08)
     // 强调
-    static let accentSoft = Color.accentColor.opacity(0.12)
-    static let accentStroke = Color.accentColor.opacity(0.30)
+    static let accentSoft = Color.accentColor.opacity(0.16)
+    static let accentStroke = Color.accentColor.opacity(0.38)
 
     // 圆角
-    static let groupRadius: CGFloat = 10
-    static let controlRadius: CGFloat = 7
-    static let tileRadius: CGFloat = 7
+    static let groupRadius: CGFloat = 12
+    static let controlRadius: CGFloat = 8
+    static let tileRadius: CGFloat = 8
     static let pillRadius: CGFloat = 20
 
-    static let tileSize: CGFloat = 26
+    static let tileSize: CGFloat = 30
 }
 
 extension View {
-    /// 发丝级分组表面：淡填充 + 1px 描边，替代 `.regularMaterial` 毛玻璃卡片。
+    /// 抬升卡片表面：实心填充 + 1px 描边 + 柔和阴影，替代几乎透明的发丝分组。
     func shellGroupSurface(cornerRadius: CGFloat = ShellStyle.groupRadius) -> some View {
-        background(ShellStyle.groupFill, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(ShellStyle.groupStroke)
-            }
+        background(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(ShellStyle.cardFill)
+                .shadow(color: ShellStyle.cardShadow, radius: 5, x: 0, y: 1)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(ShellStyle.cardStroke, lineWidth: 1)
+        }
     }
 }
 
@@ -43,13 +65,14 @@ struct ShellIconTile: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: ShellStyle.tileRadius, style: .continuous)
-            .fill(isActive ? ShellStyle.accentSoft : ShellStyle.tileFill)
+            .fill(isActive ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(ShellStyle.tileFill))
             .frame(width: size, height: size)
             .overlay {
                 Image(systemName: systemImage)
-                    .font(.system(size: size * 0.5, weight: .semibold))
-                    .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                    .font(.system(size: size * 0.46, weight: .semibold))
+                    .foregroundStyle(isActive ? AnyShapeStyle(.white) : AnyShapeStyle(Color.secondary))
             }
+            .shadow(color: isActive ? Color.accentColor.opacity(0.35) : .clear, radius: 4, y: 1)
     }
 }
 
@@ -131,11 +154,11 @@ struct ShellSegmentedTabs: View {
                 tabButton(tab)
             }
         }
-        .padding(2)
-        .background(ShellStyle.groupFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(3)
+        .background(ShellStyle.tileFill, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(ShellStyle.groupStroke)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(ShellStyle.cardStroke, lineWidth: 1)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel ?? "")

@@ -13,15 +13,19 @@ struct SidebarWorkflowSection<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 10) {
                 Text(step)
-                    .font(.caption2.weight(.bold))
+                    .font(.caption.weight(.bold))
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(width: 22, height: 22)
-                    .background(ShellStyle.tileFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 24, height: 24)
+                    .background(ShellStyle.accentSoft, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .strokeBorder(ShellStyle.accentStroke, lineWidth: 1)
+                    }
 
                 VStack(alignment: .leading, spacing: 3) {
                     Label(title, systemImage: systemImage)
-                        .font(.headline)
+                        .font(.system(.headline, design: .rounded).weight(.semibold))
                         .foregroundStyle(.primary)
                     Text(subtitle)
                         .font(.caption)
