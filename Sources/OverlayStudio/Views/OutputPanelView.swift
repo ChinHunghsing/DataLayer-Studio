@@ -27,25 +27,24 @@ struct OutputPanelView: View {
 
             Divider()
 
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 14) {
-                    pictureCard
-                        .disabled(model.isExporting)
-                    encodingCard
-                        .disabled(model.isExporting)
-                    destinationRow
-                        .disabled(model.isExporting)
+            VStack(alignment: .leading, spacing: 14) {
+                pictureCard
+                    .disabled(model.isExporting)
+                encodingCard
+                    .disabled(model.isExporting)
+                destinationRow
+                    .disabled(model.isExporting)
 
-                    ExportSummaryCard(model: model)
+                ExportSummaryCard(model: model)
 
-                    exportActionFooter
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                exportActionFooter
             }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .controlSize(.small)
-        .frame(width: 600, height: 680)
+        .frame(width: 600)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: 画面
