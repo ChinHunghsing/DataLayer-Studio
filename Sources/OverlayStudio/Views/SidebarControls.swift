@@ -10,7 +10,7 @@ struct SidebarWorkflowSection<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .top, spacing: 10) {
                 Text(step)
                     .font(.caption.weight(.bold))
@@ -55,7 +55,7 @@ struct SidebarSubsectionHeader: View {
 struct SidebarDivider: View {
     var body: some View {
         Divider()
-            .padding(.vertical, 2)
+            .padding(.vertical, 1)
     }
 }
 
@@ -95,8 +95,8 @@ struct FilePickRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(10)
-        .shellGroupSurface(cornerRadius: 8)
+        .padding(9)
+        .shellGroupSurface(cornerRadius: 9)
     }
 
     @ViewBuilder
@@ -212,8 +212,8 @@ struct LayoutPresetRow: View {
             .help(localization.string("preset.deleteHelp"))
         }
         .buttonStyle(.borderless)
-        .padding(10)
-        .shellGroupSurface(cornerRadius: 8)
+        .padding(9)
+        .shellGroupSurface(cornerRadius: 9)
         .confirmationDialog(
             localization.string("preset.applyDialogTitle"),
             isPresented: $isConfirmingApply,

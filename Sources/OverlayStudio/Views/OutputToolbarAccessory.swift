@@ -17,7 +17,9 @@ struct OutputToolbarButton: View {
         .controlSize(.regular)
         .disabled(model.isExporting)
         .help(localization.string("toolbar.output"))
-        .padding(.trailing, 10)
+        .padding(.top, 7)
+        .padding(.bottom, 3)
+        .padding(.trailing, 12)
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             OutputPanelView(model: model)
                 .environmentObject(localization)

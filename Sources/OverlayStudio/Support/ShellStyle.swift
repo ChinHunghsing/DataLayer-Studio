@@ -4,42 +4,42 @@ import SwiftUI
 /// 全局控制外壳（侧栏 · 控制条 · 工作区 · 检查器）共享的视觉令牌与基础组件。
 /// 目标是一套清晰、有层次的卡片语言：可见的抬升表面 + 描边 + 柔和阴影，读起来高级。
 enum ShellStyle {
-    /// 抬升卡片填充：浅色下近白、深色下比面板更亮一档，跨主题都能从 `.bar` 面板上浮起来。
+    /// 抬升卡片填充：浅色下近白、深色下比面板明显亮一档，跨主题都能从 `.bar` 面板上浮起来。
     static let cardFill = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return isDark
-            ? NSColor(calibratedWhite: 1, alpha: 0.07)
-            : NSColor(calibratedWhite: 1, alpha: 0.92)
+            ? NSColor(calibratedWhite: 1, alpha: 0.11)
+            : NSColor(calibratedWhite: 1, alpha: 0.94)
     })
     /// 卡片描边
     static let cardStroke = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         return isDark
-            ? NSColor(calibratedWhite: 1, alpha: 0.10)
-            : NSColor(calibratedWhite: 0, alpha: 0.10)
+            ? NSColor(calibratedWhite: 1, alpha: 0.17)
+            : NSColor(calibratedWhite: 0, alpha: 0.12)
     })
     /// 卡片阴影
     static let cardShadow = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        return NSColor(calibratedWhite: 0, alpha: isDark ? 0.34 : 0.14)
+        return NSColor(calibratedWhite: 0, alpha: isDark ? 0.52 : 0.16)
     })
 
     // 行内分隔线
-    static let rowSeparator = Color.secondary.opacity(0.12)
+    static let rowSeparator = Color.secondary.opacity(0.14)
     // 图标块 / 中性填充
-    static let tileFill = Color.secondary.opacity(0.16)
-    static let hoverFill = Color.secondary.opacity(0.08)
+    static let tileFill = Color.secondary.opacity(0.20)
+    static let hoverFill = Color.secondary.opacity(0.09)
     // 强调
-    static let accentSoft = Color.accentColor.opacity(0.16)
-    static let accentStroke = Color.accentColor.opacity(0.38)
+    static let accentSoft = Color.accentColor.opacity(0.20)
+    static let accentStroke = Color.accentColor.opacity(0.42)
 
     // 圆角
-    static let groupRadius: CGFloat = 12
-    static let controlRadius: CGFloat = 8
+    static let groupRadius: CGFloat = 10
+    static let controlRadius: CGFloat = 7
     static let tileRadius: CGFloat = 8
     static let pillRadius: CGFloat = 20
 
-    static let tileSize: CGFloat = 30
+    static let tileSize: CGFloat = 28
 }
 
 extension View {
@@ -48,7 +48,7 @@ extension View {
         background(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(ShellStyle.cardFill)
-                .shadow(color: ShellStyle.cardShadow, radius: 5, x: 0, y: 1)
+                .shadow(color: ShellStyle.cardShadow, radius: 7, x: 0, y: 2)
         )
         .overlay {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)

@@ -10,7 +10,7 @@ struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 13) {
                     SidebarWorkflowSection(
                         step: "1",
                         title: localization.string("sidebar.source.title"),
@@ -33,8 +33,8 @@ struct SidebarView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 20)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
             }
 
             Divider()
@@ -54,15 +54,15 @@ struct SidebarView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 7)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(localization.string("sidebar.status"))
         .accessibilityValue(model.status)
     }
 
     private var fileSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             FilePickRow(
                 title: localization.string("sidebar.video.title"),
                 subtitle: model.videoURL?.lastPathComponent ?? localization.string("sidebar.video.placeholder"),
@@ -98,7 +98,7 @@ struct SidebarView: View {
     }
 
     private var previewSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             SidebarSubsectionHeader(title: localization.string("sidebar.grid"), systemImage: "grid")
 
             Toggle(localization.string("sidebar.showGrid"), isOn: $model.showGrid)
@@ -124,7 +124,7 @@ struct SidebarView: View {
     }
 
     private var layoutPresetSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             SidebarSubsectionHeader(title: localization.string("sidebar.presets"), systemImage: "rectangle.3.group")
             layoutPresetSyncStatusRow
 
@@ -240,7 +240,7 @@ struct SidebarView: View {
     }
 
     private var canvasSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             previewSection
             SidebarDivider()
             layoutPresetSection
