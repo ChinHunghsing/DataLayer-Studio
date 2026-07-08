@@ -135,7 +135,7 @@ struct ContentView: View {
         StudioCommandActions(
             isExporting: model.isExporting,
             canExport: model.canExport,
-            canPlayPreview: model.player != nil && !model.isExporting,
+            canPlayPreview: (model.player != nil || model.series != nil) && !model.isExporting,
             isPlayingPreview: model.isPlaying,
             debugLogCount: model.debugLogEntries.count,
             canMarkSportStart: model.player != nil && !model.isExporting,

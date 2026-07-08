@@ -50,6 +50,7 @@ private final class PlayerTimeObserver {
 final class StudioModel: ObservableObject {
     static let playerTimeObserverInterval: TimeInterval = 1.0 / 12.0
     static let playbackOverlayRefreshInterval: TimeInterval = 0.20
+    static let overlayPlaybackTickInterval: TimeInterval = 1.0 / 30.0
     static let scrubInteractionHoldInterval: TimeInterval = 0.16
     static let previewResizeRefreshDelay: TimeInterval = 0.16
     nonisolated static let gaugeDragMaximumPreviewRenderDimension: CGFloat = 1_600
@@ -134,6 +135,8 @@ final class StudioModel: ObservableObject {
     private let preferenceStore: StudioPreferenceStore
     private var layoutPresetCloudObserver: NSObjectProtocol?
     private var playerTimeObserver: PlayerTimeObserver?
+    private var overlayPlaybackTimer: Timer?
+    private var overlayPlaybackLastTick: Date?
     private var previewRenderGeneration = 0
     private var videoLoadGeneration = 0
     private var fitLoadGeneration = 0
@@ -769,6 +772,7 @@ final class StudioModel: ObservableObject {
     }
 
     func configurePlayer(url: URL) {
+        pausePlayback()
         playerTimeObserver?.remove()
         playerTimeObserver = nil
 
@@ -804,17 +808,21 @@ final class StudioModel: ObservableObject {
 
     func startPlayback() {
         guard !isExporting else { return }
-        guard let player else { return }
-        if previewTime < previewTimeRange.lowerBound || previewTime >= previewTimeRange.upperBound {
-            seekPreview(to: previewTimeRange.lowerBound)
+        if let player {
+            if previewTime < previewTimeRange.lowerBound || previewTime >= previewTimeRange.upperBound {
+                seekPreview(to: previewTimeRange.lowerBound)
+            }
+            isPlaying = true
+            player.play()
+        } else if series != nil {
+            startOverlayPlayback()
         }
-        isPlaying = true
-        player.play()
     }
 
     func pausePlayback() {
         isPlaying = false
         player?.pause()
+        stopOverlayPlaybackTimer()
     }
 
     func stopPlayback() {
@@ -822,6 +830,51 @@ final class StudioModel: ObservableObject {
         playerTimeObserver?.remove()
         playerTimeObserver = nil
         self.player = nil
+    }
+
+    /// 仅有运动数据、无视频时，用一个时钟推进 previewTime 驱动叠加层预览播放。
+    private func startOverlayPlayback() {
+        let range = previewTimeRange
+        guard range.upperBound > range.lowerBound else { return }
+        if previewTime < range.lowerBound || previewTime >= range.upperBound {
+            seekPreview(to: range.lowerBound)
+        }
+        isPlaying = true
+        overlayPlaybackLastTick = Date()
+        let timer = Timer(timeInterval: Self.overlayPlaybackTickInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.advanceOverlayPlayback() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        overlayPlaybackTimer = timer
+    }
+
+    private func advanceOverlayPlayback() {
+        guard isPlaying, player == nil else {
+            stopOverlayPlaybackTimer()
+            return
+        }
+        let now = Date()
+        let lastTick = overlayPlaybackLastTick ?? now
+        overlayPlaybackLastTick = now
+        // 拖动期间让位给用户，恢复后从新位置继续
+        guard !isScrubbingPreview else { return }
+        let range = previewTimeRange
+        let delta = max(0, now.timeIntervalSince(lastTick))
+        let next = previewTime + delta
+        if next >= range.upperBound {
+            previewTime = range.upperBound
+            refreshOverlayOnly(minimumInterval: Self.playbackOverlayRefreshInterval, coalesceIfBusy: true)
+            pausePlayback()
+            return
+        }
+        previewTime = next
+        refreshOverlayOnly(minimumInterval: Self.playbackOverlayRefreshInterval, coalesceIfBusy: true)
+    }
+
+    private func stopOverlayPlaybackTimer() {
+        overlayPlaybackTimer?.invalidate()
+        overlayPlaybackTimer = nil
+        overlayPlaybackLastTick = nil
     }
 
     func seekPreview(to time: TimeInterval) {

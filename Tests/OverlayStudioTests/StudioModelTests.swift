@@ -345,6 +345,24 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNil(model.exportReadinessMessage)
     }
 
+    func testActivityOnlyModeAllowsPreviewPlayback() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, distanceMeters: 30)
+        ])
+
+        XCTAssertNil(model.player)
+        XCTAssertFalse(model.isPlaying)
+
+        // 仅有运动数据、无视频时也应允许预览播放
+        model.togglePlayback()
+        XCTAssertTrue(model.isPlaying)
+
+        model.togglePlayback()
+        XCTAssertFalse(model.isPlaying)
+    }
+
     func testManualOutputURLRequiresWritableDestination() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [
