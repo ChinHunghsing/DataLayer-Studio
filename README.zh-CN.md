@@ -24,28 +24,36 @@
 </p>
 
 <p align="center">
-  <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">
-    <img src="assets/readme/download-on-the-app-store.svg" alt="在 App Store 下载" width="180">
-  </a>
-</p>
-
-<p align="center">
   <img src="assets/appstore/v0.2.0/zh-Hans/desktop@2x/01-preview-overlay.png" alt="DataLayer Studio 编辑器界面，展示配速、心率、步频与轨迹等数据浮层与跑步素材实时同步预览" width="100%">
 </p>
 
 <p align="center">
-  <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified 徽章" width="220">
+  <b>几分钟，就能给跑步视频加上可直接发布的数据浮层。</b>
+</p>
+
+<p align="center">
+  <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">
+    <img src="assets/readme/download-on-the-app-store.svg" alt="在 Mac App Store 下载 DataLayer Studio" width="200">
+  </a>
+</p>
+
+<p align="center">
+  <sub>❤️ 觉得好用？<a href="#赞助">赞助支持开发</a> &nbsp;·&nbsp; ⭐ 点个 Star 让更多人发现它</sub>
+</p>
+
+<p align="center">
+  <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified 徽章" width="200">
 </p>
 
 <br>
 
 ## 目录
 
-- [赞助](#赞助)
 - [这是什么](#这是什么)
 - [最低系统要求](#最低系统要求)
 - [亮点](#亮点)
 - [App Store 截图](#app-store-截图)
+- [赞助](#赞助)
 - [快速开始](#快速开始)
 - [使用说明](#使用说明)
 - [授权](#授权)
@@ -58,18 +66,6 @@
 - [时间同步](#时间同步)
 - [当前-fit-支持](#当前-fit-支持)
 - [发布](#发布)
-
-## 赞助
-
-DataLayer Studio 是一个独立维护的 source-available 项目。如果它对你的跑步视频制作有帮助，赞助可以支持后续测试、样本整理和持续维护。
-
-可以任选下面任一渠道。微信或支付宝请扫描二维码。
-
-| Buy Me a Coffee | 微信支付 | 支付宝 |
-| --- | --- | --- |
-| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="微信赞助二维码" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="支付宝赞助二维码" width="180"> |
-
-赞助是自愿支持，不等同于购买商业授权、优先支持或功能承诺。商业使用仍需另行获得书面授权。
 
 ## 这是什么
 
@@ -92,17 +88,33 @@ DataLayer Studio 可以把跑步运动数据做成清爽的视频数据层，适
 
 | | |
 | --- | --- |
+| 🎨 **专注、现代的操作区** | 重新设计的控制外壳——右上角一键 **输出** 面板、可拖拽高度的 DaVinci 式同步/裁剪区，界面干净不杂乱。 |
 | 🎯 **精准同步** | 用匹配点、elapsed 偏移或手动同步点，把视频时间线和 FIT 运动时间精确对齐。 |
 | 🖱 **实时排布画布** | 在实时视频预览上摆放配速、心率、步频、轨迹、距离、时间、天气等数据浮层。 |
+| ▶️ **仅数据也能预览** | 还没有视频？直接用 `.fit` 文件预览并播放浮层——按空格即可播放。 |
 | 💾 **可复用预设** | 保存布局预设，跨视频、跨风格重复使用。 |
 | 🎬 **透明或合成导出** | 导出可放入剪辑软件的透明 HEVC/ProRes Alpha 浮层，或直接导出已合成的成片。 |
 | ⚙️ **命令行可编排** | 命令行和图形界面使用同一套渲染逻辑，适合批量与自动化流程。 |
 
 ## App Store 截图
 
-| 实时预览 | 排布浮层 | 导出透明浮层 |
+从素材到可直接发布的数据浮层，只需三步：预览并同步、排布数据组件、导出透明数据层。
+
+| 1 · 预览与同步 | 2 · 排布组件 | 3 · 导出透明层 |
 | --- | --- | --- |
 | <img src="assets/appstore/v0.2.0/zh-Hans/desktop/01-preview-overlay.png" alt="DataLayer Studio 实时浮层预览" width="100%"> | <img src="assets/appstore/v0.2.0/zh-Hans/desktop/02-arrange-gauges.png" alt="DataLayer Studio 浮层排布界面" width="100%"> | <img src="assets/appstore/v0.2.0/zh-Hans/desktop/03-export-alpha.png" alt="DataLayer Studio 透明浮层导出界面" width="100%"> |
+
+## 赞助
+
+DataLayer Studio 由我一个人独立开发和维护，是一个 source-available 项目。**支持它最好的方式，就是在 [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) 上购买**——这能直接支持后续测试、样本整理和新功能开发。
+
+想直接请我喝杯咖啡也非常感谢。微信或支付宝请扫描二维码。
+
+| Buy Me a Coffee | 微信支付 | 支付宝 |
+| --- | --- | --- |
+| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="微信赞助二维码" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="支付宝赞助二维码" width="180"> |
+
+赞助是自愿支持，不等同于购买商业授权、优先支持或功能承诺。商业使用仍需另行获得书面授权。
 
 ## 快速开始
 
@@ -225,6 +237,9 @@ open ".build/DataLayer Studio.app"
 
 - 选择源视频和 `.fit` 文件
 - 在预览中播放源视频，并在上层实时渲染浮层
+- 仅有 `.fit` 运动数据、没有视频时也能预览并播放浮层——按空格即可播放/暂停
+- 贯穿窗口、可拖拽高度的底部工作区（DaVinci 风格），用于同步与裁剪
+- 在单个 **输出** 面板里配置全部输出设置——分辨率、帧率、编码、码率与目标文件
 - 通过偏移、FIT 开始或同步点模式编辑时间同步
 - 把当前预览时间设为运动开始，对应 FIT elapsed `0`
 - 在预览画布上拖动浮层组件

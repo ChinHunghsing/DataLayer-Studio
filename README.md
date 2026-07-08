@@ -24,28 +24,36 @@
 </p>
 
 <p align="center">
-  <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">
-    <img src="assets/readme/download-on-the-app-store.svg" alt="Download on the App Store" width="180">
-  </a>
-</p>
-
-<p align="center">
   <img src="assets/readme/app-showcase.png" alt="DataLayer Studio editor showing a live overlay preview with pace, heart rate, cadence, and route data synced to running footage" width="100%">
 </p>
 
 <p align="center">
-  <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified badge" width="220">
+  <b>Ready-to-post data overlays for your running videos — in minutes, not hours.</b>
+</p>
+
+<p align="center">
+  <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">
+    <img src="assets/readme/download-on-the-app-store.svg" alt="Download DataLayer Studio on the Mac App Store" width="200">
+  </a>
+</p>
+
+<p align="center">
+  <sub>❤️ Love it? <a href="#support">Support development</a> &nbsp;·&nbsp; ⭐ Star the repo to help others find it</sub>
+</p>
+
+<p align="center">
+  <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified badge" width="200">
 </p>
 
 <br>
 
 ## Contents
 
-- [Support](#support)
 - [What it does](#what-it-does)
 - [System requirements](#system-requirements)
 - [Highlights](#highlights)
 - [App Store screenshots](#app-store-screenshots)
+- [Support](#support)
 - [Quick start](#quick-start)
 - [License](#license)
 - [Contributing](#contributing)
@@ -57,22 +65,6 @@
 - [Time sync](#time-sync)
 - [Current FIT support](#current-fit-support)
 - [Release](#release)
-
-## Support
-
-DataLayer Studio is maintained as an independent source-available project. If it
-helps your running-video workflow, sponsorship helps fund testing, sample
-activities, and ongoing maintenance.
-
-Choose any of the channels below. For WeChat Pay or Alipay, scan the QR code.
-
-| Buy Me a Coffee | WeChat Pay | Alipay |
-| --- | --- | --- |
-| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsor QR code" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsor QR code" width="180"> |
-
-Sponsorship is optional and does not purchase a commercial license, priority
-support, or guaranteed feature work. Commercial use still requires a separate
-written license.
 
 ## What it does
 
@@ -102,17 +94,35 @@ burned in.
 
 | | |
 | --- | --- |
-| 🎯 **Frame-accurate sync** | Sync a video with FIT activity time using match points, an elapsed offset, or a manual sync point. |
-| 🖱 **Live layout canvas** | Arrange pace, heart rate, cadence, route, distance, time, weather, and other gauges over a live video preview. |
-| 💾 **Reusable presets** | Save layout presets and reuse them across different videos and styles. |
-| 🎬 **Alpha or burned-in export** | Export transparent HEVC/ProRes Alpha overlays for your NLE, or a fully composited video. |
+| 🎨 **Focused, modern workspace** | A redesigned control shell — a one-tap **Output** panel, a resizable DaVinci-style sync/trim area, and clean, uncluttered controls. |
+| 🎯 **Frame-accurate sync** | Line up video and FIT activity time with match points, an elapsed offset, or a manual sync point. |
+| 🖱 **Live layout canvas** | Drag pace, heart rate, cadence, route, distance, time, weather, and more over a live video preview. |
+| ▶️ **Preview with data alone** | No video yet? Preview and play the overlay straight from a `.fit` file — just press Space. |
+| 💾 **Reusable presets** | Save layout presets and reuse them across videos and styles. |
+| 🎬 **Alpha or burned-in export** | Export transparent HEVC/ProRes Alpha overlays for your editor, or a fully composited video. |
 | ⚙️ **Scriptable CLI** | Drive the same renderer from the command line for repeatable, automatable exports. |
 
 ## App Store screenshots
 
-| Live overlay preview | Arrange gauges | Export alpha overlay |
+From footage to a broadcast-ready overlay in three steps: preview and sync, arrange the data widgets, export a transparent layer.
+
+| 1 · Preview & sync | 2 · Arrange widgets | 3 · Export alpha |
 | --- | --- | --- |
 | <img src="assets/appstore/v0.2.0/en-US/desktop/01-preview-overlay.png" alt="DataLayer Studio live overlay preview" width="100%"> | <img src="assets/appstore/v0.2.0/en-US/desktop/02-arrange-gauges.png" alt="DataLayer Studio gauge arrangement screen" width="100%"> | <img src="assets/appstore/v0.2.0/en-US/desktop/03-export-alpha.png" alt="DataLayer Studio alpha overlay export screen" width="100%"> |
+
+## Support
+
+DataLayer Studio is built and maintained by one developer as an independent, source-available project. **The best way to support it is to buy it on the [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770)** — that funds testing, sample activities, and new features.
+
+Prefer to chip in directly? A coffee is always appreciated. For WeChat Pay or Alipay, scan the QR code.
+
+| Buy Me a Coffee | WeChat Pay | Alipay |
+| --- | --- | --- |
+| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsor QR code" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsor QR code" width="180"> |
+
+Sponsorship is optional and does not purchase a commercial license, priority
+support, or guaranteed feature work. Commercial use still requires a separate
+written license.
 
 ## Quick start
 
@@ -245,6 +255,9 @@ The GUI supports:
 
 - selecting a source video and `.fit` file
 - playing the source video in the preview while rendering the overlay on top
+- previewing and playing straight from a `.fit` file even without a video — press Space to play or pause
+- a resizable bottom workspace (DaVinci-style) that spans the window for sync and trim
+- configuring every output setting — resolution, frame rate, codec, bitrate, and destination — in a single **Output** panel
 - editing time sync through offset, FIT start, or sync-point mode
 - setting the current preview time as the activity start, which maps that video frame to FIT elapsed `0`
 - dragging overlay components on the preview canvas
