@@ -11,6 +11,11 @@ struct StudioWindowView: View {
         ContentView(model: model)
             .frame(minWidth: 1320, minHeight: 760)
             .background(WindowCenterTitle(centerTitle: centerTitle, windowTitle: windowTitle))
+            .background(TitlebarTrailingAccessory(rootView: AnyView(
+                OutputToolbarButton(model: model)
+                    .environmentObject(localization)
+                    .environment(\.locale, localization.locale)
+            )))
             .background(WindowLiveResizeObserver { model.setPreviewLiveResizing($0) })
             .onAppear(perform: applyLaunchOptionsIfNeeded)
             .onAppear { model.undoManager = windowUndoManager }
