@@ -6,9 +6,10 @@ import OverlayCore
 struct OutputPanelView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
+    @State private var forceCustomResolution = false
 
     private var isCustomResolution: Bool {
-        model.selectedResolutionPresetID == OutputResolutionPreset.customID
+        forceCustomResolution || model.selectedResolutionPresetID == OutputResolutionPreset.customID
     }
 
     var body: some View {
@@ -245,8 +246,15 @@ struct OutputPanelView: View {
 
     private var resolutionPresetSelection: Binding<String> {
         Binding(
-            get: { model.selectedResolutionPresetID },
-            set: { model.applyResolutionPreset(id: $0) }
+            get: { isCustomResolution ? OutputResolutionPreset.customID : model.selectedResolutionPresetID },
+            set: { newID in
+                if newID == OutputResolutionPreset.customID {
+                    forceCustomResolution = true
+                } else {
+                    forceCustomResolution = false
+                    model.applyResolutionPreset(id: newID)
+                }
+            }
         )
     }
 

@@ -7,8 +7,7 @@ struct BottomWorkspaceView: View {
     @EnvironmentObject private var localization: LocalizationStore
     @SceneStorage("bottomWorkspaceTab") private var selectedTabRawValue = BottomWorkspaceTab.sync.rawValue
     private static let topAnchorID = "bottom-workspace-top"
-
-    private let contentHeight: (min: CGFloat, ideal: CGFloat, max: CGFloat) = (148, 220, 280)
+    private static let summaryWidth: CGFloat = 340
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,22 +38,35 @@ struct BottomWorkspaceView: View {
 
             Divider()
 
-            ScrollViewReader { proxy in
-                ScrollView(.vertical) {
-                    Color.clear
-                        .frame(height: 0)
-                        .id(Self.topAnchorID)
+            HStack(spacing: 0) {
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical) {
+                        Color.clear
+                            .frame(height: 0)
+                            .id(Self.topAnchorID)
 
-                    tabContent
+                        tabContent
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .onChange(of: selectedTabRawValue) { _ in
+                        proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                Divider()
+
+                ScrollView(.vertical) {
+                    ExportSummaryCard(model: model)
                         .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .onChange(of: selectedTabRawValue) { _ in
-                    proxy.scrollTo(Self.topAnchorID, anchor: .top)
-                }
+                .frame(width: Self.summaryWidth)
+                .frame(maxHeight: .infinity)
             }
-            .frame(minHeight: contentHeight.min, idealHeight: contentHeight.ideal, maxHeight: contentHeight.max)
+            .frame(maxHeight: .infinity)
         }
+        .frame(maxHeight: .infinity)
         .background(.bar)
         .controlSize(.small)
         .onChange(of: model.videoURL) { url in
@@ -85,11 +97,15 @@ struct BottomWorkspaceView: View {
     }
 
     private var trimContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            activityTrimRangeCard
-            SidebarDivider()
-            exportTrimRangeCard
-            ExportSummaryCard(model: model)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 12) {
+                activityTrimRangeCard
+                exportTrimRangeCard
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                activityTrimRangeCard
+                exportTrimRangeCard
+            }
         }
     }
 

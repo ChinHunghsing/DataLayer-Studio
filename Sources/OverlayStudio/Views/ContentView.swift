@@ -1,3 +1,4 @@
+import AppKit
 import OverlayCore
 import SwiftUI
 
@@ -5,6 +6,8 @@ struct ContentView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
     @SceneStorage("previewZoom") private var previewZoom = 1.0
+    @SceneStorage("bottomWorkspaceHeight") private var bottomWorkspaceHeight = 240.0
+    @State private var resizeStartHeight: Double?
     @State private var isPreviewFullscreen = false
     @State private var isDebugConsolePresented = false
     @State private var isExportSheetPresented = false
@@ -118,11 +121,42 @@ struct ContentView: View {
             }
             .frame(maxHeight: .infinity)
 
-            Divider()
+            bottomResizeHandle
 
-            // 参考 DaVinci：下半部分贯穿左右，两侧面板不够高时各自滚动
+            // 参考 DaVinci：下半部分贯穿左右，两侧面板不够高时各自滚动，高度可拖拽
             BottomWorkspaceView(model: model)
+                .frame(height: bottomWorkspaceHeight)
         }
+    }
+
+    private var bottomResizeHandle: some View {
+        ZStack {
+            Divider()
+            Capsule()
+                .fill(Color.secondary.opacity(0.45))
+                .frame(width: 42, height: 4)
+        }
+        .frame(height: 11)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in
+                    let base = resizeStartHeight ?? bottomWorkspaceHeight
+                    if resizeStartHeight == nil { resizeStartHeight = bottomWorkspaceHeight }
+                    bottomWorkspaceHeight = min(560, max(150, base - value.translation.height))
+                }
+                .onEnded { _ in resizeStartHeight = nil }
+        )
+        .onHover { hovering in
+            if hovering {
+                NSCursor.resizeUpDown.set()
+            } else {
+                NSCursor.arrow.set()
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     private var fullscreenPreview: some View {
