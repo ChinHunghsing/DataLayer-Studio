@@ -7,7 +7,6 @@ struct BottomWorkspaceView: View {
     @EnvironmentObject private var localization: LocalizationStore
     @SceneStorage("bottomWorkspaceTab") private var selectedTabRawValue = BottomWorkspaceTab.sync.rawValue
     private static let topAnchorID = "bottom-workspace-top"
-    private static let summaryWidth: CGFloat = 340
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,33 +37,21 @@ struct BottomWorkspaceView: View {
 
             Divider()
 
-            HStack(spacing: 0) {
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical) {
-                        Color.clear
-                            .frame(height: 0)
-                            .id(Self.topAnchorID)
-
-                        tabContent
-                            .padding(16)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .onChange(of: selectedTabRawValue) { _ in
-                        proxy.scrollTo(Self.topAnchorID, anchor: .top)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                Divider()
-
+            ScrollViewReader { proxy in
                 ScrollView(.vertical) {
-                    ExportSummaryCard(model: model)
+                    Color.clear
+                        .frame(height: 0)
+                        .id(Self.topAnchorID)
+
+                    tabContent
                         .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(width: Self.summaryWidth)
-                .frame(maxHeight: .infinity)
+                .onChange(of: selectedTabRawValue) { _ in
+                    proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                }
             }
-            .frame(maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxHeight: .infinity)
         .background(.bar)

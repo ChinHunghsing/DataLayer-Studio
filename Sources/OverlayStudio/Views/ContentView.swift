@@ -34,10 +34,12 @@ struct ContentView: View {
             model.setResolvedLanguage(localization.resolvedLanguage)
         }
         .onChange(of: model.videoURL) { url in
+            if url != nil { focusPreviewForPlayback() }
             guard url != nil, model.fitURL == nil else { return }
             sourceContinuationPrompt = .activityAfterVideo
         }
         .onChange(of: model.fitURL) { url in
+            if url != nil { focusPreviewForPlayback() }
             guard url != nil, model.videoURL == nil else { return }
             sourceContinuationPrompt = .videoAfterActivity
         }
@@ -196,6 +198,13 @@ struct ContentView: View {
             copyDebugLog: model.copyDebugLog,
             clearDebugLog: model.clearDebugLog
         )
+    }
+
+    /// 载入视频/数据后，清掉文本框（如预设名称）的键盘焦点，让空格直接命中预览播放/暂停命令。
+    private func focusPreviewForPlayback() {
+        DispatchQueue.main.async {
+            (NSApp.keyWindow ?? NSApp.mainWindow)?.makeFirstResponder(nil)
+        }
     }
 
     private func requestExportCancellation() {
