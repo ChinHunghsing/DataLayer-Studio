@@ -141,10 +141,10 @@ struct ContentView: View {
         .background(.bar)
         .contentShape(Rectangle())
         .gesture(
-            DragGesture(minimumDistance: 1)
+            DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { value in
-                    let base = resizeStartHeight ?? bottomWorkspaceHeight
                     if resizeStartHeight == nil { resizeStartHeight = bottomWorkspaceHeight }
+                    let base = resizeStartHeight ?? bottomWorkspaceHeight
                     bottomWorkspaceHeight = min(560, max(150, base - value.translation.height))
                 }
                 .onEnded { _ in resizeStartHeight = nil }
