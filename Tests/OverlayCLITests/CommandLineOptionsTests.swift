@@ -200,6 +200,67 @@ final class CommandLineOptionsTests: XCTestCase {
         XCTAssertEqual(loaded, project)
     }
 
+    func testTimelineProjectCLIRejectsVideoGapDuringSharedPreflight() throws {
+        let activityURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("datalayer-cli-preflight-\(UUID().uuidString)")
+            .appendingPathExtension("gpx")
+        let projectURL = temporaryPresetURL()
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("datalayer-cli-preflight-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        defer {
+            try? FileManager.default.removeItem(at: activityURL)
+            try? FileManager.default.removeItem(at: projectURL)
+            try? FileManager.default.removeItem(at: outputURL)
+        }
+
+        let gpx = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <gpx version="1.1" creator="DataLayer Studio" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><trkseg>
+            <trkpt lat="35.0" lon="139.0"><time>2026-07-10T00:00:00Z</time></trkpt>
+            <trkpt lat="35.0001" lon="139.0001"><time>2026-07-10T00:00:03Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>
+        """
+        try Data(gpx.utf8).write(to: activityURL)
+
+        let project = TimelineProject(
+            outputWidth: 64,
+            outputHeight: 64,
+            framesPerSecond: 2,
+            distanceUnit: .kilometers,
+            assets: [
+                MediaAsset(id: "video-a", kind: .video, url: URL(fileURLWithPath: "/tmp/a.mov"), displayName: "a.mov", duration: 2),
+                MediaAsset(id: "video-b", kind: .video, url: URL(fileURLWithPath: "/tmp/b.mov"), displayName: "b.mov", duration: 2),
+                MediaAsset(id: "activity", kind: .activity, url: activityURL, displayName: activityURL.lastPathComponent, duration: 3)
+            ],
+            tracks: [
+                TimelineTrack(id: "video", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "video-a", assetID: "video-a", timelineStart: 0, duration: 1),
+                    TimelineClip(id: "video-b", assetID: "video-b", timelineStart: 1.5, duration: 1)
+                ]),
+                TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "activity", assetID: "activity", timelineStart: 0, duration: 2.5)
+                ])
+            ]
+        )
+        try JSONEncoder().encode(project).write(to: projectURL)
+        let options = try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--timeline-project", projectURL.path,
+            "--output", outputURL.path,
+            "--export-mode", "video"
+        ])
+
+        XCTAssertThrowsError(try renderTimelineProject(options: options, projectURL: projectURL)) { error in
+            XCTAssertEqual(
+                error as? TimelineExportValidationIssue,
+                .videoGap(previousClipID: "video-a", nextClipID: "video-b")
+            )
+        }
+    }
+
     func testDurationArgumentIsNoLongerSupported() {
         XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
             "overlay",

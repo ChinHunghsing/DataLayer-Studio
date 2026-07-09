@@ -40,6 +40,32 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertNil(track.clip(atTimelineTime: 20))
     }
 
+    func testProjectActiveClipsUsesLastOverlappingClipPerEnabledTrackInTrackOrder() {
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "o1-a", assetID: "a", timelineStart: 0, duration: 10),
+                    TimelineClip(id: "o1-b", assetID: "b", timelineStart: 5, duration: 10)
+                ]),
+                TimelineTrack(id: "disabled", kind: .overlay, name: "O2", isEnabled: false, clips: [
+                    TimelineClip(id: "disabled-clip", assetID: "c", timelineStart: 0, duration: 10)
+                ]),
+                TimelineTrack(id: "o3", kind: .overlay, name: "O3", clips: [
+                    TimelineClip(id: "o3-a", assetID: "d", timelineStart: 0, duration: 10)
+                ])
+            ]
+        )
+
+        XCTAssertEqual(
+            project.activeClips(kind: .overlay, atTimelineTime: 7).map(\.id),
+            ["o1-b", "o3-a"]
+        )
+    }
+
     func testProjectDurationIsFurthestClipEnd() {
         let project = TimelineProject(
             outputWidth: 1920, outputHeight: 1080, framesPerSecond: 30, distanceUnit: .kilometers,
@@ -71,6 +97,44 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(project.snappedTimelineTime(0.1, threshold: 0.25), 0)
         XCTAssertEqual(project.snappedTimelineTime(44.6, threshold: 0.25), 44.6)
         XCTAssertEqual(project.snappedTimelineTime(45.1, threshold: 0.25, excludingClipID: "b"), 45.1)
+    }
+
+    func testVideoExportPreflightRejectsGapBeforeWriting() {
+        let project = exportProject(
+            videoClips: [
+                TimelineClip(id: "video-a", assetID: "video-a", timelineStart: 0, duration: 1),
+                TimelineClip(id: "video-b", assetID: "video-b", timelineStart: 1.5, duration: 1)
+            ]
+        )
+
+        XCTAssertEqual(
+            project.firstExportValidationIssue(
+                mode: .video,
+                timelineStart: 0,
+                duration: 2.5,
+                availableTelemetryAssetIDs: ["activity"]
+            ),
+            .videoGap(previousClipID: "video-a", nextClipID: "video-b")
+        )
+    }
+
+    func testVideoExportPreflightRejectsOverlapBeforeWriting() {
+        let project = exportProject(
+            videoClips: [
+                TimelineClip(id: "video-a", assetID: "video-a", timelineStart: 0, duration: 1.5),
+                TimelineClip(id: "video-b", assetID: "video-b", timelineStart: 1, duration: 1.5)
+            ]
+        )
+
+        XCTAssertEqual(
+            project.firstExportValidationIssue(
+                mode: .video,
+                timelineStart: 0,
+                duration: 2.5,
+                availableTelemetryAssetIDs: ["activity"]
+            ),
+            .videoOverlap(previousClipID: "video-a", nextClipID: "video-b")
+        )
     }
 
     // MARK: Codable
@@ -153,5 +217,25 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(overlay.sourceIn, 0)
         XCTAssertEqual(overlay.duration, 300)
         XCTAssertEqual(project.duration, 300)
+    }
+
+    private func exportProject(videoClips: [TimelineClip]) -> TimelineProject {
+        TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [
+                videoAsset(id: "video-a", duration: 3),
+                videoAsset(id: "video-b", duration: 3),
+                activityAsset(id: "activity", duration: 3)
+            ],
+            tracks: [
+                TimelineTrack(id: "video", kind: .video, name: "V1", clips: videoClips),
+                TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "activity-clip", assetID: "activity", timelineStart: 0, duration: 3)
+                ])
+            ]
+        )
     }
 }

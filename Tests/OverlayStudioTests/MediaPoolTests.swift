@@ -271,6 +271,170 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(videoClips[1].duration, 40, accuracy: 1e-9)
     }
 
+    func testCustomTimelineSourceSelectionRequiresConfirmationBeforeReplacingTimeline() {
+        let model = StudioModel()
+        let firstURL = URL(fileURLWithPath: "/tmp/a.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/b.mov")
+        model.upsertVideoAsset(url: firstURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 100, fps: 30))
+        model.upsertVideoAsset(url: secondURL, metadata: videoMetadata(width: 1280, height: 720, duration: 40, fps: 30))
+        model.videoURL = firstURL
+        model.addVideoAssetToTimeline(id: secondURL.path)
+        let originalTimeline = model.currentTimelineProject
+
+        model.selectVideoAsset(id: secondURL.path)
+
+        XCTAssertEqual(model.pendingTimelineAction, .selectVideoAsset(id: secondURL.path))
+        XCTAssertEqual(model.currentTimelineProject, originalTimeline)
+
+        model.cancelPendingTimelineAction()
+
+        XCTAssertNil(model.pendingTimelineAction)
+        XCTAssertEqual(model.currentTimelineProject, originalTimeline)
+    }
+
+    func testRemovingReferencedAssetRequiresConfirmationAndKeepsProjectDirty() {
+        let model = StudioModel()
+        let firstURL = URL(fileURLWithPath: "/tmp/a.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/b.mov")
+        model.upsertVideoAsset(url: firstURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 100, fps: 30))
+        model.upsertVideoAsset(url: secondURL, metadata: videoMetadata(width: 1280, height: 720, duration: 40, fps: 30))
+        model.videoURL = firstURL
+        model.addVideoAssetToTimeline(id: secondURL.path)
+        let originalTimeline = model.currentTimelineProject
+
+        model.removeVideoAsset(id: secondURL.path)
+
+        XCTAssertEqual(model.pendingTimelineAction, .removeVideoAsset(id: secondURL.path))
+        XCTAssertEqual(model.currentTimelineProject, originalTimeline)
+        XCTAssertTrue(model.videoAssets.contains { $0.id == secondURL.path })
+
+        XCTAssertEqual(model.confirmPendingTimelineAction(), .removeVideoAsset(id: secondURL.path))
+        XCTAssertFalse(model.videoAssets.contains { $0.id == secondURL.path })
+        XCTAssertFalse(model.currentTimelineProject.assets.contains { $0.id == secondURL.path })
+        XCTAssertTrue(model.hasUnsavedTimelineChanges)
+    }
+
+    func testApplyingProjectMarksItCleanAndEditingMarksItDirty() throws {
+        let model = StudioModel()
+        let activityURL = URL(fileURLWithPath: "/tmp/activity.fit")
+        let activity = MediaAsset(
+            id: activityURL.path,
+            kind: .activity,
+            url: activityURL,
+            displayName: activityURL.lastPathComponent,
+            duration: 30
+        )
+        let clip = TimelineClip(
+            id: "overlay.clip",
+            assetID: activity.id,
+            timelineStart: 0,
+            duration: 30
+        )
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [activity],
+            tracks: [TimelineTrack(id: "overlay.track", kind: .overlay, name: "O1", clips: [clip])]
+        )
+
+        model.applyTimelineProject(project, loadAssets: false)
+        XCTAssertFalse(model.hasUnsavedTimelineChanges)
+
+        model.moveTimelineClip(id: clip.id, toTimelineStart: 5)
+        XCTAssertTrue(model.hasUnsavedTimelineChanges)
+    }
+
+    func testDirtyTimelineDefersOpenAndWindowCloseUntilConfirmed() {
+        let model = StudioModel()
+        let activityURL = URL(fileURLWithPath: "/tmp/activity.fit")
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 30, distanceMeters: 100)
+        ]))
+        model.fitURL = activityURL
+        model.addActivityAssetToTimeline(id: activityURL.path)
+        XCTAssertTrue(model.hasUnsavedTimelineChanges)
+
+        model.openTimelineProject()
+        XCTAssertEqual(model.pendingTimelineAction, .openTimelineProject)
+        model.cancelPendingTimelineAction()
+
+        XCTAssertFalse(model.requestWindowClose())
+        XCTAssertEqual(model.pendingTimelineAction, .closeWindow)
+        XCTAssertEqual(model.confirmPendingTimelineAction(), .closeWindow)
+        XCTAssertTrue(model.requestWindowClose())
+    }
+
+    func testCustomTimelineExportReadinessUsesTimelineTelemetryInsteadOfLegacyActiveSeries() {
+        let model = StudioModel()
+        let activityURL = URL(fileURLWithPath: "/tmp/activity.fit")
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 30, distanceMeters: 100)
+        ]))
+        model.fitURL = activityURL
+        model.addActivityAssetToTimeline(id: activityURL.path)
+        model.series = nil
+
+        XCTAssertTrue(model.canExport(as: .overlay))
+        XCTAssertNil(model.exportReadinessMessage(for: .overlay))
+    }
+
+    func testCustomTimelineExportReadinessReportsVideoGapBeforeExport() {
+        let model = StudioModel()
+        let firstVideo = MediaAsset(
+            id: "video-a",
+            kind: .video,
+            url: URL(fileURLWithPath: "/tmp/a.mov"),
+            displayName: "a.mov",
+            duration: 2
+        )
+        let secondVideo = MediaAsset(
+            id: "video-b",
+            kind: .video,
+            url: URL(fileURLWithPath: "/tmp/b.mov"),
+            displayName: "b.mov",
+            duration: 2
+        )
+        let activityURL = URL(fileURLWithPath: "/tmp/activity.fit")
+        let activity = MediaAsset(
+            id: activityURL.path,
+            kind: .activity,
+            url: activityURL,
+            displayName: activityURL.lastPathComponent,
+            duration: 3
+        )
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [firstVideo, secondVideo, activity],
+            tracks: [
+                TimelineTrack(id: "video", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "video-a", assetID: firstVideo.id, timelineStart: 0, duration: 1),
+                    TimelineClip(id: "video-b", assetID: secondVideo.id, timelineStart: 1.5, duration: 1)
+                ]),
+                TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "activity", assetID: activity.id, timelineStart: 0, duration: 2.5)
+                ])
+            ]
+        )
+        model.applyTimelineProject(project, loadAssets: false)
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 3, distanceMeters: 10)
+        ]))
+
+        XCTAssertFalse(model.canExport(as: .video))
+        XCTAssertEqual(
+            model.exportReadinessMessage(for: .video),
+            AppLocalizer.currentString("status.timelineVideoGap")
+        )
+    }
+
     func testCustomTimelinePreviewAndExportTrimUseTimelineDuration() {
         let model = StudioModel()
         let firstURL = URL(fileURLWithPath: "/tmp/a.mov")

@@ -2,8 +2,9 @@
 
 - 更新时间：2026-07-10
 - 提交审阅范围：`093da56ec8eff6a92b1b6c68e1ef740bccbaec56`（含）至 `f2cd534620c5b3cabffad39678581ff6d8084f2c`（含），共 23 个提交
-- 当前功能实现基线：`83e8605cba28a1e2213d8910e703af755a8992b6`
+- 当前功能实现基线：本文档所在的阶段 5 收口提交
 - 原交接文档提交：`f2cd534620c5b3cabffad39678581ff6d8084f2c`
+- 阶段 5 状态：时间线可靠性收口已完成并通过全量验证
 
 ## 这份文档的用途
 
@@ -35,7 +36,7 @@
 - `83e8605`：加入时间线工程 JSON 保存/打开和 security-scoped bookmark。
 - `f2cd534`：建立原交接文档，没有代码变化。
 
-结论：阶段 4 的主要功能链路已经接通，下一步不应继续盲目扩功能；应先处理数据丢失风险、统一预览/导出语义、补工程恢复和真实素材 QA。
+结论：阶段 4 的主要功能链路已经接通；阶段 5 已处理静默覆盖、预览/导出片段语义不一致和视频轨无预检三个 P0。下一步转向缺失素材恢复和真实素材 QA。
 
 ## 当前真实架构与语义
 
@@ -58,6 +59,8 @@
 - 初始单源工作流仍由旧字段迁移生成时间线；第一次把池中素材“加入时间线”后进入自定义时间线模式。
 - 自定义模式下，输出宽高、帧率、距离单位会更新工程设置，不会重建并覆盖多片段结构。
 - 活动数据按 `assetID` 缓存在 `activitySeriesByAssetID`，预览和导出据此为每个浮层片段找到各自的 telemetry。
+- `hasUnsavedTimelineChanges` 通过当前 `timeline` 与最近保存/打开的 clean snapshot 自动比较；窗口标题使用 macOS document-edited 状态显示未保存标记。
+- 自定义时间线切换媒体池活动源、删除被片段引用的素材、打开其他工程和关闭含未保存修改的窗口都会先显示四语言确认，不再静默覆盖。
 
 ### UI 已有能力
 
@@ -76,6 +79,7 @@
 ### 预览与导出
 
 - 自定义时间线预览按当前时间选择视频片段，并按 overlay 轨顺序合成浮层。
+- `TimelineProject.activeClips(kind:atTimelineTime:)` 是预览和 writer 共用的活动片段解析器；同一轨重叠时统一为数组中最后一个片段生效，多轨仍按自底向上顺序合成。
 - 自定义时间线播放不再直接使用 `AVPlayer`，而是用定时器推进并逐帧提取视频画面；当前没有连续视频音频预览，需要单独确认产品预期和性能。
 - `Sources/OverlayCore/Video/TimelineVideoWriter.swift` 是透明浮层和合成视频的统一入口。
 - 单浮层透明导出继续委托原 `TransparentVideoWriter`，保护既有 Alpha 路径。
@@ -87,6 +91,7 @@
   - 片段不能超出源视频可用时长。
 - 多视频通过 `AVMutableComposition` 顺序拼接；目前只取第一段视频的 `preferredTransform` 作为组合轨 transform。
 - 启用的 overlay 轨按 `TimelineProject.tracks` 自底向上合成；禁用轨不导出。
+- `Sources/OverlayCore/Timeline/TimelineExportValidation.swift` 提供 App、CLI 和 writer 共用的导出预检；视频 gap、overlap、起点/终点未覆盖、源范围越界、缺少轨道/asset/telemetry 会在编码前返回明确错误。
 
 ### 工程保存/打开与 CLI
 
@@ -98,6 +103,7 @@
 - 当前 JSON 不保存：导出 in/out、activity trim、导出模式、codec、bitrate、输出路径、当前播放头和 UI 选择状态；重新打开后导出范围重置为完整时间线。
 - CLI 用 `overlay --timeline-project project.json --output output.mov ...` 导出，直接读取 JSON 中的文件 URL，不使用 App 的 bookmark 恢复交互。
 - CLI 当前默认导出 `project.duration` 全长，不读取 App 会话里的导出 in/out。
+- CLI 在解析运动文件后会运行与 App/writer 相同的时间线预检，无效工程不会进入编码器。
 
 ## 已完成并有自动测试覆盖的主路径
 
@@ -111,47 +117,59 @@
 - 多浮层透明/不透明合成冒烟测试。
 - 连续两段视频和音轨顺序导出测试。
 - CLI 时间线工程参数、冲突参数和 JSON 读取测试。
+- dirty state、危险操作确认和窗口关闭一次性授权测试。
+- 同轨重叠浮层“最后片段生效”的模型与实际 writer 输出测试。
+- App/CLI 在写出前拒绝视频 gap/overlap 的共享预检测试。
 
 验证状态：
 
-- 本次交接更新重新运行 `swift test`：299 个测试全部通过，0 failure。
-- 功能基线提交记录的 `swift test --filter MediaPoolTests` 通过。
-- 功能基线提交记录的 `scripts/build_app_bundle.sh` 通过；本次只有 Markdown 文档变化，没有重复构建 App bundle。
+- `swift test`：310 个测试全部通过，0 failure。
+- `swift test --filter MediaPoolTests`：24 个测试全部通过。
+- `swift test --filter TimelineModelTests`：11 个测试全部通过。
+- `swift test --filter TimelineVideoWriterTests`：8 个测试全部通过，包含真实视频写出检查。
+- `swift test --filter OverlayCLITests`：22 个测试全部通过。
+- `swift test --filter LocalizationTests`：20 个 macOS/iOS 本地化测试全部通过。
+- `swift test --filter StudioModelTests`：66 个 macOS/iOS 状态模型测试全部通过。
+- `scripts/build_app_bundle.sh` 成功生成 `.build/DataLayer Studio.app`。
+- `scripts/verify_app_bundle.sh` 验证通过。
 
 注意：硬件编码器相关测试允许在不可用机器上 skip；“测试通过”不等于已经验证多浮层 Alpha 的真实视觉质量或混合方向视频。
 
-## 下一步必须先处理的问题
+## 阶段 5 完成项与后续问题
 
-### P0：防止用户时间线被静默覆盖
+### P0（已完成）：防止用户时间线被静默覆盖
 
-当前从媒体池点击另一个视频或运动素材，会把 `timelineUsesSingleSourceMigration` 重新设为 `true` 并重建单源时间线。用户已有的自定义多片段时间线会被直接替换，没有 dirty state、确认、自动保存或 Undo。打开另一个工程、移除仍被时间线引用的非活动素材也没有未保存改动保护。
+当前行为：
 
-下一步应先：
+- 从媒体池切换自定义时间线的活动源前，明确提示会替换为单源时间线。
+- 删除被时间线引用的非活动素材前，明确提示会删除所有引用片段。
+- 打开其他工程或关闭窗口时，如有未保存时间线修改会先确认。
+- 保存成功和工程打开成功会更新 clean snapshot；后续时间线几何或工程输出设置变化会自动重新标记 dirty。
+- 相关状态行为由 `MediaPoolTests` 覆盖。
 
-1. 明确“点击媒体池行”在自定义时间线中的产品语义，不能继续无提示重建工程。
-2. 增加工程 dirty state。
-3. 在打开工程、切换为单源、移除被引用素材、关闭窗口前处理未保存修改。
-4. 为这一行为补 `MediaPoolTests`/状态模型测试，防止数据丢失回归。
+尚未加入完整 Undo/Redo；用户确认执行的替换/删除仍不可撤销。
 
-### P0：统一同轨重叠浮层的预览/导出语义
+### P0（已完成）：统一同轨重叠浮层的预览/导出语义
 
-当前存在确定的不一致：
+规则已经收口为：
 
-- 预览调用 `TimelineTrack.clip(atTimelineTime:)`，同一 overlay 轨重叠时只取最后一个片段。
-- `TimelineVideoWriter` 会 flatten 启用轨的所有 overlay clip，再把同一时刻命中的片段全部合成。
+- 每条启用轨在同一时刻最多提供一个活动片段。
+- 同轨重叠时，轨道 `clips` 数组中最后一个命中的片段生效。
+- 不同 overlay 轨的活动片段继续按工程轨道顺序叠加。
+- 预览、透明导出和合成视频导出都调用 `TimelineProject.activeClips`。
 
-因此，同轨重叠时可能出现“预览一层、导出两层”。下一步必须选定一种规则并让预览、透明导出、合成视频导出共用同一个片段解析器；同时增加同轨重叠测试。
+`TimelineModelTests` 验证解析顺序，`TimelineVideoWriterTests` 用“前片段可见、后片段空布局”的实际输出验证 writer 只渲染后片段。
 
-### P0：视频轨编辑可以制造直到导出才暴露的无效工程
+### P0（已完成）：视频轨无效结构在编码前预检
 
-自定义视频片段可以自由移动和裁剪，但 writer 拒绝导出范围内的视频空洞、重叠和越过源时长。UI 当前没有预检或即时错误提示。
+当前仍允许视频片段自由移动和裁剪，但无效结构会在编码前被一致拒绝：
 
-下一步应增加共享的 `TimelineProject` 校验/导出预检，并决定：
+- `TimelineProject.firstExportValidationIssue` 供 App、CLI 和 writer 共用。
+- App 输出面板会在导出前显示本地化的 gap、overlap、源范围越界、缺素材/telemetry 提示并禁用导出。
+- CLI 在 writer 启动前返回 `Timeline error`。
+- writer 自身仍执行同一预检，防止绕过 UI/CLI 调用。
 
-- 视频片段是否始终保持 ripple/顺序相接；或
-- 允许自由移动，但在时间线上明确显示空洞/重叠错误，并在导出前给可操作提示。
-
-不要在 App 与 CLI 各复制一套校验规则。
+当前没有把错误直接画在时间线片段上，也没有 ripple 编辑；这是后续 UX 增强，不再是静默失败风险。
 
 ### P1：工程打开的缺失素材恢复
 
@@ -199,14 +217,11 @@
 
 ## 建议的下一轮执行顺序
 
-1. 先补复现测试：自定义时间线被媒体池切换覆盖、同轨浮层重叠预览/导出不一致、视频 gap/overlap 预检。
-2. 修复数据丢失入口，并加入 dirty state/未保存修改保护。
-3. 抽出预览与 writer 共用的“某时刻活动片段解析”和工程校验规则。
-4. 做缺失素材/relink 流程。
-5. 用 `assets/resourses/` 的本地真实素材跑完整 QA；该目录和产物不得提交。
-6. 只修 QA 暴露的问题，验证透明 Alpha、混合视频和长时内存。
-7. 稳定后再做删除片段、轨道管理、跨轨移动、Undo/Redo 和工程格式升级。
-8. 同步更新 `docs/timeline-phase4-plan.md`，并清理 `ProjectTimelineView` 顶部仍写“只读/后续再编辑”的过期注释。
+1. 做缺失素材/relink 流程，把 bookmark stale / missing / unreadable 变成逐 asset 状态和重新定位入口。
+2. 用 `assets/resourses/` 的本地真实素材跑完整 QA；该目录和产物不得提交。
+3. 只修 QA 暴露的问题，验证透明 Alpha、混合视频、片段边界音频和长时内存。
+4. 评估自定义时间线定时器预览的流畅度与无音频行为，决定是否升级播放架构。
+5. 稳定后再做删除片段、轨道管理、跨轨移动、可见吸附反馈、Undo/Redo 和工程格式升级。
 
 ## 手动 QA 清单
 

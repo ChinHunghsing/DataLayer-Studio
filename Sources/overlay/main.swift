@@ -502,6 +502,15 @@ func renderTimelineProject(options: CommandLineOptions, projectURL: URL) throws 
         telemetryByAssetID[asset.id] = try parser.parse(url: asset.url)
     }
 
+    if let issue = project.firstExportValidationIssue(
+        mode: options.exportMode,
+        timelineStart: 0,
+        duration: duration,
+        availableTelemetryAssetIDs: Set(telemetryByAssetID.keys)
+    ) {
+        throw issue
+    }
+
     print("Timeline project: \(project.assets.count) assets, \(project.tracks.count) tracks, \(String(format: "%.2f", duration)) s")
     print("Export mode: \(options.exportMode.rawValue)")
     print("Codec: \(options.codec.rawValue)")
@@ -581,6 +590,9 @@ struct OverlayCLI {
             exit(1)
         } catch let error as TelemetryFileError {
             fputs("Activity file error: \(error.description)\n", stderr)
+            exit(1)
+        } catch let error as TimelineExportValidationIssue {
+            fputs("Timeline error: \(error.errorDescription)\n", stderr)
             exit(1)
         } catch let error as OverlayVideoError {
             fputs("Video error: \(error.description)\n", stderr)

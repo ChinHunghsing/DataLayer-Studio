@@ -65,6 +65,15 @@ public final class TimelineVideoWriter {
     }
 
     public func write() throws {
+        if let issue = project.firstExportValidationIssue(
+            mode: config.codec.exportMode,
+            timelineStart: config.timelineStart,
+            duration: config.duration,
+            availableTelemetryAssetIDs: Set(telemetrySeriesByAssetID.keys)
+        ) {
+            throw OverlayVideoError.invalidConfiguration(issue.errorDescription)
+        }
+
         switch config.codec.exportMode {
         case .video:
             try writeCompositedVideo()
@@ -76,6 +85,7 @@ public final class TimelineVideoWriter {
     private func writeCompositedVideo() throws {
         let video = try makeCompositedVideoSource()
         let overlays = try makeOverlayCompositions()
+        let overlaysByClipID = overlayCompositionsByClipID(overlays)
 
         let renderPool = try TransparentVideoWriter.makePixelBufferPool(
             width: config.width,
@@ -106,7 +116,10 @@ public final class TimelineVideoWriter {
             ),
             overlayStartTime: config.timelineStart,
             renderOverlay: { timelineTime, overlayBuffer in
-                let activeOverlays = overlays.filter { $0.clip.contains(timelineTime: timelineTime) }
+                let activeOverlays = self.activeOverlayCompositions(
+                    atTimelineTime: timelineTime,
+                    compositionsByClipID: overlaysByClipID
+                )
                 let renderedBuffer = try self.renderTransparentFrame(
                     activeOverlays,
                     timelineTime: timelineTime,
@@ -157,6 +170,7 @@ public final class TimelineVideoWriter {
 
     private func writeMultiTransparentOverlay(_ overlays: [OverlayComposition]) throws {
         try validateTransparentConfiguration()
+        let overlaysByClipID = overlayCompositionsByClipID(overlays)
 
         let width = config.width
         let height = config.height
@@ -238,7 +252,10 @@ public final class TimelineVideoWriter {
                             }
                             let presentationTime = timing.presentationTime(for: frameIndex)
                             let timelineTime = self.config.timelineStart + CMTimeGetSeconds(presentationTime)
-                            let activeOverlays = overlays.filter { $0.clip.contains(timelineTime: timelineTime) }
+                            let activeOverlays = self.activeOverlayCompositions(
+                                atTimelineTime: timelineTime,
+                                compositionsByClipID: overlaysByClipID
+                            )
                             let renderedBuffer = try self.renderTransparentFrame(
                                 activeOverlays,
                                 timelineTime: timelineTime,
@@ -338,8 +355,28 @@ public final class TimelineVideoWriter {
         return accumulated
     }
 
+    private func overlayCompositionsByClipID(
+        _ overlays: [OverlayComposition]
+    ) -> [String: OverlayComposition] {
+        overlays.reduce(into: [:]) { result, composition in
+            result[composition.clip.id] = composition
+        }
+    }
+
+    private func activeOverlayCompositions(
+        atTimelineTime timelineTime: TimeInterval,
+        compositionsByClipID: [String: OverlayComposition]
+    ) -> [OverlayComposition] {
+        project.activeClips(kind: .overlay, atTimelineTime: timelineTime).compactMap {
+            compositionsByClipID[$0.id]
+        }
+    }
+
     private func makeCompositedVideoSource() throws -> (asset: AVAsset, description: String, startTime: TimeInterval) {
-        let videoClips = try videoClipsCoveringExportRange()
+        let videoClips = try project.validatedVideoClipsForExport(
+            timelineStart: config.timelineStart,
+            duration: config.duration
+        )
 
         if videoClips.count == 1 {
             let clip = videoClips[0]
@@ -354,48 +391,6 @@ public final class TimelineVideoWriter {
         }
 
         return (try makeTimelineVideoComposition(videoClips), "timeline video composition", config.timelineStart)
-    }
-
-    private func videoClipsCoveringExportRange() throws -> [TimelineClip] {
-        let start = config.timelineStart
-        let end = config.timelineStart + config.duration
-        let epsilon = 1e-6
-        let relevantClips = enabledClips(kind: .video)
-            .filter { $0.timelineEnd > start + epsilon && $0.timelineStart < end - epsilon }
-            .sorted { lhs, rhs in
-                if abs(lhs.timelineStart - rhs.timelineStart) > epsilon {
-                    return lhs.timelineStart < rhs.timelineStart
-                }
-                return lhs.id < rhs.id
-            }
-
-        guard !relevantClips.isEmpty else {
-            throw OverlayVideoError.invalidConfiguration("Timeline video export requires at least one enabled video clip.")
-        }
-
-        var coveredUntil = start
-        var coveringClips: [TimelineClip] = []
-        for (index, clip) in relevantClips.enumerated() {
-            if index == 0 {
-                guard clip.timelineStart <= start + epsilon else {
-                    throw OverlayVideoError.invalidConfiguration("Timeline video export range must start inside an enabled video clip.")
-                }
-            } else {
-                if clip.timelineStart > coveredUntil + epsilon {
-                    throw OverlayVideoError.invalidConfiguration("Timeline video export range has a gap between video clips.")
-                }
-                if clip.timelineStart < coveredUntil - epsilon {
-                    throw OverlayVideoError.invalidConfiguration("Overlapping timeline video clips are not supported for video export yet.")
-                }
-            }
-            coveringClips.append(clip)
-            coveredUntil = max(coveredUntil, clip.timelineEnd)
-            if coveredUntil >= end - epsilon {
-                return coveringClips
-            }
-        }
-
-        throw OverlayVideoError.invalidConfiguration("Timeline video export range must be fully covered by enabled video clips.")
     }
 
     private func makeTimelineVideoComposition(_ videoClips: [TimelineClip]) throws -> AVAsset {
@@ -476,7 +471,7 @@ public final class TimelineVideoWriter {
     }
 
     private func makeOverlayCompositions() throws -> [OverlayComposition] {
-        let overlayClips = enabledClips(kind: .overlay)
+        let overlayClips = project.enabledClips(kind: .overlay)
         guard !overlayClips.isEmpty else {
             throw OverlayVideoError.invalidConfiguration("Timeline overlay export requires at least one enabled overlay clip.")
         }
@@ -500,12 +495,6 @@ public final class TimelineVideoWriter {
             )
             return OverlayComposition(clip: clip, series: series, renderer: renderer)
         }
-    }
-
-    private func enabledClips(kind: TimelineTrack.Kind) -> [TimelineClip] {
-        project.tracks
-            .filter { $0.kind == kind && $0.isEnabled }
-            .flatMap(\.clips)
     }
 
     private func validateTransparentConfiguration() throws {

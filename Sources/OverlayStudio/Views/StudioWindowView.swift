@@ -10,7 +10,15 @@ struct StudioWindowView: View {
     var body: some View {
         ContentView(model: model)
             .frame(minWidth: 1320, minHeight: 760)
-            .background(WindowCenterTitle(centerTitle: centerTitle, windowTitle: windowTitle))
+            .background(WindowCenterTitle(
+                centerTitle: centerTitle,
+                windowTitle: windowTitle,
+                isDocumentEdited: model.hasUnsavedTimelineChanges
+            ))
+            .background(WindowCloseGuard(
+                model: model,
+                confirmedCloseGeneration: model.confirmedWindowCloseGeneration
+            ))
             .background(TitlebarTrailingAccessory(rootView: AnyView(
                 OutputToolbarButton(model: model)
                     .environmentObject(localization)
@@ -43,15 +51,26 @@ struct StudioWindowView: View {
 private struct WindowCenterTitle: NSViewRepresentable {
     let centerTitle: String
     let windowTitle: String
+    let isDocumentEdited: Bool
 
     func makeNSView(context: Context) -> NSView {
         NSView(frame: .zero)
     }
 
     func updateNSView(_ view: NSView, context: Context) {
-        guard !context.coordinator.update(centerTitle: centerTitle, windowTitle: windowTitle, from: view) else { return }
+        guard !context.coordinator.update(
+            centerTitle: centerTitle,
+            windowTitle: windowTitle,
+            isDocumentEdited: isDocumentEdited,
+            from: view
+        ) else { return }
         DispatchQueue.main.async {
-            _ = context.coordinator.update(centerTitle: centerTitle, windowTitle: windowTitle, from: view)
+            _ = context.coordinator.update(
+                centerTitle: centerTitle,
+                windowTitle: windowTitle,
+                isDocumentEdited: isDocumentEdited,
+                from: view
+            )
         }
     }
 
@@ -65,22 +84,31 @@ private struct WindowCenterTitle: NSViewRepresentable {
         private weak var installedWindow: NSWindow?
         private var lastCenterTitle: String?
         private var lastWindowTitle: String?
+        private var lastIsDocumentEdited: Bool?
 
         @discardableResult
-        func update(centerTitle: String, windowTitle: String, from view: NSView) -> Bool {
+        func update(
+            centerTitle: String,
+            windowTitle: String,
+            isDocumentEdited: Bool,
+            from view: NSView
+        ) -> Bool {
             guard let window = view.window else { return false }
             if installedWindow === window,
                lastCenterTitle == centerTitle,
                lastWindowTitle == windowTitle,
+               lastIsDocumentEdited == isDocumentEdited,
                label != nil || centerTitle.isEmpty {
                 return true
             }
 
             window.title = windowTitle
             window.titleVisibility = centerTitle.isEmpty ? .visible : .hidden
+            window.isDocumentEdited = isDocumentEdited
             installedWindow = window
             lastCenterTitle = centerTitle
             lastWindowTitle = windowTitle
+            lastIsDocumentEdited = isDocumentEdited
 
             guard let titlebar = window.standardWindowButton(.closeButton)?.superview else { return true }
             let label = label(in: titlebar, closeButton: window.standardWindowButton(.closeButton))
@@ -114,6 +142,127 @@ private struct WindowCenterTitle: NSViewRepresentable {
             self.label = label
             installedSuperview = titlebar
             return label
+        }
+    }
+}
+
+private struct WindowCloseGuard: NSViewRepresentable {
+    let model: StudioModel
+    let confirmedCloseGeneration: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> CloseGuardView {
+        let view = CloseGuardView(frame: .zero)
+        let coordinator = context.coordinator
+        coordinator.update(
+            model: model,
+            confirmedCloseGeneration: confirmedCloseGeneration,
+            window: nil
+        )
+        view.onWindowChange = { [weak coordinator] window in
+            coordinator?.update(
+                model: model,
+                confirmedCloseGeneration: confirmedCloseGeneration,
+                window: window
+            )
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: CloseGuardView, context: Context) {
+        let coordinator = context.coordinator
+        nsView.onWindowChange = { [weak coordinator] window in
+            coordinator?.update(
+                model: model,
+                confirmedCloseGeneration: confirmedCloseGeneration,
+                window: window
+            )
+        }
+        coordinator.update(
+            model: model,
+            confirmedCloseGeneration: confirmedCloseGeneration,
+            window: nsView.window
+        )
+    }
+
+    static func dismantleNSView(_ nsView: CloseGuardView, coordinator: Coordinator) {
+        nsView.onWindowChange = nil
+        coordinator.restoreForwardingDelegate()
+    }
+
+    final class CloseGuardView: NSView {
+        var onWindowChange: ((NSWindow?) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            onWindowChange?(window)
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSWindowDelegate {
+        private weak var model: StudioModel?
+        private weak var installedWindow: NSWindow?
+        private var forwardingDelegate: NSWindowDelegate?
+        private var lastConfirmedCloseGeneration: Int?
+
+        func update(
+            model: StudioModel,
+            confirmedCloseGeneration: Int,
+            window: NSWindow?
+        ) {
+            self.model = model
+            if let window {
+                install(on: window)
+            }
+
+            guard let previousGeneration = lastConfirmedCloseGeneration else {
+                lastConfirmedCloseGeneration = confirmedCloseGeneration
+                return
+            }
+            guard confirmedCloseGeneration != previousGeneration else { return }
+            lastConfirmedCloseGeneration = confirmedCloseGeneration
+            DispatchQueue.main.async { [weak installedWindow] in
+                installedWindow?.performClose(nil)
+            }
+        }
+
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            guard model?.requestWindowClose() ?? true else { return false }
+            return forwardingDelegate?.windowShouldClose?(sender) ?? true
+        }
+
+        override func responds(to selector: Selector!) -> Bool {
+            super.responds(to: selector) || forwardingDelegate?.responds(to: selector) == true
+        }
+
+        override func forwardingTarget(for selector: Selector!) -> Any? {
+            if forwardingDelegate?.responds(to: selector) == true {
+                return forwardingDelegate
+            }
+            return super.forwardingTarget(for: selector)
+        }
+
+        private func install(on window: NSWindow) {
+            if installedWindow !== window {
+                restoreForwardingDelegate()
+                installedWindow = window
+                forwardingDelegate = window.delegate
+            } else if window.delegate !== self {
+                forwardingDelegate = window.delegate
+            }
+            window.delegate = self
+        }
+
+        func restoreForwardingDelegate() {
+            if installedWindow?.delegate === self {
+                installedWindow?.delegate = forwardingDelegate
+            }
+            installedWindow = nil
+            forwardingDelegate = nil
         }
     }
 }

@@ -2,9 +2,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 import OverlayCore
 
-/// Read-only timeline of the currently active source(s): a video track and an overlay track with
-/// the FIT clip positioned to reflect the current sync. Dragging the playhead scrubs the preview.
-/// Editing (drag/trim/multi-clip) arrives in later phases; sync and trim still live in their tabs.
+/// Timeline editor for the current project. The migrated `single.*` clips keep the legacy sync
+/// controls connected; independently added clips write movement and trimming into `TimelineProject`.
+/// Dragging the playhead scrubs the same timeline state consumed by preview and export.
 struct ProjectTimelineView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore

@@ -93,6 +93,19 @@ struct ContentView: View {
                 Text(localization.string(prompt.messageKey))
             }
         }
+        .alert(
+            model.pendingTimelineActionTitle,
+            isPresented: pendingTimelineActionBinding
+        ) {
+            Button(model.pendingTimelineActionConfirmationTitle, role: .destructive) {
+                model.confirmPendingTimelineAction()
+            }
+            Button(localization.string("common.cancel"), role: .cancel) {
+                model.cancelPendingTimelineAction()
+            }
+        } message: {
+            Text(model.pendingTimelineActionMessage)
+        }
         .focusedSceneValue(\.studioCommandActions, studioCommandActions)
         .focusedSceneValue(\.previewCommandActions, previewCommandActions)
         .onOpenURL(perform: openActivityFile)
@@ -244,6 +257,17 @@ struct ContentView: View {
             set: { isPresented in
                 if !isPresented {
                     sourceContinuationPrompt = nil
+                }
+            }
+        )
+    }
+
+    private var pendingTimelineActionBinding: Binding<Bool> {
+        Binding(
+            get: { model.pendingTimelineAction != nil },
+            set: { isPresented in
+                if !isPresented {
+                    model.cancelPendingTimelineAction()
                 }
             }
         )

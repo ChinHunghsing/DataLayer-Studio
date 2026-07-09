@@ -60,6 +60,15 @@ private struct TimelinePreviewSnapshot {
     var overlayLayers: [TimelinePreviewOverlayLayer]
 }
 
+enum TimelinePendingAction: Equatable {
+    case selectVideoAsset(id: String)
+    case selectActivityAsset(id: String)
+    case removeVideoAsset(id: String)
+    case removeActivityAsset(id: String)
+    case openTimelineProject
+    case closeWindow
+}
+
 @MainActor
 final class StudioModel: ObservableObject {
     static let playerTimeObserverInterval: TimeInterval = 1.0 / 12.0
@@ -92,7 +101,12 @@ final class StudioModel: ObservableObject {
         outputHeight: 1080,
         framesPerSecond: 30,
         distanceUnit: .kilometers
-    )
+    ) {
+        didSet { updateTimelineDirtyState() }
+    }
+    @Published private(set) var hasUnsavedTimelineChanges = false
+    @Published private(set) var pendingTimelineAction: TimelinePendingAction?
+    @Published private(set) var confirmedWindowCloseGeneration = 0
 
     @Published var outputWidth = 1920 {
         didSet { rebuildCurrentTimelineProject() }
@@ -226,6 +240,8 @@ final class StudioModel: ObservableObject {
     private var timelineUsesSingleSourceMigration = true
     private var activitySeriesByAssetID: [String: TelemetrySeries] = [:]
     private var timelineSecurityScopedURLs: [URL] = []
+    private var cleanTimelineSnapshot: TimelineProject?
+    private var allowsNextWindowClose = false
 
     init(
         layoutPresetStore: LayoutPresetStore = LayoutPresetStore(),
@@ -246,6 +262,7 @@ final class StudioModel: ObservableObject {
         self.gridRows = preferenceState.gridRows
         self.snapGaugeToGrid = preferenceState.snapGaugeToGrid
         rebuildCurrentTimelineProject()
+        markTimelineProjectClean()
         observeLayoutPresetCloudChanges()
     }
 
@@ -370,11 +387,13 @@ final class StudioModel: ObservableObject {
     }
 
     private func exportReadinessMessageKey(for mode: OverlayExportMode, codec checkedCodec: OverlayVideoCodec) -> String? {
-        if series == nil {
-            return "status.chooseFitFile"
-        }
-        if mode == .video, videoURL == nil {
-            return "status.chooseVideoForCompositedExport"
+        if timelineUsesSingleSourceMigration {
+            if series == nil {
+                return "status.chooseFitFile"
+            }
+            if mode == .video, videoURL == nil {
+                return "status.chooseVideoForCompositedExport"
+            }
         }
         if checkedCodec.exportMode != mode {
             return "status.codecExportModeMismatch"
@@ -403,7 +422,42 @@ final class StudioModel: ObservableObject {
         if bitRateKbps > Int.max / 1000 {
             return "status.bitrateTooLarge"
         }
+        if !timelineUsesSingleSourceMigration {
+            let project = currentTimelineProject
+            let telemetryAssetIDs = Set(timelineTelemetrySeriesForExport(project: project).keys)
+            if let issue = project.firstExportValidationIssue(
+                mode: mode,
+                timelineStart: sourceExportTrimStart,
+                duration: effectiveExportTrimDuration,
+                availableTelemetryAssetIDs: telemetryAssetIDs
+            ) {
+                return timelineExportValidationMessageKey(issue)
+            }
+        }
         return nil
+    }
+
+    private func timelineExportValidationMessageKey(_ issue: TimelineExportValidationIssue) -> String {
+        switch issue {
+        case .invalidRange:
+            return "status.sourceDurationRange"
+        case .missingOverlayClip:
+            return "status.chooseFitFile"
+        case .missingActivityAsset:
+            return "status.timelineMissingActivityAsset"
+        case .missingTelemetry:
+            return "status.timelineMissingTelemetry"
+        case .missingVideoClip:
+            return "status.chooseVideoForCompositedExport"
+        case .missingVideoAsset:
+            return "status.timelineMissingVideoAsset"
+        case .invalidVideoSourceRange:
+            return "status.timelineVideoSourceRange"
+        case .videoRangeStartsInGap, .videoGap, .videoRangeNotFullyCovered:
+            return "status.timelineVideoGap"
+        case .videoOverlap:
+            return "status.timelineVideoOverlap"
+        }
     }
 
     var availableCodecs: [OverlayVideoCodec] {
@@ -808,6 +862,14 @@ final class StudioModel: ObservableObject {
 
     func openTimelineProject() {
         guard !isExporting else { return }
+        guard !hasUnsavedTimelineChanges else {
+            requestTimelineConfirmation(.openTimelineProject)
+            return
+        }
+        presentOpenTimelineProjectPanel()
+    }
+
+    private func presentOpenTimelineProjectPanel() {
         let panel = NSOpenPanel()
         panel.title = localized("panel.openTimelineProject")
         panel.message = localized("panel.openTimelineProject.message")
@@ -839,6 +901,7 @@ final class StudioModel: ObservableObject {
         do {
             let data = try timelineProjectJSONData()
             try data.write(to: url, options: .atomic)
+            markTimelineProjectClean()
             setStatus("status.timelineProjectSaved", url.lastPathComponent)
         } catch {
             setStatus("status.timelineProjectSaveError", error.localizedDescription)
@@ -908,6 +971,7 @@ final class StudioModel: ObservableObject {
             applySuggestedOutputURLIfNeeded(for: sourceURL)
         }
         refreshOverlayOrPreview()
+        markTimelineProjectClean()
 
         guard loadAssets else { return }
         loadTimelineProjectAssets(sanitizedProject.assets)
@@ -981,6 +1045,109 @@ final class StudioModel: ObservableObject {
                 addActivityAssetToPool(asset.url)
             }
         }
+    }
+
+    var pendingTimelineActionTitle: String {
+        guard let pendingTimelineAction else { return "" }
+        switch pendingTimelineAction {
+        case .selectVideoAsset, .selectActivityAsset:
+            return localized("timeline.confirmReplace.title")
+        case .removeVideoAsset, .removeActivityAsset:
+            return localized("timeline.confirmRemove.title")
+        case .openTimelineProject, .closeWindow:
+            return localized("timeline.unsaved.title")
+        }
+    }
+
+    var pendingTimelineActionMessage: String {
+        guard let pendingTimelineAction else { return "" }
+        switch pendingTimelineAction {
+        case let .selectVideoAsset(id):
+            return localized("timeline.confirmReplace.video", timelineAssetDisplayName(id: id))
+        case let .selectActivityAsset(id):
+            return localized("timeline.confirmReplace.activity", timelineAssetDisplayName(id: id))
+        case let .removeVideoAsset(id):
+            return localized("timeline.confirmRemove.video", timelineAssetDisplayName(id: id))
+        case let .removeActivityAsset(id):
+            return localized("timeline.confirmRemove.activity", timelineAssetDisplayName(id: id))
+        case .openTimelineProject:
+            return localized("timeline.unsaved.openProject")
+        case .closeWindow:
+            return localized("timeline.unsaved.closeWindow")
+        }
+    }
+
+    var pendingTimelineActionConfirmationTitle: String {
+        guard let pendingTimelineAction else { return "" }
+        switch pendingTimelineAction {
+        case .selectVideoAsset, .selectActivityAsset:
+            return localized("timeline.confirmReplace.action")
+        case .removeVideoAsset, .removeActivityAsset:
+            return localized("timeline.confirmRemove.action")
+        case .openTimelineProject, .closeWindow:
+            return localized("timeline.unsaved.discard")
+        }
+    }
+
+    @discardableResult
+    func confirmPendingTimelineAction() -> TimelinePendingAction? {
+        guard let action = pendingTimelineAction else { return nil }
+        pendingTimelineAction = nil
+
+        switch action {
+        case let .selectVideoAsset(id):
+            performSelectVideoAsset(id: id)
+        case let .selectActivityAsset(id):
+            performSelectActivityAsset(id: id)
+        case let .removeVideoAsset(id):
+            performRemoveVideoAsset(id: id)
+        case let .removeActivityAsset(id):
+            performRemoveActivityAsset(id: id)
+        case .openTimelineProject:
+            DispatchQueue.main.async { [weak self] in
+                self?.presentOpenTimelineProjectPanel()
+            }
+        case .closeWindow:
+            allowsNextWindowClose = true
+            confirmedWindowCloseGeneration &+= 1
+        }
+        return action
+    }
+
+    func cancelPendingTimelineAction() {
+        pendingTimelineAction = nil
+    }
+
+    func requestWindowClose() -> Bool {
+        if allowsNextWindowClose {
+            allowsNextWindowClose = false
+            return true
+        }
+        guard hasUnsavedTimelineChanges else { return true }
+        requestTimelineConfirmation(.closeWindow)
+        return false
+    }
+
+    private func requestTimelineConfirmation(_ action: TimelinePendingAction) {
+        guard pendingTimelineAction == nil else { return }
+        pendingTimelineAction = action
+    }
+
+    private func timelineAssetDisplayName(id: String) -> String {
+        timeline.asset(id: id)?.displayName
+            ?? videoAssets.first { $0.id == id }?.displayName
+            ?? activityAssets.first { $0.id == id }?.displayName
+            ?? id
+    }
+
+    private func updateTimelineDirtyState() {
+        guard let cleanTimelineSnapshot else { return }
+        hasUnsavedTimelineChanges = timeline != cleanTimelineSnapshot
+    }
+
+    private func markTimelineProjectClean() {
+        cleanTimelineSnapshot = timeline
+        hasUnsavedTimelineChanges = false
     }
 
     func setVideo(_ url: URL) {
@@ -1483,12 +1650,30 @@ final class StudioModel: ObservableObject {
     /// Make a pooled video the active source.
     func selectVideoAsset(id: String) {
         guard !isExporting, let asset = videoAssets.first(where: { $0.id == id }), asset.url != videoURL else { return }
+        guard timelineUsesSingleSourceMigration else {
+            requestTimelineConfirmation(.selectVideoAsset(id: id))
+            return
+        }
+        performSelectVideoAsset(id: id)
+    }
+
+    private func performSelectVideoAsset(id: String) {
+        guard !isExporting, let asset = videoAssets.first(where: { $0.id == id }), asset.url != videoURL else { return }
         timelineUsesSingleSourceMigration = true
         setVideo(asset.url)
     }
 
     /// Make a pooled activity the active source.
     func selectActivityAsset(id: String) {
+        guard !isExporting, let asset = activityAssets.first(where: { $0.id == id }), asset.url != fitURL else { return }
+        guard timelineUsesSingleSourceMigration else {
+            requestTimelineConfirmation(.selectActivityAsset(id: id))
+            return
+        }
+        performSelectActivityAsset(id: id)
+    }
+
+    private func performSelectActivityAsset(id: String) {
         guard !isExporting, let asset = activityAssets.first(where: { $0.id == id }), asset.url != fitURL else { return }
         timelineUsesSingleSourceMigration = true
         setFIT(asset.url)
@@ -1497,6 +1682,15 @@ final class StudioModel: ObservableObject {
     /// Remove a pooled video. The active video cannot be removed.
     func removeVideoAsset(id: String) {
         guard id != activeVideoAssetID else { return }
+        guard !timelineContainsAsset(id: id) else {
+            requestTimelineConfirmation(.removeVideoAsset(id: id))
+            return
+        }
+        performRemoveVideoAsset(id: id)
+    }
+
+    private func performRemoveVideoAsset(id: String) {
+        guard id != activeVideoAssetID else { return }
         videoAssets.removeAll { $0.id == id }
         removeTimelineAsset(id: id)
     }
@@ -1504,9 +1698,24 @@ final class StudioModel: ObservableObject {
     /// Remove a pooled activity. The active activity cannot be removed.
     func removeActivityAsset(id: String) {
         guard id != activeActivityAssetID else { return }
+        guard !timelineContainsAsset(id: id) else {
+            requestTimelineConfirmation(.removeActivityAsset(id: id))
+            return
+        }
+        performRemoveActivityAsset(id: id)
+    }
+
+    private func performRemoveActivityAsset(id: String) {
+        guard id != activeActivityAssetID else { return }
         activityAssets.removeAll { $0.id == id }
         activitySeriesByAssetID.removeValue(forKey: id)
         removeTimelineAsset(id: id)
+    }
+
+    private func timelineContainsAsset(id: String) -> Bool {
+        timeline.tracks.contains { track in
+            track.clips.contains { $0.assetID == id }
+        }
     }
 
     func addActivityAssetToTimeline(id: String) {
@@ -1672,21 +1881,17 @@ final class StudioModel: ObservableObject {
 
     private func timelinePreviewSnapshot(at timelineTime: TimeInterval) -> TimelinePreviewSnapshot? {
         let project = currentTimelineProject
-        let activeVideoClip = project.tracks
-            .filter { $0.kind == .video && $0.isEnabled }
-            .compactMap { $0.clip(atTimelineTime: timelineTime) }
-            .last
+        let activeVideoClip = project.activeClips(kind: .video, atTimelineTime: timelineTime).last
         let videoURL = activeVideoClip.flatMap { clip -> URL? in
             guard let asset = project.asset(id: clip.assetID), asset.kind == .video else { return nil }
             return asset.url
         }
         let videoTime = activeVideoClip?.sourceTime(atTimelineTime: timelineTime) ?? timelineTime
 
-        let overlayLayers: [TimelinePreviewOverlayLayer] = project.tracks
-            .filter { $0.kind == .overlay && $0.isEnabled }
-            .compactMap { track -> TimelinePreviewOverlayLayer? in
-                guard let clip = track.clip(atTimelineTime: timelineTime),
-                      let asset = project.asset(id: clip.assetID),
+        let overlayLayers: [TimelinePreviewOverlayLayer] = project
+            .activeClips(kind: .overlay, atTimelineTime: timelineTime)
+            .compactMap { clip -> TimelinePreviewOverlayLayer? in
+                guard let asset = project.asset(id: clip.assetID),
                       asset.kind == .activity else { return nil }
                 let loadedSeries: TelemetrySeries?
                 if let series = activitySeriesByAssetID[asset.id] {
@@ -2831,7 +3036,6 @@ final class StudioModel: ObservableObject {
         let currentExportMode = exportMode
         let currentCodec = codec
         let currentActivityTrim = self.currentActivityTrim
-        let sourceVideoURL = videoURL
         let progressHandler: (Int, Int) -> Void = { [weak self] completed, total in
             Task { @MainActor in
                 self?.updateExportProgress(total > 0 ? Double(completed) / Double(total) : 0)
@@ -2860,9 +3064,6 @@ final class StudioModel: ObservableObject {
                         )
                     ).write()
                 case .video:
-                    guard sourceVideoURL != nil else {
-                        throw OverlayVideoError.invalidConfiguration("Choose a source video before exporting composited video.")
-                    }
                     try TimelineVideoWriter(
                         outputURL: outputURL,
                         project: timelineProject,
