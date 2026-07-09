@@ -209,6 +209,20 @@ private struct StudioFileCommands: Commands {
 
             Divider()
 
+            Button(localization.string("menu.openTimelineProject")) {
+                actions?.openTimelineProject()
+            }
+            .keyboardShortcut("o", modifiers: [.command, .shift])
+            .disabled(actions == nil || actions?.isExporting == true)
+
+            Button(localization.string("menu.saveTimelineProject")) {
+                actions?.saveTimelineProject()
+            }
+            .keyboardShortcut("s", modifiers: [.command])
+            .disabled(actions == nil || actions?.isExporting == true)
+
+            Divider()
+
             Button(localization.string("menu.exportOverlay")) {
                 actions?.export()
             }

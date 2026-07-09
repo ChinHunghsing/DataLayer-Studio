@@ -29,6 +29,8 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
     public var width: Int?
     public var height: Int?
     public var framesPerSecond: Double?
+    /// Optional security-scoped bookmark used by the sandboxed GUI app when reopening projects.
+    public var bookmarkData: Data?
 
     public init(
         id: String,
@@ -38,7 +40,8 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         duration: TimeInterval,
         width: Int? = nil,
         height: Int? = nil,
-        framesPerSecond: Double? = nil
+        framesPerSecond: Double? = nil,
+        bookmarkData: Data? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -48,6 +51,7 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         self.width = width
         self.height = height
         self.framesPerSecond = framesPerSecond
+        self.bookmarkData = bookmarkData
     }
 }
 

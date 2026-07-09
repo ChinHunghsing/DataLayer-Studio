@@ -187,6 +187,8 @@ struct ContentView: View {
             canMoveSelectionBackward: canMoveSelectedElementBackward,
             chooseVideo: model.chooseVideo,
             chooseFIT: model.chooseFIT,
+            openTimelineProject: model.openTimelineProject,
+            saveTimelineProject: model.saveTimelineProject,
             export: model.export,
             cancelExport: requestExportCancellation,
             refreshPreview: model.refreshOverlayOrPreview,

@@ -11,6 +11,8 @@ struct StudioCommandActions {
     var canMoveSelectionBackward: Bool
     var chooseVideo: () -> Void
     var chooseFIT: () -> Void
+    var openTimelineProject: () -> Void
+    var saveTimelineProject: () -> Void
     var export: () -> Void
     var cancelExport: () -> Void
     var refreshPreview: () -> Void

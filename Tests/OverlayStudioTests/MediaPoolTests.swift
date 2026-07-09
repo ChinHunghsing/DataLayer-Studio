@@ -285,6 +285,95 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.exportTrimSourceDuration, 140, accuracy: 1e-9)
     }
 
+    func testTimelineProjectJSONRoundTripsIntoStoredCustomTimeline() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/project-video.mov")
+        let activityURL = URL(fileURLWithPath: "/tmp/project-activity.fit")
+        let videoAsset = MediaAsset(
+            id: videoURL.path,
+            kind: .video,
+            url: videoURL,
+            displayName: "project-video.mov",
+            duration: 40,
+            width: 1920,
+            height: 1080,
+            framesPerSecond: 30
+        )
+        let activityAsset = MediaAsset(
+            id: activityURL.path,
+            kind: .activity,
+            url: activityURL,
+            displayName: "project-activity.fit",
+            duration: 30
+        )
+        let project = TimelineProject(
+            outputWidth: 1280,
+            outputHeight: 720,
+            framesPerSecond: 24,
+            distanceUnit: .meters,
+            assets: [videoAsset, activityAsset],
+            tracks: [
+                TimelineTrack(
+                    id: "video.track.custom",
+                    kind: .video,
+                    name: "V1",
+                    clips: [
+                        TimelineClip(
+                            id: "video.clip.custom",
+                            assetID: videoAsset.id,
+                            timelineStart: 0,
+                            duration: 40
+                        )
+                    ]
+                ),
+                TimelineTrack(
+                    id: "overlay.track.custom",
+                    kind: .overlay,
+                    name: "O1",
+                    clips: [
+                        TimelineClip(
+                            id: "overlay.clip.custom",
+                            assetID: activityAsset.id,
+                            timelineStart: 5,
+                            duration: 20,
+                            sourceIn: 3,
+                            layout: .default,
+                            distanceUnit: .kilometers
+                        )
+                    ]
+                )
+            ]
+        )
+        let data = try JSONEncoder().encode(project)
+
+        try model.loadTimelineProject(from: data, loadAssets: false)
+
+        XCTAssertEqual(model.currentTimelineProject.assets, project.assets)
+        XCTAssertEqual(model.currentTimelineProject.tracks, project.tracks)
+        XCTAssertEqual(model.videoAssets, [videoAsset])
+        XCTAssertEqual(model.activityAssets, [activityAsset])
+        XCTAssertEqual(model.videoURL, videoURL)
+        XCTAssertEqual(model.fitURL, activityURL)
+        XCTAssertEqual(model.outputWidth, 1280)
+        XCTAssertEqual(model.outputHeight, 720)
+        XCTAssertEqual(model.outputFPS, 24)
+        XCTAssertEqual(model.distanceUnit, .meters)
+
+        let saved = try JSONDecoder().decode(TimelineProject.self, from: model.timelineProjectJSONData())
+        XCTAssertEqual(saved.tracks, model.currentTimelineProject.tracks)
+        XCTAssertEqual(saved.outputWidth, model.currentTimelineProject.outputWidth)
+        XCTAssertEqual(saved.outputHeight, model.currentTimelineProject.outputHeight)
+        XCTAssertEqual(saved.framesPerSecond, model.currentTimelineProject.framesPerSecond)
+        XCTAssertEqual(saved.distanceUnit, model.currentTimelineProject.distanceUnit)
+        XCTAssertEqual(saved.assets.map(\.id), model.currentTimelineProject.assets.map(\.id))
+
+        model.setOutputWidth(1920)
+
+        XCTAssertEqual(model.currentTimelineProject.tracks, project.tracks)
+        XCTAssertEqual(model.currentTimelineProject.assets, project.assets)
+        XCTAssertEqual(model.currentTimelineProject.outputWidth, 1920)
+    }
+
     func testTrimmingPooledTimelineClipUpdatesClipGeometry() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
