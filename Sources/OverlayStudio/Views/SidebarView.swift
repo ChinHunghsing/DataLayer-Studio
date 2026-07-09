@@ -95,6 +95,7 @@ struct SidebarView: View {
                     addTitle: localization.string("mediapool.addActivity"),
                     select: model.selectActivityAsset,
                     remove: model.removeActivityAsset,
+                    appendToTimeline: model.addActivityAssetToTimeline,
                     add: model.chooseFIT
                 )
 

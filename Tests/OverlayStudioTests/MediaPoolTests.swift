@@ -107,6 +107,49 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.timeline.tracks.last?.clips.first?.layout, newLayout.sanitized)
     }
 
+    func testAddingPooledActivityCreatesSeparateOverlaySeriesForExport() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+
+        let firstURL = URL(fileURLWithPath: "/tmp/a.fit")
+        let firstSeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ])
+        model.upsertActivityAsset(url: firstURL, series: firstSeries)
+        model.fitURL = firstURL
+
+        let secondURL = URL(fileURLWithPath: "/tmp/b.fit")
+        let secondSeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ])
+        model.upsertActivityAsset(url: secondURL, series: secondSeries)
+        model.previewTime = 12
+
+        model.addActivityAssetToTimeline(id: secondURL.path)
+
+        let overlayClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .overlay }
+            .flatMap(\.clips)
+        XCTAssertEqual(overlayClips.count, 2)
+        XCTAssertEqual(overlayClips.last?.assetID, secondURL.path)
+        XCTAssertEqual(overlayClips.last?.timelineStart ?? -1, 12, accuracy: 1e-9)
+
+        let exportSeries = model.timelineTelemetrySeriesForExport(project: model.currentTimelineProject)
+        XCTAssertEqual(exportSeries[firstURL.path]?.duration, firstSeries.duration)
+        XCTAssertEqual(exportSeries[secondURL.path]?.duration, secondSeries.duration)
+
+        model.setOutputWidth(1280)
+        let overlaysAfterOutputChange = model.currentTimelineProject.tracks
+            .filter { $0.kind == .overlay }
+            .flatMap(\.clips)
+        XCTAssertEqual(overlaysAfterOutputChange.count, 2)
+        XCTAssertEqual(model.currentTimelineProject.outputWidth, 1280)
+    }
+
     func testTimelineOverlayDragWritesMatchPointSync() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov")

@@ -126,6 +126,7 @@ struct MediaPoolList: View {
     var addTitle: String
     var select: (String) -> Void
     var remove: (String) -> Void
+    var appendToTimeline: ((String) -> Void)? = nil
     var add: () -> Void
 
     var body: some View {
@@ -145,7 +146,8 @@ struct MediaPoolList: View {
                         systemImage: systemImage,
                         isActive: asset.id == activeID,
                         select: { select(asset.id) },
-                        remove: { remove(asset.id) }
+                        remove: { remove(asset.id) },
+                        appendToTimeline: appendToTimeline.map { append in { append(asset.id) } }
                     )
                 }
 
@@ -167,6 +169,7 @@ struct MediaPoolRow: View {
     var isActive: Bool
     var select: () -> Void
     var remove: () -> Void
+    var appendToTimeline: (() -> Void)? = nil
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
@@ -192,6 +195,15 @@ struct MediaPoolRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
+            if let appendToTimeline {
+                Button(action: appendToTimeline) {
+                    Image(systemName: "plus.rectangle.on.rectangle")
+                        .foregroundStyle(.secondary.opacity(0.75))
+                }
+                .buttonStyle(.borderless)
+                .help(localization.string("mediapool.addToTimeline"))
+            }
 
             if !isActive {
                 Button(action: remove) {

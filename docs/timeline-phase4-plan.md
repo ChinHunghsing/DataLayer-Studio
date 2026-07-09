@@ -56,7 +56,7 @@
 **验收**：`TransparentVideoWriterTests` 全绿；真机导出透明片段，放到深色/浅色背景确认**不发灰**、边缘正确。这一步单独提交、单独验证透明回归。
 
 ### 步骤 4.4　时间线变权威存储模型
-**状态：部分完成。** `StudioModel` 已有 `@Published private(set) var timeline`，`currentTimelineProject` 读该存储状态；单源换源/同步/布局/输出设置会重建它。尚未完成：工程存档 Codable 兼容、任意多片段编辑后不被单源迁移覆盖。
+**状态：部分完成。** `StudioModel` 已有 `@Published private(set) var timeline`，`currentTimelineProject` 读该存储状态；单源换源/同步/布局/输出设置会重建它。素材池中的运动文件可加入当前 timeline，进入自定义时间线后不会被输出设置变化覆盖。尚未完成：工程存档 Codable 兼容、任意多片段拖拽/裁剪后的持久化写回。
 
 **做**：`StudioModel` 增 `@Published var timeline: TimelineProject`。首次由 `migratingSingleSource` 建立；换源/改同步/改布局/改导出范围时**写回**这个存储模型（把现有 `setActivitySyncZeroVideoTime`、`setExportTrim*` 等改为编辑 `timeline` 的片段几何/工程属性）。`currentTimelineProject` 改为返回存储的 `timeline`。预览与导出改为读 `timeline`。持久化：`timeline` 进工程存档，做 Codable 向后兼容（旧档无 timeline 字段→用旧字段迁移生成）。
 **验收**：这是最容易回退的一步——旧工程加载、同步/导出范围/布局与改动前完全一致；`swift test` 全量 + 真机回归（三标签、预览、导出金样）。**建议整段做完再提交，不半开工。**
@@ -66,7 +66,7 @@
 **验收**：两段不同分辨率/帧率视频拼接导出正确；片段边界无错帧；内存不涨（仍逐帧）。
 
 ### 步骤 4.6　多浮层片段 / 多轨叠加
-**状态：部分完成。** `TimelineVideoWriter` 已支持透明浮层模式下多个 overlay clip / 多 overlay track 按轨道顺序逐帧叠加，单浮层仍走原 `TransparentVideoWriter` 路径以保护 HEVC Alpha。尚未完成：`StudioModel` 权威 timeline 存储、素材池拖 FIT 生成新浮层片段、预览与 UI 编辑多片段。
+**状态：部分完成。** `TimelineVideoWriter` 已支持透明浮层模式下多个 overlay clip / 多 overlay track 按轨道顺序逐帧叠加，单浮层仍走原 `TransparentVideoWriter` 路径以保护 HEVC Alpha。`StudioModel` 现在按 timeline clip 的 `assetID` 取对应 telemetry，素材池运动文件也可加入新浮层轨。尚未完成：拖拽 FIT 到浮层轨、预览/Inspector 编辑多片段、合成视频多浮层导出。
 
 **做**：素材池拖 FIT 到浮层轨→生成浮层片段（每段可选布局、默认继承项目）；支持多条浮层轨，`TimelineVideoWriter` 逐帧对「该时刻所有启用轨的浮层片段」自底向上依次 `render` 叠加。
 **验收**：两个 FIT 双轨叠加预览=导出；透明叠加不发灰；逐帧流式内存稳定。
