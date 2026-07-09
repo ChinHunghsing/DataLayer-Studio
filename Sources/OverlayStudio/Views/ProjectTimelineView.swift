@@ -40,17 +40,26 @@ struct ProjectTimelineView: View {
 
                     ZStack(alignment: .topLeading) {
                         // Scrub layer (bottom): empty lane areas and video clips pass through to here.
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .frame(width: laneWidth)
-                            .offset(x: headerWidth)
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in
-                                        let t = Double(value.location.x / laneWidth) * duration
-                                        model.scrubPreview(to: min(duration, max(0, t)))
-                                    }
-                            )
+                        HStack(spacing: 0) {
+                            Color.clear
+                                .frame(width: headerWidth)
+                                .allowsHitTesting(false)
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .frame(width: laneWidth)
+                                .gesture(
+                                    DragGesture(minimumDistance: 0)
+                                        .onChanged { value in
+                                            model.scrubPreview(
+                                                to: Self.scrubTime(
+                                                    laneLocationX: value.location.x,
+                                                    laneWidth: laneWidth,
+                                                    duration: duration
+                                                )
+                                            )
+                                        }
+                                )
+                        }
 
                         // Tracks and clips capture their own move/trim gestures.
                         VStack(spacing: 0) {
@@ -84,6 +93,20 @@ struct ProjectTimelineView: View {
                 }
             }
         }
+    }
+
+    static func scrubTime(
+        laneLocationX: CGFloat,
+        laneWidth: CGFloat,
+        duration: TimeInterval
+    ) -> TimeInterval {
+        guard laneLocationX.isFinite,
+              laneWidth.isFinite,
+              laneWidth > 0,
+              duration.isFinite,
+              duration > 0 else { return 0 }
+        let progress = min(1, max(0, laneLocationX / laneWidth))
+        return Double(progress) * duration
     }
 
     // MARK: ruler

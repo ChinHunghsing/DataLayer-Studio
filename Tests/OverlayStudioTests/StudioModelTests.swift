@@ -682,6 +682,24 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(PreviewTimelineSlider.valueChangeEpsilon, 0.001)
     }
 
+    func testProjectTimelineScrubMapsLaneLocalCoordinateWithoutHeaderOffset() {
+        XCTAssertEqual(
+            ProjectTimelineView.scrubTime(laneLocationX: 0, laneWidth: 1_000, duration: 120),
+            0,
+            accuracy: 0.000_1
+        )
+        XCTAssertEqual(
+            ProjectTimelineView.scrubTime(laneLocationX: 250, laneWidth: 1_000, duration: 120),
+            30,
+            accuracy: 0.000_1
+        )
+        XCTAssertEqual(
+            ProjectTimelineView.scrubTime(laneLocationX: 1_100, laneWidth: 1_000, duration: 120),
+            120,
+            accuracy: 0.000_1
+        )
+    }
+
     @MainActor
     func testScrubPreviewWithPlayerRefreshesOverlay() async throws {
         let model = StudioModel()
