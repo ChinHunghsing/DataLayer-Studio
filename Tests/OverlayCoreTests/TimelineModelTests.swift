@@ -56,6 +56,23 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(project.duration, 150) // 40 + 110
     }
 
+    func testProjectSnapsTimelineTimeToNearbyClipEdges() {
+        let project = TimelineProject(
+            outputWidth: 1920, outputHeight: 1080, framesPerSecond: 30, distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "v", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "a", assetID: "vid", timelineStart: 10, duration: 20),
+                    TimelineClip(id: "b", assetID: "vid", timelineStart: 45, duration: 10)
+                ])
+            ]
+        )
+
+        XCTAssertEqual(project.snappedTimelineTime(29.8, threshold: 0.25), 30)
+        XCTAssertEqual(project.snappedTimelineTime(0.1, threshold: 0.25), 0)
+        XCTAssertEqual(project.snappedTimelineTime(44.6, threshold: 0.25), 44.6)
+        XCTAssertEqual(project.snappedTimelineTime(45.1, threshold: 0.25, excludingClipID: "b"), 45.1)
+    }
+
     // MARK: Codable
 
     func testProjectCodableRoundTrip() throws {

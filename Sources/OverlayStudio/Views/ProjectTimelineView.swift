@@ -180,9 +180,9 @@ struct ProjectTimelineView: View {
             clipBody
             if !migratedSingleClip, width > 22 {
                 HStack {
-                    clipTrimHandle(clip: clip, isStart: true, laneWidth: laneWidth, duration: duration)
+                    clipTrimHandle(clip: clip, project: project, isStart: true, laneWidth: laneWidth, duration: duration)
                     Spacer(minLength: 0)
-                    clipTrimHandle(clip: clip, isStart: false, laneWidth: laneWidth, duration: duration)
+                    clipTrimHandle(clip: clip, project: project, isStart: false, laneWidth: laneWidth, duration: duration)
                 }
                 .padding(.horizontal, 2)
             }
@@ -193,23 +193,23 @@ struct ProjectTimelineView: View {
         if migratedSingleClip, syncable {
             block.gesture(clipDragGesture(kind: kind, laneWidth: laneWidth, duration: duration))
         } else if !migratedSingleClip {
-            block.gesture(clipMoveGesture(clip: clip, laneWidth: laneWidth, duration: duration))
+            block.gesture(clipMoveGesture(clip: clip, project: project, laneWidth: laneWidth, duration: duration))
         } else {
             // Without both sources there is nothing to re-sync; taps fall through to the scrub layer.
             block.allowsHitTesting(false)
         }
     }
 
-    private func clipTrimHandle(clip: TimelineClip, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some View {
+    private func clipTrimHandle(clip: TimelineClip, project: TimelineProject, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some View {
         Capsule(style: .continuous)
             .fill(Color.white.opacity(0.32))
             .frame(width: 5, height: trackHeight - 22)
             .frame(width: 14, height: trackHeight - 12)
             .contentShape(Rectangle())
-            .highPriorityGesture(clipTrimGesture(clip: clip, isStart: isStart, laneWidth: laneWidth, duration: duration))
+            .highPriorityGesture(clipTrimGesture(clip: clip, project: project, isStart: isStart, laneWidth: laneWidth, duration: duration))
     }
 
-    private func clipTrimGesture(clip: TimelineClip, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
+    private func clipTrimGesture(clip: TimelineClip, project: TimelineProject, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
         DragGesture(minimumDistance: 2, coordinateSpace: .global)
             .onChanged { value in
                 if clipTrimID != clip.id || clipTrimIsStart != isStart {
@@ -219,7 +219,8 @@ struct ProjectTimelineView: View {
                 }
                 let base = clipTrimBaseTime ?? (isStart ? clip.timelineStart : clip.timelineEnd)
                 let deltaT = Double(value.translation.width / laneWidth) * duration
-                let target = base + deltaT
+                let threshold = Double(6 / laneWidth) * duration
+                let target = project.snappedTimelineTime(base + deltaT, threshold: threshold, excludingClipID: clip.id)
                 if isStart {
                     model.trimTimelineClipStart(id: clip.id, toTimelineTime: target)
                 } else {
@@ -252,7 +253,7 @@ struct ProjectTimelineView: View {
             .onEnded { _ in dragStartZero = nil }
     }
 
-    private func clipMoveGesture(clip: TimelineClip, laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
+    private func clipMoveGesture(clip: TimelineClip, project: TimelineProject, laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
         DragGesture(minimumDistance: 3, coordinateSpace: .global)
             .onChanged { value in
                 if dragClipID != clip.id {
@@ -261,9 +262,8 @@ struct ProjectTimelineView: View {
                 }
                 let base = dragStartClipTimelineStart ?? clip.timelineStart
                 let deltaT = Double(value.translation.width / laneWidth) * duration
-                var newStart = max(0, base + deltaT)
                 let snap = Double(6 / laneWidth) * duration
-                if newStart < snap { newStart = 0 }
+                let newStart = project.snappedTimelineTime(base + deltaT, threshold: snap, excludingClipID: clip.id)
                 model.moveTimelineClip(id: clip.id, toTimelineStart: newStart)
             }
             .onEnded { _ in

@@ -174,6 +174,31 @@ public struct TimelineProject: Codable, Equatable {
     public var duration: TimeInterval {
         tracks.flatMap(\.clips).map(\.timelineEnd).max() ?? 0
     }
+
+    public func snappedTimelineTime(
+        _ proposed: TimeInterval,
+        threshold: TimeInterval,
+        excludingClipID: String? = nil
+    ) -> TimeInterval {
+        let sanitized = max(0, proposed)
+        guard sanitized.isFinite, threshold.isFinite, threshold > 0 else { return sanitized }
+
+        var best = sanitized
+        var bestDistance = threshold
+        let candidates: [TimeInterval] = [0] + tracks
+            .flatMap(\.clips)
+            .filter { $0.id != excludingClipID }
+            .flatMap { [$0.timelineStart, $0.timelineEnd] }
+
+        for candidate in candidates where candidate.isFinite && candidate >= 0 {
+            let distance = abs(candidate - sanitized)
+            if distance <= bestDistance {
+                best = candidate
+                bestDistance = distance
+            }
+        }
+        return best
+    }
 }
 
 // MARK: - Migration from the single-source model
