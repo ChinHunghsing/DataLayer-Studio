@@ -60,8 +60,9 @@ public final class CompositedVideoWriter {
     private static let temporaryFilePrefix = "DataLayerStudio-"
 
     private let outputURL: URL
-    private let sourceAsset: AVAsset
+    private let sourceAsset: AVAsset?
     private let sourceDescription: String
+    private let sourceVideoRanges: [CMTimeRange]?
     private let series: TelemetrySeries?
     private let config: CompositedVideoWriterConfig
     private let overlayStartTime: TimeInterval
@@ -71,6 +72,7 @@ public final class CompositedVideoWriter {
         self.outputURL = outputURL
         self.sourceAsset = AVURLAsset(url: sourceVideoURL)
         self.sourceDescription = sourceVideoURL.path
+        self.sourceVideoRanges = nil
         self.series = series
         self.config = config
         self.overlayStartTime = config.startTime
@@ -87,6 +89,7 @@ public final class CompositedVideoWriter {
         self.outputURL = outputURL
         self.sourceAsset = AVURLAsset(url: sourceVideoURL)
         self.sourceDescription = sourceVideoURL.path
+        self.sourceVideoRanges = nil
         self.series = nil
         self.config = config
         self.overlayStartTime = overlayStartTime
@@ -97,6 +100,7 @@ public final class CompositedVideoWriter {
         outputURL: URL,
         sourceAsset: AVAsset,
         sourceDescription: String,
+        sourceVideoRanges: [CMTimeRange]? = nil,
         config: CompositedVideoWriterConfig,
         overlayStartTime: TimeInterval,
         renderOverlay: @escaping (TimeInterval, CVPixelBuffer) throws -> Void
@@ -104,6 +108,23 @@ public final class CompositedVideoWriter {
         self.outputURL = outputURL
         self.sourceAsset = sourceAsset
         self.sourceDescription = sourceDescription
+        self.sourceVideoRanges = sourceVideoRanges
+        self.series = nil
+        self.config = config
+        self.overlayStartTime = overlayStartTime
+        self.renderOverlay = renderOverlay
+    }
+
+    init(
+        outputURL: URL,
+        config: CompositedVideoWriterConfig,
+        overlayStartTime: TimeInterval,
+        renderOverlay: @escaping (TimeInterval, CVPixelBuffer) throws -> Void
+    ) {
+        self.outputURL = outputURL
+        self.sourceAsset = nil
+        self.sourceDescription = "black timeline canvas"
+        self.sourceVideoRanges = nil
         self.series = nil
         self.config = config
         self.overlayStartTime = overlayStartTime
@@ -123,7 +144,7 @@ public final class CompositedVideoWriter {
 
         do {
             try writeVideoOnly(to: videoOnlyURL)
-            if hasAudioTrack(in: sourceAsset) {
+            if let sourceAsset, hasAudioTrack(in: sourceAsset) {
                 try muxOriginalAudio(videoURL: videoOnlyURL, outputURL: finalURL)
                 try installCompletedOutput(from: finalURL)
             } else {
@@ -154,27 +175,38 @@ public final class CompositedVideoWriter {
         }
         let encoderFrameRate = try encoderFrameRateValue(timing.framesPerSecond)
 
-        let asset = sourceAsset
-        guard let videoTrack = asset.tracks(withMediaType: .video).first else {
-            throw OverlayVideoError.unreadableVideo("No video track found in \(sourceDescription).")
-        }
-
         let trimStartTime = CMTime(seconds: config.startTime, preferredTimescale: timing.mediaTimeScale)
-        let reader = try AVAssetReader(asset: asset)
-        reader.timeRange = CMTimeRange(start: trimStartTime, duration: timing.outputDuration)
-        let readerOutput = AVAssetReaderTrackOutput(
-            track: videoTrack,
-            outputSettings: [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                kCVPixelBufferMetalCompatibilityKey as String: true,
-                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
-            ]
-        )
-        readerOutput.alwaysCopiesSampleData = false
-        guard reader.canAdd(readerOutput) else {
-            throw OverlayVideoError.unreadableVideo("Could not read composited video frames from \(sourceDescription).")
+        let readerSettings: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferMetalCompatibilityKey as String: true,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+        ]
+        let reader: AVAssetReader?
+        let readerOutput: AVAssetReaderOutput?
+        let sourceTransform: CGAffineTransform
+        if let sourceAsset {
+            guard let videoTrack = sourceAsset.tracks(withMediaType: .video).first else {
+                throw OverlayVideoError.unreadableVideo("No video track found in \(sourceDescription).")
+            }
+            let newReader = try AVAssetReader(asset: sourceAsset)
+            newReader.timeRange = CMTimeRange(start: trimStartTime, duration: timing.outputDuration)
+            let newOutput = AVAssetReaderTrackOutput(
+                track: videoTrack,
+                outputSettings: readerSettings
+            )
+            sourceTransform = makeSourceTransform(track: videoTrack, width: width, height: height)
+            newOutput.alwaysCopiesSampleData = false
+            guard newReader.canAdd(newOutput) else {
+                throw OverlayVideoError.unreadableVideo("Could not read composited video frames from \(sourceDescription).")
+            }
+            newReader.add(newOutput)
+            reader = newReader
+            readerOutput = newOutput
+        } else {
+            reader = nil
+            readerOutput = nil
+            sourceTransform = .identity
         }
-        reader.add(readerOutput)
 
         let hardwareProfile = OverlayHardwareProfile.current
         let writer = try AVAssetWriter(outputURL: temporaryOutputURL, fileType: .mov)
@@ -206,7 +238,7 @@ public final class CompositedVideoWriter {
             sourcePixelBufferAttributes: OverlayPixelBufferAttributes.canvas(width: width, height: height)
         )
 
-        guard reader.startReading() else {
+        if let reader, !reader.startReading() {
             throw OverlayVideoError.unreadableVideo(reader.error?.localizedDescription ?? "Could not start reading source video.")
         }
         guard writer.startWriting() else {
@@ -230,7 +262,6 @@ public final class CompositedVideoWriter {
         let ciContext = OverlayCIContextFactory.makeContext(profile: hardwareProfile)
         let overlayPool = try TransparentVideoWriter.makePixelBufferPool(width: width, height: height, minimumBufferCount: 2)
         let outputBounds = CGRect(x: 0, y: 0, width: width, height: height)
-        let sourceTransform = makeSourceTransform(track: videoTrack, width: width, height: height)
         let background = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 1)).cropped(to: outputBounds)
 
         let renderQueue = DispatchQueue(label: "run.libo.overlay.composited-writer")
@@ -238,11 +269,15 @@ public final class CompositedVideoWriter {
         let codec = config.codec
         let progressHandler = config.progressHandler
         let cancellationHandler = config.cancellationHandler
+        let sparseVideoRanges = sourceVideoRanges
         let frameCount = timing.frameCount
         var frameIndex = 0
         var writeError: Error?
         var sourceExhausted = false
         var didFinishInput = false
+        var currentSourceSample: CMSampleBuffer?
+        var pendingSourceSample: CMSampleBuffer?
+        var sparseRangeIndex = 0
 
         input.requestMediaDataWhenReady(on: renderQueue) {
             while input.isReadyForMoreMediaData,
@@ -252,9 +287,6 @@ public final class CompositedVideoWriter {
                 do {
                     var didReadFrame = false
                     try autoreleasepool {
-                        guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else { return }
-                        didReadFrame = true
-
                         if cancellationHandler?() == true {
                             throw OverlayVideoError.cancelled
                         }
@@ -262,13 +294,47 @@ public final class CompositedVideoWriter {
                         guard let pool = adaptor.pixelBufferPool else {
                             throw OverlayVideoError.cannotCreatePixelBuffer
                         }
-                        guard let sourceBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                            throw OverlayVideoError.cannotCreatePixelBuffer
+                        let presentationTime = timing.presentationTime(for: frameIndex)
+                        let sourceTime = CMTimeAdd(trimStartTime, presentationTime)
+                        var sourceImage = background
+                        if let readerOutput, let sparseVideoRanges {
+                            let tolerance = CMTimeMultiplyByFloat64(timing.frameDuration, multiplier: 0.5)
+                            let latestAcceptedTime = CMTimeAdd(sourceTime, tolerance)
+                            while true {
+                                if pendingSourceSample == nil {
+                                    pendingSourceSample = readerOutput.copyNextSampleBuffer()
+                                }
+                                guard let sample = pendingSourceSample else { break }
+                                let sampleTime = CMSampleBufferGetPresentationTimeStamp(sample)
+                                guard sampleTime <= latestAcceptedTime else { break }
+                                currentSourceSample = sample
+                                pendingSourceSample = nil
+                            }
+                            while sparseRangeIndex < sparseVideoRanges.count,
+                                  sourceTime >= CMTimeRangeGetEnd(sparseVideoRanges[sparseRangeIndex]) {
+                                sparseRangeIndex += 1
+                            }
+                            if sparseRangeIndex < sparseVideoRanges.count,
+                               CMTimeRangeContainsTime(sparseVideoRanges[sparseRangeIndex], time: sourceTime),
+                               let currentSourceSample,
+                               let sourceBuffer = CMSampleBufferGetImageBuffer(currentSourceSample) {
+                                sourceImage = CIImage(cvPixelBuffer: sourceBuffer)
+                                    .transformed(by: sourceTransform)
+                                    .composited(over: background)
+                            }
+                        } else if let readerOutput {
+                            guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else { return }
+                            guard let sourceBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                                throw OverlayVideoError.cannotCreatePixelBuffer
+                            }
+                            sourceImage = CIImage(cvPixelBuffer: sourceBuffer)
+                                .transformed(by: sourceTransform)
+                                .composited(over: background)
                         }
+                        didReadFrame = true
 
                         let outputBuffer = try TransparentVideoWriter.makePixelBuffer(from: pool)
                         let overlayBuffer = try TransparentVideoWriter.makePixelBuffer(from: overlayPool)
-                        let presentationTime = timing.presentationTime(for: frameIndex)
                         let overlayTime = self.overlayStartTime + CMTimeGetSeconds(presentationTime)
 
                         if let renderOverlay = self.renderOverlay {
@@ -276,9 +342,6 @@ public final class CompositedVideoWriter {
                         } else if let renderer {
                             try renderer.render(videoTime: overlayTime, into: overlayBuffer)
                         }
-                        let sourceImage = CIImage(cvPixelBuffer: sourceBuffer)
-                            .transformed(by: sourceTransform)
-                            .composited(over: background)
                         let composed = CIImage(cvPixelBuffer: overlayBuffer)
                             .composited(over: sourceImage)
                         ciContext.render(
@@ -322,11 +385,11 @@ public final class CompositedVideoWriter {
         writeFinished.wait()
 
         if let writeError {
-            reader.cancelReading()
+            reader?.cancelReading()
             writer.cancelWriting()
             throw writeError
         }
-        if reader.status == .failed {
+        if let reader, reader.status == .failed {
             writer.cancelWriting()
             throw OverlayVideoError.unreadableVideo(reader.error?.localizedDescription ?? "Source video reading failed.")
         }
@@ -392,6 +455,10 @@ public final class CompositedVideoWriter {
 
     private func muxOriginalAudio(videoURL: URL, outputURL: URL) throws {
         let videoAsset = AVURLAsset(url: videoURL)
+        guard let sourceAsset else {
+            try FileManager.default.copyItem(at: videoURL, to: outputURL)
+            return
+        }
         let audioTracks = sourceAsset.tracks(withMediaType: .audio)
         guard !audioTracks.isEmpty else {
             try FileManager.default.copyItem(at: videoURL, to: outputURL)

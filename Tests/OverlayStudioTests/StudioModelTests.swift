@@ -404,7 +404,7 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.effectiveExportTrimEnd, 10)
     }
 
-    func testFitOnlyModeCannotExportCompositedVideo() {
+    func testActivityOnlyModeCanExportCompositedVideoOnBlackCanvas() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, distanceMeters: 0),
@@ -413,14 +413,11 @@ final class StudioModelTests: XCTestCase {
 
         model.exportMode = .video
 
-        XCTAssertFalse(model.canExport)
-        XCTAssertEqual(
-            model.exportReadinessMessage,
-            AppLocalizer.currentString("status.chooseVideoForCompositedExport")
-        )
+        XCTAssertTrue(model.canExport)
+        XCTAssertNil(model.exportReadinessMessage)
     }
 
-    func testModeSpecificExportReadinessKeepsOverlayAvailableWithoutVideo() {
+    func testModeSpecificExportReadinessAllowsBothOutputsWithoutVideo() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, distanceMeters: 0),
@@ -428,14 +425,11 @@ final class StudioModelTests: XCTestCase {
         ])
         model.exportMode = .video
 
-        XCTAssertFalse(model.canExport)
+        XCTAssertTrue(model.canExport)
         XCTAssertTrue(model.canExport(as: .overlay))
         XCTAssertNil(model.exportReadinessMessage(for: .overlay))
-        XCTAssertFalse(model.canExport(as: .video))
-        XCTAssertEqual(
-            model.exportReadinessMessage(for: .video),
-            AppLocalizer.currentString("status.chooseVideoForCompositedExport")
-        )
+        XCTAssertTrue(model.canExport(as: .video))
+        XCTAssertNil(model.exportReadinessMessage(for: .video))
     }
 
     func testFitOnlyModeIgnoresOffsetSync() {

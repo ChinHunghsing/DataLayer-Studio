@@ -5,13 +5,9 @@ public enum TimelineExportValidationIssue: Error, Equatable, LocalizedError, Sen
     case missingOverlayClip
     case missingActivityAsset(clipID: String)
     case missingTelemetry(assetID: String)
-    case missingVideoClip
     case missingVideoAsset(clipID: String)
     case invalidVideoSourceRange(clipID: String)
-    case videoRangeStartsInGap
-    case videoGap(previousClipID: String, nextClipID: String)
     case videoOverlap(previousClipID: String, nextClipID: String)
-    case videoRangeNotFullyCovered
 
     public var errorDescription: String {
         switch self {
@@ -23,20 +19,12 @@ public enum TimelineExportValidationIssue: Error, Equatable, LocalizedError, Sen
             return "Timeline overlay clip \(clipID) references a missing activity asset."
         case let .missingTelemetry(assetID):
             return "Timeline activity asset \(assetID) has no loaded telemetry series."
-        case .missingVideoClip:
-            return "Timeline video export requires at least one enabled video clip."
         case let .missingVideoAsset(clipID):
             return "Timeline video clip \(clipID) references a missing video asset."
         case let .invalidVideoSourceRange(clipID):
             return "Timeline video clip \(clipID) extends outside its source video duration."
-        case .videoRangeStartsInGap:
-            return "Timeline video export range starts in a gap between video clips."
-        case .videoGap:
-            return "Timeline video export range contains a gap between video clips."
         case .videoOverlap:
             return "Timeline video export does not support overlapping video clips."
-        case .videoRangeNotFullyCovered:
-            return "Timeline video export range is not fully covered by enabled video clips."
         }
     }
 }
@@ -93,7 +81,7 @@ extension TimelineProject {
         } catch let issue as TimelineExportValidationIssue {
             return issue
         } catch {
-            return .videoRangeNotFullyCovered
+            return .invalidRange
         }
     }
 
@@ -120,32 +108,8 @@ extension TimelineProject {
                 return lhs.id < rhs.id
             }
 
-        guard !relevantClips.isEmpty else {
-            throw TimelineExportValidationIssue.missingVideoClip
-        }
-
-        var coveredUntil = timelineStart
-        var coveringClips: [TimelineClip] = []
-        for (index, clip) in relevantClips.enumerated() {
-            if index == 0 {
-                guard clip.timelineStart <= timelineStart + epsilon else {
-                    throw TimelineExportValidationIssue.videoRangeStartsInGap
-                }
-            } else if let previousClip = coveringClips.last {
-                if clip.timelineStart > coveredUntil + epsilon {
-                    throw TimelineExportValidationIssue.videoGap(
-                        previousClipID: previousClip.id,
-                        nextClipID: clip.id
-                    )
-                }
-                if clip.timelineStart < coveredUntil - epsilon {
-                    throw TimelineExportValidationIssue.videoOverlap(
-                        previousClipID: previousClip.id,
-                        nextClipID: clip.id
-                    )
-                }
-            }
-
+        var validatedClips: [TimelineClip] = []
+        for clip in relevantClips {
             guard let videoAsset = asset(id: clip.assetID), videoAsset.kind == .video else {
                 throw TimelineExportValidationIssue.missingVideoAsset(clipID: clip.id)
             }
@@ -160,13 +124,16 @@ extension TimelineProject {
                 throw TimelineExportValidationIssue.invalidVideoSourceRange(clipID: clip.id)
             }
 
-            coveringClips.append(clip)
-            coveredUntil = max(coveredUntil, clip.timelineEnd)
-            if coveredUntil >= end - epsilon {
-                return coveringClips
+            if let previousClip = validatedClips.last,
+               clip.timelineStart < previousClip.timelineEnd - epsilon {
+                throw TimelineExportValidationIssue.videoOverlap(
+                    previousClipID: previousClip.id,
+                    nextClipID: clip.id
+                )
             }
+            validatedClips.append(clip)
         }
 
-        throw TimelineExportValidationIssue.videoRangeNotFullyCovered
+        return validatedClips
     }
 }

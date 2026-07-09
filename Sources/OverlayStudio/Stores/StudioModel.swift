@@ -391,9 +391,6 @@ final class StudioModel: ObservableObject {
             if series == nil {
                 return "status.chooseFitFile"
             }
-            if mode == .video, videoURL == nil {
-                return "status.chooseVideoForCompositedExport"
-            }
         }
         if checkedCodec.exportMode != mode {
             return "status.codecExportModeMismatch"
@@ -447,14 +444,10 @@ final class StudioModel: ObservableObject {
             return "status.timelineMissingActivityAsset"
         case .missingTelemetry:
             return "status.timelineMissingTelemetry"
-        case .missingVideoClip:
-            return "status.chooseVideoForCompositedExport"
         case .missingVideoAsset:
             return "status.timelineMissingVideoAsset"
         case .invalidVideoSourceRange:
             return "status.timelineVideoSourceRange"
-        case .videoRangeStartsInGap, .videoGap, .videoRangeNotFullyCovered:
-            return "status.timelineVideoGap"
         case .videoOverlap:
             return "status.timelineVideoOverlap"
         }

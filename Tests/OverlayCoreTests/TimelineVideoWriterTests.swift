@@ -132,35 +132,245 @@ final class TimelineVideoWriterTests: XCTestCase {
         }
     }
 
-    func testTimelineWriterRejectsProjectsWithoutVideoClip() {
-        let project = TimelineProject.migratingSingleSource(
+    func testTimelineWriterRendersBlackCanvasAndOverlayWithoutVideo() async throws {
+        let outputURL = temporaryMovieURL("timeline-no-video-output")
+        defer { Self.removeTemporaryFile(outputURL) }
+
+        var element = OverlayElement.defaultElement(kind: .pace)
+        element.frame = OverlayComponentFrame(x: 0.25, y: 0.4, scale: 1.6)
+        element.customization.showsPanel = false
+        element.customization.valueColor = OverlayColor(red: 1, green: 1, blue: 1)
+        element.customization.labelColor = OverlayColor(red: 1, green: 1, blue: 1)
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 3),
+            TelemetrySample(elapsed: 1, distanceMeters: 3, speedMetersPerSecond: 3)
+        ])
+        let activity = MediaAsset(
+            id: "activity",
+            kind: .activity,
+            url: URL(fileURLWithPath: "/tmp/activity.fit"),
+            displayName: "activity.fit",
+            duration: 1
+        )
+        let project = TimelineProject(
+            outputWidth: 128,
+            outputHeight: 128,
+            framesPerSecond: 2,
+            distanceUnit: .kilometers,
+            assets: [activity],
+            tracks: [
+                TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "activity-clip",
+                        assetID: activity.id,
+                        timelineStart: 1,
+                        duration: 1,
+                        layout: OverlayLayout(elements: [element])
+                    )
+                ])
+            ]
+        )
+        let writer = TimelineVideoWriter(
+            outputURL: outputURL,
+            project: project,
+            telemetrySeriesByAssetID: [activity.id: series],
+            config: TimelineVideoWriterConfig(
+                width: 128,
+                height: 128,
+                framesPerSecond: 2,
+                duration: 2,
+                averageBitRate: 400_000,
+                codec: .h264
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            throw XCTSkip("Timeline black-canvas test encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let emptyFrame = try await frameLuma(from: outputURL, at: 0.25)
+        let overlayFrame = try await frameLuma(from: outputURL, at: 1.25)
+        XCTAssertLessThan(emptyFrame.max, 20)
+        XCTAssertGreaterThan(overlayFrame.max, 120)
+        XCTAssertLessThan(overlayFrame.mean, 80)
+    }
+
+    func testTimelineWriterKeepsSparseVideoAtTimelinePosition() async throws {
+        let sourceURL = temporaryMovieURL("timeline-sparse-source")
+        let outputURL = temporaryMovieURL("timeline-sparse-output")
+        defer {
+            Self.removeTemporaryFile(sourceURL)
+            Self.removeTemporaryFile(outputURL)
+        }
+
+        try makeTinySourceVideo(at: sourceURL, includeAudio: true, audioSampleByte: 64) { _ in (220, 20, 20) }
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 3, distanceMeters: 9)
+        ])
+        let project = TimelineProject(
             outputWidth: 64,
             outputHeight: 64,
             framesPerSecond: 2,
             distanceUnit: .kilometers,
-            videoAsset: nil,
-            activityAsset: MediaAsset(
-                id: "activity",
-                kind: .activity,
-                url: URL(fileURLWithPath: "/tmp/activity.fit"),
-                displayName: "activity.fit",
-                duration: 1
-            ),
-            sync: .identity,
-            layout: .default
+            assets: [
+                MediaAsset(
+                    id: "video",
+                    kind: .video,
+                    url: sourceURL,
+                    displayName: sourceURL.lastPathComponent,
+                    duration: 1,
+                    width: 64,
+                    height: 64,
+                    framesPerSecond: 2
+                ),
+                MediaAsset(
+                    id: "activity",
+                    kind: .activity,
+                    url: URL(fileURLWithPath: "/tmp/activity.fit"),
+                    displayName: "activity.fit",
+                    duration: 3
+                )
+            ],
+            tracks: [
+                TimelineTrack(id: "video-track", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "video-clip", assetID: "video", timelineStart: 1, duration: 1)
+                ]),
+                TimelineTrack(id: "overlay-track", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "overlay-clip",
+                        assetID: "activity",
+                        timelineStart: 0,
+                        duration: 3,
+                        layout: OverlayLayout(elements: [])
+                    )
+                ])
+            ]
         )
         let writer = TimelineVideoWriter(
-            outputURL: temporaryMovieURL("missing-video-output"),
+            outputURL: outputURL,
             project: project,
-            telemetrySeriesByAssetID: ["activity": TelemetrySeries(samples: [])],
-            config: TimelineVideoWriterConfig(width: 64, height: 64, framesPerSecond: 2, duration: 1, codec: .h264)
+            telemetrySeriesByAssetID: ["activity": series],
+            config: TimelineVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: 2,
+                timelineStart: 0.5,
+                duration: 2,
+                averageBitRate: 400_000,
+                codec: .h264
+            )
         )
 
-        XCTAssertThrowsError(try writer.write()) { error in
-            guard case OverlayVideoError.invalidConfiguration = error else {
-                return XCTFail("Expected invalidConfiguration, got \(error)")
-            }
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            throw XCTSkip("Timeline sparse-video test encoder is unavailable on this Mac: \(error.description)")
         }
+
+        let beforeVideo = try await frameMeanRGB(from: outputURL, at: 0.25)
+        let duringVideo = try await frameMeanRGB(from: outputURL, at: 0.75)
+        let afterVideo = try await frameMeanRGB(from: outputURL, at: 1.75)
+        XCTAssertLessThan(max(beforeVideo.red, beforeVideo.green, beforeVideo.blue), 20)
+        XCTAssertGreaterThan(duringVideo.red, duringVideo.blue + 80)
+        XCTAssertLessThan(max(afterVideo.red, afterVideo.green, afterVideo.blue), 20)
+        let beforeAudio = try await audioMeanAbsoluteAmplitude(from: outputURL, at: 0.25)
+        let duringAudio = try await audioMeanAbsoluteAmplitude(from: outputURL, at: 0.75)
+        let afterAudio = try await audioMeanAbsoluteAmplitude(from: outputURL, at: 1.75)
+        XCTAssertLessThan(beforeAudio, 100)
+        XCTAssertGreaterThan(duringAudio, 1_000)
+        XCTAssertLessThan(afterAudio, 100)
+    }
+
+    func testTransparentTimelineExportKeepsIntervalsWithoutActiveOverlayTransparent() async throws {
+        let outputURL = temporaryMovieURL("timeline-transparent-gap-output")
+        defer { Self.removeTemporaryFile(outputURL) }
+
+        var element = OverlayElement.defaultElement(kind: .pace)
+        element.frame = OverlayComponentFrame(x: 0.25, y: 0.4, scale: 1.6)
+        element.customization.showsPanel = false
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 3),
+            TelemetrySample(elapsed: 1, distanceMeters: 3, speedMetersPerSecond: 3)
+        ])
+        let activity = MediaAsset(
+            id: "activity",
+            kind: .activity,
+            url: URL(fileURLWithPath: "/tmp/activity.fit"),
+            displayName: "activity.fit",
+            duration: 1
+        )
+        let project = TimelineProject(
+            outputWidth: 128,
+            outputHeight: 128,
+            framesPerSecond: 2,
+            distanceUnit: .kilometers,
+            assets: [activity],
+            tracks: [
+                TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "activity-clip",
+                        assetID: activity.id,
+                        timelineStart: 1,
+                        duration: 1,
+                        layout: OverlayLayout(elements: [element])
+                    )
+                ])
+            ]
+        )
+        let writer = TimelineVideoWriter(
+            outputURL: outputURL,
+            project: project,
+            telemetrySeriesByAssetID: [activity.id: series],
+            config: TimelineVideoWriterConfig(
+                width: 128,
+                height: 128,
+                framesPerSecond: 2,
+                duration: 2,
+                averageBitRate: 400_000,
+                codec: .proRes4444
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            throw XCTSkip("Timeline transparent-gap test encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let emptyAlpha = try await frameMaximumAlpha(from: outputURL, at: 0.25)
+        let overlayAlpha = try await frameMaximumAlpha(from: outputURL, at: 1.25)
+        XCTAssertLessThanOrEqual(emptyAlpha, 8)
+        XCTAssertGreaterThan(overlayAlpha, 80)
+
+        guard OverlayHardwareProfile.current.canUseHardwareEncoder(for: .hevcAlpha) else { return }
+        let hevcOutputURL = temporaryMovieURL("timeline-hevc-alpha-gap-output")
+        defer { Self.removeTemporaryFile(hevcOutputURL) }
+        let hevcWriter = TimelineVideoWriter(
+            outputURL: hevcOutputURL,
+            project: project,
+            telemetrySeriesByAssetID: [activity.id: series],
+            config: TimelineVideoWriterConfig(
+                width: 128,
+                height: 128,
+                framesPerSecond: 2,
+                duration: 2,
+                averageBitRate: 400_000,
+                codec: .hevcAlpha
+            )
+        )
+        do {
+            try hevcWriter.write()
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            return
+        }
+
+        let hevcEmptyAlpha = try await frameMaximumAlpha(from: hevcOutputURL, at: 0.25)
+        let hevcOverlayAlpha = try await frameMaximumAlpha(from: hevcOutputURL, at: 1.25)
+        XCTAssertLessThanOrEqual(hevcEmptyAlpha, 8)
+        XCTAssertGreaterThan(hevcOverlayAlpha, 80)
     }
 
     func testTimelineWriterRendersTransparentOverlayMode() throws {
@@ -658,6 +868,7 @@ final class TimelineVideoWriterTests: XCTestCase {
         frameCount: Int = 2,
         framesPerSecond: Int32 = 2,
         includeAudio: Bool = false,
+        audioSampleByte: UInt8 = 0,
         frameColor: (Int) -> (red: UInt8, green: UInt8, blue: UInt8) = { index in
             (UInt8(80 + index * 40), 120, 160)
         }
@@ -731,7 +942,11 @@ final class TimelineVideoWriterTests: XCTestCase {
         input.markAsFinished()
 
         if let audioInput {
-            let sampleBuffer = try makeSilentAudioSampleBuffer(durationSeconds: totalDuration, sampleRate: sampleRate)
+            let sampleBuffer = try makeAudioSampleBuffer(
+                durationSeconds: totalDuration,
+                sampleRate: sampleRate,
+                fillByte: audioSampleByte
+            )
             while !audioInput.isReadyForMoreMediaData {
                 Thread.sleep(forTimeInterval: 0.001)
             }
@@ -750,7 +965,11 @@ final class TimelineVideoWriterTests: XCTestCase {
         }
     }
 
-    private func makeSilentAudioSampleBuffer(durationSeconds: Double, sampleRate: Double) throws -> CMSampleBuffer {
+    private func makeAudioSampleBuffer(
+        durationSeconds: Double,
+        sampleRate: Double,
+        fillByte: UInt8
+    ) throws -> CMSampleBuffer {
         let sampleCount = Int(sampleRate * durationSeconds)
         let bytesPerSample = 2
         let dataSize = sampleCount * bytesPerSample
@@ -795,7 +1014,7 @@ final class TimelineVideoWriterTests: XCTestCase {
             throw OverlayVideoError.writerFailed("Could not allocate tiny source audio block buffer.")
         }
         guard CMBlockBufferFillDataBytes(
-            with: 0,
+            with: Int8(bitPattern: fillByte),
             blockBuffer: blockBuffer,
             offsetIntoDestination: 0,
             dataLength: dataSize
@@ -852,9 +1071,20 @@ final class TimelineVideoWriterTests: XCTestCase {
     }
 
     private func firstFrameLuma(from url: URL) async throws -> (max: Double, mean: Double) {
+        try await frameLuma(from: url, at: 0)
+    }
+
+    private func frameLuma(
+        from url: URL,
+        at seconds: TimeInterval
+    ) async throws -> (max: Double, mean: Double) {
         let asset = AVURLAsset(url: url)
         let tracks = try await asset.loadTracks(withMediaType: .video)
         let reader = try AVAssetReader(asset: asset)
+        reader.timeRange = CMTimeRange(
+            start: CMTime(seconds: seconds, preferredTimescale: 600),
+            duration: CMTime(seconds: 0.25, preferredTimescale: 600)
+        )
         let output = AVAssetReaderTrackOutput(
             track: try XCTUnwrap(tracks.first),
             outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
@@ -887,6 +1117,87 @@ final class TimelineVideoWriterTests: XCTestCase {
             }
         }
         return (maxLuma, sumLuma / Double(width * height))
+    }
+
+    private func frameMaximumAlpha(from url: URL, at seconds: TimeInterval) async throws -> UInt8 {
+        let asset = AVURLAsset(url: url)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        let reader = try AVAssetReader(asset: asset)
+        reader.timeRange = CMTimeRange(
+            start: CMTime(seconds: seconds, preferredTimescale: 600),
+            duration: CMTime(seconds: 0.25, preferredTimescale: 600)
+        )
+        let output = AVAssetReaderTrackOutput(
+            track: try XCTUnwrap(tracks.first),
+            outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        )
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+        let sampleBuffer = try XCTUnwrap(output.copyNextSampleBuffer())
+        let pixelBuffer = try XCTUnwrap(CMSampleBufferGetImageBuffer(sampleBuffer))
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let bytes = try XCTUnwrap(CVPixelBufferGetBaseAddress(pixelBuffer))
+            .assumingMemoryBound(to: UInt8.self)
+
+        var maximum: UInt8 = 0
+        for y in 0..<height {
+            let rowStart = y * bytesPerRow
+            for x in 0..<width {
+                maximum = max(maximum, bytes[rowStart + x * 4 + 3])
+            }
+        }
+        return maximum
+    }
+
+    private func audioMeanAbsoluteAmplitude(from url: URL, at seconds: TimeInterval) async throws -> Double {
+        let asset = AVURLAsset(url: url)
+        let tracks = try await asset.loadTracks(withMediaType: .audio)
+        guard let track = tracks.first else { return 0 }
+        let reader = try AVAssetReader(asset: asset)
+        reader.timeRange = CMTimeRange(
+            start: CMTime(seconds: seconds, preferredTimescale: 44_100),
+            duration: CMTime(seconds: 0.25, preferredTimescale: 44_100)
+        )
+        let output = AVAssetReaderTrackOutput(
+            track: track,
+            outputSettings: [
+                AVFormatIDKey: kAudioFormatLinearPCM,
+                AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsNonInterleaved: false
+            ]
+        )
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+
+        var sampleTotal = 0.0
+        var sampleCount = 0
+        while let sampleBuffer = output.copyNextSampleBuffer(),
+              let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) {
+            let byteCount = CMBlockBufferGetDataLength(blockBuffer)
+            var bytes = [UInt8](repeating: 0, count: byteCount)
+            let copyStatus = bytes.withUnsafeMutableBytes { rawBuffer in
+                CMBlockBufferCopyDataBytes(
+                    blockBuffer,
+                    atOffset: 0,
+                    dataLength: byteCount,
+                    destination: rawBuffer.baseAddress!
+                )
+            }
+            XCTAssertEqual(copyStatus, noErr)
+            for index in stride(from: 0, to: byteCount - 1, by: 2) {
+                let bits = UInt16(bytes[index]) | UInt16(bytes[index + 1]) << 8
+                sampleTotal += abs(Double(Int16(bitPattern: bits)))
+                sampleCount += 1
+            }
+        }
+        return sampleCount > 0 ? sampleTotal / Double(sampleCount) : 0
     }
 
     private func frameMeanRGB(from url: URL, at seconds: TimeInterval) async throws -> (red: Double, green: Double, blue: Double) {

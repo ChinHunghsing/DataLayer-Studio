@@ -1,6 +1,6 @@
 # 时间线 · 阶段 4 执行计划（权威数据源 + 合成器）
 
-> 状态：**阶段 4.1-4.7 已完成**。时间线已经是预览/导出的权威会话状态，支持 JSON 工程保存/打开与 security-scoped bookmark；阶段 5 又补齐 dirty state、危险操作确认、预览/writer 共用同轨重叠规则，以及 App/CLI/writer 共用导出预检。当前剩余重点是缺失素材 relink、混合方向/分辨率真实素材 QA、轨道管理和 Undo/Redo。
+> 状态：**阶段 4.1-4.7 已完成**。时间线已经是预览/导出的权威会话状态，支持 JSON 工程保存/打开与 security-scoped bookmark；阶段 5 补齐 dirty state、危险操作确认、统一片段解析和导出预检；阶段 6 又支持以长运动浮层为主时间轴、视频片段分散排列和空隙黑帧/静音输出。当前剩余重点是缺失素材 relink、混合方向/分辨率真实素材 QA、轨道管理和 Undo/Redo。
 > 本文档给未来会话一份可直接照做的分步执行计划，确保每一步都能完整落地、CI 绿、可安全停下。
 
 ## 目标（对应用户原始四点需求里尚未实现的部分）
@@ -22,7 +22,7 @@
 - 时间线模型：`TimelineProject` / `TimelineTrack` / `TimelineClip` / `MediaAsset`（`Sources/OverlayCore/Timeline/TimelineModel.swift`）。`TimelineClip.sourceTime(atTimelineTime:) = sourceIn + (t − timelineStart)`。
 - `StudioModel.timeline` 是当前会话权威状态；工程可保存/打开为 JSON，素材带 security-scoped bookmark。自定义片段几何、布局和距离单位会持久化；导出 in/out 等会话设置仍不在工程 JSON 中。
 - 时间线视图：`ProjectTimelineView`（`Sources/OverlayStudio/Views/ProjectTimelineView.swift`），支持片段选择、同步/独立移动、左右裁剪、吸附、运动素材拖放、in/out 导出范围和播放头擦洗。
-- 可靠性收口：`TimelineProject.activeClips` 统一预览/writer 的同轨重叠规则；`TimelineExportValidation.swift` 统一 App、CLI、writer 的导出预检。
+- 可靠性收口：`TimelineProject.activeClips` 统一预览/writer 的同轨重叠规则；`TimelineExportValidation.swift` 统一 App、CLI、writer 的导出预检；视频 gap/无视频合法，普通合成用黑帧补空隙，透明浮层空白区保持 Alpha 透明。
 
 ## 红线（每一步都不能破）
 
@@ -35,7 +35,7 @@
 ## 分步路线（每步独立 CI 绿、可停）
 
 ### 步骤 4.1　TimelineVideoWriter：单视频 + 单浮层，金样对齐
-**状态：已完成。** `TimelineVideoWriter` 已新增，单视频 + 单浮层路径会从 `TimelineProject` 的片段几何推导同步关系，再分派到既有 `CompositedVideoWriter`。`TimelineVideoWriterTests` 覆盖了与旧合成 writer 的单源输出等价、缺少 telemetry、缺少视频片段等情况。
+**状态：已完成。** `TimelineVideoWriter` 已新增，单视频 + 单浮层路径会从 `TimelineProject` 的片段几何推导同步关系，再分派到既有 `CompositedVideoWriter`。`TimelineVideoWriterTests` 覆盖了与旧合成 writer 的单源输出等价、缺少 telemetry，以及无视频时的黑色画布输出。
 
 **做**：新建 `Sources/OverlayCore/Video/TimelineVideoWriter.swift`。输入一个 `TimelineProject`（此时只含 1 视频轨 1 浮层轨、各 1 片段）+ 输出配置，逐帧：
 - 用视频轨当前片段定位源视频帧（`TimelineClip.sourceTime`）。
@@ -63,7 +63,7 @@
 **验收**：这是最容易回退的一步——旧工程加载、同步/导出范围/布局与改动前完全一致；`swift test` 全量 + 真机回归（三标签、预览、导出金样）。**建议整段做完再提交，不半开工。**
 
 ### 步骤 4.5　多视频顺序拼接
-**状态：已完成顺序拼接主路径。** 素材池视频可追加到基础视频轨尾部，形成多个视频 clip；模型和 UI 已能表达顺序拼接。`TimelineVideoWriter` 会把连续覆盖导出范围的视频片段组装为 `AVMutableComposition`，再复用既有 `CompositedVideoWriter` 流式写出，因此合成视频可以跨多个顺序视频源导出。仍不支持重叠视频 clip、多机位混合、混合方向片段的独立 transform 指令。
+**状态：已完成顺序和稀疏视频主路径。** 素材池视频可追加到基础视频轨尾部，再移动成分散 clip；模型和 UI 已能表达开头、中间、结尾空隙。`TimelineVideoWriter` 把视频片段组装为 `AVMutableComposition`，按样本时间戳流式取帧，空隙输出黑帧并保持音频静音。仍不支持重叠视频 clip、多机位混合、混合方向片段的独立 transform 指令。
 
 **做**：素材池拖第二个视频到视频轨→追加为第二个视频片段（顺序拼接成一条视频时间轴）。`TimelineVideoWriter` 已按片段定位源，天然支持跨片段切换源视频。
 **验收**：两段不同分辨率/帧率视频拼接导出正确；片段边界无错帧；内存不涨（仍逐帧）。
@@ -96,4 +96,4 @@
 - in/out 高亮带 → 导出范围（与「截剪」标签双向一致，预览自动 clamp）。
 - 播放头擦洗预览。
 
-阶段 4 和阶段 5 可靠性收口均已落地；后续以 `docs/timeline-handoff.md` 的 P1/P2 顺序推进。
+阶段 4、阶段 5 可靠性收口和阶段 6 稀疏视频时间线均已落地；后续以 `docs/timeline-handoff.md` 的 P1/P2 顺序推进。

@@ -55,9 +55,6 @@ struct CommandLineOptions {
         let exportMode = try parseExportMode(values["--export-mode"])
         let codec = try parseCodec(values["--codec"], exportMode: exportMode)
         let videoURL = values["--video"].map { URL(fileURLWithPath: $0) }
-        if exportMode == .video, videoURL == nil, timelineProjectURL == nil {
-            throw CLIError.missingRequired("--video")
-        }
         let distanceUnitOverride = try parseDistanceUnitOverride(values["--distance-unit"])
 
         return CommandLineOptions(
@@ -279,8 +276,8 @@ enum CLIError: Error, CustomStringConvertible {
       --output PATH      Output .mov file.
 
     Options:
-      --video PATH       Optional source video for overlay mode. Required for video mode.
-      --export-mode M    overlay (default) for transparent alpha video, or video for source video with overlay burned in.
+      --video PATH       Optional source video. Without one, video mode renders data over a black canvas.
+      --export-mode M    overlay (default) for transparent alpha video, or video for an opaque composited video.
       --width PX         Override output width, 2...16384 and even. Defaults to source video width, or 1920 without video.
       --height PX        Override output height, 2...16384 and even. Defaults to source video height, or 1080 without video.
       --fps N            Override output frame rate, minimum 1. Defaults to source video frame rate, or 30 without video.
@@ -460,23 +457,48 @@ func run() async throws {
             )
         ).write()
     case .video:
-        guard let videoURL = options.videoURL else {
-            throw CLIError.missingRequired("--video")
+        let activityAsset = MediaAsset(
+            id: fitURL.path,
+            kind: .activity,
+            url: fitURL,
+            displayName: fitURL.lastPathComponent,
+            duration: series.duration
+        )
+        let videoAsset = options.videoURL.flatMap { videoURL in
+            metadata.map { metadata in
+                MediaAsset(
+                    id: videoURL.path,
+                    kind: .video,
+                    url: videoURL,
+                    displayName: videoURL.lastPathComponent,
+                    duration: metadata.duration,
+                    width: Int(metadata.size.width.rounded()),
+                    height: Int(metadata.size.height.rounded()),
+                    framesPerSecond: metadata.framesPerSecond
+                )
+            }
         }
-        try CompositedVideoWriter(
+        let project = TimelineProject.migratingSingleSource(
+            outputWidth: width,
+            outputHeight: height,
+            framesPerSecond: fps,
+            distanceUnit: options.distanceUnit,
+            videoAsset: videoAsset,
+            activityAsset: activityAsset,
+            sync: options.timeSync,
+            layout: resolvedLayout.layout
+        )
+        try TimelineVideoWriter(
             outputURL: options.outputURL,
-            sourceVideoURL: videoURL,
-            series: series,
-            config: CompositedVideoWriterConfig(
+            project: project,
+            telemetrySeriesByAssetID: [activityAsset.id: series],
+            config: TimelineVideoWriterConfig(
                 width: width,
                 height: height,
                 framesPerSecond: fps,
                 duration: duration,
                 averageBitRate: options.averageBitRate,
-                timeSync: options.timeSync,
                 codec: options.codec,
-                overlayLayout: resolvedLayout.layout,
-                distanceUnit: options.distanceUnit,
                 activityTrim: options.activityTrim,
                 progressHandler: progressHandler
             )

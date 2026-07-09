@@ -83,7 +83,11 @@ public final class TimelineVideoWriter {
     }
 
     private func writeCompositedVideo() throws {
-        let video = try makeCompositedVideoSource()
+        let videoClips = try project.validatedVideoClipsForExport(
+            timelineStart: config.timelineStart,
+            duration: config.duration
+        )
+        let video = try videoClips.isEmpty ? nil : makeCompositedVideoSource(videoClips)
         let overlays = try makeOverlayCompositions()
         let overlaysByClipID = overlayCompositionsByClipID(overlays)
 
@@ -97,49 +101,64 @@ public final class TimelineVideoWriter {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bounds = CGRect(x: 0, y: 0, width: config.width, height: config.height)
 
-        try CompositedVideoWriter(
-            outputURL: outputURL,
-            sourceAsset: video.asset,
-            sourceDescription: video.description,
-            config: CompositedVideoWriterConfig(
-                width: config.width,
-                height: config.height,
-                framesPerSecond: config.framesPerSecond,
-                startTime: video.startTime,
-                duration: config.duration,
-                averageBitRate: config.averageBitRate,
-                codec: config.codec,
-                activityTrim: config.activityTrim,
-                progressHandler: config.progressHandler,
-                cancellationHandler: config.cancellationHandler,
-                diagnosticsHandler: config.diagnosticsHandler
-            ),
-            overlayStartTime: config.timelineStart,
-            renderOverlay: { timelineTime, overlayBuffer in
-                let activeOverlays = self.activeOverlayCompositions(
-                    atTimelineTime: timelineTime,
-                    compositionsByClipID: overlaysByClipID
-                )
-                let renderedBuffer = try self.renderTransparentFrame(
-                    activeOverlays,
-                    timelineTime: timelineTime,
-                    renderPool: renderPool,
-                    compositeContext: compositeContext,
-                    colorSpace: colorSpace
-                )
-                compositeContext.render(
-                    CIImage(cvPixelBuffer: renderedBuffer),
-                    to: overlayBuffer,
-                    bounds: bounds,
-                    colorSpace: colorSpace
-                )
-            }
-        ).write()
+        let writerConfig = CompositedVideoWriterConfig(
+            width: config.width,
+            height: config.height,
+            framesPerSecond: config.framesPerSecond,
+            startTime: video?.startTime ?? 0,
+            duration: config.duration,
+            averageBitRate: config.averageBitRate,
+            codec: config.codec,
+            activityTrim: config.activityTrim,
+            progressHandler: config.progressHandler,
+            cancellationHandler: config.cancellationHandler,
+            diagnosticsHandler: config.diagnosticsHandler
+        )
+        let renderOverlay: (TimeInterval, CVPixelBuffer) throws -> Void = { timelineTime, overlayBuffer in
+            let activeOverlays = self.activeOverlayCompositions(
+                atTimelineTime: timelineTime,
+                compositionsByClipID: overlaysByClipID
+            )
+            let renderedBuffer = try self.renderTransparentFrame(
+                activeOverlays,
+                timelineTime: timelineTime,
+                renderPool: renderPool,
+                compositeContext: compositeContext,
+                colorSpace: colorSpace
+            )
+            compositeContext.render(
+                CIImage(cvPixelBuffer: renderedBuffer),
+                to: overlayBuffer,
+                bounds: bounds,
+                colorSpace: colorSpace
+            )
+        }
+
+        let writer: CompositedVideoWriter
+        if let video {
+            writer = CompositedVideoWriter(
+                outputURL: outputURL,
+                sourceAsset: video.asset,
+                sourceDescription: video.description,
+                sourceVideoRanges: video.videoRanges,
+                config: writerConfig,
+                overlayStartTime: config.timelineStart,
+                renderOverlay: renderOverlay
+            )
+        } else {
+            writer = CompositedVideoWriter(
+                outputURL: outputURL,
+                config: writerConfig,
+                overlayStartTime: config.timelineStart,
+                renderOverlay: renderOverlay
+            )
+        }
+        try writer.write()
     }
 
     private func writeTransparentOverlay() throws {
         let overlays = try makeOverlayCompositions()
-        if overlays.count != 1 {
+        if overlays.count != 1 || !clipCoversExportRange(overlays[0].clip) {
             try writeMultiTransparentOverlay(overlays)
             return
         }
@@ -372,13 +391,21 @@ public final class TimelineVideoWriter {
         }
     }
 
-    private func makeCompositedVideoSource() throws -> (asset: AVAsset, description: String, startTime: TimeInterval) {
-        let videoClips = try project.validatedVideoClipsForExport(
-            timelineStart: config.timelineStart,
-            duration: config.duration
-        )
+    private func clipCoversExportRange(_ clip: TimelineClip) -> Bool {
+        let epsilon = 1e-6
+        return clip.timelineStart <= config.timelineStart + epsilon
+            && clip.timelineEnd >= config.timelineStart + config.duration - epsilon
+    }
 
-        if videoClips.count == 1 {
+    private func makeCompositedVideoSource(
+        _ videoClips: [TimelineClip]
+    ) throws -> (
+        asset: AVAsset,
+        description: String,
+        startTime: TimeInterval,
+        videoRanges: [CMTimeRange]?
+    ) {
+        if videoClips.count == 1, clipCoversExportRange(videoClips[0]) {
             let clip = videoClips[0]
             guard let videoAsset = project.asset(id: clip.assetID), videoAsset.kind == .video else {
                 throw OverlayVideoError.invalidConfiguration("Timeline video clip references a missing video asset.")
@@ -387,13 +414,21 @@ public final class TimelineVideoWriter {
             guard startTime.isFinite, startTime >= 0 else {
                 throw OverlayVideoError.invalidConfiguration("Timeline export maps to an invalid source video start time.")
             }
-            return (AVURLAsset(url: videoAsset.url), videoAsset.url.path, startTime)
+            return (AVURLAsset(url: videoAsset.url), videoAsset.url.path, startTime, nil)
         }
 
-        return (try makeTimelineVideoComposition(videoClips), "timeline video composition", config.timelineStart)
+        let timelineComposition = try makeTimelineVideoComposition(videoClips)
+        return (
+            timelineComposition.asset,
+            "sparse timeline video composition",
+            config.timelineStart,
+            timelineComposition.videoRanges
+        )
     }
 
-    private func makeTimelineVideoComposition(_ videoClips: [TimelineClip]) throws -> AVAsset {
+    private func makeTimelineVideoComposition(
+        _ videoClips: [TimelineClip]
+    ) throws -> (asset: AVAsset, videoRanges: [CMTimeRange]) {
         let composition = AVMutableComposition()
         guard let compositionVideoTrack = composition.addMutableTrack(
             withMediaType: .video,
@@ -404,6 +439,7 @@ public final class TimelineVideoWriter {
 
         let timescale = CMTimeScale(600)
         var didSetPreferredTransform = false
+        var videoRanges: [CMTimeRange] = []
 
         for clip in videoClips {
             guard let videoAsset = project.asset(id: clip.assetID), videoAsset.kind == .video else {
@@ -431,6 +467,7 @@ public final class TimelineVideoWriter {
                 of: sourceVideoTrack,
                 at: destinationStart
             )
+            videoRanges.append(CMTimeRange(start: destinationStart, duration: sourceDuration))
             if !didSetPreferredTransform {
                 compositionVideoTrack.preferredTransform = sourceVideoTrack.preferredTransform
                 didSetPreferredTransform = true
@@ -463,7 +500,20 @@ public final class TimelineVideoWriter {
             }
         }
 
-        return composition
+        let requiredEnd = CMTime(
+            seconds: config.timelineStart + config.duration,
+            preferredTimescale: timescale
+        )
+        if composition.duration < requiredEnd {
+            composition.insertEmptyTimeRange(
+                CMTimeRange(
+                    start: composition.duration,
+                    duration: CMTimeSubtract(requiredEnd, composition.duration)
+                )
+            )
+        }
+
+        return (composition, videoRanges)
     }
 
     private func minTime(_ lhs: CMTime, _ rhs: CMTime) -> CMTime {

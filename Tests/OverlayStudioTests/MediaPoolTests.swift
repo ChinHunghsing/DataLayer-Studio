@@ -382,7 +382,7 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertNil(model.exportReadinessMessage(for: .overlay))
     }
 
-    func testCustomTimelineExportReadinessReportsVideoGapBeforeExport() {
+    func testCustomTimelineExportReadinessAllowsSparseVideoClips() {
         let model = StudioModel()
         let firstVideo = MediaAsset(
             id: "video-a",
@@ -428,11 +428,8 @@ final class MediaPoolTests: XCTestCase {
             TelemetrySample(elapsed: 3, distanceMeters: 10)
         ]))
 
-        XCTAssertFalse(model.canExport(as: .video))
-        XCTAssertEqual(
-            model.exportReadinessMessage(for: .video),
-            AppLocalizer.currentString("status.timelineVideoGap")
-        )
+        XCTAssertTrue(model.canExport(as: .video))
+        XCTAssertNil(model.exportReadinessMessage(for: .video))
     }
 
     func testCustomTimelinePreviewAndExportTrimUseTimelineDuration() {

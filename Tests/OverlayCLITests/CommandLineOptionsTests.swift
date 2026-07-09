@@ -19,17 +19,17 @@ final class CommandLineOptionsTests: XCTestCase {
         XCTAssertEqual(options.codec, .hevcAlpha)
     }
 
-    func testCompositedVideoExportRequiresSourceVideo() {
-        XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
+    func testCompositedVideoExportAllowsBlackCanvasWithoutSourceVideo() throws {
+        let options = try CommandLineOptions.parse(arguments: [
             "overlay",
             "--fit", "activity.fit",
             "--output", "video.mov",
             "--export-mode", "video"
-        ])) { error in
-            guard case CLIError.missingRequired("--video") = error else {
-                return XCTFail("Unexpected error: \(error)")
-            }
-        }
+        ])
+
+        XCTAssertNil(options.videoURL)
+        XCTAssertEqual(options.exportMode, .video)
+        XCTAssertEqual(options.codec, .hevc)
     }
 
     func testCompositedVideoExportDefaultsToPlainHEVC() throws {
@@ -200,7 +200,7 @@ final class CommandLineOptionsTests: XCTestCase {
         XCTAssertEqual(loaded, project)
     }
 
-    func testTimelineProjectCLIRejectsVideoGapDuringSharedPreflight() throws {
+    func testTimelineProjectCLIAllowsVideoGapDuringSharedPreflight() throws {
         let activityURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("datalayer-cli-preflight-\(UUID().uuidString)")
             .appendingPathExtension("gpx")
@@ -250,15 +250,11 @@ final class CommandLineOptionsTests: XCTestCase {
             "overlay",
             "--timeline-project", projectURL.path,
             "--output", outputURL.path,
-            "--export-mode", "video"
+            "--export-mode", "video",
+            "--inspect"
         ])
 
-        XCTAssertThrowsError(try renderTimelineProject(options: options, projectURL: projectURL)) { error in
-            XCTAssertEqual(
-                error as? TimelineExportValidationIssue,
-                .videoGap(previousClipID: "video-a", nextClipID: "video-b")
-            )
-        }
+        XCTAssertNoThrow(try renderTimelineProject(options: options, projectURL: projectURL))
     }
 
     func testDurationArgumentIsNoLongerSupported() {

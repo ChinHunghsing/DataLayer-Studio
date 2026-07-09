@@ -99,7 +99,7 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(project.snappedTimelineTime(45.1, threshold: 0.25, excludingClipID: "b"), 45.1)
     }
 
-    func testVideoExportPreflightRejectsGapBeforeWriting() {
+    func testVideoExportPreflightAllowsSparseClipsAndEmptyVideoRanges() {
         let project = exportProject(
             videoClips: [
                 TimelineClip(id: "video-a", assetID: "video-a", timelineStart: 0, duration: 1),
@@ -107,14 +107,22 @@ final class TimelineModelTests: XCTestCase {
             ]
         )
 
-        XCTAssertEqual(
+        XCTAssertNil(
             project.firstExportValidationIssue(
                 mode: .video,
                 timelineStart: 0,
-                duration: 2.5,
+                duration: 3,
                 availableTelemetryAssetIDs: ["activity"]
-            ),
-            .videoGap(previousClipID: "video-a", nextClipID: "video-b")
+            )
+        )
+
+        XCTAssertNil(
+            exportProject(videoClips: []).firstExportValidationIssue(
+                mode: .video,
+                timelineStart: 0,
+                duration: 3,
+                availableTelemetryAssetIDs: ["activity"]
+            )
         )
     }
 
