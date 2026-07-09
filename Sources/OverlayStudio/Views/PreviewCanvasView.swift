@@ -266,9 +266,7 @@ struct PreviewCanvasView: View {
     }
 
     private func selectElement(_ id: String) {
-        if model.selectedElementID != id {
-            model.selectedElementID = id
-        }
+        model.selectElement(id: id)
     }
 
     private func selectElement(

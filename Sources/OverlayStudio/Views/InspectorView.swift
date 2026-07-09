@@ -8,10 +8,19 @@ struct InspectorView: View {
     private static let topAnchorID = "inspector-top"
 
     var body: some View {
+        let selectedClip = model.selectedTimelineClip
         let selectedElement = model.selectedElement
 
         VStack(spacing: 0) {
-            if selectedElement != nil {
+            if let selectedClip {
+                TimelineClipInspectorHeader(model: model, clip: selectedClip)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 14)
+                    .padding(.bottom, 10)
+
+                Divider()
+                    .overlay(Color.secondary.opacity(0.16))
+            } else if selectedElement != nil {
                 InspectorSelectionHeader(model: model)
                     .padding(.horizontal, 18)
                     .padding(.top, 14)
@@ -34,15 +43,21 @@ struct InspectorView: View {
                         .frame(height: 0)
                         .id(Self.topAnchorID)
 
-                    InspectorSettingsPanel(
-                        model: model,
-                        selectedElement: selectedElement,
-                        expandedSections: expandedSectionsBinding,
-                        focusedSection: selectedScope.section
-                    )
-                        .padding(.horizontal, 18)
-                        .padding(.top, selectedElement == nil ? 18 : 14)
-                        .padding(.bottom, 14)
+                    Group {
+                        if let selectedClip {
+                            TimelineClipInspectorView(model: model, clip: selectedClip)
+                        } else {
+                            InspectorSettingsPanel(
+                                model: model,
+                                selectedElement: selectedElement,
+                                expandedSections: expandedSectionsBinding,
+                                focusedSection: selectedScope.section
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, selectedClip == nil && selectedElement == nil ? 18 : 14)
+                    .padding(.bottom, 14)
                 }
                 .onChange(of: inspectorScrollIdentity) { _ in
                     withAnimation(.easeOut(duration: 0.16)) {
@@ -76,7 +91,10 @@ struct InspectorView: View {
     }
 
     private var inspectorScrollIdentity: String {
-        "\(selectedElementScopeIdentity):\(selectedScope.rawValue)"
+        if let clipID = model.selectedTimelineClipID {
+            return "timeline:\(clipID)"
+        }
+        return "\(selectedElementScopeIdentity):\(selectedScope.rawValue)"
     }
 
     private func repairSelectedScopeIfNeeded() {

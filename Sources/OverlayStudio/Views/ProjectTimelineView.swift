@@ -158,6 +158,7 @@ struct ProjectTimelineView: View {
         // from the pool are independent timeline items and move by writing their own start time.
         let syncable = model.videoURL != nil && model.fitURL != nil
         let migratedSingleClip = clip.id.hasPrefix("single.")
+        let isSelected = model.selectedTimelineClipID == clip.id
 
         let clipBody = RoundedRectangle(cornerRadius: 7, style: .continuous)
             .fill(clipFill(kind))
@@ -172,7 +173,10 @@ struct ProjectTimelineView: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(syncable ? Color.white.opacity(0.28) : Color.white.opacity(0.12), lineWidth: 1)
+                    .strokeBorder(
+                        isSelected ? Color.accentColor.opacity(0.9) : (syncable ? Color.white.opacity(0.28) : Color.white.opacity(0.12)),
+                        lineWidth: isSelected ? 1.5 : 1
+                    )
             }
             .frame(width: width, height: trackHeight - 12)
 
@@ -189,6 +193,9 @@ struct ProjectTimelineView: View {
         }
         .frame(width: width, height: trackHeight - 12)
         .offset(x: x, y: 6)
+        .onTapGesture {
+            model.selectTimelineClip(id: clip.id)
+        }
 
         if migratedSingleClip, syncable {
             block.gesture(clipDragGesture(kind: kind, laneWidth: laneWidth, duration: duration))

@@ -134,6 +134,7 @@ final class StudioModel: ObservableObject {
         didSet { rebuildCurrentTimelineProject() }
     }
     @Published var selectedElementID: String?
+    @Published var selectedTimelineClipID: String?
     @Published var layoutPresets: [LayoutPreset]
     @Published var defaultLayoutPresetID: String?
     @Published var layoutPresetSyncStatus: LayoutPresetSyncStatus = .localOnly
@@ -395,8 +396,22 @@ final class StudioModel: ObservableObject {
     }
 
     var selectedElement: OverlayElement? {
+        guard selectedTimelineClipID == nil else { return nil }
         guard let selectedElementID else { return layout.elements.first }
         return layout.elements.first { $0.id == selectedElementID } ?? layout.elements.first
+    }
+
+    var selectedTimelineClip: TimelineClip? {
+        guard let selectedTimelineClipID else { return nil }
+        return timelineClip(id: selectedTimelineClipID)
+    }
+
+    var selectedTimelineClipAsset: MediaAsset? {
+        selectedTimelineClip.flatMap { timeline.asset(id: $0.assetID) }
+    }
+
+    var selectedTimelineClipIsEditable: Bool {
+        selectedTimelineClip != nil && !timelineUsesSingleSourceMigration && !isExporting
     }
 
     var timeSync: TelemetryTimeSync {
@@ -1376,6 +1391,19 @@ final class StudioModel: ObservableObject {
         timeline.distanceUnit = distanceUnit
     }
 
+    private func timelineClip(id: String) -> TimelineClip? {
+        timeline.tracks
+            .flatMap(\.clips)
+            .first { $0.id == id }
+    }
+
+    private func repairSelectedTimelineClipIfNeeded() {
+        guard let selectedTimelineClipID else { return }
+        if timelineClip(id: selectedTimelineClipID) == nil {
+            self.selectedTimelineClipID = nil
+        }
+    }
+
     private func removeTimelineAsset(id: String) {
         guard !timelineUsesSingleSourceMigration else { return }
         timeline.assets.removeAll { $0.id == id }
@@ -1384,6 +1412,7 @@ final class StudioModel: ObservableObject {
             updated.clips.removeAll { $0.assetID == id }
             return updated.clips.isEmpty ? nil : updated
         }
+        repairSelectedTimelineClipIfNeeded()
     }
 
     func timelineTelemetrySeriesForExport(project: TimelineProject) -> [String: TelemetrySeries] {
@@ -1433,6 +1462,75 @@ final class StudioModel: ObservableObject {
             let currentStart = timeline.tracks[trackIndex].clips[clipIndex].timelineStart
             guard abs(currentStart - sanitizedStart) > 1e-6 else { return }
             timeline.tracks[trackIndex].clips[clipIndex].timelineStart = sanitizedStart
+            refreshOverlayOrPreview()
+            return
+        }
+    }
+
+    func selectTimelineClip(id: String) {
+        guard timelineClip(id: id) != nil else {
+            selectedTimelineClipID = nil
+            return
+        }
+        selectedTimelineClipID = id
+        selectedElementID = nil
+    }
+
+    func selectElement(id: String) {
+        selectedTimelineClipID = nil
+        if selectedElementID != id {
+            selectedElementID = id
+        }
+    }
+
+    func setTimelineClipDistanceUnit(id: String, _ unit: OverlayDistanceUnit?) {
+        updateTimelineClip(id: id) { clip, _ in
+            clip.distanceUnit = unit
+        }
+    }
+
+    func setTimelineClipLayout(id: String, _ layout: OverlayLayout?) {
+        updateTimelineClip(id: id) { clip, _ in
+            clip.layout = layout?.sanitized
+        }
+    }
+
+    func setTimelineClipTiming(
+        id: String,
+        timelineStart: TimeInterval? = nil,
+        sourceIn: TimeInterval? = nil,
+        duration: TimeInterval? = nil
+    ) {
+        updateTimelineClip(id: id) { clip, asset in
+            let minimumDuration: TimeInterval = 0.1
+            let sourceDuration = max(minimumDuration, asset.duration)
+            let maxSourceIn = max(0, sourceDuration - minimumDuration)
+            clip.timelineStart = max(0, timelineStart ?? clip.timelineStart)
+            clip.sourceIn = min(maxSourceIn, max(0, sourceIn ?? clip.sourceIn))
+            let maxDuration = max(minimumDuration, sourceDuration - clip.sourceIn)
+            clip.duration = min(maxDuration, max(minimumDuration, duration ?? clip.duration))
+        }
+    }
+
+    private func updateTimelineClip(
+        id: String,
+        _ update: (inout TimelineClip, MediaAsset) -> Void
+    ) {
+        guard !isExporting, !timelineUsesSingleSourceMigration else { return }
+
+        for trackIndex in timeline.tracks.indices {
+            guard !timeline.tracks[trackIndex].isLocked else { continue }
+            guard let clipIndex = timeline.tracks[trackIndex].clips.firstIndex(where: { $0.id == id }) else {
+                continue
+            }
+            guard let asset = timeline.asset(id: timeline.tracks[trackIndex].clips[clipIndex].assetID),
+                  asset.duration > 0 else { return }
+
+            let oldClip = timeline.tracks[trackIndex].clips[clipIndex]
+            var updatedClip = oldClip
+            update(&updatedClip, asset)
+            guard updatedClip != oldClip else { return }
+            timeline.tracks[trackIndex].clips[clipIndex] = updatedClip
             refreshOverlayOrPreview()
             return
         }
@@ -1986,6 +2084,7 @@ final class StudioModel: ObservableObject {
             element.frame.y = PreviewLayoutLimits.clampPosition(element.frame.y + offset)
             layout.elements.append(element)
             selectedElementID = element.id
+            selectedTimelineClipID = nil
         }
         refreshOverlayOrPreview()
     }
@@ -1999,6 +2098,7 @@ final class StudioModel: ObservableObject {
             element.frame.y = PreviewLayoutLimits.clampPosition(element.frame.y + 0.035)
             layout.elements.append(element)
             selectedElementID = element.id
+            selectedTimelineClipID = nil
         }
         refreshOverlayOrPreview()
     }
@@ -2049,6 +2149,7 @@ final class StudioModel: ObservableObject {
         if selectedElementID != id {
             selectedElementID = id
         }
+        selectedTimelineClipID = nil
         updateElement(id) { element in
             element.frame.x = PreviewLayoutLimits.clampPosition(element.frame.x + deltaX)
             element.frame.y = PreviewLayoutLimits.clampPosition(element.frame.y + deltaY)

@@ -271,6 +271,54 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(trimmed.duration, 35, accuracy: 1e-9)
     }
 
+    func testSelectingAndEditingPooledTimelineClipUpdatesClipSettings() throws {
+        let model = StudioModel()
+        let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+
+        let pooledURL = URL(fileURLWithPath: "/tmp/b.fit")
+        model.upsertActivityAsset(url: pooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.previewTime = 12
+        model.addActivityAssetToTimeline(id: pooledURL.path)
+
+        let clip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first { $0.assetID == pooledURL.path }
+        )
+
+        model.selectTimelineClip(id: clip.id)
+        XCTAssertEqual(model.selectedTimelineClipID, clip.id)
+        XCTAssertNil(model.selectedElement)
+
+        model.setTimelineClipTiming(id: clip.id, timelineStart: 18, sourceIn: 4, duration: 20)
+        model.setTimelineClipDistanceUnit(id: clip.id, .meters)
+
+        var customLayout = model.layout
+        customLayout.elements[0].frame.x = 0.42
+        model.setTimelineClipLayout(id: clip.id, customLayout)
+
+        let edited = try XCTUnwrap(model.selectedTimelineClip)
+        XCTAssertEqual(edited.timelineStart, 18, accuracy: 1e-9)
+        XCTAssertEqual(edited.sourceIn, 4, accuracy: 1e-9)
+        XCTAssertEqual(edited.duration, 20, accuracy: 1e-9)
+        XCTAssertEqual(edited.distanceUnit, .meters)
+        XCTAssertEqual(try XCTUnwrap(edited.layout?.elements[0].frame.x), 0.42, accuracy: 1e-9)
+
+        let elementID = try XCTUnwrap(model.layout.elements.first?.id)
+        model.selectElement(id: elementID)
+        XCTAssertNil(model.selectedTimelineClipID)
+        XCTAssertEqual(model.selectedElement?.id, elementID)
+    }
+
     func testTimelineOverlayDragIgnoredWithoutBothSources() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov") // no activity
