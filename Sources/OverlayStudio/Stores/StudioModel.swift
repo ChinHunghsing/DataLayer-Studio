@@ -455,11 +455,12 @@ final class StudioModel: ObservableObject {
         panel.title = localized("panel.chooseSourceVideo")
         panel.message = localized("panel.chooseSourceVideo.message")
         panel.prompt = localized("panel.open")
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.movie, .video, .mpeg4Movie, .quickTimeMovie]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        setVideo(url)
+        guard panel.runModal() == .OK, let first = panel.urls.first else { return }
+        setVideo(first)
+        for url in panel.urls.dropFirst() { addVideoAssetToPool(url) }
     }
 
     func chooseFIT() {
@@ -468,11 +469,36 @@ final class StudioModel: ObservableObject {
         panel.title = localized("panel.chooseFitActivity")
         panel.message = localized("panel.chooseFitActivity.message")
         panel.prompt = localized("panel.open")
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = ["fit", "gpx"].compactMap { UTType(filenameExtension: $0) }
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        setFIT(url)
+        guard panel.runModal() == .OK, let first = panel.urls.first else { return }
+        setFIT(first)
+        for url in panel.urls.dropFirst() { addActivityAssetToPool(url) }
+    }
+
+    /// Load a video's metadata off the main thread and add it to the pool without changing the
+    /// active source. Used when multiple files are imported at once.
+    private func addVideoAssetToPool(_ url: URL) {
+        Task.detached {
+            guard let loaded = try? await VideoMetadata.loadAsync(from: url) else { return }
+            await MainActor.run { [weak self] in
+                self?.upsertVideoAsset(url: url, metadata: loaded)
+            }
+        }
+    }
+
+    /// Parse an activity file off the main thread and add it to the pool without changing the
+    /// active source. Used when multiple files are imported at once.
+    private func addActivityAssetToPool(_ url: URL) {
+        Task.detached {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            guard let parsed = try? TelemetryFileParser().parse(url: url) else { return }
+            await MainActor.run { [weak self] in
+                self?.upsertActivityAsset(url: url, series: parsed)
+            }
+        }
     }
 
     func openActivityFile(_ url: URL) {

@@ -93,6 +93,8 @@ final class TimelineModelTests: XCTestCase {
         let overlay = project.tracks[1].clips[0]
         XCTAssertEqual(overlay.timelineStart, 0)
         XCTAssertEqual(overlay.sourceIn, 30, accuracy: 1e-9)
+        XCTAssertEqual(overlay.duration, 270, accuracy: 1e-9)      // 300 activity - 30 trimmed-in head
+        XCTAssertEqual(project.duration, 270)                      // overlay outlasts the 120s video
         XCTAssertEqual(overlay.distanceUnit, .kilometers)
         XCTAssertNotNil(overlay.layout)
         // overlay activity elapsed must equal the old sync mapping
@@ -112,7 +114,8 @@ final class TimelineModelTests: XCTestCase {
         let overlay = project.tracks[1].clips[0]
         XCTAssertEqual(overlay.timelineStart, 49, accuracy: 1e-9) // overlay starts where activity begins
         XCTAssertEqual(overlay.sourceIn, 0, accuracy: 1e-9)
-        XCTAssertEqual(overlay.duration, 71, accuracy: 1e-9)       // 120 - 49
+        XCTAssertEqual(overlay.duration, 300, accuracy: 1e-9)      // full activity length (outlasts the video)
+        XCTAssertEqual(project.duration, 349, accuracy: 1e-9)      // 49 + 300
         XCTAssertFalse(overlay.contains(timelineTime: 40))         // before activity begins
         // mapping holds inside the clip
         for t in stride(from: 49.0, through: 120.0, by: 10.0) {

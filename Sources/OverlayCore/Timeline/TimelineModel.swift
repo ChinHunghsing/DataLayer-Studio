@@ -185,7 +185,9 @@ extension TimelineProject {
     ///
     /// The offset is folded into the clip's `timelineStart`/`sourceIn` so both stay non-negative:
     /// when the activity leads the video the overlay starts trimmed-in; when the video leads the
-    /// activity the overlay clip starts later on the timeline.
+    /// activity the overlay clip starts later on the timeline. The clip's `duration` reflects the
+    /// activity's real length (minus any trimmed-in head), so its timeline width is proportional to
+    /// the activity — not stretched to match the video.
     public static func migratingSingleSource(
         outputWidth: Int,
         outputHeight: Int,
@@ -225,15 +227,17 @@ extension TimelineProject {
             if videoAsset != nil {
                 let offset = sync.fitOffsetFromVideoStart
                 if offset >= 0 {
-                    // Activity is ahead of the video: overlay starts trimmed in by `offset`.
+                    // Activity is ahead of the video: its first `offset` seconds run before the
+                    // timeline origin, so the clip starts trimmed-in and shows the remaining length.
                     start = 0
                     sourceIn = offset
-                    duration = videoDuration
+                    duration = max(0, activityAsset.duration - offset)
                 } else {
-                    // Video leads the activity: overlay starts later on the timeline.
+                    // Video leads the activity: the overlay starts later and shows its full length,
+                    // which may extend past the video when the activity outlasts it.
                     start = -offset
                     sourceIn = 0
-                    duration = max(0, videoDuration - start)
+                    duration = activityAsset.duration
                 }
             } else {
                 // Activity-only project: overlay spans its own duration from the timeline origin.
