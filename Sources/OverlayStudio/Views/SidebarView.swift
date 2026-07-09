@@ -97,6 +97,7 @@ struct SidebarView: View {
                     select: model.selectActivityAsset,
                     remove: model.removeActivityAsset,
                     appendToTimeline: model.addActivityAssetToTimeline,
+                    timelineDragPayload: { TimelineDragPayload.activity(assetID: $0.id) },
                     add: model.chooseFIT
                 )
 

@@ -127,6 +127,7 @@ struct MediaPoolList: View {
     var select: (String) -> Void
     var remove: (String) -> Void
     var appendToTimeline: ((String) -> Void)? = nil
+    var timelineDragPayload: ((MediaAsset) -> String)? = nil
     var add: () -> Void
 
     var body: some View {
@@ -147,7 +148,8 @@ struct MediaPoolList: View {
                         isActive: asset.id == activeID,
                         select: { select(asset.id) },
                         remove: { remove(asset.id) },
-                        appendToTimeline: appendToTimeline.map { append in { append(asset.id) } }
+                        appendToTimeline: appendToTimeline.map { append in { append(asset.id) } },
+                        timelineDragPayload: timelineDragPayload?(asset)
                     )
                 }
 
@@ -170,6 +172,7 @@ struct MediaPoolRow: View {
     var select: () -> Void
     var remove: () -> Void
     var appendToTimeline: (() -> Void)? = nil
+    var timelineDragPayload: String? = nil
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
@@ -222,6 +225,7 @@ struct MediaPoolRow: View {
                     .strokeBorder(ShellStyle.accentStroke, lineWidth: 1)
             }
         }
+        .modifier(OptionalTextDragModifier(payload: timelineDragPayload))
     }
 
     private var subtitle: String {
@@ -238,6 +242,21 @@ struct MediaPoolRow: View {
             return String(format: "%d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
         }
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+private struct OptionalTextDragModifier: ViewModifier {
+    var payload: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let payload {
+            content.onDrag {
+                NSItemProvider(object: payload as NSString)
+            }
+        } else {
+            content
+        }
     }
 }
 

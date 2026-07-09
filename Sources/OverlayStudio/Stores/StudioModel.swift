@@ -1330,8 +1330,13 @@ final class StudioModel: ObservableObject {
         removeTimelineAsset(id: id)
     }
 
-    /// Add a pooled activity as a separate overlay clip at the current preview time.
     func addActivityAssetToTimeline(id: String) {
+        addActivityAssetToTimeline(id: id, targetTrackID: nil, timelineStart: nil)
+    }
+
+    /// Add a pooled activity as an overlay clip. Without a target track this preserves the
+    /// existing behavior and creates a new overlay lane; drops can append to a chosen lane.
+    func addActivityAssetToTimeline(id: String, targetTrackID: String?, timelineStart: TimeInterval?) {
         guard !isExporting,
               let asset = activityAssets.first(where: { $0.id == id }),
               activitySeriesByAssetID[id] != nil,
@@ -1350,12 +1355,22 @@ final class StudioModel: ObservableObject {
         let clip = TimelineClip(
             id: "overlay.clip.\(UUID().uuidString)",
             assetID: asset.id,
-            timelineStart: max(0, previewTime),
+            timelineStart: max(0, timelineStart ?? previewTime),
             duration: asset.duration,
             sourceIn: 0,
             layout: layout.sanitized,
             distanceUnit: distanceUnit
         )
+
+        if let targetTrackID,
+           let trackIndex = timeline.tracks.firstIndex(where: {
+               $0.id == targetTrackID && $0.kind == .overlay && !$0.isLocked
+           }) {
+            timeline.tracks[trackIndex].clips.append(clip)
+            setStatus("status.timelineAddedActivity", asset.displayName)
+            return
+        }
+
         timeline.tracks.append(
             TimelineTrack(
                 id: "overlay.track.\(UUID().uuidString)",

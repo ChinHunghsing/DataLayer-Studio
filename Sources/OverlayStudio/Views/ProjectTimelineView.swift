@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import OverlayCore
 
 /// Read-only timeline of the currently active source(s): a video track and an overlay track with
@@ -144,9 +145,47 @@ struct ProjectTimelineView: View {
                 }
             }
             .frame(width: laneWidth, height: trackHeight, alignment: .topLeading)
+            .contentShape(Rectangle())
+            .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
+                handleActivityDrop(
+                    providers,
+                    onTrack: track,
+                    atX: location.x,
+                    laneWidth: laneWidth,
+                    duration: duration
+                )
+            }
         }
         .frame(height: trackHeight)
         .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private func handleActivityDrop(
+        _ providers: [NSItemProvider],
+        onTrack track: TimelineTrack,
+        atX locationX: CGFloat,
+        laneWidth: CGFloat,
+        duration: TimeInterval
+    ) -> Bool {
+        guard track.kind == .overlay else { return false }
+        guard let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else {
+            return false
+        }
+
+        guard laneWidth > 0, duration > 0 else { return false }
+        let timelineStart = min(duration, max(0, Double(locationX / laneWidth) * duration))
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let payload = object as? NSString,
+                  let assetID = TimelineDragPayload.activityAssetID(from: String(payload)) else { return }
+            DispatchQueue.main.async {
+                model.addActivityAssetToTimeline(
+                    id: assetID,
+                    targetTrackID: track.id,
+                    timelineStart: timelineStart
+                )
+            }
+        }
+        return true
     }
 
     @ViewBuilder

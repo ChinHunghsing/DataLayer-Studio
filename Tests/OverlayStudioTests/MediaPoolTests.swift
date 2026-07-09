@@ -150,6 +150,48 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.currentTimelineProject.outputWidth, 1280)
     }
 
+    func testAddingPooledActivityCanAppendToTargetOverlayTrack() throws {
+        let model = StudioModel()
+        let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+
+        let firstPooledURL = URL(fileURLWithPath: "/tmp/b.fit")
+        model.upsertActivityAsset(url: firstPooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.addActivityAssetToTimeline(id: firstPooledURL.path)
+
+        let targetTrack = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .first { $0.clips.contains { $0.assetID == firstPooledURL.path } }
+        )
+
+        let secondPooledURL = URL(fileURLWithPath: "/tmp/c.fit")
+        model.upsertActivityAsset(url: secondPooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 30, distanceMeters: 120)
+        ]))
+        model.addActivityAssetToTimeline(
+            id: secondPooledURL.path,
+            targetTrackID: targetTrack.id,
+            timelineStart: 33
+        )
+
+        let overlayTracks = model.currentTimelineProject.tracks.filter { $0.kind == .overlay }
+        XCTAssertEqual(overlayTracks.count, 2)
+
+        let updatedTrack = try XCTUnwrap(overlayTracks.first { $0.id == targetTrack.id })
+        XCTAssertEqual(updatedTrack.clips.count, 2)
+        XCTAssertEqual(updatedTrack.clips.last?.assetID, secondPooledURL.path)
+        XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 33, accuracy: 1e-9)
+    }
+
     func testTimelineOverlayDragWritesMatchPointSync() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov")
