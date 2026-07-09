@@ -363,7 +363,7 @@ final class StudioModelTests: XCTestCase {
         XCTAssertFalse(model.isPlaying)
     }
 
-    func testManualOutputURLRequiresWritableDestination() {
+    func testManualOutputURLDoesNotPreflightDestinationWritability() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, distanceMeters: 0),
@@ -371,11 +371,8 @@ final class StudioModelTests: XCTestCase {
         ])
         model.outputURL = URL(fileURLWithPath: "/tmp/datalayer-missing-output-directory/out.mov")
 
-        XCTAssertFalse(model.canExport)
-        XCTAssertEqual(
-            model.exportReadinessMessage,
-            AppLocalizer.currentString("status.outputTargetNotWritable")
-        )
+        XCTAssertTrue(model.canExport)
+        XCTAssertNil(model.exportReadinessMessage)
     }
 
     func testExportTrimRangeDefaultsToFullActivityAndClamps() {
