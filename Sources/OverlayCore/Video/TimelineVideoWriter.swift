@@ -74,20 +74,27 @@ public final class TimelineVideoWriter {
     }
 
     private func writeCompositedVideo() throws {
-        let singleSource = try makeSingleSourceComposition()
-        let timelineToVideoOffset = singleSource.videoClip.sourceIn - singleSource.videoClip.timelineStart
-        let timelineToActivityOffset = singleSource.overlayClip.sourceIn - singleSource.overlayClip.timelineStart
-        let activityOffsetFromVideo = timelineToActivityOffset - timelineToVideoOffset
-        let videoStartTime = singleSource.videoClip.sourceTime(atTimelineTime: config.timelineStart)
+        let video = try makeSingleVideoComposition()
+        let overlays = try makeOverlayCompositions()
+        let videoStartTime = video.clip.sourceTime(atTimelineTime: config.timelineStart)
 
         guard videoStartTime.isFinite, videoStartTime >= 0 else {
             throw OverlayVideoError.invalidConfiguration("Timeline export maps to an invalid source video start time.")
         }
 
+        let renderPool = try TransparentVideoWriter.makePixelBufferPool(
+            width: config.width,
+            height: config.height,
+            minimumBufferCount: overlays.count + 2
+        )
+        let hardwareProfile = OverlayHardwareProfile.current
+        let compositeContext = OverlayCIContextFactory.makeContext(profile: hardwareProfile)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bounds = CGRect(x: 0, y: 0, width: config.width, height: config.height)
+
         try CompositedVideoWriter(
             outputURL: outputURL,
-            sourceVideoURL: singleSource.videoAsset.url,
-            series: singleSource.series,
+            sourceVideoURL: video.asset.url,
             config: CompositedVideoWriterConfig(
                 width: config.width,
                 height: config.height,
@@ -95,15 +102,29 @@ public final class TimelineVideoWriter {
                 startTime: videoStartTime,
                 duration: config.duration,
                 averageBitRate: config.averageBitRate,
-                timeSync: TelemetryTimeSync(videoSyncTime: 0, fitSyncTime: activityOffsetFromVideo),
                 codec: config.codec,
-                overlayLayout: singleSource.overlayClip.layout ?? .default,
-                distanceUnit: singleSource.overlayClip.distanceUnit ?? project.distanceUnit,
                 activityTrim: config.activityTrim,
                 progressHandler: config.progressHandler,
                 cancellationHandler: config.cancellationHandler,
                 diagnosticsHandler: config.diagnosticsHandler
-            )
+            ),
+            overlayStartTime: config.timelineStart,
+            renderOverlay: { timelineTime, overlayBuffer in
+                let activeOverlays = overlays.filter { $0.clip.contains(timelineTime: timelineTime) }
+                let renderedBuffer = try self.renderTransparentFrame(
+                    activeOverlays,
+                    timelineTime: timelineTime,
+                    renderPool: renderPool,
+                    compositeContext: compositeContext,
+                    colorSpace: colorSpace
+                )
+                compositeContext.render(
+                    CIImage(cvPixelBuffer: renderedBuffer),
+                    to: overlayBuffer,
+                    bounds: bounds,
+                    colorSpace: colorSpace
+                )
+            }
         ).write()
     }
 
@@ -321,29 +342,14 @@ public final class TimelineVideoWriter {
         return accumulated
     }
 
-    private func makeSingleSourceComposition() throws -> (
-        videoAsset: MediaAsset,
-        videoClip: TimelineClip,
-        overlayClip: TimelineClip,
-        series: TelemetrySeries
-    ) {
+    private func makeSingleVideoComposition() throws -> (asset: MediaAsset, clip: TimelineClip) {
         let videoClips = enabledClips(kind: .video)
-        let overlayClips = enabledClips(kind: .overlay)
 
         guard videoClips.count == 1, let videoClip = videoClips.first else {
             throw OverlayVideoError.invalidConfiguration("Timeline video export currently requires exactly one enabled video clip.")
         }
-        guard overlayClips.count == 1, let overlayClip = overlayClips.first else {
-            throw OverlayVideoError.invalidConfiguration("Timeline video export currently requires exactly one enabled overlay clip.")
-        }
         guard let videoAsset = project.asset(id: videoClip.assetID), videoAsset.kind == .video else {
             throw OverlayVideoError.invalidConfiguration("Timeline video clip references a missing video asset.")
-        }
-        guard let overlayAsset = project.asset(id: overlayClip.assetID), overlayAsset.kind == .activity else {
-            throw OverlayVideoError.invalidConfiguration("Timeline overlay clip references a missing activity asset.")
-        }
-        guard let series = telemetrySeriesByAssetID[overlayAsset.id] else {
-            throw OverlayVideoError.invalidConfiguration("Timeline overlay clip has no loaded telemetry series.")
         }
 
         let timelineEnd = config.timelineStart + config.duration
@@ -352,7 +358,7 @@ public final class TimelineVideoWriter {
             throw OverlayVideoError.invalidConfiguration("Timeline video export range must be covered by the enabled video clip.")
         }
 
-        return (videoAsset, videoClip, overlayClip, series)
+        return (videoAsset, videoClip)
     }
 
     private func makeOverlayCompositions() throws -> [OverlayComposition] {

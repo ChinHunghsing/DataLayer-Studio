@@ -3,6 +3,10 @@ import XCTest
 
 @MainActor
 final class LocalizationTests: XCTestCase {
+    private func makeStore(defaults: UserDefaults, systemPreferredLanguages: [String]? = nil) -> LocalizationStore {
+        LocalizationStore(defaults: defaults, systemPreferredLanguages: systemPreferredLanguages, appDomains: [])
+    }
+
     func testPreferredLanguageResolutionSupportsRequestedLanguages() {
         XCTAssertEqual(
             AppLocalizer.resolvedLanguage(forPreferredLanguages: ["zh-Hans-CN"]),
@@ -33,12 +37,12 @@ final class LocalizationTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = LocalizationStore(defaults: defaults)
+        let store = makeStore(defaults: defaults)
         XCTAssertEqual(store.selection, .system)
 
         store.selection = .japanese
 
-        let reloaded = LocalizationStore(defaults: defaults)
+        let reloaded = makeStore(defaults: defaults)
         XCTAssertEqual(reloaded.selection, .japanese)
         XCTAssertEqual(reloaded.resolvedLanguage, .japanese)
     }
@@ -48,7 +52,7 @@ final class LocalizationTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = LocalizationStore(defaults: defaults, systemPreferredLanguages: ["en-US"])
+        let store = makeStore(defaults: defaults, systemPreferredLanguages: ["en-US"])
         store.selection = .simplifiedChinese
 
         let argumentDomain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
@@ -82,7 +86,7 @@ final class LocalizationTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = LocalizationStore(defaults: defaults, systemPreferredLanguages: ["zh-Hant-TW"])
+        let store = makeStore(defaults: defaults, systemPreferredLanguages: ["zh-Hant-TW"])
         store.selection = .japanese
         store.selection = .system
 
@@ -100,7 +104,7 @@ final class LocalizationTests: XCTestCase {
         defaults.set(["en"], forKey: "AppleLanguages")
         defaults.setVolatileDomain(["AppleLanguages": ["en"]], forName: UserDefaults.argumentDomain)
 
-        let store = LocalizationStore(defaults: defaults, systemPreferredLanguages: ["zh-Hans-CN"])
+        let store = makeStore(defaults: defaults, systemPreferredLanguages: ["zh-Hans-CN"])
 
         XCTAssertEqual(store.selection, .system)
         XCTAssertEqual(store.resolvedLanguage, .simplifiedChinese)

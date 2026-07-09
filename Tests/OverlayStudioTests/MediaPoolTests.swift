@@ -168,6 +168,47 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.activitySyncZeroVideoTime, -12, accuracy: 1e-9)
     }
 
+    func testMovingPooledActivityClipUpdatesOnlyThatTimelineClip() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+
+        let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+        model.setActivitySyncZeroVideoTime(10)
+
+        let pooledURL = URL(fileURLWithPath: "/tmp/b.fit")
+        model.upsertActivityAsset(url: pooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.previewTime = 20
+        model.addActivityAssetToTimeline(id: pooledURL.path)
+
+        let customClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first { $0.assetID == pooledURL.path }
+        )
+
+        model.moveTimelineClip(id: customClip.id, toTimelineStart: 32)
+
+        let movedClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first { $0.id == customClip.id }
+        )
+        XCTAssertEqual(movedClip.timelineStart, 32, accuracy: 1e-9)
+        XCTAssertEqual(model.activitySyncZeroVideoTime, 10, accuracy: 1e-9)
+    }
+
     func testTimelineOverlayDragIgnoredWithoutBothSources() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov") // no activity

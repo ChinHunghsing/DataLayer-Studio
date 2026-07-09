@@ -61,14 +61,33 @@ public final class CompositedVideoWriter {
 
     private let outputURL: URL
     private let sourceVideoURL: URL
-    private let series: TelemetrySeries
+    private let series: TelemetrySeries?
     private let config: CompositedVideoWriterConfig
+    private let overlayStartTime: TimeInterval
+    private let renderOverlay: ((TimeInterval, CVPixelBuffer) throws -> Void)?
 
     public init(outputURL: URL, sourceVideoURL: URL, series: TelemetrySeries, config: CompositedVideoWriterConfig) {
         self.outputURL = outputURL
         self.sourceVideoURL = sourceVideoURL
         self.series = series
         self.config = config
+        self.overlayStartTime = config.startTime
+        self.renderOverlay = nil
+    }
+
+    init(
+        outputURL: URL,
+        sourceVideoURL: URL,
+        config: CompositedVideoWriterConfig,
+        overlayStartTime: TimeInterval,
+        renderOverlay: @escaping (TimeInterval, CVPixelBuffer) throws -> Void
+    ) {
+        self.outputURL = outputURL
+        self.sourceVideoURL = sourceVideoURL
+        self.series = nil
+        self.config = config
+        self.overlayStartTime = overlayStartTime
+        self.renderOverlay = renderOverlay
     }
 
     public func write() throws {
@@ -175,16 +194,18 @@ public final class CompositedVideoWriter {
         }
         writer.startSession(atSourceTime: .zero)
 
-        let renderer = OverlayRenderer(
-            series: series,
-            config: OverlayRenderConfig(
-                size: CGSize(width: width, height: height),
-                timeSync: config.timeSync,
-                layout: config.overlayLayout,
-                distanceUnit: config.distanceUnit,
-                activityTrim: config.activityTrim
+        let renderer = series.map {
+            OverlayRenderer(
+                series: $0,
+                config: OverlayRenderConfig(
+                    size: CGSize(width: width, height: height),
+                    timeSync: config.timeSync,
+                    layout: config.overlayLayout,
+                    distanceUnit: config.distanceUnit,
+                    activityTrim: config.activityTrim
+                )
             )
-        )
+        }
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let ciContext = OverlayCIContextFactory.makeContext(profile: hardwareProfile)
         let overlayPool = try TransparentVideoWriter.makePixelBufferPool(width: width, height: height, minimumBufferCount: 2)
@@ -197,7 +218,6 @@ public final class CompositedVideoWriter {
         let codec = config.codec
         let progressHandler = config.progressHandler
         let cancellationHandler = config.cancellationHandler
-        let exportStartTime = config.startTime
         let frameCount = timing.frameCount
         var frameIndex = 0
         var writeError: Error?
@@ -229,9 +249,13 @@ public final class CompositedVideoWriter {
                         let outputBuffer = try TransparentVideoWriter.makePixelBuffer(from: pool)
                         let overlayBuffer = try TransparentVideoWriter.makePixelBuffer(from: overlayPool)
                         let presentationTime = timing.presentationTime(for: frameIndex)
-                        let videoTime = exportStartTime + CMTimeGetSeconds(presentationTime)
+                        let overlayTime = self.overlayStartTime + CMTimeGetSeconds(presentationTime)
 
-                        try renderer.render(videoTime: videoTime, into: overlayBuffer)
+                        if let renderOverlay = self.renderOverlay {
+                            try renderOverlay(overlayTime, overlayBuffer)
+                        } else if let renderer {
+                            try renderer.render(videoTime: overlayTime, into: overlayBuffer)
+                        }
                         let sourceImage = CIImage(cvPixelBuffer: sourceBuffer)
                             .transformed(by: sourceTransform)
                             .composited(over: background)

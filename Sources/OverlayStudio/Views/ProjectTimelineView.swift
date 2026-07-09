@@ -14,6 +14,8 @@ struct ProjectTimelineView: View {
     private let playheadColor = Color(red: 1.0, green: 0.42, blue: 0.34)
 
     @State private var dragStartZero: TimeInterval?
+    @State private var dragClipID: String?
+    @State private var dragStartClipTimelineStart: TimeInterval?
     @State private var trimDragStart: TimeInterval?
     @State private var trimDragEnd: TimeInterval?
 
@@ -149,9 +151,10 @@ struct ProjectTimelineView: View {
         let x = CGFloat(clip.timelineStart / duration) * laneWidth
         let width = max(6, CGFloat(clip.duration / duration) * laneWidth)
         let name = project.asset(id: clip.assetID)?.displayName ?? clip.assetID
-        // With both sources loaded, either clip can be dragged to re-sync (they move the same
-        // sync scalar in opposite directions), so both get the interactive treatment.
+        // Migrated single-source clips still represent the global sync relationship. Clips added
+        // from the pool are independent timeline items and move by writing their own start time.
         let syncable = model.videoURL != nil && model.fitURL != nil
+        let migratedSingleClip = clip.id.hasPrefix("single.")
 
         let block = RoundedRectangle(cornerRadius: 7, style: .continuous)
             .fill(clipFill(kind))
@@ -171,8 +174,10 @@ struct ProjectTimelineView: View {
             .frame(width: width, height: trackHeight - 12)
             .offset(x: x, y: 6)
 
-        if syncable {
+        if migratedSingleClip, syncable {
             block.gesture(clipDragGesture(kind: kind, laneWidth: laneWidth, duration: duration))
+        } else if !migratedSingleClip {
+            block.gesture(clipMoveGesture(clip: clip, laneWidth: laneWidth, duration: duration))
         } else {
             // Without both sources there is nothing to re-sync; taps fall through to the scrub layer.
             block.allowsHitTesting(false)
@@ -196,6 +201,26 @@ struct ProjectTimelineView: View {
                 model.setActivitySyncZeroVideoTime(newZero)
             }
             .onEnded { _ in dragStartZero = nil }
+    }
+
+    private func clipMoveGesture(clip: TimelineClip, laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
+        DragGesture(minimumDistance: 3, coordinateSpace: .global)
+            .onChanged { value in
+                if dragClipID != clip.id {
+                    dragClipID = clip.id
+                    dragStartClipTimelineStart = clip.timelineStart
+                }
+                let base = dragStartClipTimelineStart ?? clip.timelineStart
+                let deltaT = Double(value.translation.width / laneWidth) * duration
+                var newStart = max(0, base + deltaT)
+                let snap = Double(6 / laneWidth) * duration
+                if newStart < snap { newStart = 0 }
+                model.moveTimelineClip(id: clip.id, toTimelineStart: newStart)
+            }
+            .onEnded { _ in
+                dragClipID = nil
+                dragStartClipTimelineStart = nil
+            }
     }
 
     // MARK: export range (in/out)

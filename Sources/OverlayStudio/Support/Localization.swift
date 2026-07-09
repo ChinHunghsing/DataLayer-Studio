@@ -78,11 +78,12 @@ final class LocalizationStore: ObservableObject {
 
     init(
         defaults: UserDefaults = .standard,
-        systemPreferredLanguages: [String]? = nil
+        systemPreferredLanguages: [String]? = nil,
+        appDomains: [String] = DataLayerStudioDefaults.appDomains
     ) {
         self.defaults = defaults
         self.systemPreferredLanguages = systemPreferredLanguages ?? AppLocalizer.systemPreferredLanguages(defaults: defaults)
-        self.selection = AppLocalizer.storedSelection(defaults: defaults)
+        self.selection = AppLocalizer.storedSelection(defaults: defaults, appDomains: appDomains)
         AppLocalizer.applyProcessLanguagePreference(
             for: selection,
             preferredLanguages: systemPreferredLanguages,

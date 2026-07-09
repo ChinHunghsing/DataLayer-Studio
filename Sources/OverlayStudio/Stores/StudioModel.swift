@@ -1382,6 +1382,24 @@ final class StudioModel: ObservableObject {
         }
     }
 
+    /// Move a non-migrated timeline clip without changing the global video/activity sync.
+    func moveTimelineClip(id: String, toTimelineStart timelineStart: TimeInterval) {
+        guard !isExporting, !timelineUsesSingleSourceMigration else { return }
+        let sanitizedStart = max(0, timelineStart)
+
+        for trackIndex in timeline.tracks.indices {
+            guard !timeline.tracks[trackIndex].isLocked else { continue }
+            guard let clipIndex = timeline.tracks[trackIndex].clips.firstIndex(where: { $0.id == id }) else {
+                continue
+            }
+            let currentStart = timeline.tracks[trackIndex].clips[clipIndex].timelineStart
+            guard abs(currentStart - sanitizedStart) > 1e-6 else { return }
+            timeline.tracks[trackIndex].clips[clipIndex].timelineStart = sanitizedStart
+            refreshOverlayOrPreview()
+            return
+        }
+    }
+
     func retryVideoLoad() {
         guard let failure = videoLoadFailure else { return }
         setVideo(failure.url)
