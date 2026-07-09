@@ -1998,11 +1998,15 @@ final class StudioModel: ObservableObject {
 
         let currentExportMode = exportMode
         let currentCodec = codec
-        let currentTimeSync = timeSync
-        let currentLayout = layout
-        let currentDistanceUnit = distanceUnit
         let currentActivityTrim = self.currentActivityTrim
         let sourceVideoURL = videoURL
+        let timelineProject = currentTimelineProject
+        let timelineTelemetrySeries: [String: TelemetrySeries] = timelineProject.tracks
+            .filter { $0.kind == .overlay }
+            .flatMap(\.clips)
+            .reduce(into: [:]) { partialResult, clip in
+                partialResult[clip.assetID] = series
+            }
         let progressHandler: (Int, Int) -> Void = { [weak self] completed, total in
             Task { @MainActor in
                 self?.updateExportProgress(total > 0 ? Double(completed) / Double(total) : 0)
@@ -2013,44 +2017,39 @@ final class StudioModel: ObservableObject {
             do {
                 switch currentExportMode {
                 case .overlay:
-                    try TransparentVideoWriter(
+                    try TimelineVideoWriter(
                         outputURL: outputURL,
-                        series: series,
-                        config: TransparentVideoWriterConfig(
+                        project: timelineProject,
+                        telemetrySeriesByAssetID: timelineTelemetrySeries,
+                        config: TimelineVideoWriterConfig(
                             width: exportSettings.width,
                             height: exportSettings.height,
                             framesPerSecond: exportSettings.framesPerSecond,
-                            startTime: exportSettings.startTime,
+                            timelineStart: exportSettings.startTime,
                             duration: exportSettings.duration,
                             averageBitRate: exportSettings.averageBitRate,
-                            timeSync: currentTimeSync,
                             codec: currentCodec,
-                            overlayLayout: currentLayout,
-                            distanceUnit: currentDistanceUnit,
                             activityTrim: currentActivityTrim,
                             progressHandler: progressHandler,
                             cancellationHandler: { cancellationToken.isCancelled }
                         )
                     ).write()
                 case .video:
-                    guard let sourceVideoURL else {
+                    guard sourceVideoURL != nil else {
                         throw OverlayVideoError.invalidConfiguration("Choose a source video before exporting composited video.")
                     }
-                    try CompositedVideoWriter(
+                    try TimelineVideoWriter(
                         outputURL: outputURL,
-                        sourceVideoURL: sourceVideoURL,
-                        series: series,
-                        config: CompositedVideoWriterConfig(
+                        project: timelineProject,
+                        telemetrySeriesByAssetID: timelineTelemetrySeries,
+                        config: TimelineVideoWriterConfig(
                             width: exportSettings.width,
                             height: exportSettings.height,
                             framesPerSecond: exportSettings.framesPerSecond,
-                            startTime: exportSettings.startTime,
+                            timelineStart: exportSettings.startTime,
                             duration: exportSettings.duration,
                             averageBitRate: exportSettings.averageBitRate,
-                            timeSync: currentTimeSync,
                             codec: currentCodec,
-                            overlayLayout: currentLayout,
-                            distanceUnit: currentDistanceUnit,
                             activityTrim: currentActivityTrim,
                             progressHandler: progressHandler,
                             cancellationHandler: { cancellationToken.isCancelled },

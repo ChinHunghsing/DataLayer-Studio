@@ -1,6 +1,6 @@
 # 时间线 · 阶段 4 执行计划（权威数据源 + 合成器）
 
-> 状态：**未开工**。当前时间线已作为「单源里程碑」定稿收尾（见文末「里程碑现状」）。
+> 状态：**阶段 4.1-4.3 已完成（单源导出入口改由时间线驱动）**。当前实现仍保守复用既有 `CompositedVideoWriter` / `TransparentVideoWriter`，多视频、多 FIT、多轨叠加尚未开工。
 > 本文档给未来会话一份可直接照做的分步执行计划，确保每一步都能完整落地、CI 绿、可安全停下。
 
 ## 目标（对应用户原始四点需求里尚未实现的部分）
@@ -34,6 +34,8 @@
 ## 分步路线（每步独立 CI 绿、可停）
 
 ### 步骤 4.1　TimelineVideoWriter：单视频 + 单浮层，金样对齐
+**状态：已完成。** `TimelineVideoWriter` 已新增，单视频 + 单浮层路径会从 `TimelineProject` 的片段几何推导同步关系，再分派到既有 `CompositedVideoWriter`。`TimelineVideoWriterTests` 覆盖了与旧合成 writer 的单源输出等价、缺少 telemetry、缺少视频片段等情况。
+
 **做**：新建 `Sources/OverlayCore/Video/TimelineVideoWriter.swift`。输入一个 `TimelineProject`（此时只含 1 视频轨 1 浮层轨、各 1 片段）+ 输出配置，逐帧：
 - 用视频轨当前片段定位源视频帧（`TimelineClip.sourceTime`）。
 - 用浮层轨当前片段的 `sourceIn`/`timelineStart` 算出该片段的 activity elapsed，复用 `OverlayRenderer.render(videoTime:into:)`（每片段一个 renderer 实例）。
@@ -42,10 +44,14 @@
 **验收**：新写一个 `TimelineVideoWriterTests`，对同一单源用「旧 `CompositedVideoWriter`」和「新 `TimelineVideoWriter`（由 `migratingSingleSource` 生成的工程）」各导出，逐帧/关键帧像素对比一致（金样）。**此步不接线到 UI/导出入口**——但它不是脚手架：它有独立测试证明其正确，是后续步的受测基座。若判定「未接线=脚手架」有顾虑，可与 4.2 合并为一个提交。
 
 ### 步骤 4.2　导出切到 TimelineVideoWriter（不透明路径）
+**状态：已完成。** `StudioModel.export()` 的合成视频分支已改为使用 `currentTimelineProject` + `TimelineVideoWriter`；实际编码和混合仍复用旧 `CompositedVideoWriter`，降低回归风险。
+
 **做**：`StudioModel.export()` 的不透明分支改为：用 `currentTimelineProject`（仍是派生的单源工程）驱动 `TimelineVideoWriter`。透明分支暂留旧 `TransparentVideoWriter`。
 **验收**：真机导出单源视频，与改动前逐帧一致；跑 `CompositedVideoWriterTests` + 新 `TimelineVideoWriterTests` + 真机金样对比。
 
 ### 步骤 4.3　透明路径纳入 TimelineVideoWriter
+**状态：已完成。** `StudioModel.export()` 的透明浮层分支已改为使用 `TimelineVideoWriter`；底层仍调用原 `TransparentVideoWriter`，没有重写 HEVC Alpha / ProRes Alpha 像素路径。`TimelineVideoWriterTests` 增加透明模式冒烟测试，`TransparentVideoWriterTests` 继续作为 Alpha 回归保护。
+
 **做**：把透明 HEVC/ProRes Alpha 输出并入 `TimelineVideoWriter`（或让它内部按 codec 分派到既有透明混合代码，**逐字迁移像素混合，不改算法**）。
 **验收**：`TransparentVideoWriterTests` 全绿；真机导出透明片段，放到深色/浅色背景确认**不发灰**、边缘正确。这一步单独提交、单独验证透明回归。
 
