@@ -2,8 +2,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 import OverlayCore
 
-/// Timeline editor for the current project. The migrated `single.*` clips keep the legacy sync
-/// controls connected; independently added clips write movement and trimming into `TimelineProject`.
+/// Timeline editor for the current project. Every clip owns its relative timeline position;
+/// source match-point controls can align clips, but dragging never rewrites those source times.
 /// Dragging the playhead scrubs the same timeline state consumed by preview and export.
 struct ProjectTimelineView: View {
     @ObservedObject var model: StudioModel
@@ -14,9 +14,9 @@ struct ProjectTimelineView: View {
     private let trackHeight: CGFloat = 48
     private let playheadColor = Color(red: 1.0, green: 0.42, blue: 0.34)
 
-    @State private var dragStartZero: TimeInterval?
     @State private var dragClipID: String?
     @State private var dragStartClipTimelineStart: TimeInterval?
+    @State private var dragTimelineDuration: TimeInterval?
     @State private var clipTrimID: String?
     @State private var clipTrimIsStart: Bool?
     @State private var clipTrimBaseTime: TimeInterval?
@@ -52,7 +52,7 @@ struct ProjectTimelineView: View {
                                     }
                             )
 
-                        // Tracks and clips (overlay clips capture their own drag-to-sync gesture).
+                        // Tracks and clips capture their own move/trim gestures.
                         VStack(spacing: 0) {
                             ruler(duration: duration, laneWidth: laneWidth)
                             ForEach(displayTracks) { track in
@@ -193,10 +193,6 @@ struct ProjectTimelineView: View {
         let x = CGFloat(clip.timelineStart / duration) * laneWidth
         let width = max(6, CGFloat(clip.duration / duration) * laneWidth)
         let name = project.asset(id: clip.assetID)?.displayName ?? clip.assetID
-        // Migrated single-source clips still represent the global sync relationship. Clips added
-        // from the pool are independent timeline items and move by writing their own start time.
-        let syncable = model.videoURL != nil && model.fitURL != nil
-        let migratedSingleClip = clip.id.hasPrefix("single.")
         let isSelected = model.selectedTimelineClipID == clip.id
 
         let clipBody = RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -213,7 +209,7 @@ struct ProjectTimelineView: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.accentColor.opacity(0.9) : (syncable ? Color.white.opacity(0.28) : Color.white.opacity(0.12)),
+                        isSelected ? Color.accentColor.opacity(0.9) : Color.white.opacity(0.18),
                         lineWidth: isSelected ? 1.5 : 1
                     )
             }
@@ -221,7 +217,7 @@ struct ProjectTimelineView: View {
 
         let block = ZStack {
             clipBody
-            if !migratedSingleClip, width > 22 {
+            if width > 22 {
                 HStack {
                     clipTrimHandle(clip: clip, project: project, isStart: true, laneWidth: laneWidth, duration: duration)
                     Spacer(minLength: 0)
@@ -235,15 +231,10 @@ struct ProjectTimelineView: View {
         .onTapGesture {
             model.selectTimelineClip(id: clip.id)
         }
+        .accessibilityLabel(name)
+        .accessibilityValue("\(localization.string("timelineClip.inspector.timelineStart")) \(timecode(clip.timelineStart))")
 
-        if migratedSingleClip, syncable {
-            block.gesture(clipDragGesture(kind: kind, laneWidth: laneWidth, duration: duration))
-        } else if !migratedSingleClip {
-            block.gesture(clipMoveGesture(clip: clip, project: project, laneWidth: laneWidth, duration: duration))
-        } else {
-            // Without both sources there is nothing to re-sync; taps fall through to the scrub layer.
-            block.allowsHitTesting(false)
-        }
+        block.gesture(clipMoveGesture(clip: clip, project: project, laneWidth: laneWidth, duration: duration))
     }
 
     private func clipTrimHandle(clip: TimelineClip, project: TimelineProject, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some View {
@@ -280,41 +271,25 @@ struct ProjectTimelineView: View {
             }
     }
 
-    /// Drag either clip horizontally to re-sync. Dragging the overlay right makes the activity
-    /// start later; dragging the video right is the inverse (the video sits later relative to the
-    /// activity), so the two clips move the same sync scalar in opposite directions.
-    /// Uses global coordinates so the moving clip doesn't feed back into the gesture.
-    private func clipDragGesture(kind: TimelineTrack.Kind, laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
-        DragGesture(minimumDistance: 3, coordinateSpace: .global)
-            .onChanged { value in
-                if dragStartZero == nil { dragStartZero = model.activitySyncZeroVideoTime }
-                let base = dragStartZero ?? model.activitySyncZeroVideoTime
-                let deltaT = Double(value.translation.width / laneWidth) * duration
-                let signed = kind == .overlay ? deltaT : -deltaT
-                var newZero = base + signed
-                let snap = Double(6 / laneWidth) * duration
-                if abs(newZero) < snap { newZero = 0 } // snap to origin
-                model.setActivitySyncZeroVideoTime(newZero)
-            }
-            .onEnded { _ in dragStartZero = nil }
-    }
-
     private func clipMoveGesture(clip: TimelineClip, project: TimelineProject, laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
         DragGesture(minimumDistance: 3, coordinateSpace: .global)
             .onChanged { value in
                 if dragClipID != clip.id {
                     dragClipID = clip.id
                     dragStartClipTimelineStart = clip.timelineStart
+                    dragTimelineDuration = duration
                 }
                 let base = dragStartClipTimelineStart ?? clip.timelineStart
-                let deltaT = Double(value.translation.width / laneWidth) * duration
-                let snap = Double(6 / laneWidth) * duration
+                let gestureDuration = dragTimelineDuration ?? duration
+                let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
+                let snap = Double(6 / laneWidth) * gestureDuration
                 let newStart = project.snappedTimelineTime(base + deltaT, threshold: snap, excludingClipID: clip.id)
                 model.moveTimelineClip(id: clip.id, toTimelineStart: newStart)
             }
             .onEnded { _ in
                 dragClipID = nil
                 dragStartClipTimelineStart = nil
+                dragTimelineDuration = nil
             }
     }
 

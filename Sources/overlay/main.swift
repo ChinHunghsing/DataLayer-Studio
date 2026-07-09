@@ -496,7 +496,7 @@ func run() async throws {
                 width: width,
                 height: height,
                 framesPerSecond: fps,
-                duration: duration,
+                duration: project.duration,
                 averageBitRate: options.averageBitRate,
                 codec: options.codec,
                 activityTrim: options.activityTrim,

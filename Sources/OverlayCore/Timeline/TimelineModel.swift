@@ -4,7 +4,8 @@ import Foundation
 //
 // Foundation for the timeline editor (see the timeline plan). This models a project
 // as a pool of media assets plus a stack of tracks holding clips. It is deliberately
-// simple: sync is a clip's position on the timeline, trimming is a clip's edges/in-point.
+// simple: placement is a clip's relative position, source synchronization is an optional match
+// point, and trimming is a clip's edges/in-point.
 //
 // Compositing order: `tracks` is bottom-to-top. Index 0 renders first (the base), and
 // later tracks composite on top. This layer is pure data — rendering/export consume it
@@ -52,6 +53,27 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         self.height = height
         self.framesPerSecond = framesPerSecond
         self.bookmarkData = bookmarkData
+    }
+}
+
+/// Source-time correspondence used to align one video and one activity without coupling that
+/// relationship to either clip's editable timeline position.
+public struct TimelineSourceMatchPoint: Codable, Equatable {
+    public var videoAssetID: String
+    public var activityAssetID: String
+    public var videoSourceTime: TimeInterval
+    public var activitySourceTime: TimeInterval
+
+    public init(
+        videoAssetID: String,
+        activityAssetID: String,
+        videoSourceTime: TimeInterval,
+        activitySourceTime: TimeInterval
+    ) {
+        self.videoAssetID = videoAssetID
+        self.activityAssetID = activityAssetID
+        self.videoSourceTime = videoSourceTime
+        self.activitySourceTime = activitySourceTime
     }
 }
 
@@ -106,6 +128,12 @@ public struct TimelineClip: Codable, Equatable, Identifiable {
     public func sourceTime(atTimelineTime t: TimeInterval) -> TimeInterval {
         sourceIn + (t - timelineStart)
     }
+
+    /// Timeline position at which a source time appears. This is the inverse of
+    /// `sourceTime(atTimelineTime:)` and is useful when aligning source match points.
+    public func timelineTime(forSourceTime sourceTime: TimeInterval) -> TimeInterval {
+        timelineStart + (sourceTime - sourceIn)
+    }
 }
 
 /// An ordered lane of clips of a single kind.
@@ -153,6 +181,9 @@ public struct TimelineProject: Codable, Equatable {
     public var assets: [MediaAsset]
     /// Bottom-to-top compositing order (index 0 is the base).
     public var tracks: [TimelineTrack]
+    /// Optional primary source match point. It is independent from mutable clip placement and is
+    /// optional so timeline projects saved before this field existed remain decodable.
+    public var sourceMatchPoint: TimelineSourceMatchPoint?
 
     public init(
         outputWidth: Int,
@@ -160,7 +191,8 @@ public struct TimelineProject: Codable, Equatable {
         framesPerSecond: Double,
         distanceUnit: OverlayDistanceUnit,
         assets: [MediaAsset] = [],
-        tracks: [TimelineTrack] = []
+        tracks: [TimelineTrack] = [],
+        sourceMatchPoint: TimelineSourceMatchPoint? = nil
     ) {
         self.outputWidth = outputWidth
         self.outputHeight = outputHeight
@@ -168,6 +200,7 @@ public struct TimelineProject: Codable, Equatable {
         self.distanceUnit = distanceUnit
         self.assets = assets
         self.tracks = tracks
+        self.sourceMatchPoint = sourceMatchPoint
     }
 
     public func asset(id: String) -> MediaAsset? {
@@ -203,6 +236,56 @@ public struct TimelineProject: Codable, Equatable {
         }
         return best
     }
+
+    /// Align one clip's source match point with another clip's source match point.
+    ///
+    /// The anchor keeps its timeline position whenever the moving clip can remain at or after
+    /// timeline zero. If the relative placement would be negative, both clips shift right by the
+    /// minimum amount required. Source in-points and durations are never changed.
+    @discardableResult
+    public mutating func alignMatchPoint(
+        anchorClipID: String,
+        anchorSourceTime: TimeInterval,
+        movingClipID: String,
+        movingSourceTime: TimeInterval
+    ) -> Bool {
+        guard anchorClipID != movingClipID,
+              anchorSourceTime.isFinite,
+              movingSourceTime.isFinite,
+              let anchorLocation = clipLocation(id: anchorClipID),
+              let movingLocation = clipLocation(id: movingClipID),
+              !tracks[anchorLocation.track].isLocked,
+              !tracks[movingLocation.track].isLocked else {
+            return false
+        }
+
+        let anchor = tracks[anchorLocation.track].clips[anchorLocation.clip]
+        let moving = tracks[movingLocation.track].clips[movingLocation.clip]
+        let anchorMatchTime = anchor.timelineTime(forSourceTime: anchorSourceTime)
+        let proposedMovingStart = anchorMatchTime - (movingSourceTime - moving.sourceIn)
+        guard proposedMovingStart.isFinite else { return false }
+
+        let originShift = max(0, -proposedMovingStart)
+        let anchorStart = max(0, anchor.timelineStart + originShift)
+        let movingStart = max(0, proposedMovingStart + originShift)
+        guard abs(anchor.timelineStart - anchorStart) > 1e-9
+                || abs(moving.timelineStart - movingStart) > 1e-9 else {
+            return false
+        }
+
+        tracks[anchorLocation.track].clips[anchorLocation.clip].timelineStart = anchorStart
+        tracks[movingLocation.track].clips[movingLocation.clip].timelineStart = movingStart
+        return true
+    }
+
+    private func clipLocation(id: String) -> (track: Int, clip: Int)? {
+        for trackIndex in tracks.indices {
+            if let clipIndex = tracks[trackIndex].clips.firstIndex(where: { $0.id == id }) {
+                return (trackIndex, clipIndex)
+            }
+        }
+        return nil
+    }
 }
 
 // MARK: - Migration from the single-source model
@@ -210,13 +293,9 @@ public struct TimelineProject: Codable, Equatable {
 extension TimelineProject {
     /// Build a timeline that reproduces the current single-video + single-activity + sync-point
     /// model: one video track with one clip, and one overlay track with one overlay clip whose
-    /// placement reproduces `sync` (`activity elapsed = video/timeline time + fitOffsetFromVideoStart`).
-    ///
-    /// The offset is folded into the clip's `timelineStart`/`sourceIn` so both stay non-negative:
-    /// when the activity leads the video the overlay starts trimmed-in; when the video leads the
-    /// activity the overlay clip starts later on the timeline. The clip's `duration` reflects the
-    /// activity's real length (minus any trimmed-in head), so its timeline width is proportional to
-    /// the activity — not stretched to match the video.
+    /// placement reproduces `sync` by aligning the two source match points on the timeline.
+    /// Both sources remain complete (`sourceIn == 0`); if either relative start would be negative,
+    /// the pair shifts right together instead of trimming away source content.
     ///
     /// Track/clip IDs are deterministic (not random), so re-deriving this project each render yields
     /// stable identities — SwiftUI keeps a clip's view (and its in-flight drag gesture) alive across
@@ -234,15 +313,13 @@ extension TimelineProject {
         var assets: [MediaAsset] = []
         var tracks: [TimelineTrack] = []
 
-        let videoDuration = videoAsset?.duration ?? 0
-
         if let videoAsset {
             assets.append(videoAsset)
             let clip = TimelineClip(
                 id: "single.video.clip",
                 assetID: videoAsset.id,
                 timelineStart: 0,
-                duration: videoDuration,
+                duration: videoAsset.duration,
                 sourceIn: 0
             )
             tracks.append(TimelineTrack(id: "single.video.track", kind: .video, name: "V1", clips: [clip]))
@@ -250,52 +327,44 @@ extension TimelineProject {
 
         if let activityAsset {
             assets.append(activityAsset)
-
-            let start: TimeInterval
-            let sourceIn: TimeInterval
-            let duration: TimeInterval
-
-            if videoAsset != nil {
-                let offset = sync.fitOffsetFromVideoStart
-                if offset >= 0 {
-                    // Activity is ahead of the video: its first `offset` seconds run before the
-                    // timeline origin, so the clip starts trimmed-in and shows the remaining length.
-                    start = 0
-                    sourceIn = offset
-                    duration = max(0, activityAsset.duration - offset)
-                } else {
-                    // Video leads the activity: the overlay starts later and shows its full length,
-                    // which may extend past the video when the activity outlasts it.
-                    start = -offset
-                    sourceIn = 0
-                    duration = activityAsset.duration
-                }
-            } else {
-                // Activity-only project: overlay spans its own duration from the timeline origin.
-                start = 0
-                sourceIn = 0
-                duration = activityAsset.duration
-            }
-
             let clip = TimelineClip(
                 id: "single.overlay.clip",
                 assetID: activityAsset.id,
-                timelineStart: start,
-                duration: duration,
-                sourceIn: sourceIn,
+                timelineStart: 0,
+                duration: activityAsset.duration,
+                sourceIn: 0,
                 layout: layout,
                 distanceUnit: distanceUnit
             )
             tracks.append(TimelineTrack(id: "single.overlay.track", kind: .overlay, name: "O1", clips: [clip]))
         }
 
-        return TimelineProject(
+        var project = TimelineProject(
             outputWidth: outputWidth,
             outputHeight: outputHeight,
             framesPerSecond: framesPerSecond,
             distanceUnit: distanceUnit,
             assets: assets,
-            tracks: tracks
+            tracks: tracks,
+            sourceMatchPoint: videoAsset.flatMap { video in
+                activityAsset.map { activity in
+                    TimelineSourceMatchPoint(
+                        videoAssetID: video.id,
+                        activityAssetID: activity.id,
+                        videoSourceTime: sync.videoSyncTime,
+                        activitySourceTime: sync.fitSyncTime
+                    )
+                }
+            }
         )
+        if videoAsset != nil, activityAsset != nil {
+            project.alignMatchPoint(
+                anchorClipID: "single.video.clip",
+                anchorSourceTime: sync.videoSyncTime,
+                movingClipID: "single.overlay.clip",
+                movingSourceTime: sync.fitSyncTime
+            )
+        }
+        return project
     }
 }

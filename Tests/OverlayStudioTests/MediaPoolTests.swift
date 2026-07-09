@@ -192,22 +192,188 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 33, accuracy: 1e-9)
     }
 
-    func testTimelineOverlayDragWritesMatchPointSync() {
+    func testMatchPointHelperWritesCanonicalSync() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov")
         model.fitURL = URL(fileURLWithPath: "/tmp/a.fit")
 
-        // Drag so activity 0 lands at video 30s.
+        // Place the canonical activity-zero match point at video 30s.
         model.setActivitySyncZeroVideoTime(30)
         XCTAssertEqual(model.syncVideoSeconds, 30, accuracy: 1e-9)
         XCTAssertEqual(model.syncFITSeconds, 0, accuracy: 1e-9)
         XCTAssertEqual(model.activitySyncZeroVideoTime, 30, accuracy: 1e-9)
 
-        // Drag the other way (activity begins before the video starts).
+        // Activity begins before the video source starts.
         model.setActivitySyncZeroVideoTime(-12)
         XCTAssertEqual(model.syncVideoSeconds, 0, accuracy: 1e-9)
         XCTAssertEqual(model.syncFITSeconds, 12, accuracy: 1e-9)
         XCTAssertEqual(model.activitySyncZeroVideoTime, -12, accuracy: 1e-9)
+    }
+
+    func testSingleSourceVideoAndActivityClipsMoveIndependentlyAndAllowLeadingBlank() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        let activityURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30)
+        )
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.videoURL = videoURL
+        model.fitURL = activityURL
+        model.syncVideoSeconds = 10
+        model.syncFITSeconds = 40
+        model.setExportTrimEnd(60)
+
+        let originalSync = model.timeSync
+        model.moveTimelineClip(id: "single.video.clip", toTimelineStart: 25)
+        model.moveTimelineClip(id: "single.overlay.clip", toTimelineStart: 12)
+
+        let project = model.currentTimelineProject
+        let video = try XCTUnwrap(project.tracks.flatMap(\.clips).first { $0.id == "single.video.clip" })
+        let activity = try XCTUnwrap(project.tracks.flatMap(\.clips).first { $0.id == "single.overlay.clip" })
+        XCTAssertEqual(video.timelineStart, 25, accuracy: 1e-9)
+        XCTAssertEqual(activity.timelineStart, 12, accuracy: 1e-9)
+        XCTAssertEqual(model.timeSync, originalSync)
+        XCTAssertEqual(model.effectiveExportTrimEnd, 60, accuracy: 1e-9)
+        XCTAssertEqual(
+            project.sourceMatchPoint,
+            TimelineSourceMatchPoint(
+                videoAssetID: videoURL.path,
+                activityAssetID: activityURL.path,
+                videoSourceTime: 10,
+                activitySourceTime: 40
+            )
+        )
+        XCTAssertTrue(model.usesCustomTimelinePreview)
+        XCTAssertTrue(project.activeClips(kind: .video, atTimelineTime: 0).isEmpty)
+        XCTAssertTrue(project.activeClips(kind: .overlay, atTimelineTime: 0).isEmpty)
+    }
+
+    func testMatchPointInputsRealignSingleSourceClipsByRelativeSourceTimes() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        let activityURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30)
+        )
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.videoURL = videoURL
+        model.fitURL = activityURL
+
+        model.syncVideoSeconds = 10
+        model.syncFITSeconds = 40
+
+        var project = model.currentTimelineProject
+        var video = try XCTUnwrap(project.tracks.flatMap(\.clips).first { $0.id == "single.video.clip" })
+        var activity = try XCTUnwrap(project.tracks.flatMap(\.clips).first { $0.id == "single.overlay.clip" })
+        XCTAssertEqual(video.timelineStart, 30, accuracy: 1e-9)
+        XCTAssertEqual(activity.timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(video.sourceIn, 0, accuracy: 1e-9)
+        XCTAssertEqual(activity.sourceIn, 0, accuracy: 1e-9)
+        XCTAssertEqual(video.timelineTime(forSourceTime: 10), activity.timelineTime(forSourceTime: 40), accuracy: 1e-9)
+
+        model.moveTimelineClip(id: video.id, toTimelineStart: 50)
+        model.syncFITSeconds = 35
+
+        project = model.currentTimelineProject
+        video = try XCTUnwrap(project.tracks.flatMap(\.clips).first { $0.id == "single.video.clip" })
+        activity = try XCTUnwrap(project.tracks.flatMap(\.clips).first { $0.id == "single.overlay.clip" })
+        XCTAssertEqual(video.timelineStart, 50, accuracy: 1e-9)
+        XCTAssertEqual(activity.timelineStart, 25, accuracy: 1e-9)
+        XCTAssertEqual(video.timelineTime(forSourceTime: 10), activity.timelineTime(forSourceTime: 35), accuracy: 1e-9)
+    }
+
+    func testRelativeMatchPointPreviewUsesTimelineAndReportsSourceVideoTime() {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        let activityURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30)
+        )
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 300, distanceMeters: 1_000)
+        ]))
+        model.videoURL = videoURL
+        model.sourceDuration = 120
+        model.exportTrimEndSeconds = 120
+        model.fitURL = activityURL
+        model.syncVideoSeconds = 10
+        model.syncFITSeconds = 40
+
+        XCTAssertTrue(model.usesCustomTimelinePreview)
+        XCTAssertEqual(model.previewDuration, 300, accuracy: 1e-9)
+        XCTAssertEqual(model.effectiveExportTrimStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(model.effectiveExportTrimEnd, 300, accuracy: 1e-9)
+        model.previewTime = 0
+        XCTAssertNil(model.currentVideoSourceTimeForSync)
+        model.previewTime = 45
+        XCTAssertEqual(model.currentVideoSourceTimeForSync ?? -1, 15, accuracy: 1e-9)
+    }
+
+    func testLoadingTimelineRestoresSourceMatchPointWithoutMovingEditedClips() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        let activityURL = URL(fileURLWithPath: "/tmp/a.fit")
+        let video = MediaAsset(
+            id: videoURL.path,
+            kind: .video,
+            url: videoURL,
+            displayName: videoURL.lastPathComponent,
+            duration: 120
+        )
+        let activity = MediaAsset(
+            id: activityURL.path,
+            kind: .activity,
+            url: activityURL,
+            displayName: activityURL.lastPathComponent,
+            duration: 300
+        )
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [video, activity],
+            tracks: [
+                TimelineTrack(
+                    id: "video",
+                    kind: .video,
+                    name: "V1",
+                    clips: [TimelineClip(id: "video-clip", assetID: video.id, timelineStart: 25, duration: 120)]
+                ),
+                TimelineTrack(
+                    id: "overlay",
+                    kind: .overlay,
+                    name: "O1",
+                    clips: [TimelineClip(id: "activity-clip", assetID: activity.id, timelineStart: 12, duration: 300)]
+                )
+            ],
+            sourceMatchPoint: TimelineSourceMatchPoint(
+                videoAssetID: video.id,
+                activityAssetID: activity.id,
+                videoSourceTime: 10,
+                activitySourceTime: 40
+            )
+        )
+
+        model.applyTimelineProject(project, loadAssets: false)
+
+        XCTAssertEqual(model.syncVideoSeconds, 10, accuracy: 1e-9)
+        XCTAssertEqual(model.syncFITSeconds, 40, accuracy: 1e-9)
+        let loadedVideo = try XCTUnwrap(model.currentTimelineProject.tracks.flatMap(\.clips).first { $0.id == "video-clip" })
+        let loadedActivity = try XCTUnwrap(model.currentTimelineProject.tracks.flatMap(\.clips).first { $0.id == "activity-clip" })
+        XCTAssertEqual(loadedVideo.timelineStart, 25, accuracy: 1e-9)
+        XCTAssertEqual(loadedActivity.timelineStart, 12, accuracy: 1e-9)
     }
 
     func testMovingPooledActivityClipUpdatesOnlyThatTimelineClip() throws {
@@ -625,7 +791,7 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.selectedElement?.id, elementID)
     }
 
-    func testTimelineOverlayDragIgnoredWithoutBothSources() {
+    func testMatchPointHelperIsIgnoredWithoutBothSources() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov") // no activity
         model.setActivitySyncZeroVideoTime(30)

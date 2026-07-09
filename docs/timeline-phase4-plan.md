@@ -1,6 +1,6 @@
 # 时间线 · 阶段 4 执行计划（权威数据源 + 合成器）
 
-> 状态：**阶段 4.1-4.7 已完成**。时间线已经是预览/导出的权威会话状态，支持 JSON 工程保存/打开与 security-scoped bookmark；阶段 5 补齐 dirty state、危险操作确认、统一片段解析和导出预检；阶段 6 又支持以长运动浮层为主时间轴、视频片段分散排列和空隙黑帧/静音输出。当前剩余重点是缺失素材 relink、混合方向/分辨率真实素材 QA、轨道管理和 Undo/Redo。
+> 状态：**阶段 4.1-4.7 已完成**。时间线已经是预览/导出的权威会话状态，支持 JSON 工程保存/打开与 security-scoped bookmark；阶段 5 补齐 dirty state、危险操作确认、统一片段解析和导出预检；阶段 6 支持以长运动浮层为主时间轴、视频片段分散排列和空隙黑帧/静音输出；阶段 7 已把源时间匹配点与片段相对位置解耦，视频和运动片段都可独立移动并允许开头空白。当前剩余重点是缺失素材 relink、混合方向/分辨率真实素材 QA、轨道管理和 Undo/Redo。
 > 本文档给未来会话一份可直接照做的分步执行计划，确保每一步都能完整落地、CI 绿、可安全停下。
 
 ## 目标（对应用户原始四点需求里尚未实现的部分）
@@ -21,7 +21,7 @@
 - 导出入口：`StudioModel.export()`（`Sources/OverlayStudio/Stores/StudioModel.swift:1934`），按 mode 选 Transparent(1990)/Composited(2013)。
 - 时间线模型：`TimelineProject` / `TimelineTrack` / `TimelineClip` / `MediaAsset`（`Sources/OverlayCore/Timeline/TimelineModel.swift`）。`TimelineClip.sourceTime(atTimelineTime:) = sourceIn + (t − timelineStart)`。
 - `StudioModel.timeline` 是当前会话权威状态；工程可保存/打开为 JSON，素材带 security-scoped bookmark。自定义片段几何、布局和距离单位会持久化；导出 in/out 等会话设置仍不在工程 JSON 中。
-- 时间线视图：`ProjectTimelineView`（`Sources/OverlayStudio/Views/ProjectTimelineView.swift`），支持片段选择、同步/独立移动、左右裁剪、吸附、运动素材拖放、in/out 导出范围和播放头擦洗。
+- 时间线视图：`ProjectTimelineView`（`Sources/OverlayStudio/Views/ProjectTimelineView.swift`），支持片段选择、独立移动、左右裁剪、吸附、运动素材拖放、in/out 导出范围和播放头擦洗；同步标签单独维护源视频/源运动时间匹配点。
 - 可靠性收口：`TimelineProject.activeClips` 统一预览/writer 的同轨重叠规则；`TimelineExportValidation.swift` 统一 App、CLI、writer 的导出预检；视频 gap/无视频合法，普通合成用黑帧补空隙，透明浮层空白区保持 Alpha 透明。
 
 ## 红线（每一步都不能破）
@@ -92,8 +92,9 @@
 
 - 素材池：多视频 / 多 FIT 导入、去重、活动项高亮、导入更多。
 - 时间线编辑：标尺 + V/O 轨 + 片段块 + 红播放头 + 移动/裁剪/吸附/检查器。
-- 拖浮层片段 → 改同步（写回 match-point 同步）。
+- 拖视频或浮层片段 → 只改该片段的相对 `timelineStart`；不会改源时间 match point。
+- 同步标签 → 输入视频源时间和运动源时间，匹配点写入工程并重新计算两片段的相对位置。
 - in/out 高亮带 → 导出范围（与「截剪」标签双向一致，预览自动 clamp）。
 - 播放头擦洗预览。
 
-阶段 4、阶段 5 可靠性收口和阶段 6 稀疏视频时间线均已落地；后续以 `docs/timeline-handoff.md` 的 P1/P2 顺序推进。
+阶段 4、阶段 5 可靠性收口、阶段 6 稀疏视频时间线和阶段 7 相对时间线均已落地；后续以 `docs/timeline-handoff.md` 的 P1/P2 顺序推进。

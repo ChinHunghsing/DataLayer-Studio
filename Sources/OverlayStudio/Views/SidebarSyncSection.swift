@@ -30,7 +30,7 @@ struct SidebarSyncSection: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(model.player == nil || model.isExporting)
+            .disabled(!model.canMarkSportStart)
 
             Text(localization.string("sidebar.sync.setCurrentAsStartHelp"))
                 .font(.caption)
@@ -63,10 +63,13 @@ struct SidebarSyncSection: View {
     }
 
     private var currentMappingText: String {
-        localization.string(
+        guard let videoSourceTime = model.currentVideoSourceTimeForSync else {
+            return localization.string("sidebar.sync.noVideoAtPlayhead")
+        }
+        return localization.string(
             "sidebar.sync.currentMapping",
-            formatDuration(model.previewTime),
-            formatActivityTime(model.timeSync.rawFitElapsed(forVideoTime: model.previewTime))
+            formatDuration(videoSourceTime),
+            formatActivityTime(model.timeSync.rawFitElapsed(forVideoTime: videoSourceTime))
         )
     }
 

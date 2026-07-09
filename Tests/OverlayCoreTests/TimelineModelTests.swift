@@ -160,6 +160,23 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(decoded, original)
     }
 
+    func testProjectDecodesLegacyJSONWithoutSourceMatchPoint() throws {
+        let data = Data("""
+        {
+          "outputWidth": 1920,
+          "outputHeight": 1080,
+          "framesPerSecond": 30,
+          "distanceUnit": "km",
+          "assets": [],
+          "tracks": []
+        }
+        """.utf8)
+
+        let project = try JSONDecoder().decode(TimelineProject.self, from: data)
+
+        XCTAssertNil(project.sourceMatchPoint)
+    }
+
     // MARK: migration reproduces the sync mapping
 
     func testMigrationVideoAndActivityPositiveOffset() {
@@ -175,20 +192,30 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(project.tracks[1].kind, .overlay) // on top
 
         let videoClip = project.tracks[0].clips[0]
-        XCTAssertEqual(videoClip.timelineStart, 0)
+        XCTAssertEqual(videoClip.timelineStart, 30)
         XCTAssertEqual(videoClip.duration, 120)
 
         let overlay = project.tracks[1].clips[0]
         XCTAssertEqual(overlay.timelineStart, 0)
-        XCTAssertEqual(overlay.sourceIn, 30, accuracy: 1e-9)
-        XCTAssertEqual(overlay.duration, 270, accuracy: 1e-9)      // 300 activity - 30 trimmed-in head
-        XCTAssertEqual(project.duration, 270)                      // overlay outlasts the 120s video
+        XCTAssertEqual(overlay.sourceIn, 0, accuracy: 1e-9)
+        XCTAssertEqual(overlay.duration, 300, accuracy: 1e-9)      // synchronization keeps the full activity
+        XCTAssertEqual(project.duration, 300)                      // placement, not trimming, expresses the offset
         XCTAssertEqual(overlay.distanceUnit, .kilometers)
         XCTAssertNotNil(overlay.layout)
-        // overlay activity elapsed must equal the old sync mapping
-        for t in stride(from: 0.0, through: 120.0, by: 15.0) {
-            XCTAssertEqual(overlay.sourceTime(atTimelineTime: t), sync.rawFitElapsed(forVideoTime: t), accuracy: 1e-9)
-        }
+        XCTAssertEqual(
+            project.sourceMatchPoint,
+            TimelineSourceMatchPoint(
+                videoAssetID: videoClip.assetID,
+                activityAssetID: overlay.assetID,
+                videoSourceTime: 10,
+                activitySourceTime: 40
+            )
+        )
+        XCTAssertEqual(
+            videoClip.timelineStart + sync.videoSyncTime,
+            overlay.timelineStart + sync.fitSyncTime,
+            accuracy: 1e-9
+        )
     }
 
     func testMigrationVideoLeadsActivityNegativeOffset() {
@@ -225,6 +252,50 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(overlay.sourceIn, 0)
         XCTAssertEqual(overlay.duration, 300)
         XCTAssertEqual(project.duration, 300)
+        XCTAssertNil(project.sourceMatchPoint)
+    }
+
+    func testAlignMatchPointUsesRelativeTimelinePositionsAndPreservesLeadingBlank() throws {
+        var project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [videoAsset(duration: 120), activityAsset(duration: 300)],
+            tracks: [
+                TimelineTrack(
+                    id: "video",
+                    kind: .video,
+                    name: "V1",
+                    clips: [TimelineClip(id: "video-clip", assetID: "video", timelineStart: 50, duration: 120)]
+                ),
+                TimelineTrack(
+                    id: "overlay",
+                    kind: .overlay,
+                    name: "O1",
+                    clips: [TimelineClip(id: "activity-clip", assetID: "activity", timelineStart: 80, duration: 300)]
+                )
+            ]
+        )
+
+        XCTAssertTrue(project.alignMatchPoint(
+            anchorClipID: "video-clip",
+            anchorSourceTime: 10,
+            movingClipID: "activity-clip",
+            movingSourceTime: 40
+        ))
+
+        let video = try XCTUnwrap(project.tracks[0].clips.first)
+        let activity = try XCTUnwrap(project.tracks[1].clips.first)
+        XCTAssertEqual(video.timelineStart, 50, accuracy: 1e-9)
+        XCTAssertEqual(activity.timelineStart, 20, accuracy: 1e-9)
+        XCTAssertEqual(
+            video.timelineTime(forSourceTime: 10),
+            activity.timelineTime(forSourceTime: 40),
+            accuracy: 1e-9
+        )
+        XCTAssertTrue(project.activeClips(kind: .video, atTimelineTime: 0).isEmpty)
+        XCTAssertTrue(project.activeClips(kind: .overlay, atTimelineTime: 0).isEmpty)
     }
 
     private func exportProject(videoClips: [TimelineClip]) -> TimelineProject {
