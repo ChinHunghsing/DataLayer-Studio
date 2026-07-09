@@ -229,6 +229,20 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(videoClips[1].duration, 40, accuracy: 1e-9)
     }
 
+    func testCustomTimelinePreviewAndExportTrimUseTimelineDuration() {
+        let model = StudioModel()
+        let firstURL = URL(fileURLWithPath: "/tmp/a.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/b.mov")
+        model.upsertVideoAsset(url: firstURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 100, fps: 30))
+        model.upsertVideoAsset(url: secondURL, metadata: videoMetadata(width: 1280, height: 720, duration: 40, fps: 30))
+        model.videoURL = firstURL
+
+        model.addVideoAssetToTimeline(id: secondURL.path)
+
+        XCTAssertEqual(model.previewDuration, 140, accuracy: 1e-9)
+        XCTAssertEqual(model.exportTrimSourceDuration, 140, accuracy: 1e-9)
+    }
+
     func testTrimmingPooledTimelineClipUpdatesClipGeometry() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
@@ -343,5 +357,67 @@ final class MediaPoolTests: XCTestCase {
 
         model.fitURL = url
         XCTAssertEqual(model.activeActivityAssetID, "/tmp/a.fit")
+    }
+
+    func testCustomTimelinePreviewRendersOverlayWithoutVideo() async {
+        let model = StudioModel()
+        let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+
+        let pooledURL = URL(fileURLWithPath: "/tmp/b.fit")
+        model.upsertActivityAsset(url: pooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.previewTime = 12
+        model.addActivityAssetToTimeline(id: pooledURL.path)
+
+        model.refreshPreview()
+        await waitForOverlayPreview(model)
+
+        XCTAssertNil(model.backgroundImage)
+        XCTAssertNotNil(model.overlayImage)
+        XCTAssertNil(model.previewWarning)
+    }
+
+    func testCustomTimelineCanvasPrefersRenderedFrameOverSingleSourcePlayer() {
+        let model = StudioModel()
+        let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+
+        let pooledURL = URL(fileURLWithPath: "/tmp/b.fit")
+        model.upsertActivityAsset(url: pooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.previewTime = 12
+        model.addActivityAssetToTimeline(id: pooledURL.path)
+        model.player = AVPlayer()
+
+        let state = PreviewCanvasState(model: model)
+
+        XCTAssertNil(state.player)
+    }
+
+    private func waitForOverlayPreview(
+        _ model: StudioModel,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        for _ in 0..<20 {
+            if model.overlayImage != nil {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTFail("Expected overlay preview to render.", file: file, line: line)
     }
 }

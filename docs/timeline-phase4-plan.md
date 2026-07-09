@@ -1,6 +1,6 @@
 # 时间线 · 阶段 4 执行计划（权威数据源 + 合成器）
 
-> 状态：**阶段 4.1-4.3 已完成（单源导出入口改由时间线驱动）**；**4.4 已完成当前会话内的 timeline 存储状态，自定义片段拖拽与左右裁剪会写回片段几何，尚未做工程持久化**；**4.5 已支持在 UI/模型中把素材池视频追加成顺序视频片段，并支持顺序多视频合成导出**；**4.6 的透明多浮层与合成视频多浮层写出已完成**。当前实现仍保守复用既有写出器；Inspector 编辑多片段、吸附、CLI 时间线导出，以及重叠/混合方向视频轨仍未完成。
+> 状态：**阶段 4.1-4.3 已完成（单源导出入口改由时间线驱动）**；**4.4 已完成当前会话内的 timeline 存储状态，自定义片段拖拽与左右裁剪会写回片段几何，非迁移时间线预览与导出都会从 timeline 读取，尚未做工程持久化**；**4.5 已支持在 UI/模型中把素材池视频追加成顺序视频片段，并支持顺序多视频合成导出**；**4.6 的透明多浮层与合成视频多浮层写出已完成，预览也会按当前 timeline 组合视频和多浮层**；**4.7 的吸附、片段检查器、单段布局/距离单位编辑、CLI 时间线导出已完成**。当前实现仍保守复用既有写出器；重叠/混合方向视频轨与工程持久化仍未完成。
 > 本文档给未来会话一份可直接照做的分步执行计划，确保每一步都能完整落地、CI 绿、可安全停下。
 
 ## 目标（对应用户原始四点需求里尚未实现的部分）
@@ -56,7 +56,7 @@
 **验收**：`TransparentVideoWriterTests` 全绿；真机导出透明片段，放到深色/浅色背景确认**不发灰**、边缘正确。这一步单独提交、单独验证透明回归。
 
 ### 步骤 4.4　时间线变权威存储模型
-**状态：部分完成。** `StudioModel` 已有 `@Published private(set) var timeline`，`currentTimelineProject` 读该存储状态；单源换源/同步/布局/输出设置会重建它。素材池中的运动文件和视频都可加入当前 timeline，进入自定义时间线后不会被输出设置变化覆盖。自定义片段拖拽会写回该 clip 的 `timelineStart`，非迁移片段左右裁剪会写回 `timelineStart/sourceIn/duration`。尚未完成：工程存档 Codable 兼容。
+**状态：部分完成。** `StudioModel` 已有 `@Published private(set) var timeline`，`currentTimelineProject` 读该存储状态；单源换源/同步/布局/输出设置会重建它。素材池中的运动文件和视频都可加入当前 timeline，进入自定义时间线后不会被输出设置变化覆盖。自定义片段拖拽会写回该 clip 的 `timelineStart`，非迁移片段左右裁剪会写回 `timelineStart/sourceIn/duration`。非迁移时间线预览会按当前 timeline 取活动视频片段和活动浮层片段，导出也从 timeline 读取。尚未完成：工程存档 Codable 兼容。
 
 **做**：`StudioModel` 增 `@Published var timeline: TimelineProject`。首次由 `migratingSingleSource` 建立；换源/改同步/改布局/改导出范围时**写回**这个存储模型（把现有 `setActivitySyncZeroVideoTime`、`setExportTrim*` 等改为编辑 `timeline` 的片段几何/工程属性）。`currentTimelineProject` 改为返回存储的 `timeline`。预览与导出改为读 `timeline`。持久化：`timeline` 进工程存档，做 Codable 向后兼容（旧档无 timeline 字段→用旧字段迁移生成）。
 **验收**：这是最容易回退的一步——旧工程加载、同步/导出范围/布局与改动前完全一致；`swift test` 全量 + 真机回归（三标签、预览、导出金样）。**建议整段做完再提交，不半开工。**
@@ -68,13 +68,13 @@
 **验收**：两段不同分辨率/帧率视频拼接导出正确；片段边界无错帧；内存不涨（仍逐帧）。
 
 ### 步骤 4.6　多浮层片段 / 多轨叠加
-**状态：部分完成。** `TimelineVideoWriter` 已支持透明浮层和合成视频模式下多个 overlay clip / 多 overlay track 按轨道顺序逐帧叠加，单浮层仍走原 `TransparentVideoWriter` 路径以保护 HEVC Alpha。`StudioModel` 现在按 timeline clip 的 `assetID` 取对应 telemetry，素材池运动文件也可加入新浮层轨，并可在时间线中拖动位置。尚未完成：拖拽 FIT 到指定浮层轨、预览/Inspector 编辑多片段。
+**状态：部分完成。** `TimelineVideoWriter` 已支持透明浮层和合成视频模式下多个 overlay clip / 多 overlay track 按轨道顺序逐帧叠加，单浮层仍走原 `TransparentVideoWriter` 路径以保护 HEVC Alpha。`StudioModel` 现在按 timeline clip 的 `assetID` 取对应 telemetry，素材池运动文件也可加入新浮层轨，并可在时间线中拖动位置；预览会按 timeline 当前时刻组合活动视频帧和活动浮层。尚未完成：拖拽 FIT 到指定浮层轨。
 
 **做**：素材池拖 FIT 到浮层轨→生成浮层片段（每段可选布局、默认继承项目）；支持多条浮层轨，`TimelineVideoWriter` 逐帧对「该时刻所有启用轨的浮层片段」自底向上依次 `render` 叠加。
 **验收**：两个 FIT 双轨叠加预览=导出；透明叠加不发灰；逐帧流式内存稳定。
 
 ### 步骤 4.7　片段编辑收口 + CLI/测试/回归
-**状态：部分完成。** 非迁移时间线片段已经支持左右裁剪，写回 clip 的几何字段；拖拽位置已有模型和 UI 支持。尚未完成：吸附、片段检查器、单段布局/距离单位编辑、CLI 暴露时间线导出。
+**状态：已完成当前阶段目标。** 非迁移时间线片段已经支持左右裁剪，写回 clip 的几何字段；拖拽位置已有模型和 UI 支持；拖拽吸附、片段检查器、单段布局/距离单位编辑、CLI 时间线 JSON 工程导出已落地并有测试覆盖。
 
 **做**：片段裁剪时长（拉边=改 `duration`/`sourceIn`，真正的几何裁剪，此时才语义正确）、拖拽位置、吸附；片段检查器（改单段布局/距离单位）。CLI 若暴露时间线导出则补参数与 `OverlayCLITests`。
 **验收**：全量 `swift test`、`scripts/build_app_bundle.sh`、CLI 测试、真机综合回归。

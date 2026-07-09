@@ -1019,7 +1019,7 @@ struct PreviewCanvasState: Equatable {
 
     @MainActor
     init(model: StudioModel) {
-        player = model.player
+        player = model.usesCustomTimelinePreview ? nil : model.player
         backgroundImage = model.backgroundImage
         overlayImage = model.overlayImage
         layout = model.layout
@@ -1027,7 +1027,7 @@ struct PreviewCanvasState: Equatable {
         showGrid = model.showGrid
         gridColumns = model.gridColumns
         gridRows = model.gridRows
-        hasSeries = model.series != nil
+        hasSeries = model.series != nil || model.usesCustomTimelinePreview
         outputWidth = model.outputWidth
         outputHeight = model.outputHeight
     }

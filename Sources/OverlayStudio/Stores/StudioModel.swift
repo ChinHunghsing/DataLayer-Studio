@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import CoreImage
 import Foundation
 import OSLog
 import OverlayCore
@@ -44,6 +45,19 @@ private final class PlayerTimeObserver {
         self.token = nil
         player = nil
     }
+}
+
+private struct TimelinePreviewOverlayLayer {
+    var series: TelemetrySeries
+    var timeSync: TelemetryTimeSync
+    var layout: OverlayLayout
+    var distanceUnit: OverlayDistanceUnit
+}
+
+private struct TimelinePreviewSnapshot {
+    var videoURL: URL?
+    var videoTime: TimeInterval
+    var overlayLayers: [TimelinePreviewOverlayLayer]
 }
 
 @MainActor
@@ -412,6 +426,10 @@ final class StudioModel: ObservableObject {
 
     var selectedTimelineClipIsEditable: Bool {
         selectedTimelineClip != nil && !timelineUsesSingleSourceMigration && !isExporting
+    }
+
+    var usesCustomTimelinePreview: Bool {
+        !timelineUsesSingleSourceMigration
     }
 
     var timeSync: TelemetryTimeSync {
@@ -869,7 +887,7 @@ final class StudioModel: ObservableObject {
                 guard seconds.isFinite else { return }
                 let clamped = self.clampedPreviewTime(seconds)
                 self.previewTime = clamped
-                self.refreshOverlayOnly(
+                self.refreshPlaybackPreview(
                     minimumInterval: Self.playbackOverlayRefreshInterval,
                     coalesceIfBusy: true
                 )
@@ -888,13 +906,13 @@ final class StudioModel: ObservableObject {
 
     func startPlayback() {
         guard !isExporting else { return }
-        if let player {
+        if let player, timelineUsesSingleSourceMigration {
             if previewTime < previewTimeRange.lowerBound || previewTime >= previewTimeRange.upperBound {
                 seekPreview(to: previewTimeRange.lowerBound)
             }
             isPlaying = true
             player.play()
-        } else if series != nil {
+        } else if series != nil || !timelineUsesSingleSourceMigration {
             startOverlayPlayback()
         }
     }
@@ -930,7 +948,7 @@ final class StudioModel: ObservableObject {
     }
 
     private func advanceOverlayPlayback() {
-        guard isPlaying, player == nil else {
+        guard isPlaying, player == nil || !timelineUsesSingleSourceMigration else {
             stopOverlayPlaybackTimer()
             return
         }
@@ -944,12 +962,25 @@ final class StudioModel: ObservableObject {
         let next = previewTime + delta
         if next >= range.upperBound {
             previewTime = range.upperBound
-            refreshOverlayOnly(minimumInterval: Self.playbackOverlayRefreshInterval, coalesceIfBusy: true)
+            refreshPlaybackPreview(minimumInterval: Self.playbackOverlayRefreshInterval, coalesceIfBusy: true)
             pausePlayback()
             return
         }
         previewTime = next
-        refreshOverlayOnly(minimumInterval: Self.playbackOverlayRefreshInterval, coalesceIfBusy: true)
+        refreshPlaybackPreview(minimumInterval: Self.playbackOverlayRefreshInterval, coalesceIfBusy: true)
+    }
+
+    private func refreshPlaybackPreview(minimumInterval: TimeInterval, coalesceIfBusy: Bool) {
+        guard timelineUsesSingleSourceMigration else {
+            let now = Date()
+            if minimumInterval > 0, now.timeIntervalSince(lastOverlayRefresh) < minimumInterval {
+                return
+            }
+            lastOverlayRefresh = now
+            refreshPreview()
+            return
+        }
+        refreshOverlayOnly(minimumInterval: minimumInterval, coalesceIfBusy: coalesceIfBusy)
     }
 
     private func stopOverlayPlaybackTimer() {
@@ -981,6 +1012,12 @@ final class StudioModel: ObservableObject {
     }
 
     var previewDuration: TimeInterval {
+        if !timelineUsesSingleSourceMigration {
+            let duration = currentTimelineProject.duration
+            if duration.isFinite, duration > 0 {
+                return duration
+            }
+        }
         if sourceDuration > 0 {
             return sourceDuration
         }
@@ -1065,7 +1102,12 @@ final class StudioModel: ObservableObject {
     }
 
     var exportTrimSourceDuration: TimeInterval {
-        let duration = videoURL == nil ? series?.duration ?? 0 : sourceDuration
+        let duration: TimeInterval
+        if !timelineUsesSingleSourceMigration {
+            duration = currentTimelineProject.duration
+        } else {
+            duration = videoURL == nil ? series?.duration ?? 0 : sourceDuration
+        }
         guard duration.isFinite, duration > 0 else { return 0 }
         return min(duration, 86_400)
     }
@@ -1126,6 +1168,10 @@ final class StudioModel: ObservableObject {
             return
         }
         previewTime = clamped
+        guard timelineUsesSingleSourceMigration else {
+            refreshPreview()
+            return
+        }
         if let player {
             if isScrubbing {
                 refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh, displayIntermediateResults: true)
@@ -1428,6 +1474,51 @@ final class StudioModel: ObservableObject {
                     partialResult[clip.assetID] = activeSeries
                 }
             }
+    }
+
+    private func timelinePreviewSnapshot(at timelineTime: TimeInterval) -> TimelinePreviewSnapshot? {
+        let project = currentTimelineProject
+        let activeVideoClip = project.tracks
+            .filter { $0.kind == .video && $0.isEnabled }
+            .compactMap { $0.clip(atTimelineTime: timelineTime) }
+            .last
+        let videoURL = activeVideoClip.flatMap { clip -> URL? in
+            guard let asset = project.asset(id: clip.assetID), asset.kind == .video else { return nil }
+            return asset.url
+        }
+        let videoTime = activeVideoClip?.sourceTime(atTimelineTime: timelineTime) ?? timelineTime
+
+        let overlayLayers: [TimelinePreviewOverlayLayer] = project.tracks
+            .filter { $0.kind == .overlay && $0.isEnabled }
+            .compactMap { track -> TimelinePreviewOverlayLayer? in
+                guard let clip = track.clip(atTimelineTime: timelineTime),
+                      let asset = project.asset(id: clip.assetID),
+                      asset.kind == .activity else { return nil }
+                let loadedSeries: TelemetrySeries?
+                if let series = activitySeriesByAssetID[asset.id] {
+                    loadedSeries = series
+                } else if let activeSeries = series,
+                          let activeActivityAssetID,
+                          activeActivityAssetID == asset.id {
+                    loadedSeries = activeSeries
+                } else {
+                    loadedSeries = nil
+                }
+                guard let loadedSeries else { return nil }
+                return TimelinePreviewOverlayLayer(
+                    series: loadedSeries,
+                    timeSync: TelemetryTimeSync(videoSyncTime: 0, fitSyncTime: clip.sourceIn - clip.timelineStart),
+                    layout: clip.layout ?? .default,
+                    distanceUnit: clip.distanceUnit ?? project.distanceUnit
+                )
+            }
+
+        guard videoURL != nil || !overlayLayers.isEmpty else { return nil }
+        return TimelinePreviewSnapshot(
+            videoURL: videoURL,
+            videoTime: videoTime,
+            overlayLayers: overlayLayers
+        )
     }
 
     /// Video time at which activity elapsed 0 currently lands (the overlay clip's zero point on the timeline).
@@ -1749,6 +1840,10 @@ final class StudioModel: ObservableObject {
 
     func refreshPreview() {
         guard !isExporting else { return }
+        guard timelineUsesSingleSourceMigration else {
+            refreshTimelinePreview()
+            return
+        }
         guard let videoURL else {
             backgroundImage = nil
             overlayImage = nil
@@ -1823,6 +1918,79 @@ final class StudioModel: ObservableObject {
         }
     }
 
+    private func refreshTimelinePreview() {
+        guard let snapshot = timelinePreviewSnapshot(at: previewTime) else {
+            backgroundImage = nil
+            overlayImage = nil
+            previewWarning = nil
+            return
+        }
+
+        pendingOverlayRefreshAfterCurrentRender = false
+        previewRenderGeneration += 1
+        let generation = previewRenderGeneration
+        let timelineTime = previewTime
+        let outputSize = sanitizedPreviewSize(currentPreviewOverlayRenderSize())
+        let currentActivityTrim = self.currentActivityTrim
+        let videoPreviewFailedTitle = localized("status.previewVideoFailed")
+        let overlayPreviewFailedTitle = localized("status.previewOverlayFailed")
+
+        previewRenderTask?.cancel()
+        previewRenderTask = Task.detached(priority: .userInitiated) { [videoFrameService, previewRenderer] in
+            guard !Task.isCancelled else { return }
+            let background: CGImage?
+            var warningMessage: String?
+            if let videoURL = snapshot.videoURL {
+                do {
+                    background = try videoFrameService.frameImage(videoURL: videoURL, time: snapshot.videoTime)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    background = nil
+                    warningMessage = Self.previewWarningMessage(videoPreviewFailedTitle, error: error)
+                }
+            } else {
+                background = nil
+            }
+            guard !Task.isCancelled else { return }
+
+            let overlay: CGImage?
+            if snapshot.overlayLayers.isEmpty {
+                overlay = nil
+            } else {
+                do {
+                    overlay = try Self.renderTimelineOverlayImage(
+                        previewRenderer: previewRenderer,
+                        size: outputSize,
+                        timelineTime: timelineTime,
+                        layers: snapshot.overlayLayers,
+                        activityTrim: currentActivityTrim
+                    )
+                } catch is CancellationError {
+                    return
+                } catch {
+                    overlay = nil
+                    warningMessage = Self.previewWarningMessage(overlayPreviewFailedTitle, error: error)
+                }
+            }
+            guard !Task.isCancelled else { return }
+            let finalWarningMessage = warningMessage
+
+            await Self.performPreviewUpdateOnMainRunLoop { [weak self] in
+                guard let self else { return }
+                guard self.previewRenderGeneration == generation,
+                      self.previewRenderTask != nil else { return }
+                self.backgroundImage = background
+                self.overlayImage = overlay
+                self.previewWarning = finalWarningMessage
+                if let finalWarningMessage {
+                    self.addDebugLog(.preview, finalWarningMessage)
+                }
+                self.previewRenderTask = nil
+            }
+        }
+    }
+
     func refreshOverlayOnly(
         previewSize: CGSize? = nil,
         minimumInterval: TimeInterval = 0,
@@ -1830,6 +1998,15 @@ final class StudioModel: ObservableObject {
         displayIntermediateResults: Bool = false
     ) {
         guard !isExporting else { return }
+        guard timelineUsesSingleSourceMigration else {
+            refreshTimelineOverlayOnly(
+                previewSize: previewSize,
+                minimumInterval: minimumInterval,
+                coalesceIfBusy: coalesceIfBusy,
+                displayIntermediateResults: displayIntermediateResults
+            )
+            return
+        }
         guard let currentSeries = series else {
             overlayImage = nil
             previewWarning = nil
@@ -1902,6 +2079,94 @@ final class StudioModel: ObservableObject {
                     }
                     self.previewRenderTask = nil
                     self.refreshOverlayOnly(
+                        coalesceIfBusy: true,
+                        displayIntermediateResults: shouldDisplayIntermediateResult
+                    )
+                    return
+                }
+                self.overlayImage = overlay
+                self.previewWarning = warningMessage
+                if let warningMessage {
+                    self.addDebugLog(.preview, warningMessage)
+                }
+                self.previewRenderTask = nil
+            }
+        }
+    }
+
+    private func refreshTimelineOverlayOnly(
+        previewSize: CGSize? = nil,
+        minimumInterval: TimeInterval = 0,
+        coalesceIfBusy: Bool = false,
+        displayIntermediateResults: Bool = false
+    ) {
+        guard let snapshot = timelinePreviewSnapshot(at: previewTime),
+              !snapshot.overlayLayers.isEmpty else {
+            overlayImage = nil
+            previewWarning = nil
+            return
+        }
+        if coalesceIfBusy, previewRenderTask != nil {
+            pendingOverlayRefreshAfterCurrentRender = true
+            pendingOverlayRefreshDisplaysIntermediateResult = pendingOverlayRefreshDisplaysIntermediateResult || displayIntermediateResults
+            return
+        }
+        pendingOverlayRefreshAfterCurrentRender = false
+        pendingOverlayRefreshDisplaysIntermediateResult = false
+
+        let now = Date()
+        if minimumInterval > 0, now.timeIntervalSince(lastOverlayRefresh) < minimumInterval {
+            return
+        }
+        lastOverlayRefresh = now
+        previewRenderGeneration += 1
+        let generation = previewRenderGeneration
+
+        let timelineTime = previewTime
+        let renderSize = sanitizedPreviewSize(previewSize ?? currentPreviewOverlayRenderSize())
+        let currentActivityTrim = self.currentActivityTrim
+        let overlayPreviewFailedTitle = localized("status.previewOverlayFailed")
+
+        previewRenderTask?.cancel()
+        previewRenderTask = Task.detached(priority: .userInitiated) { [previewRenderer] in
+            guard !Task.isCancelled else { return }
+            let overlay: CGImage?
+            let warningMessage: String?
+            do {
+                overlay = try Self.renderTimelineOverlayImage(
+                    previewRenderer: previewRenderer,
+                    size: renderSize,
+                    timelineTime: timelineTime,
+                    layers: snapshot.overlayLayers,
+                    activityTrim: currentActivityTrim
+                )
+                warningMessage = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                overlay = nil
+                warningMessage = Self.previewWarningMessage(overlayPreviewFailedTitle, error: error)
+            }
+            guard !Task.isCancelled else { return }
+
+            await Self.performPreviewUpdateOnMainRunLoop { [weak self] in
+                guard let self else { return }
+                guard self.previewRenderGeneration == generation,
+                      self.previewRenderTask != nil else { return }
+                if self.pendingOverlayRefreshAfterCurrentRender {
+                    let shouldDisplayIntermediateResult = displayIntermediateResults
+                        || self.pendingOverlayRefreshDisplaysIntermediateResult
+                    self.pendingOverlayRefreshAfterCurrentRender = false
+                    self.pendingOverlayRefreshDisplaysIntermediateResult = false
+                    if shouldDisplayIntermediateResult {
+                        self.overlayImage = overlay
+                        self.previewWarning = warningMessage
+                        if let warningMessage {
+                            self.addDebugLog(.preview, warningMessage)
+                        }
+                    }
+                    self.previewRenderTask = nil
+                    self.refreshTimelineOverlayOnly(
                         coalesceIfBusy: true,
                         displayIntermediateResults: shouldDisplayIntermediateResult
                     )
@@ -2049,6 +2314,56 @@ final class StudioModel: ObservableObject {
             distanceUnit: distanceUnit,
             activityTrim: activityTrim
         )
+    }
+
+    nonisolated private static func renderTimelineOverlayImage(
+        previewRenderer: OverlayPreviewRenderer,
+        size: CGSize,
+        timelineTime: TimeInterval,
+        layers: [TimelinePreviewOverlayLayer],
+        activityTrim: ActivityTrim
+    ) throws -> CGImage {
+        guard let firstLayer = layers.first else {
+            throw OverlayPreviewError.cannotCreatePreviewImage
+        }
+        if layers.count == 1 {
+            return try renderOverlayImage(
+                previewRenderer: previewRenderer,
+                series: firstLayer.series,
+                size: size,
+                videoTime: timelineTime,
+                timeSync: firstLayer.timeSync,
+                layout: firstLayer.layout,
+                distanceUnit: firstLayer.distanceUnit,
+                activityTrim: activityTrim
+            )
+        }
+
+        let width = max(2, Int(size.width.rounded()))
+        let height = max(2, Int(size.height.rounded()))
+        let rect = CGRect(x: 0, y: 0, width: width, height: height)
+        var composed = CIImage(color: .clear).cropped(to: rect)
+        for layer in layers {
+            let image = try renderOverlayImage(
+                previewRenderer: previewRenderer,
+                series: layer.series,
+                size: CGSize(width: width, height: height),
+                videoTime: timelineTime,
+                timeSync: layer.timeSync,
+                layout: layer.layout,
+                distanceUnit: layer.distanceUnit,
+                activityTrim: activityTrim
+            )
+            composed = CIImage(cgImage: image).composited(over: composed)
+        }
+        let context = CIContext(options: [
+            .workingColorSpace: CGColorSpaceCreateDeviceRGB(),
+            .outputColorSpace: CGColorSpaceCreateDeviceRGB()
+        ])
+        guard let image = context.createCGImage(composed, from: rect) else {
+            throw OverlayPreviewError.cannotCreatePreviewImage
+        }
+        return image
     }
 
     nonisolated private static func performPreviewUpdateOnMainRunLoop(_ update: @escaping @MainActor () -> Void) async {
