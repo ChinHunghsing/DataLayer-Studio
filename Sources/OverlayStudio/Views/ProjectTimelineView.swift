@@ -149,7 +149,9 @@ struct ProjectTimelineView: View {
         let x = CGFloat(clip.timelineStart / duration) * laneWidth
         let width = max(6, CGFloat(clip.duration / duration) * laneWidth)
         let name = project.asset(id: clip.assetID)?.displayName ?? clip.assetID
-        let syncable = kind == .overlay && model.videoURL != nil && model.fitURL != nil
+        // With both sources loaded, either clip can be dragged to re-sync (they move the same
+        // sync scalar in opposite directions), so both get the interactive treatment.
+        let syncable = model.videoURL != nil && model.fitURL != nil
 
         let block = RoundedRectangle(cornerRadius: 7, style: .continuous)
             .fill(clipFill(kind))
@@ -170,22 +172,25 @@ struct ProjectTimelineView: View {
             .offset(x: x, y: 6)
 
         if syncable {
-            block.gesture(overlayDragGesture(laneWidth: laneWidth, duration: duration))
+            block.gesture(clipDragGesture(kind: kind, laneWidth: laneWidth, duration: duration))
         } else {
-            // Video/non-syncable clips are display-only; taps fall through to the scrub layer.
+            // Without both sources there is nothing to re-sync; taps fall through to the scrub layer.
             block.allowsHitTesting(false)
         }
     }
 
-    /// Drag the overlay clip horizontally to re-sync (activity elapsed 0 follows the drag).
+    /// Drag either clip horizontally to re-sync. Dragging the overlay right makes the activity
+    /// start later; dragging the video right is the inverse (the video sits later relative to the
+    /// activity), so the two clips move the same sync scalar in opposite directions.
     /// Uses global coordinates so the moving clip doesn't feed back into the gesture.
-    private func overlayDragGesture(laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
+    private func clipDragGesture(kind: TimelineTrack.Kind, laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
         DragGesture(minimumDistance: 3, coordinateSpace: .global)
             .onChanged { value in
                 if dragStartZero == nil { dragStartZero = model.activitySyncZeroVideoTime }
                 let base = dragStartZero ?? model.activitySyncZeroVideoTime
                 let deltaT = Double(value.translation.width / laneWidth) * duration
-                var newZero = base + deltaT
+                let signed = kind == .overlay ? deltaT : -deltaT
+                var newZero = base + signed
                 let snap = Double(6 / laneWidth) * duration
                 if abs(newZero) < snap { newZero = 0 } // snap to origin
                 model.setActivitySyncZeroVideoTime(newZero)
