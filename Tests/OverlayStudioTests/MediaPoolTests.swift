@@ -60,6 +60,28 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.videoAssets.map(\.id), ["/tmp/a.mov"])
     }
 
+    func testCurrentTimelineProjectReflectsActiveSources() {
+        let model = StudioModel()
+        XCTAssertTrue(model.currentTimelineProject.tracks.isEmpty)
+
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+
+        let fitURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 90, distanceMeters: 300)
+        ]))
+        model.fitURL = fitURL
+
+        let project = model.currentTimelineProject
+        XCTAssertEqual(project.tracks.count, 2)
+        XCTAssertEqual(project.tracks[0].kind, .video)   // base
+        XCTAssertEqual(project.tracks[1].kind, .overlay) // on top
+        XCTAssertEqual(project.tracks[0].clips.first?.duration, 120)
+    }
+
     func testUpsertActivityAndActiveDerivation() {
         let model = StudioModel()
         let url = URL(fileURLWithPath: "/tmp/a.fit")

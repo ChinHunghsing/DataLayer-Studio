@@ -1199,6 +1199,23 @@ final class StudioModel: ObservableObject {
         activityAssets.removeAll { $0.id == id }
     }
 
+    /// A read-only timeline representation of the currently active source(s), used by the
+    /// timeline view. Sync is reproduced as the overlay clip's position (see `migratingSingleSource`).
+    var currentTimelineProject: TimelineProject {
+        let video = videoURL.flatMap { url in videoAssets.first { $0.url == url } }
+        let activity = fitURL.flatMap { url in activityAssets.first { $0.url == url } }
+        return TimelineProject.migratingSingleSource(
+            outputWidth: outputWidth,
+            outputHeight: outputHeight,
+            framesPerSecond: outputFPS,
+            distanceUnit: distanceUnit,
+            videoAsset: video,
+            activityAsset: activity,
+            sync: timeSync,
+            layout: layout
+        )
+    }
+
     func retryVideoLoad() {
         guard let failure = videoLoadFailure else { return }
         setVideo(failure.url)

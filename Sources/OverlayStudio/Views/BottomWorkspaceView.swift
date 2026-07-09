@@ -23,7 +23,7 @@ struct BottomWorkspaceView: View {
                         selection: $selectedTabRawValue,
                         accessibilityLabel: localization.string("workspace.tabs")
                     )
-                    .frame(width: 240, alignment: .leading)
+                    .frame(width: 330, alignment: .leading)
 
                     Spacer(minLength: 0)
                 }
@@ -37,21 +37,26 @@ struct BottomWorkspaceView: View {
 
             Divider()
 
-            ScrollViewReader { proxy in
-                ScrollView(.vertical) {
-                    Color.clear
-                        .frame(height: 0)
-                        .id(Self.topAnchorID)
+            if selectedTab == .timeline {
+                ProjectTimelineView(model: model)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical) {
+                        Color.clear
+                            .frame(height: 0)
+                            .id(Self.topAnchorID)
 
-                    tabContent
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        tabContent
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .onChange(of: selectedTabRawValue) { _ in
+                        proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                    }
                 }
-                .onChange(of: selectedTabRawValue) { _ in
-                    proxy.scrollTo(Self.topAnchorID, anchor: .top)
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxHeight: .infinity)
         .background(.bar)
@@ -80,6 +85,8 @@ struct BottomWorkspaceView: View {
                 .disabled(model.isExporting)
         case .trim:
             trimContent
+        case .timeline:
+            EmptyView() // rendered directly in the body (fills the area)
         }
     }
 
@@ -159,6 +166,7 @@ struct BottomWorkspaceView: View {
 private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
     case sync
     case trim
+    case timeline
 
     var id: String { rawValue }
 
@@ -168,6 +176,8 @@ private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
             return "workspace.sync"
         case .trim:
             return "workspace.trim"
+        case .timeline:
+            return "workspace.timeline"
         }
     }
 
@@ -177,6 +187,8 @@ private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
             return "workspace.sync.hint"
         case .trim:
             return "workspace.trim.hint"
+        case .timeline:
+            return "workspace.timeline.hint"
         }
     }
 
@@ -186,6 +198,8 @@ private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
             return "arrow.left.arrow.right"
         case .trim:
             return "scissors"
+        case .timeline:
+            return "timeline.selection"
         }
     }
 }
