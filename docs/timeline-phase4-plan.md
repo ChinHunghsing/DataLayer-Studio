@@ -1,6 +1,6 @@
 # 时间线 · 阶段 4 执行计划（权威数据源 + 合成器）
 
-> 状态：**阶段 4.1-4.3 已完成（单源导出入口改由时间线驱动）**；**4.6 的核心透明多浮层写出已完成**。当前实现仍保守复用既有单源写出器；多视频、权威 timeline 存储模型、UI 中真正添加/编辑多片段仍未完成。
+> 状态：**阶段 4.1-4.3 已完成（单源导出入口改由时间线驱动）**；**4.4 已完成当前会话内的 timeline 存储状态，尚未做工程持久化/多片段编辑写回**；**4.6 的核心透明多浮层写出已完成**。当前实现仍保守复用既有单源写出器；多视频、UI 中真正添加/编辑多片段仍未完成。
 > 本文档给未来会话一份可直接照做的分步执行计划，确保每一步都能完整落地、CI 绿、可安全停下。
 
 ## 目标（对应用户原始四点需求里尚未实现的部分）
@@ -20,7 +20,7 @@
   - `TransparentVideoWriter`（`Sources/OverlayCore/Video/TransparentVideoWriter.swift`）——透明 HEVC/ProRes Alpha 路径，**保守区域，不能重新引入透明发灰**。
 - 导出入口：`StudioModel.export()`（`Sources/OverlayStudio/Stores/StudioModel.swift:1934`），按 mode 选 Transparent(1990)/Composited(2013)。
 - 时间线模型：`TimelineProject` / `TimelineTrack` / `TimelineClip` / `MediaAsset`（`Sources/OverlayCore/Timeline/TimelineModel.swift`）。`TimelineClip.sourceTime(atTimelineTime:) = sourceIn + (t − timelineStart)`。
-- 时间线目前是**派生**的：`StudioModel.currentTimelineProject`（`:1204`）每次从活动视频/FIT + `timeSync` + `layout` 用 `TimelineProject.migratingSingleSource(...)` 现算，不存储、不被预览/导出读取。
+- 时间线目前已有当前会话内的 `StudioModel.timeline` 存储状态；单源换源/同步/布局/输出设置会从旧字段迁移重建。它还没有进入工程持久化，也还不能保存任意多片段编辑。
 - 只读时间线视图：`ProjectTimelineView`（`Sources/OverlayStudio/Views/ProjectTimelineView.swift`），已支持：拖浮层片段→改同步、in/out 带→导出范围、播放头擦洗。
 
 ## 红线（每一步都不能破）
@@ -56,6 +56,8 @@
 **验收**：`TransparentVideoWriterTests` 全绿；真机导出透明片段，放到深色/浅色背景确认**不发灰**、边缘正确。这一步单独提交、单独验证透明回归。
 
 ### 步骤 4.4　时间线变权威存储模型
+**状态：部分完成。** `StudioModel` 已有 `@Published private(set) var timeline`，`currentTimelineProject` 读该存储状态；单源换源/同步/布局/输出设置会重建它。尚未完成：工程存档 Codable 兼容、任意多片段编辑后不被单源迁移覆盖。
+
 **做**：`StudioModel` 增 `@Published var timeline: TimelineProject`。首次由 `migratingSingleSource` 建立；换源/改同步/改布局/改导出范围时**写回**这个存储模型（把现有 `setActivitySyncZeroVideoTime`、`setExportTrim*` 等改为编辑 `timeline` 的片段几何/工程属性）。`currentTimelineProject` 改为返回存储的 `timeline`。预览与导出改为读 `timeline`。持久化：`timeline` 进工程存档，做 Codable 向后兼容（旧档无 timeline 字段→用旧字段迁移生成）。
 **验收**：这是最容易回退的一步——旧工程加载、同步/导出范围/布局与改动前完全一致；`swift test` 全量 + 真机回归（三标签、预览、导出金样）。**建议整段做完再提交，不半开工。**
 

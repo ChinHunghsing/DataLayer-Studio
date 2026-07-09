@@ -55,20 +55,40 @@ final class StudioModel: ObservableObject {
     static let previewResizeRefreshDelay: TimeInterval = 0.16
     nonisolated static let gaugeDragMaximumPreviewRenderDimension: CGFloat = 1_600
 
-    @Published var videoURL: URL?
-    @Published var fitURL: URL?
+    @Published var videoURL: URL? {
+        didSet { rebuildCurrentTimelineProject() }
+    }
+    @Published var fitURL: URL? {
+        didSet { rebuildCurrentTimelineProject() }
+    }
     @Published var outputURL: URL?
     @Published var metadata: VideoMetadata?
     @Published var series: TelemetrySeries?
 
     /// Project media pool (timeline groundwork). Imported sources are kept here so a project can
     /// hold multiple videos and activities; the currently loaded `videoURL`/`fitURL` is the active one.
-    @Published var videoAssets: [MediaAsset] = []
-    @Published var activityAssets: [MediaAsset] = []
+    @Published var videoAssets: [MediaAsset] = [] {
+        didSet { rebuildCurrentTimelineProject() }
+    }
+    @Published var activityAssets: [MediaAsset] = [] {
+        didSet { rebuildCurrentTimelineProject() }
+    }
+    @Published private(set) var timeline = TimelineProject(
+        outputWidth: 1920,
+        outputHeight: 1080,
+        framesPerSecond: 30,
+        distanceUnit: .kilometers
+    )
 
-    @Published var outputWidth = 1920
-    @Published var outputHeight = 1080
-    @Published var outputFPS = 30.0
+    @Published var outputWidth = 1920 {
+        didSet { rebuildCurrentTimelineProject() }
+    }
+    @Published var outputHeight = 1080 {
+        didSet { rebuildCurrentTimelineProject() }
+    }
+    @Published var outputFPS = 30.0 {
+        didSet { rebuildCurrentTimelineProject() }
+    }
     @Published var sourceDuration: TimeInterval = 0
     @Published var exportTrimStartSeconds: TimeInterval = 0
     @Published var exportTrimEndSeconds: TimeInterval = 0
@@ -83,21 +103,36 @@ final class StudioModel: ObservableObject {
     }
     @Published var codec: OverlayVideoCodec = .hevcAlpha
     @Published var distanceUnit: OverlayDistanceUnit = .kilometers {
-        didSet { persistStudioPreferences() }
+        didSet {
+            persistStudioPreferences()
+            rebuildCurrentTimelineProject()
+        }
     }
 
-    @Published var syncMode: SyncMode = .syncPoint
-    @Published var offsetSeconds = 0.0
-    @Published var fitStartSeconds = 0.0
-    @Published var syncVideoSeconds = 0.0
-    @Published var syncFITSeconds = 0.0
+    @Published var syncMode: SyncMode = .syncPoint {
+        didSet { rebuildCurrentTimelineProject() }
+    }
+    @Published var offsetSeconds = 0.0 {
+        didSet { rebuildCurrentTimelineProject() }
+    }
+    @Published var fitStartSeconds = 0.0 {
+        didSet { rebuildCurrentTimelineProject() }
+    }
+    @Published var syncVideoSeconds = 0.0 {
+        didSet { rebuildCurrentTimelineProject() }
+    }
+    @Published var syncFITSeconds = 0.0 {
+        didSet { rebuildCurrentTimelineProject() }
+    }
 
     @Published var previewTime: TimeInterval = 0
     @Published var player: AVPlayer?
     @Published var isPlaying = false
     @Published var backgroundImage: CGImage?
     @Published var overlayImage: CGImage?
-    @Published var layout: OverlayLayout
+    @Published var layout: OverlayLayout {
+        didSet { rebuildCurrentTimelineProject() }
+    }
     @Published var selectedElementID: String?
     @Published var layoutPresets: [LayoutPreset]
     @Published var defaultLayoutPresetID: String?
@@ -192,6 +227,7 @@ final class StudioModel: ObservableObject {
         self.gridColumns = preferenceState.gridColumns
         self.gridRows = preferenceState.gridRows
         self.snapGaugeToGrid = preferenceState.snapGaugeToGrid
+        rebuildCurrentTimelineProject()
         observeLayoutPresetCloudChanges()
     }
 
@@ -1225,12 +1261,16 @@ final class StudioModel: ObservableObject {
         activityAssets.removeAll { $0.id == id }
     }
 
-    /// A read-only timeline representation of the currently active source(s), used by the
-    /// timeline view. Sync is reproduced as the overlay clip's position (see `migratingSingleSource`).
+    /// Timeline representation of the currently active source(s), used by preview/export.
+    /// Stored on the model so timeline editing has one place to write into.
     var currentTimelineProject: TimelineProject {
+        timeline
+    }
+
+    private func rebuildCurrentTimelineProject() {
         let video = videoURL.flatMap { url in videoAssets.first { $0.url == url } }
         let activity = fitURL.flatMap { url in activityAssets.first { $0.url == url } }
-        return TimelineProject.migratingSingleSource(
+        timeline = TimelineProject.migratingSingleSource(
             outputWidth: outputWidth,
             outputHeight: outputHeight,
             framesPerSecond: outputFPS,

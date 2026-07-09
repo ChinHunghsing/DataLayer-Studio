@@ -82,6 +82,31 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(project.tracks[0].clips.first?.duration, 120)
     }
 
+    func testStoredTimelineUpdatesWhenSyncAndLayoutChange() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+
+        let fitURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 90, distanceMeters: 300)
+        ]))
+        model.fitURL = fitURL
+
+        model.setActivitySyncZeroVideoTime(12)
+        let overlayClip = try XCTUnwrap(model.timeline.tracks.last?.clips.first)
+        XCTAssertEqual(overlayClip.timelineStart, 12, accuracy: 1e-9)
+
+        model.setOutputWidth(1280)
+        XCTAssertEqual(model.timeline.outputWidth, 1280)
+
+        let newLayout = OverlayLayout(elements: [])
+        model.layout = newLayout
+        XCTAssertEqual(model.timeline.tracks.last?.clips.first?.layout, newLayout.sanitized)
+    }
+
     func testTimelineOverlayDragWritesMatchPointSync() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov")
