@@ -464,7 +464,7 @@ public final class TransparentVideoWriter {
         return settings
     }
 
-    private static func prepareHEVCAlphaForEncoding(
+    static func prepareHEVCAlphaForEncoding(
         from source: CVPixelBuffer,
         to destination: CVPixelBuffer,
         context: CIContext,
@@ -482,7 +482,7 @@ public final class TransparentVideoWriter {
         )
     }
 
-    private static func preparePremultipliedAlphaForEncoding(on pixelBuffer: CVPixelBuffer) {
+    static func preparePremultipliedAlphaForEncoding(on pixelBuffer: CVPixelBuffer) {
         CVBufferSetAttachment(
             pixelBuffer,
             kCVImageBufferAlphaChannelModeKey,

@@ -213,6 +213,96 @@ final class TimelineVideoWriterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
     }
 
+    func testTimelineWriterRendersMultipleTransparentOverlayClips() throws {
+        let outputURL = temporaryMovieURL("timeline-multi-transparent-output")
+        defer { Self.removeTemporaryFile(outputURL) }
+
+        let firstSeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, distanceMeters: 3)
+        ])
+        let secondSeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 10),
+            TelemetrySample(elapsed: 1, distanceMeters: 13)
+        ])
+        let project = TimelineProject(
+            outputWidth: 64,
+            outputHeight: 64,
+            framesPerSecond: 2,
+            distanceUnit: .kilometers,
+            assets: [
+                MediaAsset(
+                    id: "activity-a",
+                    kind: .activity,
+                    url: URL(fileURLWithPath: "/tmp/activity-a.fit"),
+                    displayName: "activity-a.fit",
+                    duration: 1
+                ),
+                MediaAsset(
+                    id: "activity-b",
+                    kind: .activity,
+                    url: URL(fileURLWithPath: "/tmp/activity-b.fit"),
+                    displayName: "activity-b.fit",
+                    duration: 1
+                )
+            ],
+            tracks: [
+                TimelineTrack(
+                    id: "overlay-a",
+                    kind: .overlay,
+                    name: "O1",
+                    clips: [
+                        TimelineClip(
+                            id: "clip-a",
+                            assetID: "activity-a",
+                            timelineStart: 0,
+                            duration: 1,
+                            layout: OverlayLayout(elements: [])
+                        )
+                    ]
+                ),
+                TimelineTrack(
+                    id: "overlay-b",
+                    kind: .overlay,
+                    name: "O2",
+                    clips: [
+                        TimelineClip(
+                            id: "clip-b",
+                            assetID: "activity-b",
+                            timelineStart: 0,
+                            duration: 1,
+                            layout: OverlayLayout(elements: [])
+                        )
+                    ]
+                )
+            ]
+        )
+        let writer = TimelineVideoWriter(
+            outputURL: outputURL,
+            project: project,
+            telemetrySeriesByAssetID: [
+                "activity-a": firstSeries,
+                "activity-b": secondSeries
+            ],
+            config: TimelineVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: 2,
+                duration: 0.5,
+                averageBitRate: 200_000,
+                codec: .proRes4444
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            throw XCTSkip("Timeline multi-overlay test encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
+    }
+
     private func temporaryMovieURL(_ name: String) -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("\(name)-\(UUID().uuidString)")
