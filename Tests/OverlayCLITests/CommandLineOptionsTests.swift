@@ -141,6 +141,65 @@ final class CommandLineOptionsTests: XCTestCase {
         }
     }
 
+    func testTimelineProjectArgumentDoesNotRequireFITOrVideo() throws {
+        let options = try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--timeline-project", "project.json",
+            "--output", "timeline.mov",
+            "--export-mode", "video"
+        ])
+
+        XCTAssertEqual(options.timelineProjectURL?.lastPathComponent, "project.json")
+        XCTAssertNil(options.fitURL)
+        XCTAssertNil(options.videoURL)
+        XCTAssertEqual(options.exportMode, .video)
+        XCTAssertEqual(options.codec, .hevc)
+    }
+
+    func testTimelineProjectCannotBeCombinedWithSingleSourceInputs() {
+        XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--timeline-project", "project.json",
+            "--fit", "activity.fit",
+            "--output", "timeline.mov"
+        ])) { error in
+            guard case CLIError.conflictingArguments(let message) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertTrue(message.contains("--timeline-project"))
+            XCTAssertTrue(message.contains("--fit"))
+        }
+    }
+
+    func testLoadTimelineProjectFromJSON() throws {
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [
+                MediaAsset(
+                    id: "fit",
+                    kind: .activity,
+                    url: URL(fileURLWithPath: "/tmp/activity.fit"),
+                    displayName: "activity.fit",
+                    duration: 60
+                )
+            ],
+            tracks: [
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "c1", assetID: "fit", timelineStart: 0, duration: 60)
+                ])
+            ]
+        )
+        let fileURL = temporaryPresetURL()
+        try JSONEncoder().encode(project).write(to: fileURL)
+
+        let loaded = try loadTimelineProject(from: fileURL)
+
+        XCTAssertEqual(loaded, project)
+    }
+
     func testDurationArgumentIsNoLongerSupported() {
         XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
             "overlay",

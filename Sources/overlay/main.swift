@@ -2,8 +2,9 @@ import Foundation
 import OverlayCore
 
 struct CommandLineOptions {
+    var timelineProjectURL: URL?
     var videoURL: URL?
-    var fitURL: URL
+    var fitURL: URL?
     var outputURL: URL
     var width: Int?
     var height: Int?
@@ -13,6 +14,7 @@ struct CommandLineOptions {
     var exportMode: OverlayExportMode
     var codec: OverlayVideoCodec
     var distanceUnit: OverlayDistanceUnit
+    var distanceUnitOverride: OverlayDistanceUnit?
     var activityTrim: ActivityTrim
     var layoutPresetReference: String?
     var validateFITCRC: Bool
@@ -31,7 +33,7 @@ struct CommandLineOptions {
             case "--skip-fit-crc", "--inspect":
                 flags.insert(argument)
                 index += 1
-            case "--video", "--fit", "--output", "--width", "--height", "--fps", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--export-mode", "--codec", "--distance-unit", "--activity-trim-start", "--activity-trim-end", "--layout-preset":
+            case "--timeline-project", "--video", "--fit", "--output", "--width", "--height", "--fps", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--export-mode", "--codec", "--distance-unit", "--activity-trim-start", "--activity-trim-end", "--layout-preset":
                 guard index + 1 < arguments.count else {
                     throw CLIError.missingValue(argument)
                 }
@@ -42,18 +44,26 @@ struct CommandLineOptions {
             }
         }
 
-        guard let fit = values["--fit"] else { throw CLIError.missingRequired("--fit") }
+        let timelineProjectURL = values["--timeline-project"].map { URL(fileURLWithPath: $0) }
+        if timelineProjectURL == nil, values["--fit"] == nil {
+            throw CLIError.missingRequired("--fit")
+        }
+        if timelineProjectURL != nil {
+            try validateTimelineProjectArguments(values: values)
+        }
         guard let output = values["--output"] else { throw CLIError.missingRequired("--output") }
         let exportMode = try parseExportMode(values["--export-mode"])
         let codec = try parseCodec(values["--codec"], exportMode: exportMode)
         let videoURL = values["--video"].map { URL(fileURLWithPath: $0) }
-        if exportMode == .video, videoURL == nil {
+        if exportMode == .video, videoURL == nil, timelineProjectURL == nil {
             throw CLIError.missingRequired("--video")
         }
+        let distanceUnitOverride = try parseDistanceUnitOverride(values["--distance-unit"])
 
         return CommandLineOptions(
+            timelineProjectURL: timelineProjectURL,
             videoURL: videoURL,
-            fitURL: URL(fileURLWithPath: fit),
+            fitURL: values["--fit"].map { URL(fileURLWithPath: $0) },
             outputURL: URL(fileURLWithPath: output),
             width: try optionalInt(values["--width"], name: "--width", minimum: 2, maximum: 16_384, requireEven: true),
             height: try optionalInt(values["--height"], name: "--height", minimum: 2, maximum: 16_384, requireEven: true),
@@ -62,12 +72,19 @@ struct CommandLineOptions {
             averageBitRate: try parseAverageBitRate(values: values),
             exportMode: exportMode,
             codec: codec,
-            distanceUnit: try parseDistanceUnit(values["--distance-unit"]),
+            distanceUnit: distanceUnitOverride ?? .kilometers,
+            distanceUnitOverride: distanceUnitOverride,
             activityTrim: try parseActivityTrim(values: values),
             layoutPresetReference: values["--layout-preset"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             validateFITCRC: !flags.contains("--skip-fit-crc"),
             inspectOnly: flags.contains("--inspect")
         )
+    }
+
+    private static func validateTimelineProjectArguments(values: [String: String]) throws {
+        for name in ["--fit", "--video", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--layout-preset"] where values[name] != nil {
+            throw CLIError.conflictingArguments("--timeline-project cannot be combined with \(name)")
+        }
     }
 
     private static func optionalInt(
@@ -183,6 +200,11 @@ struct CommandLineOptions {
 
     private static func parseDistanceUnit(_ raw: String?) throws -> OverlayDistanceUnit {
         guard let raw else { return .kilometers }
+        return try parseDistanceUnitOverride(raw) ?? .kilometers
+    }
+
+    private static func parseDistanceUnitOverride(_ raw: String?) throws -> OverlayDistanceUnit? {
+        guard let raw else { return nil }
         guard let unit = OverlayDistanceUnit(rawValue: raw) else {
             throw CLIError.invalidValue("--distance-unit", raw)
         }
@@ -210,6 +232,8 @@ enum CLIError: Error, CustomStringConvertible {
     case layoutPresetNotFound(String)
     case layoutPresetFileUnreadable(String, String)
     case layoutPresetFileInvalid(String)
+    case timelineProjectFileUnreadable(String, String)
+    case timelineProjectFileInvalid(String)
     case conflictingArguments(String)
     case unknownArgument(String)
 
@@ -231,6 +255,10 @@ enum CLIError: Error, CustomStringConvertible {
             return "Could not read layout preset file \(path): \(reason).\n\n\(Self.help)"
         case let .layoutPresetFileInvalid(path):
             return "Layout preset file does not contain any usable preset: \(path).\n\n\(Self.help)"
+        case let .timelineProjectFileUnreadable(path, reason):
+            return "Could not read timeline project file \(path): \(reason).\n\n\(Self.help)"
+        case let .timelineProjectFileInvalid(path):
+            return "Timeline project file is invalid: \(path).\n\n\(Self.help)"
         case let .conflictingArguments(message):
             return "\(message).\n\n\(Self.help)"
         case let .unknownArgument(argument):
@@ -241,9 +269,13 @@ enum CLIError: Error, CustomStringConvertible {
     static let help = """
     Usage:
       overlay --fit activity.fit|activity.gpx --output overlay.mov [options]
+      overlay --timeline-project project.json --output output.mov [options]
 
     Required:
       --fit PATH         Standard .FIT or .GPX activity file.
+                         Use either --fit or --timeline-project.
+      --timeline-project PATH
+                         TimelineProject JSON exported by DataLayer Studio.
       --output PATH      Output .mov file.
 
     Options:
@@ -266,6 +298,7 @@ enum CLIError: Error, CustomStringConvertible {
       --activity-trim-end SEC
                          Stop overlay data at this original activity elapsed time.
       --layout-preset P  Use a saved GUI layout preset by name/ID, or a GUI-exported JSON file.
+                         Not used with --timeline-project.
       --skip-fit-crc     Parse FIT even if CRC validation fails. Ignored for GPX.
       --inspect          Parse video and activity data, print metadata, do not render.
       -h, --help         Show this help.
@@ -335,11 +368,34 @@ private func resolveOverlayLayout(fromPresetFile fileURL: URL) throws -> Resolve
     throw CLIError.layoutPresetFileInvalid(fileURL.path)
 }
 
+func loadTimelineProject(from fileURL: URL) throws -> TimelineProject {
+    let data: Data
+    do {
+        data = try Data(contentsOf: fileURL)
+    } catch {
+        throw CLIError.timelineProjectFileUnreadable(fileURL.path, error.localizedDescription)
+    }
+
+    do {
+        return try JSONDecoder().decode(TimelineProject.self, from: data)
+    } catch {
+        throw CLIError.timelineProjectFileInvalid(fileURL.path)
+    }
+}
+
 func run() async throws {
     TransparentVideoWriter.removeStaleTemporaryOutputs()
     let options = try CommandLineOptions.parse(arguments: CommandLine.arguments)
+    if let timelineProjectURL = options.timelineProjectURL {
+        try renderTimelineProject(options: options, projectURL: timelineProjectURL)
+        return
+    }
+
+    guard let fitURL = options.fitURL else {
+        throw CLIError.missingRequired("--fit")
+    }
     let parser = TelemetryFileParser(validateFITCRC: options.validateFITCRC)
-    let series = try parser.parse(url: options.fitURL)
+    let series = try parser.parse(url: fitURL)
     let metadata: VideoMetadata?
     if let videoURL = options.videoURL {
         metadata = try await VideoMetadata.loadAsync(from: videoURL)
@@ -426,6 +482,60 @@ func run() async throws {
             )
         ).write()
     }
+    print("Wrote \(options.outputURL.path)")
+}
+
+func renderTimelineProject(options: CommandLineOptions, projectURL: URL) throws {
+    var project = try loadTimelineProject(from: projectURL)
+    if let distanceUnit = options.distanceUnitOverride {
+        project.distanceUnit = distanceUnit
+    }
+
+    let width = options.width ?? project.outputWidth
+    let height = options.height ?? project.outputHeight
+    let fps = options.framesPerSecond ?? project.framesPerSecond
+    let duration = project.duration
+
+    let parser = TelemetryFileParser(validateFITCRC: options.validateFITCRC)
+    var telemetryByAssetID: [String: TelemetrySeries] = [:]
+    for asset in project.assets where asset.kind == .activity {
+        telemetryByAssetID[asset.id] = try parser.parse(url: asset.url)
+    }
+
+    print("Timeline project: \(project.assets.count) assets, \(project.tracks.count) tracks, \(String(format: "%.2f", duration)) s")
+    print("Export mode: \(options.exportMode.rawValue)")
+    print("Codec: \(options.codec.rawValue)")
+    print("Output: \(width)x\(height), \(String(format: "%.3f", fps)) fps")
+    print("Bitrate: \(options.averageBitRate / 1000) kbps")
+    print("Distance unit: \(project.distanceUnit.rawValue)")
+    print("Hardware: \(OverlayHardwareProfile.current.displaySummary)")
+
+    if options.inspectOnly {
+        return
+    }
+    try validateOutputDimensions(width: width, height: height)
+
+    let progressHandler: (Int, Int) -> Void = { completed, total in
+        let percent = Double(completed) / Double(total) * 100
+        print(String(format: "Rendered %d/%d frames (%.0f%%)", completed, total, percent))
+    }
+
+    try TimelineVideoWriter(
+        outputURL: options.outputURL,
+        project: project,
+        telemetrySeriesByAssetID: telemetryByAssetID,
+        config: TimelineVideoWriterConfig(
+            width: width,
+            height: height,
+            framesPerSecond: fps,
+            duration: duration,
+            averageBitRate: options.averageBitRate,
+            codec: options.codec,
+            activityTrim: options.activityTrim,
+            progressHandler: progressHandler
+        )
+    ).write()
+
     print("Wrote \(options.outputURL.path)")
 }
 
