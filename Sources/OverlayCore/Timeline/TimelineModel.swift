@@ -188,6 +188,10 @@ extension TimelineProject {
     /// activity the overlay clip starts later on the timeline. The clip's `duration` reflects the
     /// activity's real length (minus any trimmed-in head), so its timeline width is proportional to
     /// the activity — not stretched to match the video.
+    ///
+    /// Track/clip IDs are deterministic (not random), so re-deriving this project each render yields
+    /// stable identities — SwiftUI keeps a clip's view (and its in-flight drag gesture) alive across
+    /// the many recomputations a sync drag triggers.
     public static func migratingSingleSource(
         outputWidth: Int,
         outputHeight: Int,
@@ -196,9 +200,7 @@ extension TimelineProject {
         videoAsset: MediaAsset?,
         activityAsset: MediaAsset?,
         sync: TelemetryTimeSync,
-        layout: OverlayLayout,
-        clipIDProvider: () -> String = { UUID().uuidString },
-        trackIDProvider: () -> String = { UUID().uuidString }
+        layout: OverlayLayout
     ) -> TimelineProject {
         var assets: [MediaAsset] = []
         var tracks: [TimelineTrack] = []
@@ -208,13 +210,13 @@ extension TimelineProject {
         if let videoAsset {
             assets.append(videoAsset)
             let clip = TimelineClip(
-                id: clipIDProvider(),
+                id: "single.video.clip",
                 assetID: videoAsset.id,
                 timelineStart: 0,
                 duration: videoDuration,
                 sourceIn: 0
             )
-            tracks.append(TimelineTrack(id: trackIDProvider(), kind: .video, name: "V1", clips: [clip]))
+            tracks.append(TimelineTrack(id: "single.video.track", kind: .video, name: "V1", clips: [clip]))
         }
 
         if let activityAsset {
@@ -247,7 +249,7 @@ extension TimelineProject {
             }
 
             let clip = TimelineClip(
-                id: clipIDProvider(),
+                id: "single.overlay.clip",
                 assetID: activityAsset.id,
                 timelineStart: start,
                 duration: duration,
@@ -255,7 +257,7 @@ extension TimelineProject {
                 layout: layout,
                 distanceUnit: distanceUnit
             )
-            tracks.append(TimelineTrack(id: trackIDProvider(), kind: .overlay, name: "O1", clips: [clip]))
+            tracks.append(TimelineTrack(id: "single.overlay.track", kind: .overlay, name: "O1", clips: [clip]))
         }
 
         return TimelineProject(

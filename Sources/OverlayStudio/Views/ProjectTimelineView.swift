@@ -50,7 +50,7 @@ struct ProjectTimelineView: View {
                         VStack(spacing: 0) {
                             ruler(duration: duration, laneWidth: laneWidth)
                             ForEach(displayTracks) { track in
-                                trackRow(track, duration: duration, laneWidth: laneWidth)
+                                trackRow(track, project: project, duration: duration, laneWidth: laneWidth)
                             }
                             Spacer(minLength: 0)
                         }
@@ -109,7 +109,7 @@ struct ProjectTimelineView: View {
 
     // MARK: track row
 
-    private func trackRow(_ track: TimelineTrack, duration: TimeInterval, laneWidth: CGFloat) -> some View {
+    private func trackRow(_ track: TimelineTrack, project: TimelineProject, duration: TimeInterval, laneWidth: CGFloat) -> some View {
         HStack(spacing: 0) {
             // header
             HStack(spacing: 8) {
@@ -135,7 +135,7 @@ struct ProjectTimelineView: View {
             // lane
             ZStack(alignment: .topLeading) {
                 ForEach(track.clips) { clip in
-                    clipView(clip, kind: track.kind, duration: duration, laneWidth: laneWidth)
+                    clipView(clip, project: project, kind: track.kind, duration: duration, laneWidth: laneWidth)
                 }
             }
             .frame(width: laneWidth, height: trackHeight, alignment: .topLeading)
@@ -145,10 +145,10 @@ struct ProjectTimelineView: View {
     }
 
     @ViewBuilder
-    private func clipView(_ clip: TimelineClip, kind: TimelineTrack.Kind, duration: TimeInterval, laneWidth: CGFloat) -> some View {
+    private func clipView(_ clip: TimelineClip, project: TimelineProject, kind: TimelineTrack.Kind, duration: TimeInterval, laneWidth: CGFloat) -> some View {
         let x = CGFloat(clip.timelineStart / duration) * laneWidth
         let width = max(6, CGFloat(clip.duration / duration) * laneWidth)
-        let name = model.currentTimelineProject.asset(id: clip.assetID)?.displayName ?? clip.assetID
+        let name = project.asset(id: clip.assetID)?.displayName ?? clip.assetID
         let syncable = kind == .overlay && model.videoURL != nil && model.fitURL != nil
 
         let block = RoundedRectangle(cornerRadius: 7, style: .continuous)

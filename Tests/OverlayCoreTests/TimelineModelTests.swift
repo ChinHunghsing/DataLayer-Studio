@@ -64,8 +64,7 @@ final class TimelineModelTests: XCTestCase {
             videoAsset: videoAsset(duration: 120),
             activityAsset: activityAsset(duration: 300),
             sync: TelemetryTimeSync(videoSyncTime: 10, fitSyncTime: 40),
-            layout: .default,
-            clipIDProvider: { "clip" }, trackIDProvider: { "track" }
+            layout: .default
         )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(TimelineProject.self, from: data)
