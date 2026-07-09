@@ -82,6 +82,31 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(project.tracks[0].clips.first?.duration, 120)
     }
 
+    func testTimelineOverlayDragWritesMatchPointSync() {
+        let model = StudioModel()
+        model.videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.fitURL = URL(fileURLWithPath: "/tmp/a.fit")
+
+        // Drag so activity 0 lands at video 30s.
+        model.setActivitySyncZeroVideoTime(30)
+        XCTAssertEqual(model.syncVideoSeconds, 30, accuracy: 1e-9)
+        XCTAssertEqual(model.syncFITSeconds, 0, accuracy: 1e-9)
+        XCTAssertEqual(model.activitySyncZeroVideoTime, 30, accuracy: 1e-9)
+
+        // Drag the other way (activity begins before the video starts).
+        model.setActivitySyncZeroVideoTime(-12)
+        XCTAssertEqual(model.syncVideoSeconds, 0, accuracy: 1e-9)
+        XCTAssertEqual(model.syncFITSeconds, 12, accuracy: 1e-9)
+        XCTAssertEqual(model.activitySyncZeroVideoTime, -12, accuracy: 1e-9)
+    }
+
+    func testTimelineOverlayDragIgnoredWithoutBothSources() {
+        let model = StudioModel()
+        model.videoURL = URL(fileURLWithPath: "/tmp/a.mov") // no activity
+        model.setActivitySyncZeroVideoTime(30)
+        XCTAssertEqual(model.syncVideoSeconds, 0) // unchanged
+    }
+
     func testUpsertActivityAndActiveDerivation() {
         let model = StudioModel()
         let url = URL(fileURLWithPath: "/tmp/a.fit")

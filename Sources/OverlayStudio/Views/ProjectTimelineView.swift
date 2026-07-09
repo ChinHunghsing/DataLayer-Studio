@@ -13,6 +13,8 @@ struct ProjectTimelineView: View {
     private let trackHeight: CGFloat = 48
     private let playheadColor = Color(red: 1.0, green: 0.42, blue: 0.34)
 
+    @State private var dragStartZero: TimeInterval?
+
     var body: some View {
         let project = model.currentTimelineProject
         let duration = max(0.001, max(project.duration, model.previewDuration))
@@ -29,15 +31,7 @@ struct ProjectTimelineView: View {
                     let playheadX = headerWidth + CGFloat(clampedProgress) * laneWidth
 
                     ZStack(alignment: .topLeading) {
-                        VStack(spacing: 0) {
-                            ruler(duration: duration, laneWidth: laneWidth)
-                            ForEach(displayTracks) { track in
-                                trackRow(track, duration: duration, laneWidth: laneWidth)
-                            }
-                            Spacer(minLength: 0)
-                        }
-
-                        // Scrub anywhere over the lane column.
+                        // Scrub layer (bottom): empty lane areas and video clips pass through to here.
                         Color.clear
                             .contentShape(Rectangle())
                             .frame(width: laneWidth)
@@ -49,6 +43,16 @@ struct ProjectTimelineView: View {
                                         model.scrubPreview(to: min(duration, max(0, t)))
                                     }
                             )
+
+                        // Tracks and clips (overlay clips capture their own drag-to-sync gesture).
+                        VStack(spacing: 0) {
+                            ruler(duration: duration, laneWidth: laneWidth)
+                            ForEach(displayTracks) { track in
+                                trackRow(track, duration: duration, laneWidth: laneWidth)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .allowsHitTesting(true)
 
                         // Playhead
                         Rectangle()
@@ -135,12 +139,14 @@ struct ProjectTimelineView: View {
         .overlay(alignment: .bottom) { Divider() }
     }
 
+    @ViewBuilder
     private func clipView(_ clip: TimelineClip, kind: TimelineTrack.Kind, duration: TimeInterval, laneWidth: CGFloat) -> some View {
         let x = CGFloat(clip.timelineStart / duration) * laneWidth
         let width = max(6, CGFloat(clip.duration / duration) * laneWidth)
         let name = model.currentTimelineProject.asset(id: clip.assetID)?.displayName ?? clip.assetID
+        let syncable = kind == .overlay && model.videoURL != nil && model.fitURL != nil
 
-        return RoundedRectangle(cornerRadius: 7, style: .continuous)
+        let block = RoundedRectangle(cornerRadius: 7, style: .continuous)
             .fill(clipFill(kind))
             .overlay(alignment: .leading) {
                 Text(name)
@@ -153,10 +159,33 @@ struct ProjectTimelineView: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    .strokeBorder(syncable ? Color.white.opacity(0.28) : Color.white.opacity(0.12), lineWidth: 1)
             }
             .frame(width: width, height: trackHeight - 12)
             .offset(x: x, y: 6)
+
+        if syncable {
+            block.gesture(overlayDragGesture(laneWidth: laneWidth, duration: duration))
+        } else {
+            // Video/non-syncable clips are display-only; taps fall through to the scrub layer.
+            block.allowsHitTesting(false)
+        }
+    }
+
+    /// Drag the overlay clip horizontally to re-sync (activity elapsed 0 follows the drag).
+    /// Uses global coordinates so the moving clip doesn't feed back into the gesture.
+    private func overlayDragGesture(laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
+        DragGesture(minimumDistance: 3, coordinateSpace: .global)
+            .onChanged { value in
+                if dragStartZero == nil { dragStartZero = model.activitySyncZeroVideoTime }
+                let base = dragStartZero ?? model.activitySyncZeroVideoTime
+                let deltaT = Double(value.translation.width / laneWidth) * duration
+                var newZero = base + deltaT
+                let snap = Double(6 / laneWidth) * duration
+                if abs(newZero) < snap { newZero = 0 } // snap to origin
+                model.setActivitySyncZeroVideoTime(newZero)
+            }
+            .onEnded { _ in dragStartZero = nil }
     }
 
     private func clipFill(_ kind: TimelineTrack.Kind) -> LinearGradient {

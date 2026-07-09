@@ -1216,6 +1216,25 @@ final class StudioModel: ObservableObject {
         )
     }
 
+    /// Video time at which activity elapsed 0 currently lands (the overlay clip's zero point on the timeline).
+    var activitySyncZeroVideoTime: TimeInterval {
+        timeSync.videoSyncTime - timeSync.fitSyncTime
+    }
+
+    /// Re-sync from the timeline by dragging the overlay clip so activity elapsed 0 lands at `videoTime`.
+    /// Writes the existing match-point sync (kept non-negative), so the Sync tab and export stay consistent.
+    func setActivitySyncZeroVideoTime(_ videoTime: TimeInterval) {
+        guard !isExporting, videoURL != nil, fitURL != nil else { return }
+        syncMode = .syncPoint
+        if videoTime >= 0 {
+            syncVideoSeconds = videoTime
+            syncFITSeconds = 0
+        } else {
+            syncVideoSeconds = 0
+            syncFITSeconds = -videoTime
+        }
+    }
+
     func retryVideoLoad() {
         guard let failure = videoLoadFailure else { return }
         setVideo(failure.url)
