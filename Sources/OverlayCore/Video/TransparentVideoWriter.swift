@@ -204,7 +204,7 @@ public final class TransparentVideoWriter {
             throw OverlayVideoError.cancelled
         }
 
-        Self.removeStaleTemporaryOutputs()
+        Self.removeStaleTemporaryOutputs(in: outputURL.deletingLastPathComponent())
         let temporaryOutputURL = makeTemporaryOutputURL()
         removePartialOutput(at: temporaryOutputURL)
 
@@ -218,9 +218,13 @@ public final class TransparentVideoWriter {
     }
 
     public static func removeStaleTemporaryOutputs() {
+        removeStaleTemporaryOutputs(in: FileManager.default.temporaryDirectory)
+    }
+
+    public static func removeStaleTemporaryOutputs(in directory: URL) {
         let fileManager = FileManager.default
         guard let urls = try? fileManager.contentsOfDirectory(
-            at: fileManager.temporaryDirectory,
+            at: directory,
             includingPropertiesForKeys: nil
         ) else {
             return
@@ -599,11 +603,23 @@ public final class TransparentVideoWriter {
     }
 
     func makeTemporaryOutputURL() -> URL {
+        Self.makeTemporaryOutputURL(
+            for: outputURL,
+            fallbackBaseName: "datalayer-overlay"
+        )
+    }
+
+    static func makeTemporaryOutputURL(
+        for outputURL: URL,
+        tag: String? = nil,
+        fallbackBaseName: String
+    ) -> URL {
         let baseName = outputURL.deletingPathExtension().lastPathComponent
         let pathExtension = outputURL.pathExtension.isEmpty ? "mov" : outputURL.pathExtension
-        let safeBaseName = baseName.isEmpty ? "datalayer-overlay" : baseName
-        return FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(Self.temporaryFilePrefix)\(ProcessInfo.processInfo.processIdentifier)-\(safeBaseName)-\(UUID().uuidString)")
+        let safeBaseName = baseName.isEmpty ? fallbackBaseName : baseName
+        let tagComponent = tag.map { "\($0)-" } ?? ""
+        return outputURL.deletingLastPathComponent()
+            .appendingPathComponent("\(temporaryFilePrefix)\(ProcessInfo.processInfo.processIdentifier)-\(tagComponent)\(safeBaseName)-\(UUID().uuidString)")
             .appendingPathExtension(pathExtension)
     }
 

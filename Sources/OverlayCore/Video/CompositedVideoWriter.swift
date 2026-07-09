@@ -57,8 +57,6 @@ public struct CompositedVideoWriterConfig {
 }
 
 public final class CompositedVideoWriter {
-    private static let temporaryFilePrefix = "DataLayerStudio-"
-
     private let outputURL: URL
     private let sourceAsset: AVAsset?
     private let sourceDescription: String
@@ -136,7 +134,9 @@ public final class CompositedVideoWriter {
             throw OverlayVideoError.cancelled
         }
 
-        TransparentVideoWriter.removeStaleTemporaryOutputs()
+        TransparentVideoWriter.removeStaleTemporaryOutputs(
+            in: outputURL.deletingLastPathComponent()
+        )
         let videoOnlyURL = makeTemporaryOutputURL(tag: "video")
         let finalURL = makeTemporaryOutputURL(tag: "final")
         removePartialOutput(at: videoOnlyURL)
@@ -616,12 +616,11 @@ public final class CompositedVideoWriter {
     }
 
     private func makeTemporaryOutputURL(tag: String) -> URL {
-        let baseName = outputURL.deletingPathExtension().lastPathComponent
-        let pathExtension = outputURL.pathExtension.isEmpty ? "mov" : outputURL.pathExtension
-        let safeBaseName = baseName.isEmpty ? "datalayer-video" : baseName
-        return FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(Self.temporaryFilePrefix)\(ProcessInfo.processInfo.processIdentifier)-\(tag)-\(safeBaseName)-\(UUID().uuidString)")
-            .appendingPathExtension(pathExtension)
+        TransparentVideoWriter.makeTemporaryOutputURL(
+            for: outputURL,
+            tag: tag,
+            fallbackBaseName: "datalayer-video"
+        )
     }
 
     private func installCompletedOutput(from temporaryOutputURL: URL) throws {

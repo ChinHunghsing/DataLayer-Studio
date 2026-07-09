@@ -206,7 +206,9 @@ public final class TimelineVideoWriter {
         let fps = timing.framesPerSecond
         let encoderFrameRate = try encoderFrameRateValue(fps)
         let hardwareProfile = OverlayHardwareProfile.current
-        TransparentVideoWriter.removeStaleTemporaryOutputs()
+        TransparentVideoWriter.removeStaleTemporaryOutputs(
+            in: outputURL.deletingLastPathComponent()
+        )
         let temporaryOutputURL = makeTemporaryOutputURL(tag: "timeline-overlay")
         removePartialOutput(at: temporaryOutputURL)
 
@@ -605,12 +607,11 @@ public final class TimelineVideoWriter {
     }
 
     private func makeTemporaryOutputURL(tag: String) -> URL {
-        let baseName = outputURL.deletingPathExtension().lastPathComponent
-        let pathExtension = outputURL.pathExtension.isEmpty ? "mov" : outputURL.pathExtension
-        let safeBaseName = baseName.isEmpty ? tag : baseName
-        return FileManager.default.temporaryDirectory
-            .appendingPathComponent("DataLayerStudio-\(ProcessInfo.processInfo.processIdentifier)-\(safeBaseName)-\(UUID().uuidString)")
-            .appendingPathExtension(pathExtension)
+        TransparentVideoWriter.makeTemporaryOutputURL(
+            for: outputURL,
+            tag: tag,
+            fallbackBaseName: tag
+        )
     }
 
     private func installCompletedOutput(from temporaryOutputURL: URL) throws {

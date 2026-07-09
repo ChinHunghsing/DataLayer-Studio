@@ -203,7 +203,7 @@ final class TransparentVideoWriterTests: XCTestCase {
         }
     }
 
-    func testTemporaryOutputIsWrittenOutsideDestinationDirectory() {
+    func testTemporaryOutputIsWrittenInDestinationDirectory() {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("sandbox-target-\(UUID().uuidString)")
             .appendingPathComponent("overlay.mov")
@@ -217,29 +217,28 @@ final class TransparentVideoWriterTests: XCTestCase {
 
         XCTAssertEqual(
             temporaryURL.deletingLastPathComponent().standardizedFileURL.path,
-            FileManager.default.temporaryDirectory.standardizedFileURL.path
-        )
-        XCTAssertTrue(temporaryURL.lastPathComponent.hasPrefix("DataLayerStudio-\(ProcessInfo.processInfo.processIdentifier)-"))
-        XCTAssertNotEqual(
-            temporaryURL.deletingLastPathComponent().standardizedFileURL.path,
             outputURL.deletingLastPathComponent().standardizedFileURL.path
         )
+        XCTAssertTrue(temporaryURL.lastPathComponent.hasPrefix("DataLayerStudio-\(ProcessInfo.processInfo.processIdentifier)-"))
         XCTAssertEqual(temporaryURL.pathExtension, "mov")
     }
 
     func testCleanupRemovesOnlyStaleDataLayerTemporaryOutputs() throws {
         let fileManager = FileManager.default
-        let staleURL = fileManager.temporaryDirectory
+        let directory = fileManager.temporaryDirectory
+            .appendingPathComponent("datalayer-temporary-cleanup-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let staleURL = directory
             .appendingPathComponent("DataLayerStudio-0-\(UUID().uuidString)")
             .appendingPathExtension("mov")
-        let legacyURL = fileManager.temporaryDirectory
+        let legacyURL = directory
             .appendingPathComponent("DataLayerStudio-legacy-\(UUID().uuidString)")
             .appendingPathExtension("mov")
-        let otherURL = fileManager.temporaryDirectory
+        let otherURL = directory
             .appendingPathComponent("OtherApp-\(UUID().uuidString)")
             .appendingPathExtension("mov")
         let currentURL = TransparentVideoWriter(
-            outputURL: fileManager.temporaryDirectory
+            outputURL: directory
                 .appendingPathComponent("current-\(UUID().uuidString)")
                 .appendingPathExtension("mov"),
             series: TelemetrySeries(samples: []),
@@ -250,12 +249,10 @@ final class TransparentVideoWriterTests: XCTestCase {
             try Data([1]).write(to: url)
         }
         defer {
-            for url in [staleURL, legacyURL, otherURL, currentURL] {
-                try? fileManager.removeItem(at: url)
-            }
+            try? fileManager.removeItem(at: directory)
         }
 
-        TransparentVideoWriter.removeStaleTemporaryOutputs()
+        TransparentVideoWriter.removeStaleTemporaryOutputs(in: directory)
 
         XCTAssertFalse(fileManager.fileExists(atPath: staleURL.path))
         XCTAssertFalse(fileManager.fileExists(atPath: legacyURL.path))
