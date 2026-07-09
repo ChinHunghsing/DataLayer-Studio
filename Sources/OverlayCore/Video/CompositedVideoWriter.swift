@@ -60,7 +60,8 @@ public final class CompositedVideoWriter {
     private static let temporaryFilePrefix = "DataLayerStudio-"
 
     private let outputURL: URL
-    private let sourceVideoURL: URL
+    private let sourceAsset: AVAsset
+    private let sourceDescription: String
     private let series: TelemetrySeries?
     private let config: CompositedVideoWriterConfig
     private let overlayStartTime: TimeInterval
@@ -68,7 +69,8 @@ public final class CompositedVideoWriter {
 
     public init(outputURL: URL, sourceVideoURL: URL, series: TelemetrySeries, config: CompositedVideoWriterConfig) {
         self.outputURL = outputURL
-        self.sourceVideoURL = sourceVideoURL
+        self.sourceAsset = AVURLAsset(url: sourceVideoURL)
+        self.sourceDescription = sourceVideoURL.path
         self.series = series
         self.config = config
         self.overlayStartTime = config.startTime
@@ -83,7 +85,25 @@ public final class CompositedVideoWriter {
         renderOverlay: @escaping (TimeInterval, CVPixelBuffer) throws -> Void
     ) {
         self.outputURL = outputURL
-        self.sourceVideoURL = sourceVideoURL
+        self.sourceAsset = AVURLAsset(url: sourceVideoURL)
+        self.sourceDescription = sourceVideoURL.path
+        self.series = nil
+        self.config = config
+        self.overlayStartTime = overlayStartTime
+        self.renderOverlay = renderOverlay
+    }
+
+    init(
+        outputURL: URL,
+        sourceAsset: AVAsset,
+        sourceDescription: String,
+        config: CompositedVideoWriterConfig,
+        overlayStartTime: TimeInterval,
+        renderOverlay: @escaping (TimeInterval, CVPixelBuffer) throws -> Void
+    ) {
+        self.outputURL = outputURL
+        self.sourceAsset = sourceAsset
+        self.sourceDescription = sourceDescription
         self.series = nil
         self.config = config
         self.overlayStartTime = overlayStartTime
@@ -103,7 +123,7 @@ public final class CompositedVideoWriter {
 
         do {
             try writeVideoOnly(to: videoOnlyURL)
-            if hasAudioTrack(in: sourceVideoURL) {
+            if hasAudioTrack(in: sourceAsset) {
                 try muxOriginalAudio(videoURL: videoOnlyURL, outputURL: finalURL)
                 try installCompletedOutput(from: finalURL)
             } else {
@@ -134,9 +154,9 @@ public final class CompositedVideoWriter {
         }
         let encoderFrameRate = try encoderFrameRateValue(timing.framesPerSecond)
 
-        let asset = AVURLAsset(url: sourceVideoURL)
+        let asset = sourceAsset
         guard let videoTrack = asset.tracks(withMediaType: .video).first else {
-            throw OverlayVideoError.unreadableVideo("No video track found in \(sourceVideoURL.path).")
+            throw OverlayVideoError.unreadableVideo("No video track found in \(sourceDescription).")
         }
 
         let trimStartTime = CMTime(seconds: config.startTime, preferredTimescale: timing.mediaTimeScale)
@@ -152,7 +172,7 @@ public final class CompositedVideoWriter {
         )
         readerOutput.alwaysCopiesSampleData = false
         guard reader.canAdd(readerOutput) else {
-            throw OverlayVideoError.unreadableVideo("Could not read composited video frames from \(sourceVideoURL.path).")
+            throw OverlayVideoError.unreadableVideo("Could not read composited video frames from \(sourceDescription).")
         }
         reader.add(readerOutput)
 
@@ -312,7 +332,7 @@ public final class CompositedVideoWriter {
         }
         guard frameIndex > 0 else {
             writer.cancelWriting()
-            throw OverlayVideoError.unreadableVideo("No video frames could be read from \(sourceVideoURL.path).")
+            throw OverlayVideoError.unreadableVideo("No video frames could be read from \(sourceDescription).")
         }
 
         let semaphore = DispatchSemaphore(value: 0)
@@ -371,7 +391,6 @@ public final class CompositedVideoWriter {
     }
 
     private func muxOriginalAudio(videoURL: URL, outputURL: URL) throws {
-        let sourceAsset = AVURLAsset(url: sourceVideoURL)
         let videoAsset = AVURLAsset(url: videoURL)
         let audioTracks = sourceAsset.tracks(withMediaType: .audio)
         guard !audioTracks.isEmpty else {
@@ -388,7 +407,10 @@ public final class CompositedVideoWriter {
             duration: config.duration
         ).outputDuration
         let timeRange = CMTimeRange(start: .zero, duration: duration)
-        let sourceAudioStartOffset = CMTime(seconds: config.startTime, preferredTimescale: duration.timescale)
+        let sourceAudioRange = CMTimeRange(
+            start: CMTime(seconds: config.startTime, preferredTimescale: duration.timescale),
+            duration: duration
+        )
 
         guard let compositionVideo = composition.addMutableTrack(
             withMediaType: .video,
@@ -405,15 +427,13 @@ public final class CompositedVideoWriter {
             ) else {
                 continue
             }
-            let sourceStart = CMTimeAdd(audioTrack.timeRange.start, sourceAudioStartOffset)
-            let sourceEnd = CMTimeRangeGetEnd(audioTrack.timeRange)
-            let availableDuration = CMTimeSubtract(sourceEnd, sourceStart)
-            let audioDuration = minTime(duration, availableDuration)
-            guard audioDuration > .zero else { continue }
+            let clippedAudioRange = CMTimeRangeGetIntersection(audioTrack.timeRange, otherRange: sourceAudioRange)
+            guard clippedAudioRange.duration > .zero else { continue }
+            let destinationStart = CMTimeSubtract(clippedAudioRange.start, sourceAudioRange.start)
             try compositionAudio.insertTimeRange(
-                CMTimeRange(start: sourceStart, duration: audioDuration),
+                clippedAudioRange,
                 of: audioTrack,
-                at: .zero
+                at: destinationStart
             )
         }
 
@@ -461,8 +481,8 @@ public final class CompositedVideoWriter {
         }
     }
 
-    private func hasAudioTrack(in url: URL) -> Bool {
-        !AVURLAsset(url: url).tracks(withMediaType: .audio).isEmpty
+    private func hasAudioTrack(in asset: AVAsset) -> Bool {
+        !asset.tracks(withMediaType: .audio).isEmpty
     }
 
     private func videoOutputSettings(

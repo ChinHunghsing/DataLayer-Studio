@@ -1,3 +1,4 @@
+import AudioToolbox
 import AVFoundation
 import CoreMedia
 import CoreVideo
@@ -423,6 +424,111 @@ final class TimelineVideoWriterTests: XCTestCase {
         XCTAssertGreaterThan(luma.max, 120)
     }
 
+    func testTimelineWriterRendersSequentialVideoClipsIntoCompositedOutput() async throws {
+        let firstSourceURL = temporaryMovieURL("timeline-first-video-source")
+        let secondSourceURL = temporaryMovieURL("timeline-second-video-source")
+        let outputURL = temporaryMovieURL("timeline-sequential-video-output")
+        defer {
+            Self.removeTemporaryFile(firstSourceURL)
+            Self.removeTemporaryFile(secondSourceURL)
+            Self.removeTemporaryFile(outputURL)
+        }
+
+        try makeTinySourceVideo(at: firstSourceURL, frameCount: 2, includeAudio: true) { _ in (220, 20, 20) }
+        try makeTinySourceVideo(at: secondSourceURL, frameCount: 2, includeAudio: true) { _ in (20, 40, 220) }
+
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 2, distanceMeters: 6)
+        ])
+        let project = TimelineProject(
+            outputWidth: 64,
+            outputHeight: 64,
+            framesPerSecond: 2,
+            distanceUnit: .kilometers,
+            assets: [
+                MediaAsset(
+                    id: "video-a",
+                    kind: .video,
+                    url: firstSourceURL,
+                    displayName: firstSourceURL.lastPathComponent,
+                    duration: 1,
+                    width: 64,
+                    height: 64,
+                    framesPerSecond: 2
+                ),
+                MediaAsset(
+                    id: "video-b",
+                    kind: .video,
+                    url: secondSourceURL,
+                    displayName: secondSourceURL.lastPathComponent,
+                    duration: 1,
+                    width: 64,
+                    height: 64,
+                    framesPerSecond: 2
+                ),
+                MediaAsset(
+                    id: "activity",
+                    kind: .activity,
+                    url: URL(fileURLWithPath: "/tmp/activity.fit"),
+                    displayName: "activity.fit",
+                    duration: 2
+                )
+            ],
+            tracks: [
+                TimelineTrack(
+                    id: "video-track",
+                    kind: .video,
+                    name: "V1",
+                    clips: [
+                        TimelineClip(id: "video-a-clip", assetID: "video-a", timelineStart: 0, duration: 1),
+                        TimelineClip(id: "video-b-clip", assetID: "video-b", timelineStart: 1, duration: 1)
+                    ]
+                ),
+                TimelineTrack(
+                    id: "overlay-track",
+                    kind: .overlay,
+                    name: "O1",
+                    clips: [
+                        TimelineClip(
+                            id: "overlay-clip",
+                            assetID: "activity",
+                            timelineStart: 0,
+                            duration: 2,
+                            layout: OverlayLayout(elements: [])
+                        )
+                    ]
+                )
+            ]
+        )
+        let writer = TimelineVideoWriter(
+            outputURL: outputURL,
+            project: project,
+            telemetrySeriesByAssetID: ["activity": series],
+            config: TimelineVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: 2,
+                duration: 2,
+                averageBitRate: 400_000,
+                codec: .h264
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            throw XCTSkip("Timeline sequential-video test encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let firstFrame = try await frameMeanRGB(from: outputURL, at: 0.25)
+        let secondFrame = try await frameMeanRGB(from: outputURL, at: 1.25)
+        XCTAssertGreaterThan(firstFrame.red, firstFrame.blue + 80)
+        XCTAssertGreaterThan(secondFrame.blue, secondFrame.red + 80)
+        let audioTracks = try await AVURLAsset(url: outputURL).loadTracks(withMediaType: .audio)
+        XCTAssertFalse(audioTracks.isEmpty)
+    }
+
     private func temporaryMovieURL(_ name: String) -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("\(name)-\(UUID().uuidString)")
@@ -438,6 +544,7 @@ final class TimelineVideoWriterTests: XCTestCase {
         at url: URL,
         frameCount: Int = 2,
         framesPerSecond: Int32 = 2,
+        includeAudio: Bool = false,
         frameColor: (Int) -> (red: UInt8, green: UInt8, blue: UInt8) = { index in
             (UInt8(80 + index * 40), 120, 160)
         }
@@ -467,6 +574,31 @@ final class TimelineVideoWriterTests: XCTestCase {
             throw OverlayVideoError.unsupportedEncoder("Could not create tiny source video input.")
         }
         writer.add(input)
+
+        let sampleRate = 44_100.0
+        let totalDuration = Double(frameCount) / Double(framesPerSecond)
+        var audioInput: AVAssetWriterInput?
+        if includeAudio {
+            let newInput = AVAssetWriterInput(
+                mediaType: .audio,
+                outputSettings: [
+                    AVFormatIDKey: kAudioFormatLinearPCM,
+                    AVSampleRateKey: sampleRate,
+                    AVNumberOfChannelsKey: 1,
+                    AVLinearPCMBitDepthKey: 16,
+                    AVLinearPCMIsFloatKey: false,
+                    AVLinearPCMIsBigEndianKey: false,
+                    AVLinearPCMIsNonInterleaved: false
+                ]
+            )
+            newInput.expectsMediaDataInRealTime = false
+            guard writer.canAdd(newInput) else {
+                throw OverlayVideoError.unsupportedEncoder("Could not create tiny source audio input.")
+            }
+            writer.add(newInput)
+            audioInput = newInput
+        }
+
         guard writer.startWriting() else {
             throw OverlayVideoError.cannotStartWriter(writer.error?.localizedDescription ?? "Could not start tiny source writer.")
         }
@@ -485,6 +617,17 @@ final class TimelineVideoWriterTests: XCTestCase {
         }
         input.markAsFinished()
 
+        if let audioInput {
+            let sampleBuffer = try makeSilentAudioSampleBuffer(durationSeconds: totalDuration, sampleRate: sampleRate)
+            while !audioInput.isReadyForMoreMediaData {
+                Thread.sleep(forTimeInterval: 0.001)
+            }
+            guard audioInput.append(sampleBuffer) else {
+                throw OverlayVideoError.writerFailed(writer.error?.localizedDescription ?? "Could not append tiny source audio.")
+            }
+            audioInput.markAsFinished()
+        }
+
         let semaphore = DispatchSemaphore(value: 0)
         writer.finishWriting { semaphore.signal() }
         semaphore.wait()
@@ -492,6 +635,74 @@ final class TimelineVideoWriterTests: XCTestCase {
         guard writer.status == .completed else {
             throw OverlayVideoError.writerFailed(writer.error?.localizedDescription ?? "Tiny source writer failed.")
         }
+    }
+
+    private func makeSilentAudioSampleBuffer(durationSeconds: Double, sampleRate: Double) throws -> CMSampleBuffer {
+        let sampleCount = Int(sampleRate * durationSeconds)
+        let bytesPerSample = 2
+        let dataSize = sampleCount * bytesPerSample
+
+        var asbd = AudioStreamBasicDescription(
+            mSampleRate: sampleRate,
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked,
+            mBytesPerPacket: UInt32(bytesPerSample),
+            mFramesPerPacket: 1,
+            mBytesPerFrame: UInt32(bytesPerSample),
+            mChannelsPerFrame: 1,
+            mBitsPerChannel: 16,
+            mReserved: 0
+        )
+        var formatDescription: CMAudioFormatDescription?
+        guard CMAudioFormatDescriptionCreate(
+            allocator: kCFAllocatorDefault,
+            asbd: &asbd,
+            layoutSize: 0,
+            layout: nil,
+            magicCookieSize: 0,
+            magicCookie: nil,
+            extensions: nil,
+            formatDescriptionOut: &formatDescription
+        ) == noErr, let formatDescription else {
+            throw OverlayVideoError.writerFailed("Could not create tiny source audio format description.")
+        }
+
+        var blockBuffer: CMBlockBuffer?
+        guard CMBlockBufferCreateWithMemoryBlock(
+            allocator: kCFAllocatorDefault,
+            memoryBlock: nil,
+            blockLength: dataSize,
+            blockAllocator: kCFAllocatorDefault,
+            customBlockSource: nil,
+            offsetToData: 0,
+            dataLength: dataSize,
+            flags: kCMBlockBufferAssureMemoryNowFlag,
+            blockBufferOut: &blockBuffer
+        ) == noErr, let blockBuffer else {
+            throw OverlayVideoError.writerFailed("Could not allocate tiny source audio block buffer.")
+        }
+        guard CMBlockBufferFillDataBytes(
+            with: 0,
+            blockBuffer: blockBuffer,
+            offsetIntoDestination: 0,
+            dataLength: dataSize
+        ) == noErr else {
+            throw OverlayVideoError.writerFailed("Could not zero-fill tiny source audio block buffer.")
+        }
+
+        var sampleBuffer: CMSampleBuffer?
+        guard CMAudioSampleBufferCreateReadyWithPacketDescriptions(
+            allocator: kCFAllocatorDefault,
+            dataBuffer: blockBuffer,
+            formatDescription: formatDescription,
+            sampleCount: sampleCount,
+            presentationTimeStamp: .zero,
+            packetDescriptions: nil,
+            sampleBufferOut: &sampleBuffer
+        ) == noErr, let sampleBuffer else {
+            throw OverlayVideoError.writerFailed("Could not create tiny source audio sample buffer.")
+        }
+        return sampleBuffer
     }
 
     private func makePixelBuffer(red: UInt8, green: UInt8, blue: UInt8) throws -> CVPixelBuffer {
@@ -563,6 +774,47 @@ final class TimelineVideoWriterTests: XCTestCase {
             }
         }
         return (maxLuma, sumLuma / Double(width * height))
+    }
+
+    private func frameMeanRGB(from url: URL, at seconds: TimeInterval) async throws -> (red: Double, green: Double, blue: Double) {
+        let asset = AVURLAsset(url: url)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        let reader = try AVAssetReader(asset: asset)
+        reader.timeRange = CMTimeRange(
+            start: CMTime(seconds: seconds, preferredTimescale: 600),
+            duration: CMTime(seconds: 0.25, preferredTimescale: 600)
+        )
+        let output = AVAssetReaderTrackOutput(
+            track: try XCTUnwrap(tracks.first),
+            outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        )
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+        let sampleBuffer = try XCTUnwrap(output.copyNextSampleBuffer())
+        let pixelBuffer = try XCTUnwrap(CMSampleBufferGetImageBuffer(sampleBuffer))
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let bytes = try XCTUnwrap(CVPixelBufferGetBaseAddress(pixelBuffer))
+            .assumingMemoryBound(to: UInt8.self)
+
+        var red = 0.0
+        var green = 0.0
+        var blue = 0.0
+        for y in 0..<height {
+            let rowStart = y * bytesPerRow
+            for x in 0..<width {
+                let offset = rowStart + x * 4
+                blue += Double(bytes[offset])
+                green += Double(bytes[offset + 1])
+                red += Double(bytes[offset + 2])
+            }
+        }
+        let pixelCount = Double(width * height)
+        return (red / pixelCount, green / pixelCount, blue / pixelCount)
     }
 }
 

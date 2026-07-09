@@ -74,13 +74,8 @@ public final class TimelineVideoWriter {
     }
 
     private func writeCompositedVideo() throws {
-        let video = try makeSingleVideoComposition()
+        let video = try makeCompositedVideoSource()
         let overlays = try makeOverlayCompositions()
-        let videoStartTime = video.clip.sourceTime(atTimelineTime: config.timelineStart)
-
-        guard videoStartTime.isFinite, videoStartTime >= 0 else {
-            throw OverlayVideoError.invalidConfiguration("Timeline export maps to an invalid source video start time.")
-        }
 
         let renderPool = try TransparentVideoWriter.makePixelBufferPool(
             width: config.width,
@@ -94,12 +89,13 @@ public final class TimelineVideoWriter {
 
         try CompositedVideoWriter(
             outputURL: outputURL,
-            sourceVideoURL: video.asset.url,
+            sourceAsset: video.asset,
+            sourceDescription: video.description,
             config: CompositedVideoWriterConfig(
                 width: config.width,
                 height: config.height,
                 framesPerSecond: config.framesPerSecond,
-                startTime: videoStartTime,
+                startTime: video.startTime,
                 duration: config.duration,
                 averageBitRate: config.averageBitRate,
                 codec: config.codec,
@@ -342,23 +338,141 @@ public final class TimelineVideoWriter {
         return accumulated
     }
 
-    private func makeSingleVideoComposition() throws -> (asset: MediaAsset, clip: TimelineClip) {
-        let videoClips = enabledClips(kind: .video)
+    private func makeCompositedVideoSource() throws -> (asset: AVAsset, description: String, startTime: TimeInterval) {
+        let videoClips = try videoClipsCoveringExportRange()
 
-        guard videoClips.count == 1, let videoClip = videoClips.first else {
-            throw OverlayVideoError.invalidConfiguration("Timeline video export currently requires exactly one enabled video clip.")
-        }
-        guard let videoAsset = project.asset(id: videoClip.assetID), videoAsset.kind == .video else {
-            throw OverlayVideoError.invalidConfiguration("Timeline video clip references a missing video asset.")
+        if videoClips.count == 1 {
+            let clip = videoClips[0]
+            guard let videoAsset = project.asset(id: clip.assetID), videoAsset.kind == .video else {
+                throw OverlayVideoError.invalidConfiguration("Timeline video clip references a missing video asset.")
+            }
+            let startTime = clip.sourceTime(atTimelineTime: config.timelineStart)
+            guard startTime.isFinite, startTime >= 0 else {
+                throw OverlayVideoError.invalidConfiguration("Timeline export maps to an invalid source video start time.")
+            }
+            return (AVURLAsset(url: videoAsset.url), videoAsset.url.path, startTime)
         }
 
-        let timelineEnd = config.timelineStart + config.duration
-        guard config.timelineStart >= videoClip.timelineStart,
-              timelineEnd <= videoClip.timelineEnd + 1e-6 else {
-            throw OverlayVideoError.invalidConfiguration("Timeline video export range must be covered by the enabled video clip.")
+        return (try makeTimelineVideoComposition(videoClips), "timeline video composition", config.timelineStart)
+    }
+
+    private func videoClipsCoveringExportRange() throws -> [TimelineClip] {
+        let start = config.timelineStart
+        let end = config.timelineStart + config.duration
+        let epsilon = 1e-6
+        let relevantClips = enabledClips(kind: .video)
+            .filter { $0.timelineEnd > start + epsilon && $0.timelineStart < end - epsilon }
+            .sorted { lhs, rhs in
+                if abs(lhs.timelineStart - rhs.timelineStart) > epsilon {
+                    return lhs.timelineStart < rhs.timelineStart
+                }
+                return lhs.id < rhs.id
+            }
+
+        guard !relevantClips.isEmpty else {
+            throw OverlayVideoError.invalidConfiguration("Timeline video export requires at least one enabled video clip.")
         }
 
-        return (videoAsset, videoClip)
+        var coveredUntil = start
+        var coveringClips: [TimelineClip] = []
+        for (index, clip) in relevantClips.enumerated() {
+            if index == 0 {
+                guard clip.timelineStart <= start + epsilon else {
+                    throw OverlayVideoError.invalidConfiguration("Timeline video export range must start inside an enabled video clip.")
+                }
+            } else {
+                if clip.timelineStart > coveredUntil + epsilon {
+                    throw OverlayVideoError.invalidConfiguration("Timeline video export range has a gap between video clips.")
+                }
+                if clip.timelineStart < coveredUntil - epsilon {
+                    throw OverlayVideoError.invalidConfiguration("Overlapping timeline video clips are not supported for video export yet.")
+                }
+            }
+            coveringClips.append(clip)
+            coveredUntil = max(coveredUntil, clip.timelineEnd)
+            if coveredUntil >= end - epsilon {
+                return coveringClips
+            }
+        }
+
+        throw OverlayVideoError.invalidConfiguration("Timeline video export range must be fully covered by enabled video clips.")
+    }
+
+    private func makeTimelineVideoComposition(_ videoClips: [TimelineClip]) throws -> AVAsset {
+        let composition = AVMutableComposition()
+        guard let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw OverlayVideoError.writerFailed("Could not create timeline video composition track.")
+        }
+
+        let timescale = CMTimeScale(600)
+        var didSetPreferredTransform = false
+
+        for clip in videoClips {
+            guard let videoAsset = project.asset(id: clip.assetID), videoAsset.kind == .video else {
+                throw OverlayVideoError.invalidConfiguration("Timeline video clip references a missing video asset.")
+            }
+            let sourceAsset = AVURLAsset(url: videoAsset.url)
+            guard let sourceVideoTrack = sourceAsset.tracks(withMediaType: .video).first else {
+                throw OverlayVideoError.unreadableVideo("No video track found in \(videoAsset.url.path).")
+            }
+
+            let sourceStart = CMTimeAdd(
+                sourceVideoTrack.timeRange.start,
+                CMTime(seconds: clip.sourceIn, preferredTimescale: timescale)
+            )
+            let sourceDuration = CMTime(seconds: clip.duration, preferredTimescale: timescale)
+            let sourceEnd = CMTimeAdd(sourceStart, sourceDuration)
+            let availableEnd = CMTimeRangeGetEnd(sourceVideoTrack.timeRange)
+            guard sourceStart >= sourceVideoTrack.timeRange.start, sourceEnd <= availableEnd else {
+                throw OverlayVideoError.invalidConfiguration("Timeline video clip extends past its source video duration.")
+            }
+
+            let destinationStart = CMTime(seconds: clip.timelineStart, preferredTimescale: timescale)
+            try compositionVideoTrack.insertTimeRange(
+                CMTimeRange(start: sourceStart, duration: sourceDuration),
+                of: sourceVideoTrack,
+                at: destinationStart
+            )
+            if !didSetPreferredTransform {
+                compositionVideoTrack.preferredTransform = sourceVideoTrack.preferredTransform
+                didSetPreferredTransform = true
+            }
+
+            for sourceAudioTrack in sourceAsset.tracks(withMediaType: .audio) {
+                guard let compositionAudioTrack = composition.addMutableTrack(
+                    withMediaType: .audio,
+                    preferredTrackID: kCMPersistentTrackID_Invalid
+                ) else {
+                    continue
+                }
+                let audioStart = CMTimeAdd(
+                    sourceAudioTrack.timeRange.start,
+                    CMTime(seconds: clip.sourceIn, preferredTimescale: timescale)
+                )
+                let audioEnd = CMTimeAdd(audioStart, sourceDuration)
+                let availableAudioEnd = CMTimeRangeGetEnd(sourceAudioTrack.timeRange)
+                let audioDuration = minTime(sourceDuration, CMTimeSubtract(availableAudioEnd, audioStart))
+                guard audioStart >= sourceAudioTrack.timeRange.start,
+                      audioEnd > sourceAudioTrack.timeRange.start,
+                      audioDuration > .zero else {
+                    continue
+                }
+                try compositionAudioTrack.insertTimeRange(
+                    CMTimeRange(start: audioStart, duration: audioDuration),
+                    of: sourceAudioTrack,
+                    at: destinationStart
+                )
+            }
+        }
+
+        return composition
+    }
+
+    private func minTime(_ lhs: CMTime, _ rhs: CMTime) -> CMTime {
+        CMTimeCompare(lhs, rhs) <= 0 ? lhs : rhs
     }
 
     private func makeOverlayCompositions() throws -> [OverlayComposition] {
