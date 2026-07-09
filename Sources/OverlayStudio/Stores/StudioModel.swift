@@ -1519,6 +1519,47 @@ final class StudioModel: ObservableObject {
         max(0, effectiveExportTrimEnd - effectiveExportTrimStart)
     }
 
+    var estimatedExportFileSizeBytes: Int64 {
+        Self.estimatedExportFileSizeBytes(
+            duration: effectiveExportTrimDuration,
+            width: outputWidth,
+            height: outputHeight,
+            framesPerSecond: outputFPS,
+            bitRateKbps: bitRateKbps,
+            codec: codec
+        )
+    }
+
+    static func estimatedExportFileSizeBytes(
+        duration: TimeInterval,
+        width: Int,
+        height: Int,
+        framesPerSecond: Double,
+        bitRateKbps: Int,
+        codec: OverlayVideoCodec
+    ) -> Int64 {
+        guard duration.isFinite, duration > 0 else { return 0 }
+
+        let estimatedBitRateKbps: Double
+        switch codec {
+        case .proRes4444:
+            // ProRes 4444 is a fixed-profile codec. Its nominal 1080p30 data rate is
+            // about 330 Mb/s and scales with the number of pixels encoded per second.
+            let bitsPerPixelPerFrame = 5.3
+            estimatedBitRateKbps = Double(max(0, width))
+                * Double(max(0, height))
+                * max(0, framesPerSecond)
+                * bitsPerPixelPerFrame
+                / 1_000
+        case .hevcAlpha, .hevc, .h264:
+            estimatedBitRateKbps = Double(max(0, bitRateKbps))
+        }
+
+        let estimatedBytes = duration * estimatedBitRateKbps * 125
+        guard estimatedBytes.isFinite else { return Int64.max }
+        return Int64(min(Double(Int64.max), max(0, estimatedBytes)).rounded())
+    }
+
     func setExportTrimStart(_ value: TimeInterval) {
         guard !isExporting else { return }
         exportTrimRangeWasManuallyEdited = true

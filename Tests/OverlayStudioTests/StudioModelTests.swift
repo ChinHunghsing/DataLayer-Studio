@@ -189,6 +189,75 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.bitRateKbps, 1)
     }
 
+    func testEstimatedExportFileSizeUsesTargetBitrateForLongGOPCodecs() {
+        for codec in [OverlayVideoCodec.hevcAlpha, .hevc, .h264] {
+            XCTAssertEqual(
+                StudioModel.estimatedExportFileSizeBytes(
+                    duration: 10,
+                    width: 1_920,
+                    height: 1_080,
+                    framesPerSecond: 30,
+                    bitRateKbps: 12_000,
+                    codec: codec
+                ),
+                15_000_000
+            )
+        }
+    }
+
+    func testEstimatedProResFileSizeChangesWithCodecResolutionAndFrameRate() {
+        let hevcSize = StudioModel.estimatedExportFileSizeBytes(
+            duration: 10,
+            width: 1_920,
+            height: 1_080,
+            framesPerSecond: 30,
+            bitRateKbps: 12_000,
+            codec: .hevcAlpha
+        )
+        let proRes1080p30Size = StudioModel.estimatedExportFileSizeBytes(
+            duration: 10,
+            width: 1_920,
+            height: 1_080,
+            framesPerSecond: 30,
+            bitRateKbps: 12_000,
+            codec: .proRes4444
+        )
+        let proRes4K30Size = StudioModel.estimatedExportFileSizeBytes(
+            duration: 10,
+            width: 3_840,
+            height: 2_160,
+            framesPerSecond: 30,
+            bitRateKbps: 12_000,
+            codec: .proRes4444
+        )
+        let proRes4K60Size = StudioModel.estimatedExportFileSizeBytes(
+            duration: 10,
+            width: 3_840,
+            height: 2_160,
+            framesPerSecond: 60,
+            bitRateKbps: 12_000,
+            codec: .proRes4444
+        )
+
+        XCTAssertGreaterThan(proRes1080p30Size, hevcSize)
+        XCTAssertEqual(proRes4K30Size, proRes1080p30Size * 4)
+        XCTAssertEqual(proRes4K60Size, proRes4K30Size * 2)
+    }
+
+    func testEstimatedExportFileSizeRejectsInvalidDuration() {
+        XCTAssertEqual(
+            StudioModel.estimatedExportFileSizeBytes(
+                duration: .nan,
+                width: 1_920,
+                height: 1_080,
+                framesPerSecond: 30,
+                bitRateKbps: 12_000,
+                codec: .hevc
+            ),
+            0
+        )
+    }
+
     func testSourceVideoBitrateConvertsMetadataBitsPerSecondToKbps() {
         let metadata = VideoMetadata(
             size: CGSize(width: 1920, height: 1080),

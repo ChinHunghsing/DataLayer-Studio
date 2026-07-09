@@ -297,6 +297,7 @@ private struct InlineIntField: View {
             .focused($focused)
             .onSubmit(commit)
             .onAppear { draft = String(value) }
+            .onChange(of: draft) { _ in publishValidDraft() }
             .onChange(of: value) { newValue in
                 if !focused { draft = String(newValue) }
             }
@@ -307,6 +308,13 @@ private struct InlineIntField: View {
                     commit()
                 }
             }
+    }
+
+    private func publishValidDraft() {
+        guard focused,
+              let parsed = Int(draft),
+              range.contains(parsed) else { return }
+        set(parsed)
     }
 
     private func commit() {
@@ -346,6 +354,10 @@ struct ExportSummaryCard: View {
                     value: "\(formatFrameRate(model.outputFPS)) fps"
                 )
                 SidebarSummaryRow(
+                    title: localization.string("sidebar.exportSummary.codec"),
+                    value: localization.string(model.codec.localizationKey)
+                )
+                SidebarSummaryRow(
                     title: localization.string("sidebar.exportSummary.bitrate"),
                     value: "\(model.bitRateKbps) kbps"
                 )
@@ -355,7 +367,7 @@ struct ExportSummaryCard: View {
                 )
                 SidebarSummaryRow(
                     title: localization.string("sidebar.exportSummary.estimatedSize"),
-                    value: formatEstimatedFileSize(duration: model.effectiveExportTrimDuration, bitRateKbps: model.bitRateKbps)
+                    value: formatEstimatedFileSize(bytes: model.estimatedExportFileSizeBytes)
                 )
                 SidebarSummaryRow(
                     title: localization.string("sidebar.exportSummary.destination"),
@@ -395,10 +407,9 @@ struct ExportSummaryCard: View {
         return String(format: "%02d:%02d.%03d", minutes, secs, ms)
     }
 
-    private func formatEstimatedFileSize(duration: TimeInterval, bitRateKbps: Int) -> String {
-        let bytes = max(0, duration) * Double(max(0, bitRateKbps)) * 125
+    private func formatEstimatedFileSize(bytes: Int64) -> String {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(bytes.rounded()))
+        return formatter.string(fromByteCount: max(0, bytes))
     }
 }
