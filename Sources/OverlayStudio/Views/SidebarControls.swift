@@ -115,6 +115,120 @@ struct FilePickRow: View {
     }
 }
 
+/// A pooled list of imported media of one kind (videos or activities). Empty shows an import row;
+/// otherwise it lists each asset (active highlighted, others removable) with an "add more" button.
+struct MediaPoolList: View {
+    var kindTitle: String
+    var placeholder: String
+    var systemImage: String
+    var assets: [MediaAsset]
+    var activeID: String?
+    var addTitle: String
+    var select: (String) -> Void
+    var remove: (String) -> Void
+    var add: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if assets.isEmpty {
+                FilePickRow(
+                    title: kindTitle,
+                    subtitle: placeholder,
+                    systemImage: systemImage,
+                    isLoaded: false,
+                    action: add
+                )
+            } else {
+                ForEach(assets) { asset in
+                    MediaPoolRow(
+                        asset: asset,
+                        systemImage: systemImage,
+                        isActive: asset.id == activeID,
+                        select: { select(asset.id) },
+                        remove: { remove(asset.id) }
+                    )
+                }
+
+                Button(action: add) {
+                    Label(addTitle, systemImage: "plus.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .padding(.leading, 2)
+            }
+        }
+    }
+}
+
+struct MediaPoolRow: View {
+    var asset: MediaAsset
+    var systemImage: String
+    var isActive: Bool
+    var select: () -> Void
+    var remove: () -> Void
+    @EnvironmentObject private var localization: LocalizationStore
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: select) {
+                HStack(spacing: 11) {
+                    ShellIconTile(systemImage: systemImage, isActive: isActive)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(asset.displayName)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Text(subtitle)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 6)
+                    if isActive {
+                        ShellStatusChip(localization.string("mediapool.inUse"), systemImage: "checkmark", kind: .active)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if !isActive {
+                Button(action: remove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary.opacity(0.55))
+                }
+                .buttonStyle(.borderless)
+                .help(localization.string("mediapool.remove"))
+            }
+        }
+        .padding(9)
+        .shellGroupSurface(cornerRadius: 9)
+        .overlay {
+            if isActive {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(ShellStyle.accentStroke, lineWidth: 1)
+            }
+        }
+    }
+
+    private var subtitle: String {
+        var parts = [Self.formatDuration(asset.duration)]
+        if let width = asset.width, let height = asset.height {
+            parts.append("\(width)×\(height)")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func formatDuration(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded()))
+        if total >= 3600 {
+            return String(format: "%d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
+        }
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
 struct SidebarStepperRow: View {
     var title: String
     @Binding var value: Int

@@ -61,6 +61,11 @@ final class StudioModel: ObservableObject {
     @Published var metadata: VideoMetadata?
     @Published var series: TelemetrySeries?
 
+    /// Project media pool (timeline groundwork). Imported sources are kept here so a project can
+    /// hold multiple videos and activities; the currently loaded `videoURL`/`fitURL` is the active one.
+    @Published var videoAssets: [MediaAsset] = []
+    @Published var activityAssets: [MediaAsset] = []
+
     @Published var outputWidth = 1920
     @Published var outputHeight = 1080
     @Published var outputFPS = 30.0
@@ -731,6 +736,7 @@ final class StudioModel: ObservableObject {
                           self.videoLoadGeneration == loadGeneration else { return }
                     self.videoURL = url
                     self.metadata = loaded
+                    self.upsertVideoAsset(url: url, metadata: loaded)
                     self.setOutputWidth(Int(loaded.size.width.rounded()))
                     self.setOutputHeight(Int(loaded.size.height.rounded()))
                     self.setOutputFPS(loaded.framesPerSecond)
@@ -1120,6 +1126,79 @@ final class StudioModel: ObservableObject {
         refreshOverlayOnly(coalesceIfBusy: true)
     }
 
+    // MARK: - Media pool
+
+    /// The pool asset currently loaded as the active video, if any.
+    var activeVideoAssetID: String? {
+        guard let videoURL else { return nil }
+        return videoAssets.first { $0.url == videoURL }?.id
+    }
+
+    /// The pool asset currently loaded as the active activity, if any.
+    var activeActivityAssetID: String? {
+        guard let fitURL else { return nil }
+        return activityAssets.first { $0.url == fitURL }?.id
+    }
+
+    /// Add or refresh a video in the pool (called once its metadata has loaded). Deduplicated by path.
+    func upsertVideoAsset(url: URL, metadata: VideoMetadata) {
+        let asset = MediaAsset(
+            id: url.path,
+            kind: .video,
+            url: url,
+            displayName: url.lastPathComponent,
+            duration: metadata.duration,
+            width: Int(metadata.size.width.rounded()),
+            height: Int(metadata.size.height.rounded()),
+            framesPerSecond: metadata.framesPerSecond
+        )
+        if let index = videoAssets.firstIndex(where: { $0.id == asset.id }) {
+            videoAssets[index] = asset
+        } else {
+            videoAssets.append(asset)
+        }
+    }
+
+    /// Add or refresh an activity in the pool (called once its telemetry has parsed). Deduplicated by path.
+    func upsertActivityAsset(url: URL, series: TelemetrySeries) {
+        let asset = MediaAsset(
+            id: url.path,
+            kind: .activity,
+            url: url,
+            displayName: url.lastPathComponent,
+            duration: series.duration
+        )
+        if let index = activityAssets.firstIndex(where: { $0.id == asset.id }) {
+            activityAssets[index] = asset
+        } else {
+            activityAssets.append(asset)
+        }
+    }
+
+    /// Make a pooled video the active source.
+    func selectVideoAsset(id: String) {
+        guard !isExporting, let asset = videoAssets.first(where: { $0.id == id }), asset.url != videoURL else { return }
+        setVideo(asset.url)
+    }
+
+    /// Make a pooled activity the active source.
+    func selectActivityAsset(id: String) {
+        guard !isExporting, let asset = activityAssets.first(where: { $0.id == id }), asset.url != fitURL else { return }
+        setFIT(asset.url)
+    }
+
+    /// Remove a pooled video. The active video cannot be removed.
+    func removeVideoAsset(id: String) {
+        guard id != activeVideoAssetID else { return }
+        videoAssets.removeAll { $0.id == id }
+    }
+
+    /// Remove a pooled activity. The active activity cannot be removed.
+    func removeActivityAsset(id: String) {
+        guard id != activeActivityAssetID else { return }
+        activityAssets.removeAll { $0.id == id }
+    }
+
     func retryVideoLoad() {
         guard let failure = videoLoadFailure else { return }
         setVideo(failure.url)
@@ -1172,6 +1251,7 @@ final class StudioModel: ObservableObject {
                           self.fitLoadGeneration == loadGeneration else { return }
                     self.fitURL = url
                     self.series = parsedSeries
+                    self.upsertActivityAsset(url: url, series: parsedSeries)
                     if self.videoURL == nil {
                         self.resetExportTrimRangeToFullDuration()
                         self.applySuggestedOutputURLIfNeeded(for: url)

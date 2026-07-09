@@ -62,37 +62,49 @@ struct SidebarView: View {
     }
 
     private var fileSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            FilePickRow(
-                title: localization.string("sidebar.video.title"),
-                subtitle: model.videoURL?.lastPathComponent ?? localization.string("sidebar.video.placeholder"),
-                systemImage: "film",
-                isLoaded: model.videoURL != nil,
-                action: model.chooseVideo
-            )
-
-            if let failure = model.videoLoadFailure {
-                SourceLoadFailureRow(
-                    message: localization.string(failure.messageKey, failure.detail),
-                    retryTitle: localization.string("sidebar.retryLoad"),
-                    retry: model.retryVideoLoad
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                MediaPoolList(
+                    kindTitle: localization.string("sidebar.video.title"),
+                    placeholder: localization.string("sidebar.video.placeholder"),
+                    systemImage: "film",
+                    assets: model.videoAssets,
+                    activeID: model.activeVideoAssetID,
+                    addTitle: localization.string("mediapool.addVideo"),
+                    select: model.selectVideoAsset,
+                    remove: model.removeVideoAsset,
+                    add: model.chooseVideo
                 )
+
+                if let failure = model.videoLoadFailure {
+                    SourceLoadFailureRow(
+                        message: localization.string(failure.messageKey, failure.detail),
+                        retryTitle: localization.string("sidebar.retryLoad"),
+                        retry: model.retryVideoLoad
+                    )
+                }
             }
 
-            FilePickRow(
-                title: localization.string("sidebar.fit.title"),
-                subtitle: model.fitURL?.lastPathComponent ?? localization.string("sidebar.fit.placeholder"),
-                systemImage: "figure.run",
-                isLoaded: model.fitURL != nil,
-                action: model.chooseFIT
-            )
-
-            if let failure = model.fitLoadFailure {
-                SourceLoadFailureRow(
-                    message: localization.string(failure.messageKey, failure.detail),
-                    retryTitle: localization.string("sidebar.retryLoad"),
-                    retry: model.retryFITLoad
+            VStack(alignment: .leading, spacing: 6) {
+                MediaPoolList(
+                    kindTitle: localization.string("sidebar.fit.title"),
+                    placeholder: localization.string("sidebar.fit.placeholder"),
+                    systemImage: "figure.run",
+                    assets: model.activityAssets,
+                    activeID: model.activeActivityAssetID,
+                    addTitle: localization.string("mediapool.addActivity"),
+                    select: model.selectActivityAsset,
+                    remove: model.removeActivityAsset,
+                    add: model.chooseFIT
                 )
+
+                if let failure = model.fitLoadFailure {
+                    SourceLoadFailureRow(
+                        message: localization.string(failure.messageKey, failure.detail),
+                        retryTitle: localization.string("sidebar.retryLoad"),
+                        retry: model.retryFITLoad
+                    )
+                }
             }
         }
     }
