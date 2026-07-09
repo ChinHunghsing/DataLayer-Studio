@@ -209,6 +209,68 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.activitySyncZeroVideoTime, 10, accuracy: 1e-9)
     }
 
+    func testAddingPooledVideoAppendsToVideoTrack() throws {
+        let model = StudioModel()
+        let firstURL = URL(fileURLWithPath: "/tmp/a.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/b.mov")
+        model.upsertVideoAsset(url: firstURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 100, fps: 30))
+        model.upsertVideoAsset(url: secondURL, metadata: videoMetadata(width: 1280, height: 720, duration: 40, fps: 30))
+        model.videoURL = firstURL
+
+        model.addVideoAssetToTimeline(id: secondURL.path)
+
+        let videoClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .video }
+            .flatMap(\.clips)
+        XCTAssertEqual(videoClips.count, 2)
+        XCTAssertEqual(videoClips[0].assetID, firstURL.path)
+        XCTAssertEqual(videoClips[1].assetID, secondURL.path)
+        XCTAssertEqual(videoClips[1].timelineStart, 100, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[1].duration, 40, accuracy: 1e-9)
+    }
+
+    func testTrimmingPooledTimelineClipUpdatesClipGeometry() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+
+        let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+
+        let pooledURL = URL(fileURLWithPath: "/tmp/b.fit")
+        model.upsertActivityAsset(url: pooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.previewTime = 20
+        model.addActivityAssetToTimeline(id: pooledURL.path)
+
+        let clip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first { $0.assetID == pooledURL.path }
+        )
+
+        model.trimTimelineClipStart(id: clip.id, toTimelineTime: 25)
+        model.trimTimelineClipEnd(id: clip.id, toTimelineTime: 60)
+
+        let trimmed = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first { $0.id == clip.id }
+        )
+        XCTAssertEqual(trimmed.timelineStart, 25, accuracy: 1e-9)
+        XCTAssertEqual(trimmed.sourceIn, 5, accuracy: 1e-9)
+        XCTAssertEqual(trimmed.duration, 35, accuracy: 1e-9)
+    }
+
     func testTimelineOverlayDragIgnoredWithoutBothSources() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov") // no activity

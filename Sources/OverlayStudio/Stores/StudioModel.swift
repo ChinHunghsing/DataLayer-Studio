@@ -1306,6 +1306,44 @@ final class StudioModel: ObservableObject {
         setStatus("status.timelineAddedActivity", asset.displayName)
     }
 
+    /// Add a pooled video as the next clip on the base video track.
+    func addVideoAssetToTimeline(id: String) {
+        guard !isExporting,
+              let asset = videoAssets.first(where: { $0.id == id }),
+              asset.duration > 0 else { return }
+
+        if timelineUsesSingleSourceMigration {
+            rebuildCurrentTimelineProject()
+            timelineUsesSingleSourceMigration = false
+        }
+
+        if !timeline.assets.contains(where: { $0.id == asset.id }) {
+            timeline.assets.append(asset)
+        }
+
+        let clip = TimelineClip(
+            id: "video.clip.\(UUID().uuidString)",
+            assetID: asset.id,
+            timelineStart: timeline.tracks
+                .filter { $0.kind == .video }
+                .flatMap(\.clips)
+                .map(\.timelineEnd)
+                .max() ?? 0,
+            duration: asset.duration,
+            sourceIn: 0
+        )
+
+        if let trackIndex = timeline.tracks.firstIndex(where: { $0.kind == .video }) {
+            timeline.tracks[trackIndex].clips.append(clip)
+        } else {
+            timeline.tracks.insert(
+                TimelineTrack(id: "video.track.\(UUID().uuidString)", kind: .video, name: "V1", clips: [clip]),
+                at: 0
+            )
+        }
+        setStatus("status.timelineAddedActivity", asset.displayName)
+    }
+
     /// Timeline representation of the currently active source(s), used by preview/export.
     /// Stored on the model so timeline editing has one place to write into.
     var currentTimelineProject: TimelineProject {
@@ -1395,6 +1433,49 @@ final class StudioModel: ObservableObject {
             let currentStart = timeline.tracks[trackIndex].clips[clipIndex].timelineStart
             guard abs(currentStart - sanitizedStart) > 1e-6 else { return }
             timeline.tracks[trackIndex].clips[clipIndex].timelineStart = sanitizedStart
+            refreshOverlayOrPreview()
+            return
+        }
+    }
+
+    func trimTimelineClipStart(id: String, toTimelineTime timelineTime: TimeInterval) {
+        trimTimelineClip(id: id, startTime: timelineTime, endTime: nil)
+    }
+
+    func trimTimelineClipEnd(id: String, toTimelineTime timelineTime: TimeInterval) {
+        trimTimelineClip(id: id, startTime: nil, endTime: timelineTime)
+    }
+
+    private func trimTimelineClip(id: String, startTime: TimeInterval?, endTime: TimeInterval?) {
+        guard !isExporting, !timelineUsesSingleSourceMigration else { return }
+        let minimumDuration: TimeInterval = 0.1
+
+        for trackIndex in timeline.tracks.indices {
+            guard !timeline.tracks[trackIndex].isLocked else { continue }
+            guard let clipIndex = timeline.tracks[trackIndex].clips.firstIndex(where: { $0.id == id }) else {
+                continue
+            }
+            guard let asset = timeline.asset(id: timeline.tracks[trackIndex].clips[clipIndex].assetID),
+                  asset.duration > 0 else { return }
+
+            var clip = timeline.tracks[trackIndex].clips[clipIndex]
+            let earliestStart = clip.timelineStart - clip.sourceIn
+            let latestEnd = clip.timelineStart + max(0, asset.duration - clip.sourceIn)
+
+            if let startTime {
+                let newStart = min(clip.timelineEnd - minimumDuration, max(earliestStart, startTime))
+                let delta = newStart - clip.timelineStart
+                clip.timelineStart = newStart
+                clip.sourceIn = max(0, clip.sourceIn + delta)
+                clip.duration = max(minimumDuration, clip.duration - delta)
+            }
+
+            if let endTime {
+                let newEnd = min(latestEnd, max(clip.timelineStart + minimumDuration, endTime))
+                clip.duration = max(minimumDuration, newEnd - clip.timelineStart)
+            }
+
+            timeline.tracks[trackIndex].clips[clipIndex] = clip
             refreshOverlayOrPreview()
             return
         }

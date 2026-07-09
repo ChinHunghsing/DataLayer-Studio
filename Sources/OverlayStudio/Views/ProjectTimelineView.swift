@@ -16,6 +16,9 @@ struct ProjectTimelineView: View {
     @State private var dragStartZero: TimeInterval?
     @State private var dragClipID: String?
     @State private var dragStartClipTimelineStart: TimeInterval?
+    @State private var clipTrimID: String?
+    @State private var clipTrimIsStart: Bool?
+    @State private var clipTrimBaseTime: TimeInterval?
     @State private var trimDragStart: TimeInterval?
     @State private var trimDragEnd: TimeInterval?
 
@@ -156,7 +159,7 @@ struct ProjectTimelineView: View {
         let syncable = model.videoURL != nil && model.fitURL != nil
         let migratedSingleClip = clip.id.hasPrefix("single.")
 
-        let block = RoundedRectangle(cornerRadius: 7, style: .continuous)
+        let clipBody = RoundedRectangle(cornerRadius: 7, style: .continuous)
             .fill(clipFill(kind))
             .overlay(alignment: .leading) {
                 Text(name)
@@ -172,7 +175,20 @@ struct ProjectTimelineView: View {
                     .strokeBorder(syncable ? Color.white.opacity(0.28) : Color.white.opacity(0.12), lineWidth: 1)
             }
             .frame(width: width, height: trackHeight - 12)
-            .offset(x: x, y: 6)
+
+        let block = ZStack {
+            clipBody
+            if !migratedSingleClip, width > 22 {
+                HStack {
+                    clipTrimHandle(clip: clip, isStart: true, laneWidth: laneWidth, duration: duration)
+                    Spacer(minLength: 0)
+                    clipTrimHandle(clip: clip, isStart: false, laneWidth: laneWidth, duration: duration)
+                }
+                .padding(.horizontal, 2)
+            }
+        }
+        .frame(width: width, height: trackHeight - 12)
+        .offset(x: x, y: 6)
 
         if migratedSingleClip, syncable {
             block.gesture(clipDragGesture(kind: kind, laneWidth: laneWidth, duration: duration))
@@ -182,6 +198,39 @@ struct ProjectTimelineView: View {
             // Without both sources there is nothing to re-sync; taps fall through to the scrub layer.
             block.allowsHitTesting(false)
         }
+    }
+
+    private func clipTrimHandle(clip: TimelineClip, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some View {
+        Capsule(style: .continuous)
+            .fill(Color.white.opacity(0.32))
+            .frame(width: 5, height: trackHeight - 22)
+            .frame(width: 14, height: trackHeight - 12)
+            .contentShape(Rectangle())
+            .highPriorityGesture(clipTrimGesture(clip: clip, isStart: isStart, laneWidth: laneWidth, duration: duration))
+    }
+
+    private func clipTrimGesture(clip: TimelineClip, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some Gesture {
+        DragGesture(minimumDistance: 2, coordinateSpace: .global)
+            .onChanged { value in
+                if clipTrimID != clip.id || clipTrimIsStart != isStart {
+                    clipTrimID = clip.id
+                    clipTrimIsStart = isStart
+                    clipTrimBaseTime = isStart ? clip.timelineStart : clip.timelineEnd
+                }
+                let base = clipTrimBaseTime ?? (isStart ? clip.timelineStart : clip.timelineEnd)
+                let deltaT = Double(value.translation.width / laneWidth) * duration
+                let target = base + deltaT
+                if isStart {
+                    model.trimTimelineClipStart(id: clip.id, toTimelineTime: target)
+                } else {
+                    model.trimTimelineClipEnd(id: clip.id, toTimelineTime: target)
+                }
+            }
+            .onEnded { _ in
+                clipTrimID = nil
+                clipTrimIsStart = nil
+                clipTrimBaseTime = nil
+            }
     }
 
     /// Drag either clip horizontally to re-sync. Dragging the overlay right makes the activity

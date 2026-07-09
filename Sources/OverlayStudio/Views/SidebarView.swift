@@ -73,6 +73,7 @@ struct SidebarView: View {
                     addTitle: localization.string("mediapool.addVideo"),
                     select: model.selectVideoAsset,
                     remove: model.removeVideoAsset,
+                    appendToTimeline: model.addVideoAssetToTimeline,
                     add: model.chooseVideo
                 )
 
