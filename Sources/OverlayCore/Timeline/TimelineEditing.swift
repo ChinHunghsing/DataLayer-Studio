@@ -10,6 +10,88 @@ import Foundation
 // - Ripple-removing a clip also closes its time range on every unlocked track so
 //   video and overlay stay in sync; clips spanning the range are trimmed or split.
 
+extension TimelineTrack {
+    /// Occupied spans of every clip except `excludingClipID`, merged and sorted. Legacy projects
+    /// may still contain overlapping clips; merging keeps the gap math well-defined for them.
+    private func occupiedIntervals(excludingClipID: String?) -> [(start: TimeInterval, end: TimeInterval)] {
+        let spans = clips
+            .filter { $0.id != excludingClipID && $0.duration > 0 }
+            .map { (start: $0.timelineStart, end: $0.timelineEnd) }
+            .sorted { $0.start < $1.start }
+        var merged: [(start: TimeInterval, end: TimeInterval)] = []
+        for span in spans {
+            if var last = merged.last, span.start <= last.end {
+                last.end = max(last.end, span.end)
+                merged[merged.count - 1] = last
+            } else {
+                merged.append(span)
+            }
+        }
+        return merged
+    }
+
+    /// The start closest to `proposedStart` where a clip of `duration` fits on this track without
+    /// overlapping any other clip. Clips may touch (intervals are half-open); the gap after the
+    /// last clip is unbounded, so a fitting position always exists.
+    public func nonOverlappingStart(
+        forClipID clipID: String,
+        duration: TimeInterval,
+        proposedStart: TimeInterval
+    ) -> TimeInterval {
+        let sanitized = max(0, proposedStart.isFinite ? proposedStart : 0)
+        guard duration.isFinite, duration > 0 else { return sanitized }
+
+        let intervals = occupiedIntervals(excludingClipID: clipID)
+        var best: TimeInterval?
+        var bestDistance = TimeInterval.infinity
+        var gapStart: TimeInterval = 0
+        for interval in intervals + [(start: TimeInterval.infinity, end: TimeInterval.infinity)] {
+            let gapEnd = interval.start
+            if gapEnd - gapStart >= duration - 1e-9 {
+                let clamped = min(max(sanitized, gapStart), gapEnd - duration)
+                let distance = abs(clamped - sanitized)
+                if distance < bestDistance {
+                    best = clamped
+                    bestDistance = distance
+                }
+            }
+            gapStart = max(gapStart, interval.end)
+        }
+        return max(0, best ?? gapStart)
+    }
+
+    /// Free space around an existing clip: the nearest other-clip end at or before the clip's
+    /// start, and the nearest other-clip start at or after the clip's end (`nil` when unbounded).
+    /// Trims must stay inside these bounds to keep the track overlap-free.
+    public func neighborBounds(aroundClipID clipID: String) -> (lower: TimeInterval, upper: TimeInterval?) {
+        guard let clip = clips.first(where: { $0.id == clipID }) else { return (0, nil) }
+        let tolerance: TimeInterval = 1e-9
+        let intervals = occupiedIntervals(excludingClipID: clipID)
+        let lower = intervals
+            .map(\.end)
+            .filter { $0 <= clip.timelineStart + tolerance }
+            .max() ?? 0
+        let upper = intervals
+            .map(\.start)
+            .filter { $0 >= clip.timelineEnd - tolerance }
+            .min()
+        return (max(0, lower), upper)
+    }
+
+    /// Longest duration a clip starting at `start` can have before hitting the next clip
+    /// (`nil` when nothing follows).
+    public func maximumNonOverlappingDuration(
+        forClipID clipID: String,
+        startingAt start: TimeInterval
+    ) -> TimeInterval? {
+        let next = occupiedIntervals(excludingClipID: clipID)
+            .map(\.start)
+            .filter { $0 >= start - 1e-9 }
+            .min()
+        return next.map { max(0, $0 - start) }
+    }
+}
+
 extension TimelineProject {
     /// Minimum piece length produced by a split, matching the interactive trim floor.
     public static let minimumEditableClipDuration: TimeInterval = 0.1

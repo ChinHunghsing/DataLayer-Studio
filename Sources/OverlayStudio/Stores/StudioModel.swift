@@ -1825,7 +1825,7 @@ final class StudioModel: ObservableObject {
         }
 
         let overlayTrackCount = timeline.tracks.filter { $0.kind == .overlay }.count
-        let clip = TimelineClip(
+        var clip = TimelineClip(
             id: "overlay.clip.\(UUID().uuidString)",
             assetID: asset.id,
             timelineStart: max(0, timelineStart ?? previewTime),
@@ -1839,6 +1839,12 @@ final class StudioModel: ObservableObject {
            let trackIndex = timeline.tracks.firstIndex(where: {
                $0.id == targetTrackID && $0.kind == .overlay && !$0.isLocked
            }) {
+            // Land in the nearest gap that fits so the track stays overlap-free.
+            clip.timelineStart = timeline.tracks[trackIndex].nonOverlappingStart(
+                forClipID: clip.id,
+                duration: clip.duration,
+                proposedStart: clip.timelineStart
+            )
             timeline.tracks[trackIndex].clips.append(clip)
             setStatus("status.timelineAddedActivity", asset.displayName)
             return
@@ -2112,10 +2118,15 @@ final class StudioModel: ObservableObject {
             guard let clipIndex = timeline.tracks[trackIndex].clips.firstIndex(where: { $0.id == id }) else {
                 continue
             }
-            let currentStart = timeline.tracks[trackIndex].clips[clipIndex].timelineStart
-            guard abs(currentStart - sanitizedStart) > 1e-6 else { return }
+            let clip = timeline.tracks[trackIndex].clips[clipIndex]
+            let constrainedStart = timeline.tracks[trackIndex].nonOverlappingStart(
+                forClipID: id,
+                duration: clip.duration,
+                proposedStart: sanitizedStart
+            )
+            guard abs(clip.timelineStart - constrainedStart) > 1e-6 else { return }
             beginTimelineClipEditingIfNeeded()
-            timeline.tracks[trackIndex].clips[clipIndex].timelineStart = sanitizedStart
+            timeline.tracks[trackIndex].clips[clipIndex].timelineStart = constrainedStart
             refreshOverlayOrPreview()
             return
         }
@@ -2185,13 +2196,13 @@ final class StudioModel: ObservableObject {
     }
 
     func setTimelineClipDistanceUnit(id: String, _ unit: OverlayDistanceUnit?) {
-        updateTimelineClip(id: id) { clip, _ in
+        updateTimelineClip(id: id) { clip, _, _ in
             clip.distanceUnit = unit
         }
     }
 
     func setTimelineClipLayout(id: String, _ layout: OverlayLayout?) {
-        updateTimelineClip(id: id) { clip, _ in
+        updateTimelineClip(id: id) { clip, _, _ in
             clip.layout = layout?.sanitized
         }
     }
@@ -2202,20 +2213,32 @@ final class StudioModel: ObservableObject {
         sourceIn: TimeInterval? = nil,
         duration: TimeInterval? = nil
     ) {
-        updateTimelineClip(id: id) { clip, asset in
+        updateTimelineClip(id: id) { clip, asset, track in
             let minimumDuration: TimeInterval = 0.1
             let sourceDuration = max(minimumDuration, asset.duration)
             let maxSourceIn = max(0, sourceDuration - minimumDuration)
-            clip.timelineStart = max(0, timelineStart ?? clip.timelineStart)
             clip.sourceIn = min(maxSourceIn, max(0, sourceIn ?? clip.sourceIn))
             let maxDuration = max(minimumDuration, sourceDuration - clip.sourceIn)
             clip.duration = min(maxDuration, max(minimumDuration, duration ?? clip.duration))
+            // Keep the track overlap-free: place the start in the nearest fitting gap, then cap
+            // the duration at the next clip on the track.
+            clip.timelineStart = track.nonOverlappingStart(
+                forClipID: clip.id,
+                duration: minimumDuration,
+                proposedStart: max(0, timelineStart ?? clip.timelineStart)
+            )
+            if let gapLimit = track.maximumNonOverlappingDuration(
+                forClipID: clip.id,
+                startingAt: clip.timelineStart
+            ) {
+                clip.duration = min(clip.duration, max(minimumDuration, gapLimit))
+            }
         }
     }
 
     private func updateTimelineClip(
         id: String,
-        _ update: (inout TimelineClip, MediaAsset) -> Void
+        _ update: (inout TimelineClip, MediaAsset, TimelineTrack) -> Void
     ) {
         guard !isExporting else { return }
 
@@ -2229,7 +2252,7 @@ final class StudioModel: ObservableObject {
 
             let oldClip = timeline.tracks[trackIndex].clips[clipIndex]
             var updatedClip = oldClip
-            update(&updatedClip, asset)
+            update(&updatedClip, asset, timeline.tracks[trackIndex])
             guard updatedClip != oldClip else { return }
             beginTimelineClipEditingIfNeeded()
             timeline.tracks[trackIndex].clips[clipIndex] = updatedClip
@@ -2259,8 +2282,12 @@ final class StudioModel: ObservableObject {
                   asset.duration > 0 else { return }
 
             var clip = timeline.tracks[trackIndex].clips[clipIndex]
-            let earliestStart = clip.timelineStart - clip.sourceIn
-            let latestEnd = clip.timelineStart + max(0, asset.duration - clip.sourceIn)
+            let neighborBounds = timeline.tracks[trackIndex].neighborBounds(aroundClipID: id)
+            let earliestStart = max(clip.timelineStart - clip.sourceIn, neighborBounds.lower)
+            let latestEnd = min(
+                clip.timelineStart + max(0, asset.duration - clip.sourceIn),
+                neighborBounds.upper ?? .infinity
+            )
 
             if let startTime {
                 let newStart = min(clip.timelineEnd - minimumDuration, max(earliestStart, startTime))

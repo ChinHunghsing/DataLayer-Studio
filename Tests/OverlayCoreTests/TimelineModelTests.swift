@@ -465,6 +465,52 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(clips[1].sourceIn, 52, accuracy: 1e-9)
     }
 
+    // MARK: overlap prevention
+
+    private func occupiedTrack() -> TimelineTrack {
+        TimelineTrack(id: "t", kind: .video, name: "V1", clips: [
+            TimelineClip(id: "a", assetID: "x", timelineStart: 0, duration: 10),
+            TimelineClip(id: "b", assetID: "x", timelineStart: 20, duration: 10),
+            TimelineClip(id: "m", assetID: "x", timelineStart: 40, duration: 5)
+        ])
+    }
+
+    func testNonOverlappingStartClampsIntoNearestFittingGap() {
+        let track = occupiedTrack()
+
+        // Fits at the proposed position: unchanged.
+        XCTAssertEqual(track.nonOverlappingStart(forClipID: "m", duration: 5, proposedStart: 12), 12, accuracy: 1e-9)
+        // Proposed inside clip "b": clamps to the nearest edge of a fitting gap.
+        XCTAssertEqual(track.nonOverlappingStart(forClipID: "m", duration: 5, proposedStart: 21), 15, accuracy: 1e-9)
+        XCTAssertEqual(track.nonOverlappingStart(forClipID: "m", duration: 5, proposedStart: 28), 30, accuracy: 1e-9)
+        // Too long for the middle gap: jumps to the open tail.
+        XCTAssertEqual(track.nonOverlappingStart(forClipID: "m", duration: 12, proposedStart: 12), 30, accuracy: 1e-9)
+        // The moved clip itself is excluded from the occupancy check.
+        XCTAssertEqual(track.nonOverlappingStart(forClipID: "b", duration: 10, proposedStart: 20), 20, accuracy: 1e-9)
+        // Clips may touch exactly.
+        XCTAssertEqual(track.nonOverlappingStart(forClipID: "m", duration: 10, proposedStart: 10), 10, accuracy: 1e-9)
+    }
+
+    func testNeighborBoundsAndMaximumDurationRespectAdjacentClips() {
+        let track = occupiedTrack()
+
+        let bounds = track.neighborBounds(aroundClipID: "b")
+        XCTAssertEqual(bounds.lower, 10, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(bounds.upper), 40, accuracy: 1e-9)
+
+        let tailBounds = track.neighborBounds(aroundClipID: "m")
+        XCTAssertEqual(tailBounds.lower, 30, accuracy: 1e-9)
+        XCTAssertNil(tailBounds.upper)
+
+        // For "b" the next other clip is "m" at 40.
+        XCTAssertEqual(
+            try XCTUnwrap(track.maximumNonOverlappingDuration(forClipID: "b", startingAt: 12)),
+            28,
+            accuracy: 1e-9
+        )
+        XCTAssertNil(track.maximumNonOverlappingDuration(forClipID: "m", startingAt: 50))
+    }
+
     private func exportProject(videoClips: [TimelineClip]) -> TimelineProject {
         TimelineProject(
             outputWidth: 1920,

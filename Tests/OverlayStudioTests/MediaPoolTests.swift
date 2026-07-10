@@ -189,7 +189,9 @@ final class MediaPoolTests: XCTestCase {
         let updatedTrack = try XCTUnwrap(overlayTracks.first { $0.id == targetTrack.id })
         XCTAssertEqual(updatedTrack.clips.count, 2)
         XCTAssertEqual(updatedTrack.clips.last?.assetID, secondPooledURL.path)
-        XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 33, accuracy: 1e-9)
+        // The drop point 33 sits inside the first pooled clip [0, 45): the new clip lands in the
+        // nearest free gap instead of overlapping.
+        XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 45, accuracy: 1e-9)
     }
 
     func testMatchPointHelperWritesCanonicalSync() {
@@ -874,6 +876,63 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(overlayClips[1].duration, 15, accuracy: 1e-9)
 
         XCTAssertEqual(model.currentTimelineProject.duration, 75, accuracy: 1e-9)
+    }
+
+    func testMovingAndTrimmingClipsCannotOverlapOnSameTrack() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+        let fitURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = fitURL
+
+        // Split the video at 60 so V1 holds two adjacent clips [0,60) + [60,120).
+        model.previewTime = 60
+        model.splitTimelineClipsAtPlayhead()
+        var videoClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .video }
+            .flatMap(\.clips)
+        XCTAssertEqual(videoClips.count, 2)
+        let firstID = videoClips[0].id
+        let secondID = videoClips[1].id
+
+        // Move the second clip to make room, then try to drag it back onto the first clip:
+        // it clamps to the first clip's right edge instead of overlapping.
+        model.moveTimelineClip(id: secondID, toTimelineStart: 100)
+        model.moveTimelineClip(id: secondID, toTimelineStart: 30)
+        videoClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .video }
+            .flatMap(\.clips)
+        XCTAssertEqual(videoClips.first { $0.id == secondID }?.timelineStart ?? -1, 60, accuracy: 1e-9)
+
+        // With the second clip back at 100, the first clip cannot trim its end into it.
+        model.moveTimelineClip(id: secondID, toTimelineStart: 100)
+        model.trimTimelineClipEnd(id: firstID, toTimelineTime: 110)
+        videoClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .video }
+            .flatMap(\.clips)
+        let first = try XCTUnwrap(videoClips.first { $0.id == firstID })
+        XCTAssertEqual(first.timelineEnd, 100, accuracy: 1e-9)
+
+        // The second clip cannot trim its start into the first clip either.
+        model.trimTimelineClipStart(id: secondID, toTimelineTime: 90)
+        videoClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .video }
+            .flatMap(\.clips)
+        let second = try XCTUnwrap(videoClips.first { $0.id == secondID })
+        XCTAssertEqual(second.timelineStart, 100, accuracy: 1e-9)
+
+        // The inspector cannot create overlaps: duration caps at the next clip.
+        model.setTimelineClipTiming(id: firstID, timelineStart: 0, duration: 120)
+        videoClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .video }
+            .flatMap(\.clips)
+        let capped = try XCTUnwrap(videoClips.first { $0.id == firstID })
+        XCTAssertEqual(capped.duration, 100, accuracy: 1e-9)
     }
 
     func testSelectingAndEditingPooledTimelineClipUpdatesClipSettings() throws {
