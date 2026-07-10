@@ -195,9 +195,10 @@ public final class CompositedVideoWriter {
                 // AVMutableComposition does not extend its reported duration for a trailing empty
                 // range. Reading past the last real segment makes VideoCompositionOutput reject an
                 // otherwise valid sparse timeline; the render loop supplies black frames afterward.
-                let lastVideoEnd = sourceVideoRanges
-                    .map(CMTimeRangeGetEnd)
-                    .max { CMTimeCompare($0, $1) < 0 } ?? trimStartTime
+                let lastVideoEnd = sourceVideoRanges.reduce(trimStartTime) { latest, range in
+                    let end = CMTimeRangeGetEnd(range)
+                    return CMTimeCompare(end, latest) > 0 ? end : latest
+                }
                 readerDuration = minTime(
                     timing.outputDuration,
                     CMTimeSubtract(lastVideoEnd, trimStartTime)
