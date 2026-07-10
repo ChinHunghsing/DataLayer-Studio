@@ -2634,6 +2634,7 @@ final class StudioModel: ObservableObject {
     func removeEmptyTimelineTrack(id: String) {
         guard !isExporting,
               let trackIndex = timeline.tracks.firstIndex(where: { $0.id == id }),
+              !timeline.tracks[trackIndex].isLocked,
               timeline.tracks[trackIndex].clips.isEmpty else {
             return
         }
@@ -2648,20 +2649,21 @@ final class StudioModel: ObservableObject {
         )
     }
 
-    /// Add an empty video lane above the existing video stack and below overlay lanes.
+    /// Add an empty lane while preserving bottom-to-top video/overlay stacking.
     @discardableResult
-    func addVideoTimelineTrack() -> String? {
+    private func addTimelineTrack(kind: TimelineTrack.Kind) -> String? {
         guard !isExporting else { return nil }
 
         let previousUndoState = timelineUndoSnapshotNow
         beginTimelineClipEditingIfNeeded()
         let track = TimelineTrack(
-            id: "video.track.\(UUID().uuidString)",
-            kind: .video,
-            name: nextTimelineTrackName(kind: .video)
+            id: "\(kind.rawValue).track.\(UUID().uuidString)",
+            kind: kind,
+            name: nextTimelineTrackName(kind: kind)
         )
-        let insertionIndex = timeline.tracks.firstIndex(where: { $0.kind == .overlay })
-            ?? timeline.tracks.endIndex
+        let insertionIndex = kind == .video
+            ? (timeline.tracks.firstIndex(where: { $0.kind == .overlay }) ?? timeline.tracks.endIndex)
+            : timeline.tracks.endIndex
         timeline.tracks.insert(track, at: insertionIndex)
         registerTimelineUndoIfChanged(
             previous: previousUndoState,
@@ -2669,6 +2671,71 @@ final class StudioModel: ObservableObject {
             coalescing: false
         )
         return track.id
+    }
+
+    @discardableResult
+    func addVideoTimelineTrack() -> String? {
+        addTimelineTrack(kind: .video)
+    }
+
+    @discardableResult
+    func addOverlayTimelineTrack() -> String? {
+        addTimelineTrack(kind: .overlay)
+    }
+
+    func renameTimelineTrack(id: String, name: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !isExporting,
+              !trimmedName.isEmpty,
+              let trackIndex = timeline.tracks.firstIndex(where: { $0.id == id }),
+              timeline.tracks[trackIndex].name != trimmedName else {
+            return
+        }
+
+        let previousUndoState = timelineUndoSnapshotNow
+        beginTimelineClipEditingIfNeeded()
+        timeline.tracks[trackIndex].name = trimmedName
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.renameTrack",
+            coalescing: false
+        )
+    }
+
+    func setTimelineTrackEnabled(id: String, isEnabled: Bool) {
+        guard !isExporting,
+              let trackIndex = timeline.tracks.firstIndex(where: { $0.id == id }),
+              timeline.tracks[trackIndex].isEnabled != isEnabled else {
+            return
+        }
+
+        let previousUndoState = timelineUndoSnapshotNow
+        beginTimelineClipEditingIfNeeded()
+        timeline.tracks[trackIndex].isEnabled = isEnabled
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.toggleTrack",
+            coalescing: false
+        )
+        configureTimelinePlayer()
+        refreshOverlayOrPreview()
+    }
+
+    func setTimelineTrackLocked(id: String, isLocked: Bool) {
+        guard !isExporting,
+              let trackIndex = timeline.tracks.firstIndex(where: { $0.id == id }),
+              timeline.tracks[trackIndex].isLocked != isLocked else {
+            return
+        }
+
+        let previousUndoState = timelineUndoSnapshotNow
+        beginTimelineClipEditingIfNeeded()
+        timeline.tracks[trackIndex].isLocked = isLocked
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.lockTrack",
+            coalescing: false
+        )
     }
 
     private func nextTimelineTrackName(kind: TimelineTrack.Kind) -> String {

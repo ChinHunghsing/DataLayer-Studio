@@ -58,16 +58,21 @@ struct BottomWorkspaceView: View {
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel(localization.string("timeline.zoom"))
 
-                        Button {
-                            model.addVideoTimelineTrack()
+                        Menu {
+                            Button(localization.string("menu.addVideoTimelineTrack")) {
+                                model.addVideoTimelineTrack()
+                            }
+                            Button(localization.string("menu.addOverlayTimelineTrack")) {
+                                model.addOverlayTimelineTrack()
+                            }
                         } label: {
                             Label(
-                                localization.string("menu.addVideoTimelineTrack"),
+                                localization.string("menu.addTimelineTrack"),
                                 systemImage: "plus.rectangle.on.rectangle"
                             )
                         }
                         .disabled(model.isExporting)
-                        .help(localization.string("menu.addVideoTimelineTrack"))
+                        .help(localization.string("menu.addTimelineTrack"))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

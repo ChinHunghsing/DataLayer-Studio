@@ -664,6 +664,73 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.currentTimelineProject.tracks.map(\.id), [trackID])
     }
 
+    func testAddingOverlayTimelineTracksPreservesStackingNamesAndUndo() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+
+        let videoTrackID = try XCTUnwrap(model.addVideoTimelineTrack())
+        let firstOverlayTrackID = try XCTUnwrap(model.addOverlayTimelineTrack())
+        let secondOverlayTrackID = try XCTUnwrap(model.addOverlayTimelineTrack())
+
+        XCTAssertEqual(model.currentTimelineProject.tracks.map(\.id), [
+            videoTrackID,
+            firstOverlayTrackID,
+            secondOverlayTrackID
+        ])
+        XCTAssertEqual(model.currentTimelineProject.tracks.map(\.kind), [.video, .overlay, .overlay])
+        XCTAssertEqual(model.currentTimelineProject.tracks.map(\.name), ["V1", "O1", "O2"])
+
+        undoManager.undo()
+        XCTAssertEqual(model.currentTimelineProject.tracks.map(\.id), [videoTrackID, firstOverlayTrackID])
+
+        undoManager.redo()
+        XCTAssertEqual(model.currentTimelineProject.tracks.map(\.id), [
+            videoTrackID,
+            firstOverlayTrackID,
+            secondOverlayTrackID
+        ])
+    }
+
+    func testTimelineTrackControlsAreUndoableAndLockedEmptyTrackCannotBeRemoved() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let trackID = try XCTUnwrap(model.addOverlayTimelineTrack())
+
+        model.renameTimelineTrack(id: trackID, name: "  Heart Rate  ")
+        model.setTimelineTrackEnabled(id: trackID, isEnabled: false)
+        model.setTimelineTrackLocked(id: trackID, isLocked: true)
+
+        var track = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.id == trackID })
+        XCTAssertEqual(track.name, "Heart Rate")
+        XCTAssertFalse(track.isEnabled)
+        XCTAssertTrue(track.isLocked)
+
+        model.removeEmptyTimelineTrack(id: trackID)
+        XCTAssertTrue(model.currentTimelineProject.tracks.contains { $0.id == trackID })
+
+        undoManager.undo()
+        track = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.id == trackID })
+        XCTAssertFalse(track.isLocked)
+
+        undoManager.undo()
+        track = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.id == trackID })
+        XCTAssertTrue(track.isEnabled)
+
+        undoManager.undo()
+        track = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.id == trackID })
+        XCTAssertEqual(track.name, "O1")
+
+        model.renameTimelineTrack(id: trackID, name: "   ")
+        XCTAssertEqual(
+            model.currentTimelineProject.tracks.first { $0.id == trackID }?.name,
+            "O1"
+        )
+    }
+
     func testTimelineAssetIDsInUseIncludesEveryReferencedVideoAndActivity() {
         let model = StudioModel()
         let firstVideoURL = URL(fileURLWithPath: "/tmp/in-use-video-a.mov")

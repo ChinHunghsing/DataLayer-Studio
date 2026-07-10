@@ -9,7 +9,7 @@ struct ProjectTimelineView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
 
-    private let headerWidth: CGFloat = 116
+    private let headerWidth: CGFloat = 164
     private let rulerHeight: CGFloat = 24
     private let trackHeight: CGFloat = 48
     private let playheadColor = Color(red: 1.0, green: 0.42, blue: 0.34)
@@ -23,6 +23,9 @@ struct ProjectTimelineView: View {
     @State private var trimDragStart: TimeInterval?
     @State private var trimDragEnd: TimeInterval?
     @State private var magnificationStartZoom: Double?
+    @State private var isShowingTrackRename = false
+    @State private var renamingTrackID: String?
+    @State private var trackNameDraft = ""
 
     private static let playheadMarkerID = "timeline.playhead.marker"
 
@@ -84,6 +87,19 @@ struct ProjectTimelineView: View {
                     )
                 }
             }
+        }
+        .alert(localization.string("timeline.track.rename"), isPresented: $isShowingTrackRename) {
+            TextField(localization.string("timeline.track.renamePlaceholder"), text: $trackNameDraft)
+            Button(localization.string("common.cancel"), role: .cancel) {
+                renamingTrackID = nil
+            }
+            Button(localization.string("timeline.track.renameConfirm")) {
+                if let renamingTrackID {
+                    model.renameTimelineTrack(id: renamingTrackID, name: trackNameDraft)
+                }
+                renamingTrackID = nil
+            }
+            .disabled(trackNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
@@ -252,24 +268,54 @@ struct ProjectTimelineView: View {
                     (track.kind == .video ? Color.secondary.opacity(0.16) : ShellStyle.accentSoft),
                     in: RoundedRectangle(cornerRadius: 5, style: .continuous)
                 )
-            Text(track.name)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-
-            if track.clips.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
                 Button {
-                    model.removeEmptyTimelineTrack(id: track.id)
+                    beginRenaming(track)
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary.opacity(0.7))
+                    HStack(spacing: 4) {
+                        Text(track.name)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                        Image(systemName: "pencil")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .foregroundStyle(track.isEnabled ? Color.primary : Color.secondary)
                 }
                 .buttonStyle(.plain)
-                .help(localization.string("menu.deleteEmptyTimelineTrack"))
-                .accessibilityLabel(localization.string("menu.deleteEmptyTimelineTrack"))
+                .help(localization.string("timeline.track.rename"))
+
+                HStack(spacing: 10) {
+                    Button {
+                        model.setTimelineTrackEnabled(id: track.id, isEnabled: !track.isEnabled)
+                    } label: {
+                        Image(systemName: track.isEnabled ? "eye" : "eye.slash")
+                    }
+                    .help(localization.string(track.isEnabled ? "timeline.track.disable" : "timeline.track.enable"))
+                    .accessibilityLabel(localization.string(track.isEnabled ? "timeline.track.disable" : "timeline.track.enable"))
+
+                    Button {
+                        model.setTimelineTrackLocked(id: track.id, isLocked: !track.isLocked)
+                    } label: {
+                        Image(systemName: track.isLocked ? "lock.fill" : "lock.open")
+                    }
+                    .help(localization.string(track.isLocked ? "timeline.track.unlock" : "timeline.track.lock"))
+                    .accessibilityLabel(localization.string(track.isLocked ? "timeline.track.unlock" : "timeline.track.lock"))
+
+                    if track.clips.isEmpty, !track.isLocked {
+                        Button {
+                            model.removeEmptyTimelineTrack(id: track.id)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                        .help(localization.string("menu.deleteEmptyTimelineTrack"))
+                        .accessibilityLabel(localization.string("menu.deleteEmptyTimelineTrack"))
+                    }
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
             }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 10)
         .frame(width: headerWidth, height: trackHeight)
@@ -281,7 +327,14 @@ struct ProjectTimelineView: View {
     private func trackLane(_ track: TimelineTrack, project: TimelineProject, duration: TimeInterval, laneWidth: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
             ForEach(track.clips) { clip in
-                clipView(clip, project: project, kind: track.kind, duration: duration, laneWidth: laneWidth)
+                clipView(
+                    clip,
+                    project: project,
+                    kind: track.kind,
+                    isLocked: track.isLocked,
+                    duration: duration,
+                    laneWidth: laneWidth
+                )
             }
         }
         .frame(width: laneWidth, height: trackHeight, alignment: .topLeading)
@@ -295,6 +348,7 @@ struct ProjectTimelineView: View {
                 duration: duration
             )
         }
+        .opacity(track.isEnabled ? 1 : 0.42)
         .overlay(alignment: .bottom) { Divider() }
     }
 
@@ -338,7 +392,14 @@ struct ProjectTimelineView: View {
     }
 
     @ViewBuilder
-    private func clipView(_ clip: TimelineClip, project: TimelineProject, kind: TimelineTrack.Kind, duration: TimeInterval, laneWidth: CGFloat) -> some View {
+    private func clipView(
+        _ clip: TimelineClip,
+        project: TimelineProject,
+        kind: TimelineTrack.Kind,
+        isLocked: Bool,
+        duration: TimeInterval,
+        laneWidth: CGFloat
+    ) -> some View {
         let x = CGFloat(clip.timelineStart / duration) * laneWidth
         let width = max(6, CGFloat(clip.duration / duration) * laneWidth)
         let asset = project.asset(id: clip.assetID)
@@ -398,7 +459,7 @@ struct ProjectTimelineView: View {
 
         let block = ZStack {
             clipBody
-            if width > 22 {
+            if width > 22, !isLocked {
                 HStack {
                     clipTrimHandle(clip: clip, project: project, isStart: true, laneWidth: laneWidth, duration: duration)
                     Spacer(minLength: 0)
@@ -437,7 +498,10 @@ struct ProjectTimelineView: View {
         .accessibilityValue("\(localization.string("timelineClip.inspector.timelineStart")) \(timecode(clip.timelineStart))")
 
         block
-            .gesture(clipMoveGesture(clip: clip, project: project, laneWidth: laneWidth, duration: duration))
+            .gesture(
+                clipMoveGesture(clip: clip, project: project, laneWidth: laneWidth, duration: duration),
+                including: isLocked ? .none : .all
+            )
             .task(id: kind == .video ? asset?.id : nil) {
                 guard kind == .video, let assetID = asset?.id else { return }
                 model.loadVideoWaveformIfNeeded(assetID: assetID)
@@ -612,6 +676,12 @@ struct ProjectTimelineView: View {
 
     private func trackBadge(_ track: TimelineTrack) -> String {
         track.kind == .video ? "V" : "O"
+    }
+
+    private func beginRenaming(_ track: TimelineTrack) {
+        renamingTrackID = track.id
+        trackNameDraft = track.name
+        isShowingTrackRename = true
     }
 
     private func tickTimes(duration: TimeInterval) -> [TimeInterval] {
