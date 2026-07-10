@@ -3966,18 +3966,23 @@ final class StudioModel: ObservableObject {
         let diagnosticsHandler: ((String) -> Void)? = currentExportMode == .video
             ? { message in studioDebugLogger.info("[export] \(message, privacy: .public)") }
             : nil
+        // Per-segment progress handlers are built on the main actor up front; each maps its
+        // segment's progress into the overall multi-file progress.
+        let totalSegments = segments.count
+        let segmentProgressHandlers: [(Int, Int) -> Void] = segments.indices.map { index in
+            { [weak self] completed, total in
+                let inner = total > 0 ? Double(completed) / Double(total) : 0
+                let overall = (Double(index) + inner) / Double(totalSegments)
+                Task { @MainActor in
+                    self?.updateExportProgress(overall)
+                }
+            }
+        }
 
         exportTask = Task.detached {
             do {
-                let totalSegments = segments.count
                 for (index, segment) in segments.enumerated() {
-                    let segmentProgressHandler: (Int, Int) -> Void = { [weak self] completed, total in
-                        let inner = total > 0 ? Double(completed) / Double(total) : 0
-                        let overall = (Double(index) + inner) / Double(totalSegments)
-                        Task { @MainActor in
-                            self?.updateExportProgress(overall)
-                        }
-                    }
+                    let segmentProgressHandler = segmentProgressHandlers[index]
                     try TimelineVideoWriter(
                         outputURL: segment.outputURL,
                         project: timelineProject,
