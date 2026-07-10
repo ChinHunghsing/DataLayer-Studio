@@ -485,6 +485,23 @@ final class StudioModel: ObservableObject {
         selectedTimelineClip.flatMap { timeline.asset(id: $0.assetID) }
     }
 
+    var distanceUnitForCurrentSelection: OverlayDistanceUnit {
+        guard selectedTimelineClipAsset?.kind == .activity,
+              let selectedTimelineClip else {
+            return distanceUnit
+        }
+        return selectedTimelineClip.distanceUnit ?? distanceUnit
+    }
+
+    func setDistanceUnitForCurrentSelection(_ unit: OverlayDistanceUnit) {
+        guard selectedTimelineClipAsset?.kind == .activity,
+              let selectedTimelineClip else {
+            distanceUnit = unit
+            return
+        }
+        setTimelineClipDistanceUnit(id: selectedTimelineClip.id, unit)
+    }
+
     var selectedTimelineClipIsEditable: Bool {
         guard let selectedTimelineClipID, !isExporting else { return false }
         return timeline.tracks.contains { track in

@@ -117,7 +117,7 @@ struct OutputPanelView: View {
             }
             rowDivider
             settingRow(localization.string("sidebar.distanceUnit")) {
-                Picker(localization.string("sidebar.distanceUnit"), selection: $model.distanceUnit) {
+                Picker(localization.string("sidebar.distanceUnit"), selection: distanceUnitSelection) {
                     ForEach(OverlayDistanceUnit.allCases) { unit in
                         Text(localization.string(unit.localizationKey)).tag(unit)
                     }
@@ -127,6 +127,13 @@ struct OutputPanelView: View {
                 .fixedSize()
             }
         }
+    }
+
+    private var distanceUnitSelection: Binding<OverlayDistanceUnit> {
+        Binding(
+            get: { model.distanceUnitForCurrentSelection },
+            set: { model.setDistanceUnitForCurrentSelection($0) }
+        )
     }
 
     private var destinationRow: some View {

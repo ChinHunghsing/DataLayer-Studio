@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import OverlayCore
 
@@ -55,25 +56,21 @@ struct TimelineClipInspectorView: View {
             }
 
             section(title: localization.string("timelineClip.inspector.timing"), systemImage: "timeline.selection") {
-                TimelineClipNumberField(
+                TimelineClipTimeValue(
                     title: localization.string("timelineClip.inspector.timelineStart"),
-                    value: timingBinding(.timelineStart),
-                    unit: "s"
+                    value: currentClip.timelineStart
                 )
 
-                TimelineClipNumberField(
+                TimelineClipTimeValue(
                     title: localization.string("timelineClip.inspector.sourceIn"),
-                    value: timingBinding(.sourceIn),
-                    unit: "s"
+                    value: currentClip.sourceIn
                 )
 
-                TimelineClipNumberField(
+                TimelineClipTimeValue(
                     title: localization.string("timelineClip.inspector.duration"),
-                    value: timingBinding(.duration),
-                    unit: "s"
+                    value: currentClip.duration
                 )
             }
-            .disabled(!model.selectedTimelineClipIsEditable)
 
             if currentAsset?.kind == .activity {
                 section(title: localization.string("timelineClip.inspector.activity"), systemImage: "figure.run") {
@@ -136,47 +133,40 @@ struct TimelineClipInspectorView: View {
         )
     }
 
-    private func timingBinding(_ field: TimelineClipTimingField) -> Binding<Double> {
-        Binding(
-            get: {
-                switch field {
-                case .timelineStart:
-                    return currentClip.timelineStart
-                case .sourceIn:
-                    return currentClip.sourceIn
-                case .duration:
-                    return currentClip.duration
-                }
-            },
-            set: { value in
-                switch field {
-                case .timelineStart:
-                    model.setTimelineClipTiming(id: clip.id, timelineStart: value)
-                case .sourceIn:
-                    model.setTimelineClipTiming(id: clip.id, sourceIn: value)
-                case .duration:
-                    model.setTimelineClipTiming(id: clip.id, duration: value)
-                }
-            }
-        )
-    }
-
     private var distanceUnitBinding: Binding<OverlayDistanceUnit> {
         Binding(
-            get: {
-                currentClip.distanceUnit ?? model.distanceUnit
-            },
-            set: { unit in
-                model.setTimelineClipDistanceUnit(id: clip.id, unit)
-            }
+            get: { model.distanceUnitForCurrentSelection },
+            set: { model.setDistanceUnitForCurrentSelection($0) }
         )
     }
-}
 
-private enum TimelineClipTimingField {
-    case timelineStart
-    case sourceIn
-    case duration
+    static func formatTimecode(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "00:00.000" }
+
+        let totalMilliseconds = Int((seconds * 1_000).rounded())
+        let milliseconds = totalMilliseconds % 1_000
+        let totalSeconds = totalMilliseconds / 1_000
+        let secondsComponent = totalSeconds % 60
+        let totalMinutes = totalSeconds / 60
+        let minutesComponent = totalMinutes % 60
+        let hours = totalMinutes / 60
+
+        if hours > 0 {
+            return String(
+                format: "%d:%02d:%02d.%03d",
+                hours,
+                minutesComponent,
+                secondsComponent,
+                milliseconds
+            )
+        }
+        return String(
+            format: "%02d:%02d.%03d",
+            minutesComponent,
+            secondsComponent,
+            milliseconds
+        )
+    }
 }
 
 private struct TimelineClipNotice: View {
@@ -207,10 +197,9 @@ private struct TimelineClipNotice: View {
     }
 }
 
-private struct TimelineClipNumberField: View {
+private struct TimelineClipTimeValue: View {
     let title: String
-    @Binding var value: Double
-    let unit: String
+    let value: TimeInterval
 
     var body: some View {
         HStack(spacing: 12) {
@@ -219,22 +208,16 @@ private struct TimelineClipNumberField: View {
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 90, alignment: .leading)
 
-            TextField(
-                title,
-                value: $value,
-                format: .number.precision(.fractionLength(3))
-            )
-            .textFieldStyle(.plain)
-            .font(.system(size: 13, weight: .semibold, design: .monospaced))
-            .multilineTextAlignment(.trailing)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Color.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            Spacer(minLength: 12)
 
-            Text(unit)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 18, alignment: .leading)
+            Text(TimelineClipInspectorView.formatTimecode(value))
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
+        .accessibilityElement(children: .combine)
     }
 }

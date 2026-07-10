@@ -1074,6 +1074,43 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.selectedElement?.id, elementID)
     }
 
+    func testDistanceUnitForCurrentSelectionReadsAndWritesSelectedActivityClip() throws {
+        let model = StudioModel()
+        let originalDistanceUnit = model.distanceUnit
+        defer { model.distanceUnit = originalDistanceUnit }
+        model.distanceUnit = .kilometers
+
+        let activityURL = URL(fileURLWithPath: "/tmp/contextual-unit.fit")
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, distanceMeters: 1_000)
+        ]))
+        model.fitURL = activityURL
+
+        let clip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first
+        )
+        model.selectTimelineClip(id: clip.id)
+        model.setTimelineClipDistanceUnit(id: clip.id, .meters)
+
+        XCTAssertEqual(model.distanceUnitForCurrentSelection, .meters)
+        XCTAssertEqual(model.distanceUnit, .kilometers)
+
+        model.setDistanceUnitForCurrentSelection(.kilometers)
+
+        XCTAssertEqual(model.selectedTimelineClip?.distanceUnit, .kilometers)
+        XCTAssertEqual(model.distanceUnit, .kilometers)
+
+        model.selectedTimelineClipID = nil
+        model.setDistanceUnitForCurrentSelection(.meters)
+
+        XCTAssertEqual(model.distanceUnitForCurrentSelection, .meters)
+        XCTAssertEqual(model.distanceUnit, .meters)
+    }
+
     func testMatchPointHelperIsIgnoredWithoutBothSources() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov") // no activity
