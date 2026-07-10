@@ -691,3 +691,95 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertLessThan(series.sample(at: 1).speedMetersPerSecond ?? 1, 0.3)
     }
 }
+
+extension TelemetrySeriesTests {
+    private func pausedSeries() -> TelemetrySeries {
+        // Timer axis: 0...20s, constant 3 m/s, distance 0→60. Wall axis: an 8-second pause at
+        // wall 5s makes the recording span 28 seconds of real time.
+        let samples = (0...20).map { second in
+            TelemetrySample(
+                elapsed: TimeInterval(second),
+                distanceMeters: Double(second) * 3,
+                speedMetersPerSecond: 3
+            )
+        }
+        return TelemetrySeries(
+            samples: samples,
+            pausedRanges: [TelemetryPausedRange(start: 5, duration: 8)]
+        )
+    }
+
+    func testPausedRangesExtendWallDurationAndHoldValues() {
+        let series = pausedSeries()
+
+        XCTAssertEqual(series.activeDuration, 20, accuracy: 1e-9)
+        XCTAssertEqual(series.duration, 28, accuracy: 1e-9)
+
+        // Before the pause the wall and timer axes agree.
+        XCTAssertEqual(series.sample(at: 3).distanceMeters ?? -1, 9, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 5).distanceMeters ?? -1, 15, accuracy: 0.001)
+
+        // Inside the pause every lookup holds the pause-start values.
+        XCTAssertEqual(series.sample(at: 6).distanceMeters ?? -1, 15, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 12.9).distanceMeters ?? -1, 15, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 9).speedMetersPerSecond ?? -1, 3, accuracy: 0.001)
+
+        // After the resume the data continues, shifted by the paused wall time.
+        XCTAssertEqual(series.sample(at: 14).distanceMeters ?? -1, 18, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 28).distanceMeters ?? -1, 60, accuracy: 0.001)
+
+        // Axis conversions round-trip across the pause.
+        XCTAssertEqual(series.activeElapsed(forWallElapsed: 9), 5, accuracy: 1e-9)
+        XCTAssertEqual(series.activeElapsed(forWallElapsed: 20), 12, accuracy: 1e-9)
+        XCTAssertEqual(series.wallElapsed(forActiveElapsed: 12), 20, accuracy: 1e-9)
+        // A timer value exactly at the pause boundary maps to the pre-pause edge; anything
+        // beyond it lands after the resume.
+        XCTAssertEqual(series.wallElapsed(forActiveElapsed: 5), 5, accuracy: 1e-9)
+        XCTAssertEqual(series.wallElapsed(forActiveElapsed: 5.5), 13.5, accuracy: 1e-9)
+    }
+
+    func testSeriesWithoutPausesKeepsIdentityAxis() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, distanceMeters: 30)
+        ])
+        XCTAssertTrue(series.pausedRanges.isEmpty)
+        XCTAssertEqual(series.duration, 10, accuracy: 1e-9)
+        XCTAssertEqual(series.activeElapsed(forWallElapsed: 7), 7, accuracy: 1e-9)
+        XCTAssertEqual(series.wallElapsed(forActiveElapsed: 7), 7, accuracy: 1e-9)
+        XCTAssertEqual(series.sample(at: 5).distanceMeters ?? -1, 15, accuracy: 0.001)
+    }
+
+    func testTrimmedSeriesRebasesPausedRanges() {
+        let series = pausedSeries()
+        let trimmed = series.trimmed(by: ActivityTrim(startSeconds: 4, endSeconds: 20))
+
+        XCTAssertEqual(trimmed.duration, 16, accuracy: 1e-6)
+        XCTAssertEqual(trimmed.pausedRanges.count, 1)
+        XCTAssertEqual(trimmed.pausedRanges[0].start, 1, accuracy: 1e-6)
+        XCTAssertEqual(trimmed.pausedRanges[0].duration, 8, accuracy: 1e-6)
+
+        // The hold behavior survives the trim: wall 3 is inside the shifted pause.
+        XCTAssertEqual(trimmed.sample(at: 0.5).distanceMeters ?? -1, 1.5, accuracy: 0.01)
+        XCTAssertEqual(trimmed.sample(at: 3).distanceMeters ?? -1, 3, accuracy: 0.01)
+        XCTAssertEqual(trimmed.sample(at: 10).distanceMeters ?? -1, 6, accuracy: 0.01)
+    }
+
+    func testOverlappingPausedRangesAreMergedAndInvalidOnesDropped() {
+        let series = TelemetrySeries(
+            samples: [
+                TelemetrySample(elapsed: 0, distanceMeters: 0),
+                TelemetrySample(elapsed: 10, distanceMeters: 30)
+            ],
+            pausedRanges: [
+                TelemetryPausedRange(start: 6, duration: 2),
+                TelemetryPausedRange(start: 5, duration: 2),
+                TelemetryPausedRange(start: -3, duration: 2),
+                TelemetryPausedRange(start: 4, duration: 0)
+            ]
+        )
+        XCTAssertEqual(series.pausedRanges.count, 1)
+        XCTAssertEqual(series.pausedRanges[0].start, 5, accuracy: 1e-9)
+        XCTAssertEqual(series.pausedRanges[0].duration, 3, accuracy: 1e-9)
+    }
+}

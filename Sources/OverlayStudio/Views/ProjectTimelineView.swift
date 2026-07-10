@@ -339,6 +339,9 @@ struct ProjectTimelineView: View {
         let name = asset?.displayName ?? clip.assetID
         let isSelected = model.selectedTimelineClipID == clip.id
         let waveformPeaks = model.videoWaveformPeaksByAssetID[clip.assetID] ?? []
+        let pausedRanges = kind == .overlay
+            ? (model.activitySeries(forAssetID: clip.assetID)?.pausedRanges ?? [])
+            : []
 
         let clipBody = RoundedRectangle(cornerRadius: 7, style: .continuous)
             .fill(clipFill(kind))
@@ -352,6 +355,17 @@ struct ProjectTimelineView: View {
                     )
                     .padding(.horizontal, 6)
                     .padding(.vertical, 5)
+                }
+            }
+            .overlay {
+                if !pausedRanges.isEmpty {
+                    // Spans where the activity timer was paused: data holds its last value there.
+                    TimelinePausedBands(
+                        ranges: pausedRanges,
+                        sourceIn: clip.sourceIn,
+                        clipDuration: clip.duration
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
             }
             .overlay(alignment: .leading) {
@@ -611,6 +625,34 @@ struct ProjectTimelineView: View {
             return String(format: "%d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
         }
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+/// Marks the wall-clock spans of an activity clip during which the timer was paused. The data
+/// layer holds its last pre-pause values there, so the bands use a distinct muted color.
+private struct TimelinePausedBands: View {
+    let ranges: [TelemetryPausedRange]
+    let sourceIn: TimeInterval
+    let clipDuration: TimeInterval
+
+    var body: some View {
+        Canvas { context, size in
+            guard clipDuration > 0, size.width > 0 else { return }
+            for range in ranges {
+                let startFraction = (range.start - sourceIn) / clipDuration
+                let endFraction = (range.end - sourceIn) / clipDuration
+                let x0 = CGFloat(max(0, min(1, startFraction))) * size.width
+                let x1 = CGFloat(max(0, min(1, endFraction))) * size.width
+                guard x1 - x0 > 0.5 else { continue }
+                let rect = CGRect(x: x0, y: 0, width: x1 - x0, height: size.height)
+                context.fill(
+                    Path(rect),
+                    with: .color(Color(red: 0.42, green: 0.44, blue: 0.49).opacity(0.88))
+                )
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

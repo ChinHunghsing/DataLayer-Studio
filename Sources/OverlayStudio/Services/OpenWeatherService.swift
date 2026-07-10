@@ -245,7 +245,7 @@ final class OpenWeatherService {
             enriched.weatherSummary = record.summary
             return enriched
         }
-        return TelemetrySeries(samples: samples)
+        return TelemetrySeries(samples: samples, pausedRanges: series.pausedRanges)
     }
 
     private static func nearestRecord(to date: Date, in records: [OpenWeatherRecord]) -> OpenWeatherRecord? {

@@ -305,7 +305,11 @@ public final class FITParser {
                 timerEvents: timerEvents
             )
         )
-        var series = TelemetrySeries(samples: parsedSamples)
+        let pausedRanges = Self.pausedRanges(
+            timerEvents: timerEvents,
+            activityStartTimestamp: activityStartTimestamp ?? records.compactMap(\.timestamp).min()
+        )
+        var series = TelemetrySeries(samples: parsedSamples, pausedRanges: pausedRanges)
         let lapAnchorSamples = authoritativeLapSamples(
             laps: laps,
             sessions: sessions,
@@ -314,7 +318,7 @@ public final class FITParser {
             timerEvents: timerEvents
         )
         if !lapAnchorSamples.isEmpty {
-            series = TelemetrySeries(samples: series.samples + lapAnchorSamples)
+            series = TelemetrySeries(samples: series.samples + lapAnchorSamples, pausedRanges: pausedRanges)
         }
         if let correctedFinalSample = authoritativeFinalSample(
             sessions: sessions,
@@ -322,9 +326,46 @@ public final class FITParser {
             activityStartTimestamp: activityStartTimestamp,
             timerEvents: timerEvents
         ) {
-            return TelemetrySeries(samples: series.samples + [correctedFinalSample])
+            return TelemetrySeries(samples: series.samples + [correctedFinalSample], pausedRanges: pausedRanges)
         }
         return series
+    }
+
+    /// Wall-clock pause spans (timer stop → next timer start) relative to the activity start.
+    /// A trailing stop without a resume is the end of the recording, not a pause.
+    static func pausedRanges(
+        timerEvents: [RawFITEvent],
+        activityStartTimestamp: UInt32?
+    ) -> [TelemetryPausedRange] {
+        guard let activityStartTimestamp else { return [] }
+        let events = timerEvents
+            .filter { ($0.isTimerStart || $0.isTimerStop) && $0.timestamp != nil }
+            .sorted {
+                if $0.timestamp == $1.timestamp {
+                    return $0.isTimerStop && !$1.isTimerStop
+                }
+                return ($0.timestamp ?? 0) < ($1.timestamp ?? 0)
+            }
+
+        var ranges: [TelemetryPausedRange] = []
+        var pauseStart: UInt32?
+        for event in events {
+            guard let timestamp = event.timestamp else { continue }
+            if event.isTimerStop {
+                pauseStart = pauseStart ?? max(timestamp, activityStartTimestamp)
+            } else if event.isTimerStart {
+                if let start = pauseStart, timestamp > start {
+                    ranges.append(
+                        TelemetryPausedRange(
+                            start: TimeInterval(Int64(start) - Int64(activityStartTimestamp)),
+                            duration: TimeInterval(Int64(timestamp) - Int64(start))
+                        )
+                    )
+                }
+                pauseStart = nil
+            }
+        }
+        return ranges
     }
 
     private func append(

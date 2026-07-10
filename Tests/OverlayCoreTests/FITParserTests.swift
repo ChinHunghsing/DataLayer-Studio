@@ -70,7 +70,7 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(firstRecordTime.cadence, 168)
     }
 
-    func testTimerStopEventsKeepElapsedOnActiveTimerAndDatesOnWallClock() throws {
+    func testTimerPausesExtendWallClockAxisAndHoldValues() throws {
         var content = Data()
         appendEventDefinition(localMessageType: 1, to: &content)
         appendStandardRecordDefinition(localMessageType: 0, to: &content)
@@ -95,9 +95,21 @@ final class FITParserTests: XCTestCase {
 
         let series = try FITParser().parse(data: makeFITFile(content: content))
 
-        XCTAssertEqual(series.duration, 15, accuracy: 0.001)
-        XCTAssertEqual(series.sample(at: 15).heartRate, 153)
-        XCTAssertEqual(series.date(atElapsed: 15)?.timeIntervalSince1970 ?? -1, 631_066_625, accuracy: 0.001)
+        // The public axis is wall-clock time: the 10-second pause stays on the timeline so a
+        // continuously recorded video keeps its sync after the resume.
+        XCTAssertEqual(series.duration, 25, accuracy: 0.001)
+        XCTAssertEqual(series.activeDuration, 15, accuracy: 0.001)
+        XCTAssertEqual(series.pausedRanges.count, 1)
+        XCTAssertEqual(series.pausedRanges.first?.start ?? -1, 10, accuracy: 0.001)
+        XCTAssertEqual(series.pausedRanges.first?.duration ?? -1, 10, accuracy: 0.001)
+
+        // Inside the pause every value holds the last pre-pause sample.
+        XCTAssertEqual(series.sample(at: 15).heartRate, 152)
+        XCTAssertEqual(series.sample(at: 15).distanceMeters ?? -1, 30, accuracy: 0.5)
+
+        // After the resume the data continues and dates stay on the real clock.
+        XCTAssertEqual(series.sample(at: 25).heartRate, 153)
+        XCTAssertEqual(series.date(atElapsed: 25)?.timeIntervalSince1970 ?? -1, 631_066_625, accuracy: 0.001)
     }
 
     func testDerivesPaceImmediatelyFromStartupDistanceBeforeFirstRecord() throws {
@@ -1018,4 +1030,38 @@ private func appendPaddedString(_ value: String, byteCount: Int, to data: inout 
     let bytes = Array(value.utf8.prefix(max(0, byteCount - 1)))
     data.append(contentsOf: bytes)
     data.append(contentsOf: repeatElement(UInt8(0), count: max(0, byteCount - bytes.count)))
+}
+
+extension FITParserTests {
+    func testPausedRangesPairStopAndResumeEvents() {
+        func timerEvent(_ timestamp: UInt32, start: Bool) -> RawFITEvent {
+            var event = RawFITEvent(timestamp: timestamp)
+            event.event = 0
+            event.eventType = start ? 0 : 1
+            return event
+        }
+
+        let ranges = FITParser.pausedRanges(
+            timerEvents: [
+                timerEvent(1_000, start: true),
+                timerEvent(1_060, start: false),
+                timerEvent(1_090, start: true),
+                // A trailing stop ends the recording; it is not a pause.
+                timerEvent(1_120, start: false)
+            ],
+            activityStartTimestamp: 1_000
+        )
+
+        XCTAssertEqual(ranges.count, 1)
+        XCTAssertEqual(ranges[0].start, 60, accuracy: 1e-9)
+        XCTAssertEqual(ranges[0].duration, 30, accuracy: 1e-9)
+
+        XCTAssertTrue(FITParser.pausedRanges(timerEvents: [], activityStartTimestamp: 1_000).isEmpty)
+        XCTAssertTrue(
+            FITParser.pausedRanges(
+                timerEvents: [timerEvent(1_000, start: true)],
+                activityStartTimestamp: nil
+            ).isEmpty
+        )
+    }
 }

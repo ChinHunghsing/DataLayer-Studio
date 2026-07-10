@@ -2453,6 +2453,17 @@ final class StudioModel: ObservableObject {
         repairSelectedTimelineClipIfNeeded()
     }
 
+    /// Telemetry series backing an activity asset: a loaded pool entry, or the active source.
+    func activitySeries(forAssetID id: String) -> TelemetrySeries? {
+        if let loaded = activitySeriesByAssetID[id] {
+            return loaded
+        }
+        if let activeActivityAssetID, activeActivityAssetID == id {
+            return series
+        }
+        return nil
+    }
+
     func timelineTelemetrySeriesForExport(project: TimelineProject) -> [String: TelemetrySeries] {
         project.tracks
             .filter { $0.kind == .overlay }

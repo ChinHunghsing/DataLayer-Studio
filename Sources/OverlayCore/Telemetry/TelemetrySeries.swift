@@ -7,9 +7,28 @@ public struct GeoBounds: Equatable {
     public var maxLongitude: Double
 }
 
+/// A wall-clock span during which the activity timer was paused, relative to the activity's
+/// wall-clock start. The series' public time axis includes these spans so a continuously
+/// recorded video stays in sync across pauses; sample lookups inside a paused span hold the
+/// values from the moment the timer stopped.
+public struct TelemetryPausedRange: Equatable {
+    public var start: TimeInterval
+    public var duration: TimeInterval
+
+    public init(start: TimeInterval, duration: TimeInterval) {
+        self.start = start
+        self.duration = duration
+    }
+
+    public var end: TimeInterval { start + duration }
+}
+
 public struct TelemetrySeries: Equatable {
     public private(set) var samples: [TelemetrySample]
     public let bounds: GeoBounds?
+    /// Wall-clock pause spans, sorted and disjoint. `samples` stay on the timer axis (pauses
+    /// excluded); every public time-based API works on the wall axis and converts internally.
+    public let pausedRanges: [TelemetryPausedRange]
     private static let resampleInterval: TimeInterval = 1
     private static let minimumMovingSpeedMetersPerSecond = 0.3
     private static let startupRampMinimumSpeedMetersPerSecond = 0.35
@@ -31,7 +50,8 @@ public struct TelemetrySeries: Equatable {
     private static let distanceEpsilon = 0.001
     private static let minimumAscentDeltaMeters = 1.0
 
-    public init(samples: [TelemetrySample]) {
+    public init(samples: [TelemetrySample], pausedRanges: [TelemetryPausedRange] = []) {
+        self.pausedRanges = TelemetrySeries.sanitizedPausedRanges(pausedRanges)
         let sorted = samples.sorted { lhs, rhs in
             if lhs.elapsed == rhs.elapsed {
                 return (lhs.date ?? .distantPast) < (rhs.date ?? .distantPast)
@@ -75,7 +95,13 @@ public struct TelemetrySeries: Equatable {
         self.bounds = TelemetrySeries.computeBounds(samples: self.samples)
     }
 
+    /// Wall-clock duration: timer duration plus every paused span inside the recording.
     public var duration: TimeInterval {
+        wallElapsed(forActiveElapsed: activeDuration)
+    }
+
+    /// Timer-axis duration (pauses excluded); the span actually covered by `samples`.
+    public var activeDuration: TimeInterval {
         guard let first = samples.first, let last = samples.last else { return 0 }
         return max(0, last.elapsed - first.elapsed)
     }
@@ -89,11 +115,42 @@ public struct TelemetrySeries: Equatable {
               let date = datedSample.date else {
             return nil
         }
-        return date.addingTimeInterval(-datedSample.elapsed)
+        return date.addingTimeInterval(-wallElapsed(forActiveElapsed: datedSample.elapsed))
+    }
+
+    /// Timer-axis time for a wall-clock time. Inside a paused span this stays at the pause
+    /// start, which is what makes paused lookups hold the last pre-pause values.
+    public func activeElapsed(forWallElapsed wall: TimeInterval) -> TimeInterval {
+        guard wall.isFinite, !pausedRanges.isEmpty else { return wall }
+        var active = wall
+        for range in pausedRanges {
+            if wall >= range.end {
+                active -= range.duration
+            } else if wall > range.start {
+                active -= wall - range.start
+            }
+        }
+        return active
+    }
+
+    /// Wall-clock time at which a timer-axis time occurs (the resume edge for paused spans).
+    public func wallElapsed(forActiveElapsed active: TimeInterval) -> TimeInterval {
+        guard active.isFinite, !pausedRanges.isEmpty else { return active }
+        var shift: TimeInterval = 0
+        for range in pausedRanges {
+            let activeAtRangeStart = range.start - shift
+            guard active > activeAtRangeStart else { break }
+            shift += range.duration
+        }
+        return active + shift
     }
 
     public func date(atElapsed elapsed: TimeInterval) -> Date? {
         guard elapsed.isFinite else { return nil }
+        if !pausedRanges.isEmpty, let activityStartDate {
+            // The wall clock keeps running while the timer is paused.
+            return activityStartDate.addingTimeInterval(elapsed)
+        }
         if let first = samples.first,
            elapsed < first.elapsed,
            let date = first.date {
@@ -111,7 +168,12 @@ public struct TelemetrySeries: Equatable {
         return activityStartDate.addingTimeInterval(elapsed)
     }
 
+    /// Sample at a wall-clock time. Paused spans hold the pause-start sample.
     public func sample(at elapsed: TimeInterval) -> TelemetrySample {
+        sampleAtActiveElapsed(activeElapsed(forWallElapsed: elapsed))
+    }
+
+    private func sampleAtActiveElapsed(_ elapsed: TimeInterval) -> TelemetrySample {
         guard let first = samples.first else {
             return TelemetrySample(elapsed: elapsed)
         }
@@ -148,10 +210,13 @@ public struct TelemetrySeries: Equatable {
         let sourceDuration = duration
         guard trim.isActive(for: sourceDuration) else { return self }
 
+        // Trim bounds arrive on the wall axis; samples are cut on the timer axis.
         let trimStart = trim.start(in: sourceDuration)
         let trimEnd = trim.end(in: sourceDuration)
-        let startSample = sample(at: trimStart)
-        let endSample = sample(at: trimEnd)
+        let activeStart = activeElapsed(forWallElapsed: trimStart)
+        let activeEnd = activeElapsed(forWallElapsed: trimEnd)
+        let startSample = sampleAtActiveElapsed(activeStart)
+        let endSample = sampleAtActiveElapsed(activeEnd)
         let distanceOffset = startSample.distanceMeters
         let calorieOffset = startSample.totalCalories
         let ascentOffset = startSample.totalAscentMeters
@@ -159,18 +224,18 @@ public struct TelemetrySeries: Equatable {
         var trimmedSamples: [TelemetrySample] = [
             rebasedSample(
                 startSample,
-                trimStart: trimStart,
+                trimStart: activeStart,
                 distanceOffset: distanceOffset,
                 calorieOffset: calorieOffset,
                 ascentOffset: ascentOffset
             )
         ]
 
-        for sample in samples where sample.elapsed > trimStart && sample.elapsed < trimEnd {
+        for sample in samples where sample.elapsed > activeStart && sample.elapsed < activeEnd {
             trimmedSamples.append(
                 rebasedSample(
                     sample,
-                    trimStart: trimStart,
+                    trimStart: activeStart,
                     distanceOffset: distanceOffset,
                     calorieOffset: calorieOffset,
                     ascentOffset: ascentOffset
@@ -178,10 +243,10 @@ public struct TelemetrySeries: Equatable {
             )
         }
 
-        if trimEnd > trimStart {
+        if activeEnd > activeStart {
             let rebasedEnd = rebasedSample(
                 endSample,
-                trimStart: trimStart,
+                trimStart: activeStart,
                 distanceOffset: distanceOffset,
                 calorieOffset: calorieOffset,
                 ascentOffset: ascentOffset
@@ -191,7 +256,15 @@ public struct TelemetrySeries: Equatable {
             }
         }
 
-        return TelemetrySeries(samples: trimmedSamples)
+        // Pause spans that survive the trim shift onto the new wall axis.
+        let trimmedRanges = pausedRanges.compactMap { range -> TelemetryPausedRange? in
+            let start = max(range.start, trimStart)
+            let end = min(range.end, trimEnd)
+            guard end - start > 1e-9 else { return nil }
+            return TelemetryPausedRange(start: start - trimStart, duration: end - start)
+        }
+
+        return TelemetrySeries(samples: trimmedSamples, pausedRanges: trimmedRanges)
     }
 
     private func interpolate(
@@ -201,6 +274,24 @@ public struct TelemetrySeries: Equatable {
         elapsed: TimeInterval
     ) -> TelemetrySample {
         Self.interpolate(a, b, fraction: fraction, elapsed: elapsed)
+    }
+
+    private static func sanitizedPausedRanges(_ ranges: [TelemetryPausedRange]) -> [TelemetryPausedRange] {
+        let positive = ranges
+            .filter { $0.start.isFinite && $0.duration.isFinite && $0.duration > 0 && $0.start >= 0 }
+            .sorted { $0.start < $1.start }
+        var merged: [TelemetryPausedRange] = []
+        for range in positive {
+            if let last = merged.last, range.start <= last.end {
+                merged[merged.count - 1] = TelemetryPausedRange(
+                    start: last.start,
+                    duration: max(last.end, range.end) - last.start
+                )
+            } else {
+                merged.append(range)
+            }
+        }
+        return merged
     }
 
     private func rebasedSample(
