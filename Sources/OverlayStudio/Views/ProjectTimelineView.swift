@@ -109,6 +109,21 @@ struct ProjectTimelineView: View {
         return Double(progress) * duration
     }
 
+    static func trimSnapTime(
+        project: TimelineProject,
+        proposedTime: TimeInterval,
+        threshold: TimeInterval,
+        clipID: String,
+        playheadTime: TimeInterval
+    ) -> TimeInterval {
+        project.snappedTimelineTime(
+            proposedTime,
+            threshold: threshold,
+            excludingClipID: clipID,
+            additionalCandidates: [playheadTime]
+        )
+    }
+
     // MARK: ruler
 
     private func ruler(duration: TimeInterval, laneWidth: CGFloat) -> some View {
@@ -280,7 +295,13 @@ struct ProjectTimelineView: View {
                 let base = clipTrimBaseTime ?? (isStart ? clip.timelineStart : clip.timelineEnd)
                 let deltaT = Double(value.translation.width / laneWidth) * duration
                 let threshold = Double(6 / laneWidth) * duration
-                let target = project.snappedTimelineTime(base + deltaT, threshold: threshold, excludingClipID: clip.id)
+                let target = Self.trimSnapTime(
+                    project: project,
+                    proposedTime: base + deltaT,
+                    threshold: threshold,
+                    clipID: clip.id,
+                    playheadTime: model.previewTime
+                )
                 if isStart {
                     model.trimTimelineClipStart(id: clip.id, toTimelineTime: target)
                 } else {

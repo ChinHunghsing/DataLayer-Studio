@@ -97,6 +97,15 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(project.snappedTimelineTime(0.1, threshold: 0.25), 0)
         XCTAssertEqual(project.snappedTimelineTime(44.6, threshold: 0.25), 44.6)
         XCTAssertEqual(project.snappedTimelineTime(45.1, threshold: 0.25, excludingClipID: "b"), 45.1)
+        XCTAssertEqual(
+            project.snappedTimelineTime(
+                39.8,
+                threshold: 0.25,
+                excludingClipID: "a",
+                additionalCandidates: [40]
+            ),
+            40
+        )
     }
 
     func testVideoExportPreflightAllowsSparseClipsAndEmptyVideoRanges() {

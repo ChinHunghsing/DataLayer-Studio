@@ -739,6 +739,54 @@ final class StudioModelTests: XCTestCase {
         )
     }
 
+    func testProjectTimelineTrimSnapsClipHeadAndTailToPlayheadWithinThreshold() {
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "v", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "clip", assetID: "video", timelineStart: 10, duration: 20)
+                ])
+            ]
+        )
+
+        XCTAssertEqual(
+            ProjectTimelineView.trimSnapTime(
+                project: project,
+                proposedTime: 19.8,
+                threshold: 0.25,
+                clipID: "clip",
+                playheadTime: 20
+            ),
+            20,
+            accuracy: 0.000_1
+        )
+        XCTAssertEqual(
+            ProjectTimelineView.trimSnapTime(
+                project: project,
+                proposedTime: 25.2,
+                threshold: 0.25,
+                clipID: "clip",
+                playheadTime: 25
+            ),
+            25,
+            accuracy: 0.000_1
+        )
+        XCTAssertEqual(
+            ProjectTimelineView.trimSnapTime(
+                project: project,
+                proposedTime: 25.3,
+                threshold: 0.25,
+                clipID: "clip",
+                playheadTime: 25
+            ),
+            25.3,
+            accuracy: 0.000_1
+        )
+    }
+
     @MainActor
     func testScrubPreviewWithPlayerRefreshesOverlay() async throws {
         let model = StudioModel()

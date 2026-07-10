@@ -215,17 +215,19 @@ public struct TimelineProject: Codable, Equatable {
     public func snappedTimelineTime(
         _ proposed: TimeInterval,
         threshold: TimeInterval,
-        excludingClipID: String? = nil
+        excludingClipID: String? = nil,
+        additionalCandidates: [TimeInterval] = []
     ) -> TimeInterval {
         let sanitized = max(0, proposed)
         guard sanitized.isFinite, threshold.isFinite, threshold > 0 else { return sanitized }
 
         var best = sanitized
         var bestDistance = threshold
-        let candidates: [TimeInterval] = [0] + tracks
+        let clipCandidates = tracks
             .flatMap(\.clips)
             .filter { $0.id != excludingClipID }
             .flatMap { [$0.timelineStart, $0.timelineEnd] }
+        let candidates: [TimeInterval] = [0] + clipCandidates + additionalCandidates
 
         for candidate in candidates where candidate.isFinite && candidate >= 0 {
             let distance = abs(candidate - sanitized)
