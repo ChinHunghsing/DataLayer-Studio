@@ -307,6 +307,164 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertTrue(project.activeClips(kind: .overlay, atTimelineTime: 0).isEmpty)
     }
 
+    // MARK: split / delete / ripple delete
+
+    private func editingProject() -> TimelineProject {
+        TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [
+                videoAsset(id: "video", duration: 200),
+                activityAsset(id: "activity", duration: 200)
+            ],
+            tracks: [
+                TimelineTrack(id: "video-track", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "video-a", assetID: "video", timelineStart: 0, duration: 10, sourceIn: 2),
+                    TimelineClip(id: "video-b", assetID: "video", timelineStart: 10, duration: 10, sourceIn: 40),
+                    TimelineClip(id: "video-c", assetID: "video", timelineStart: 25, duration: 10, sourceIn: 80)
+                ]),
+                TimelineTrack(id: "overlay-track", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "overlay-a",
+                        assetID: "activity",
+                        timelineStart: 5,
+                        duration: 25,
+                        sourceIn: 3,
+                        layout: .default,
+                        distanceUnit: .meters
+                    )
+                ]),
+                TimelineTrack(id: "locked-track", kind: .overlay, name: "O2", isLocked: true, clips: [
+                    TimelineClip(id: "locked-clip", assetID: "activity", timelineStart: 0, duration: 30)
+                ])
+            ]
+        )
+    }
+
+    func testSplitClipsCutsEveryUnlockedClipUnderTime() throws {
+        var project = editingProject()
+        var nextID = 0
+        let count = project.splitClips(atTimelineTime: 15) {
+            nextID += 1
+            return "new-\(nextID)"
+        }
+
+        XCTAssertEqual(count, 2) // video-b and overlay-a; the locked clip stays whole
+
+        let videoClips = project.tracks[0].clips
+        XCTAssertEqual(videoClips.map(\.id), ["video-a", "video-b", "new-1", "video-c"])
+        let left = videoClips[1]
+        let right = videoClips[2]
+        XCTAssertEqual(left.timelineStart, 10, accuracy: 1e-9)
+        XCTAssertEqual(left.duration, 5, accuracy: 1e-9)
+        XCTAssertEqual(left.sourceIn, 40, accuracy: 1e-9)
+        XCTAssertEqual(right.timelineStart, 15, accuracy: 1e-9)
+        XCTAssertEqual(right.duration, 5, accuracy: 1e-9)
+        // Source content is continuous across the cut.
+        XCTAssertEqual(right.sourceIn, 45, accuracy: 1e-9)
+        XCTAssertEqual(right.assetID, left.assetID)
+
+        let overlayClips = project.tracks[1].clips
+        XCTAssertEqual(overlayClips.count, 2)
+        XCTAssertEqual(overlayClips[0].id, "overlay-a")
+        XCTAssertEqual(overlayClips[1].id, "new-2")
+        XCTAssertEqual(overlayClips[1].sourceIn, 13, accuracy: 1e-9)
+        // Per-clip layout/unit carry over to both pieces.
+        XCTAssertEqual(overlayClips[1].layout, overlayClips[0].layout)
+        XCTAssertEqual(overlayClips[1].distanceUnit, .meters)
+
+        XCTAssertEqual(project.tracks[2].clips.map(\.id), ["locked-clip"])
+    }
+
+    func testSplitClipsSkipsCutsTooCloseToClipEdges() {
+        var project = editingProject()
+        // 10.05 is within the 0.1s minimum piece of video-b's left edge; overlay-a is unaffected
+        // at that time only if the cut also violates its edges — it does not, so it still splits.
+        XCTAssertEqual(Set(project.splittableClipIDs(atTimelineTime: 10.05)), ["overlay-a"])
+        XCTAssertEqual(project.splitClips(atTimelineTime: 10.05), 1)
+        XCTAssertEqual(project.tracks[0].clips.count, 3)
+        XCTAssertEqual(project.tracks[1].clips.count, 2)
+
+        var untouched = editingProject()
+        XCTAssertEqual(untouched.splitClips(atTimelineTime: 40), 0)
+        XCTAssertEqual(untouched, editingProject())
+    }
+
+    func testRemoveClipLeavesGapAndKeepsOtherClipsInPlace() {
+        var project = editingProject()
+        XCTAssertTrue(project.removeClip(id: "video-b"))
+
+        XCTAssertEqual(project.tracks[0].clips.map(\.id), ["video-a", "video-c"])
+        XCTAssertEqual(project.tracks[0].clips[1].timelineStart, 25, accuracy: 1e-9)
+        XCTAssertEqual(project.tracks[1].clips[0].timelineStart, 5, accuracy: 1e-9)
+
+        XCTAssertFalse(project.removeClip(id: "locked-clip"))
+        XCTAssertFalse(project.removeClip(id: "missing"))
+    }
+
+    func testRippleRemoveClipClosesRangeAcrossUnlockedTracks() throws {
+        var project = editingProject()
+        var nextID = 0
+        XCTAssertTrue(project.rippleRemoveClip(id: "video-b") {
+            nextID += 1
+            return "seam-\(nextID)"
+        })
+
+        // Video track: the 10s range [10, 20) closes; the later clip shifts left.
+        let videoClips = project.tracks[0].clips
+        XCTAssertEqual(videoClips.map(\.id), ["video-a", "video-c"])
+        XCTAssertEqual(videoClips[1].timelineStart, 15, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[1].sourceIn, 80, accuracy: 1e-9)
+
+        // Overlay clip [5, 30) spans the range: head keeps [5, 10), the tail continues at the
+        // seam with the matching source content removed, so video and data stay in sync.
+        let overlayClips = project.tracks[1].clips
+        XCTAssertEqual(overlayClips.map(\.id), ["overlay-a", "seam-1"])
+        XCTAssertEqual(overlayClips[0].timelineStart, 5, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[0].duration, 5, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[0].sourceIn, 3, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[1].timelineStart, 10, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[1].duration, 10, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[1].sourceIn, 18, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[1].layout, overlayClips[0].layout)
+
+        // Locked tracks do not ripple.
+        XCTAssertEqual(project.tracks[2].clips[0].timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(project.tracks[2].clips[0].duration, 30, accuracy: 1e-9)
+    }
+
+    func testRemoveTimeRangeTrimsPartialOverlapsAndDropsCoveredClips() {
+        var project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [activityAsset(id: "activity", duration: 200)],
+            tracks: [
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "head", assetID: "activity", timelineStart: 0, duration: 15, sourceIn: 1),
+                    TimelineClip(id: "inside", assetID: "activity", timelineStart: 16, duration: 2),
+                    TimelineClip(id: "tail", assetID: "activity", timelineStart: 18, duration: 10, sourceIn: 50)
+                ])
+            ]
+        )
+
+        project.removeTimeRange(from: 10, to: 20)
+
+        let clips = project.tracks[0].clips
+        XCTAssertEqual(clips.map(\.id), ["head", "tail"])
+        // "head" overlaps the range start: it keeps only [0, 10).
+        XCTAssertEqual(clips[0].duration, 10, accuracy: 1e-9)
+        XCTAssertEqual(clips[0].sourceIn, 1, accuracy: 1e-9)
+        // "inside" sat entirely inside the removed range and is gone.
+        // "tail" overlaps the range end: its first 2 seconds are cut and it moves to the seam.
+        XCTAssertEqual(clips[1].timelineStart, 10, accuracy: 1e-9)
+        XCTAssertEqual(clips[1].duration, 8, accuracy: 1e-9)
+        XCTAssertEqual(clips[1].sourceIn, 52, accuracy: 1e-9)
+    }
+
     private func exportProject(videoClips: [TimelineClip]) -> TimelineProject {
         TimelineProject(
             outputWidth: 1920,

@@ -2121,6 +2121,53 @@ final class StudioModel: ObservableObject {
         }
     }
 
+    /// Whether the blade (⌘B) has anything to cut at the playhead.
+    var canSplitTimelineClipsAtPlayhead: Bool {
+        guard !isExporting else { return false }
+        return !currentTimelineProject.splittableClipIDs(atTimelineTime: previewTime).isEmpty
+    }
+
+    /// Split every unlocked clip under the playhead into two clips (DaVinci-style blade).
+    func splitTimelineClipsAtPlayhead() {
+        guard !isExporting else { return }
+        var updated = timeline
+        guard updated.splitClips(atTimelineTime: previewTime) > 0 else { return }
+        beginTimelineClipEditingIfNeeded()
+        timeline = updated
+        refreshOverlayOrPreview()
+        setStatus("status.timelineClipsSplit", formatStatusDuration(previewTime))
+    }
+
+    func canDeleteTimelineClip(id: String) -> Bool {
+        guard !isExporting else { return false }
+        return timeline.tracks.contains { track in
+            !track.isLocked && track.clips.contains { $0.id == id }
+        }
+    }
+
+    /// Delete one clip. A plain delete leaves a gap (black frames in composited export,
+    /// transparent in overlay-only export); a ripple delete also closes the removed time
+    /// range on every unlocked track.
+    func deleteTimelineClip(id: String, ripple: Bool) {
+        guard canDeleteTimelineClip(id: id) else { return }
+        var updated = timeline
+        let removed = ripple ? updated.rippleRemoveClip(id: id) : updated.removeClip(id: id)
+        guard removed else { return }
+        beginTimelineClipEditingIfNeeded()
+        timeline = updated
+        if selectedTimelineClipID == id {
+            selectedTimelineClipID = nil
+        }
+        previewTime = clampedPreviewTime(previewTime)
+        refreshOverlayOrPreview()
+        setStatus(ripple ? "status.timelineClipRippleDeleted" : "status.timelineClipDeleted")
+    }
+
+    func deleteSelectedTimelineClip(ripple: Bool) {
+        guard let selectedTimelineClipID else { return }
+        deleteTimelineClip(id: selectedTimelineClipID, ripple: ripple)
+    }
+
     func selectTimelineClip(id: String) {
         guard timelineClip(id: id) != nil else {
             selectedTimelineClipID = nil

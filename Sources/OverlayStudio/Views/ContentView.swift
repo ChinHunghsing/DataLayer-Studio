@@ -211,6 +211,8 @@ struct ContentView: View {
             canMarkSportStart: model.player != nil && !model.isExporting,
             canMoveSelectionForward: canMoveSelectedElementForward,
             canMoveSelectionBackward: canMoveSelectedElementBackward,
+            canSplitTimelineClips: model.canSplitTimelineClipsAtPlayhead,
+            canDeleteTimelineClip: model.selectedTimelineClipIsEditable,
             chooseVideo: model.chooseVideo,
             chooseFIT: model.chooseFIT,
             openTimelineProject: model.openTimelineProject,
@@ -222,6 +224,9 @@ struct ContentView: View {
             markSportStart: model.markSportStart,
             moveSelectionForward: model.moveSelectedElementForward,
             moveSelectionBackward: model.moveSelectedElementBackward,
+            splitTimelineClips: model.splitTimelineClipsAtPlayhead,
+            deleteTimelineClip: { model.deleteSelectedTimelineClip(ripple: false) },
+            rippleDeleteTimelineClip: { model.deleteSelectedTimelineClip(ripple: true) },
             showDebugConsole: { isDebugConsolePresented = true },
             copyDebugLog: model.copyDebugLog,
             clearDebugLog: model.clearDebugLog

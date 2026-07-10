@@ -743,6 +743,139 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(trimmed.duration, 35, accuracy: 1e-9)
     }
 
+    func testSplittingClipsAtPlayheadCutsVideoAndOverlay() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+        let fitURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = fitURL
+
+        model.previewTime = 30
+        XCTAssertTrue(model.canSplitTimelineClipsAtPlayhead)
+        model.splitTimelineClipsAtPlayhead()
+
+        let videoClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .video }
+            .flatMap(\.clips)
+        XCTAssertEqual(videoClips.count, 2)
+        XCTAssertEqual(videoClips[0].timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[0].duration, 30, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[1].timelineStart, 30, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[1].duration, 90, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[1].sourceIn, 30, accuracy: 1e-9)
+        XCTAssertNotEqual(videoClips[0].id, videoClips[1].id)
+
+        let overlayClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .overlay }
+            .flatMap(\.clips)
+        XCTAssertEqual(overlayClips.count, 2)
+        XCTAssertEqual(overlayClips[1].timelineStart, 30, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[1].sourceIn, 30, accuracy: 1e-9)
+
+        // Splitting is a real edit: the timeline is now the custom, stored one.
+        XCTAssertTrue(model.usesCustomTimelinePreview)
+    }
+
+    func testDeletingTimelineClipLeavesGap() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+        let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+
+        let pooledURL = URL(fileURLWithPath: "/tmp/b.fit")
+        model.upsertActivityAsset(url: pooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.previewTime = 20
+        model.addActivityAssetToTimeline(id: pooledURL.path)
+
+        let clip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first { $0.assetID == pooledURL.path }
+        )
+        model.selectTimelineClip(id: clip.id)
+        XCTAssertTrue(model.canDeleteTimelineClip(id: clip.id))
+
+        model.deleteSelectedTimelineClip(ripple: false)
+
+        XCTAssertNil(model.selectedTimelineClipID)
+        let remaining = model.currentTimelineProject.tracks.flatMap(\.clips)
+        XCTAssertFalse(remaining.contains { $0.id == clip.id })
+        // A plain delete leaves the gap: nothing else moves.
+        let videoClip = try XCTUnwrap(remaining.first { $0.assetID == videoURL.path })
+        XCTAssertEqual(videoClip.timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(videoClip.duration, 120, accuracy: 1e-9)
+        let activeOverlay = try XCTUnwrap(remaining.first { $0.assetID == activeURL.path })
+        XCTAssertEqual(activeOverlay.timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(activeOverlay.duration, 80, accuracy: 1e-9)
+    }
+
+    func testRippleDeletingTimelineClipClosesGapAcrossTracks() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+        let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+
+        let pooledURL = URL(fileURLWithPath: "/tmp/b.fit")
+        model.upsertActivityAsset(url: pooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.previewTime = 20
+        model.addActivityAssetToTimeline(id: pooledURL.path)
+
+        let clip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first { $0.assetID == pooledURL.path }
+        )
+
+        // The pooled clip covers [20, 65); ripple deleting it closes that range everywhere.
+        model.deleteTimelineClip(id: clip.id, ripple: true)
+
+        let videoClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .video }
+            .flatMap(\.clips)
+        XCTAssertEqual(videoClips.count, 2)
+        XCTAssertEqual(videoClips[0].timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[0].duration, 20, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[1].timelineStart, 20, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[1].sourceIn, 65, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[1].duration, 55, accuracy: 1e-9)
+
+        let overlayClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .overlay }
+            .flatMap(\.clips)
+        XCTAssertEqual(overlayClips.count, 2)
+        XCTAssertEqual(overlayClips[0].duration, 20, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[1].timelineStart, 20, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[1].sourceIn, 65, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[1].duration, 15, accuracy: 1e-9)
+
+        XCTAssertEqual(model.currentTimelineProject.duration, 75, accuracy: 1e-9)
+    }
+
     func testSelectingAndEditingPooledTimelineClipUpdatesClipSettings() throws {
         let model = StudioModel()
         let activeURL = URL(fileURLWithPath: "/tmp/a.fit")

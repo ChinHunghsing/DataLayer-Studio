@@ -269,6 +269,24 @@ struct ProjectTimelineView: View {
         .onTapGesture {
             model.selectTimelineClip(id: clip.id)
         }
+        .contextMenu {
+            Button(localization.string("menu.splitTimelineClips")) {
+                model.splitTimelineClipsAtPlayhead()
+            }
+            .disabled(!model.canSplitTimelineClipsAtPlayhead)
+
+            Divider()
+
+            Button(localization.string("menu.deleteTimelineClip")) {
+                model.deleteTimelineClip(id: clip.id, ripple: false)
+            }
+            .disabled(!model.canDeleteTimelineClip(id: clip.id))
+
+            Button(localization.string("menu.rippleDeleteTimelineClip")) {
+                model.deleteTimelineClip(id: clip.id, ripple: true)
+            }
+            .disabled(!model.canDeleteTimelineClip(id: clip.id))
+        }
         .accessibilityLabel(name)
         .accessibilityValue("\(localization.string("timelineClip.inspector.timelineStart")) \(timecode(clip.timelineStart))")
 

@@ -9,6 +9,8 @@ struct StudioCommandActions {
     var canMarkSportStart: Bool
     var canMoveSelectionForward: Bool
     var canMoveSelectionBackward: Bool
+    var canSplitTimelineClips: Bool
+    var canDeleteTimelineClip: Bool
     var chooseVideo: () -> Void
     var chooseFIT: () -> Void
     var openTimelineProject: () -> Void
@@ -20,6 +22,9 @@ struct StudioCommandActions {
     var markSportStart: () -> Void
     var moveSelectionForward: () -> Void
     var moveSelectionBackward: () -> Void
+    var splitTimelineClips: () -> Void
+    var deleteTimelineClip: () -> Void
+    var rippleDeleteTimelineClip: () -> Void
     var showDebugConsole: () -> Void
     var copyDebugLog: () -> Void
     var clearDebugLog: () -> Void

@@ -36,6 +36,7 @@ struct OverlayStudioApp: App {
             StudioFileCommands(localization: localization)
             LanguageCommands(localization: localization)
             PreviewCommands(localization: localization)
+            TimelineCommands(localization: localization)
             ArrangeCommands(localization: localization)
             DebugCommands(localization: localization)
         }
@@ -234,6 +235,35 @@ private struct StudioFileCommands: Commands {
             }
             .keyboardShortcut(".", modifiers: [.command])
             .disabled(actions?.isExporting != true)
+        }
+    }
+}
+
+private struct TimelineCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
+    @FocusedValue(\.studioCommandActions) private var actions
+
+    var body: some Commands {
+        CommandMenu(localization.string("menu.timeline")) {
+            Button(localization.string("menu.splitTimelineClips")) {
+                actions?.splitTimelineClips()
+            }
+            .keyboardShortcut("b", modifiers: [.command])
+            .disabled(actions?.canSplitTimelineClips != true)
+
+            Divider()
+
+            Button(localization.string("menu.deleteTimelineClip")) {
+                actions?.deleteTimelineClip()
+            }
+            .keyboardShortcut(.delete, modifiers: [])
+            .disabled(actions?.canDeleteTimelineClip != true)
+
+            Button(localization.string("menu.rippleDeleteTimelineClip")) {
+                actions?.rippleDeleteTimelineClip()
+            }
+            .keyboardShortcut(.delete, modifiers: [.shift])
+            .disabled(actions?.canDeleteTimelineClip != true)
         }
     }
 }
