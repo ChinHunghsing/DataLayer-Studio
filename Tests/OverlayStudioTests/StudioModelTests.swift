@@ -1200,4 +1200,17 @@ final class StudioModelTests: XCTestCase {
     func testExportRenderScopeDefaultsToSingleClip() {
         XCTAssertEqual(StudioModel().exportRenderScope, .singleClip)
     }
+
+    func testTimelineZoomClampsToSupportedRange() {
+        let model = StudioModel()
+        XCTAssertEqual(model.timelineZoom, 1, accuracy: 1e-9)
+        model.setTimelineZoom(0.2)
+        XCTAssertEqual(model.timelineZoom, 1, accuracy: 1e-9)
+        model.setTimelineZoom(3)
+        XCTAssertEqual(model.timelineZoom, 3, accuracy: 1e-9)
+        model.setTimelineZoom(500)
+        XCTAssertEqual(model.timelineZoom, StudioModel.timelineZoomRange.upperBound, accuracy: 1e-9)
+        model.setTimelineZoom(.nan)
+        XCTAssertEqual(model.timelineZoom, 1, accuracy: 1e-9)
+    }
 }

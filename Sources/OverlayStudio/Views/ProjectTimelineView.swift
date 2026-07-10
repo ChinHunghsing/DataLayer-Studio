@@ -22,6 +22,9 @@ struct ProjectTimelineView: View {
     @State private var clipTrimBaseTime: TimeInterval?
     @State private var trimDragStart: TimeInterval?
     @State private var trimDragEnd: TimeInterval?
+    @State private var magnificationStartZoom: Double?
+
+    private static let playheadMarkerID = "timeline.playhead.marker"
 
     var body: some View {
         let project = model.currentTimelineProject
@@ -34,71 +37,134 @@ struct ProjectTimelineView: View {
                 emptyState
             } else {
                 GeometryReader { proxy in
-                    let laneWidth = max(1, proxy.size.width - headerWidth)
-                    let clampedProgress = min(1, max(0, model.previewTime / duration))
-                    let playheadX = headerWidth + CGFloat(clampedProgress) * laneWidth
+                    let baseLaneWidth = max(1, proxy.size.width - headerWidth)
+                    let laneWidth = baseLaneWidth * CGFloat(max(1, model.timelineZoom))
                     let timelineContentHeight = max(
                         proxy.size.height,
                         rulerHeight + CGFloat(displayTracks.count) * trackHeight
                     )
 
+                    // Track headers stay pinned on the left; the ruler, lanes, export band and
+                    // playhead scroll horizontally together when zoomed in.
                     ScrollView(.vertical) {
-                        ZStack(alignment: .topLeading) {
-                            // Scrub layer (bottom): empty lane areas and video clips pass through to here.
-                            HStack(spacing: 0) {
-                                Color.clear
-                                    .frame(width: headerWidth)
-                                    .allowsHitTesting(false)
-                                Color.clear
-                                    .contentShape(Rectangle())
-                                    .frame(width: laneWidth)
-                                    .gesture(
-                                        DragGesture(minimumDistance: 0)
-                                            .onChanged { value in
-                                                model.scrubPreview(
-                                                    to: Self.scrubTime(
-                                                        laneLocationX: value.location.x,
-                                                        laneWidth: laneWidth,
-                                                        duration: duration
-                                                    )
-                                                )
-                                            }
+                        HStack(alignment: .top, spacing: 0) {
+                            headerColumn(displayTracks: displayTracks, contentHeight: timelineContentHeight)
+                            ScrollViewReader { scrollProxy in
+                                ScrollView(.horizontal) {
+                                    laneContent(
+                                        displayTracks: displayTracks,
+                                        project: project,
+                                        duration: duration,
+                                        laneWidth: laneWidth,
+                                        contentHeight: timelineContentHeight
                                     )
-                            }
-
-                            // Tracks and clips capture their own move/trim gestures.
-                            VStack(spacing: 0) {
-                                ruler(duration: duration, laneWidth: laneWidth)
-                                ForEach(displayTracks) { track in
-                                    trackRow(track, project: project, duration: duration, laneWidth: laneWidth)
+                                    .frame(width: laneWidth, height: timelineContentHeight, alignment: .topLeading)
                                 }
-                                Spacer(minLength: 0)
+                                .onChange(of: model.timelineZoom) { _ in
+                                    // Keep the playhead in view when the zoom level changes.
+                                    DispatchQueue.main.async {
+                                        scrollProxy.scrollTo(Self.playheadMarkerID, anchor: .center)
+                                    }
+                                }
                             }
-                            .allowsHitTesting(true)
-
-                            // Export range (in/out band): dims excluded regions, drag edges to trim.
-                            exportRangeLayer(duration: duration, laneWidth: laneWidth)
-
-                            // Playhead
-                            Rectangle()
-                                .fill(playheadColor)
-                                .frame(width: 2)
-                                .offset(x: playheadX - 1)
-                                .shadow(color: playheadColor.opacity(0.6), radius: 3)
-                                .allowsHitTesting(false)
-                            Path { p in
-                                p.move(to: CGPoint(x: playheadX - 6, y: 0))
-                                p.addLine(to: CGPoint(x: playheadX + 6, y: 0))
-                                p.addLine(to: CGPoint(x: playheadX, y: 8))
-                                p.closeSubpath()
-                            }
-                            .fill(playheadColor)
-                            .allowsHitTesting(false)
                         }
                         .frame(height: timelineContentHeight, alignment: .top)
                     }
+                    .simultaneousGesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                if magnificationStartZoom == nil {
+                                    magnificationStartZoom = model.timelineZoom
+                                }
+                                model.setTimelineZoom((magnificationStartZoom ?? model.timelineZoom) * Double(value))
+                            }
+                            .onEnded { _ in
+                                magnificationStartZoom = nil
+                            }
+                    )
                 }
             }
+        }
+    }
+
+    private func headerColumn(displayTracks: [TimelineTrack], contentHeight: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .frame(width: headerWidth, height: rulerHeight)
+                .background(.bar)
+                .overlay(alignment: .bottom) { Divider() }
+                .overlay(alignment: .trailing) { Divider() }
+            ForEach(displayTracks) { track in
+                trackHeader(track)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(width: headerWidth, height: contentHeight, alignment: .top)
+    }
+
+    private func laneContent(
+        displayTracks: [TimelineTrack],
+        project: TimelineProject,
+        duration: TimeInterval,
+        laneWidth: CGFloat,
+        contentHeight: CGFloat
+    ) -> some View {
+        let clampedProgress = min(1, max(0, model.previewTime / duration))
+        let playheadX = CGFloat(clampedProgress) * laneWidth
+
+        return ZStack(alignment: .topLeading) {
+            // Scrub layer (bottom): empty lane areas and video clips pass through to here.
+            Color.clear
+                .contentShape(Rectangle())
+                .frame(width: laneWidth, height: contentHeight)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            model.scrubPreview(
+                                to: Self.scrubTime(
+                                    laneLocationX: value.location.x,
+                                    laneWidth: laneWidth,
+                                    duration: duration
+                                )
+                            )
+                        }
+                )
+
+            // Tracks and clips capture their own move/trim gestures.
+            VStack(spacing: 0) {
+                ruler(duration: duration, laneWidth: laneWidth)
+                ForEach(displayTracks) { track in
+                    trackLane(track, project: project, duration: duration, laneWidth: laneWidth)
+                }
+                Spacer(minLength: 0)
+            }
+            .allowsHitTesting(true)
+
+            // Export range (in/out band): dims excluded regions, drag edges to trim.
+            exportRangeLayer(duration: duration, laneWidth: laneWidth)
+
+            // Playhead
+            Rectangle()
+                .fill(playheadColor)
+                .frame(width: 2)
+                .offset(x: playheadX - 1)
+                .shadow(color: playheadColor.opacity(0.6), radius: 3)
+                .allowsHitTesting(false)
+            Path { p in
+                p.move(to: CGPoint(x: playheadX - 6, y: 0))
+                p.addLine(to: CGPoint(x: playheadX + 6, y: 0))
+                p.addLine(to: CGPoint(x: playheadX, y: 8))
+                p.closeSubpath()
+            }
+            .fill(playheadColor)
+            .allowsHitTesting(false)
+
+            // Invisible scroll anchor used to keep the playhead centered on zoom changes.
+            Color.clear
+                .frame(width: 1, height: 1)
+                .offset(x: playheadX)
+                .id(Self.playheadMarkerID)
+                .allowsHitTesting(false)
         }
     }
 
@@ -134,37 +200,31 @@ struct ProjectTimelineView: View {
     // MARK: ruler
 
     private func ruler(duration: TimeInterval, laneWidth: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            Color.clear.frame(width: headerWidth)
-            ZStack(alignment: .topLeading) {
-                ForEach(tickTimes(duration: duration), id: \.self) { t in
-                    let x = CGFloat(t / duration) * laneWidth
-                    ZStack(alignment: .topLeading) {
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.18))
-                            .frame(width: 1, height: rulerHeight)
-                        Text(timecode(t))
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, 4)
-                            .padding(.top, 4)
-                    }
-                    .offset(x: x)
+        ZStack(alignment: .topLeading) {
+            ForEach(tickTimes(duration: duration), id: \.self) { t in
+                let x = CGFloat(t / duration) * laneWidth
+                ZStack(alignment: .topLeading) {
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.18))
+                        .frame(width: 1, height: rulerHeight)
+                    Text(timecode(t))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+                        .padding(.top, 4)
                 }
+                .offset(x: x)
             }
-            .frame(width: laneWidth, height: rulerHeight, alignment: .topLeading)
         }
-        .frame(height: rulerHeight)
+        .frame(width: laneWidth, height: rulerHeight, alignment: .topLeading)
         .overlay(alignment: .bottom) { Divider() }
     }
 
     // MARK: track row
 
-    private func trackRow(_ track: TimelineTrack, project: TimelineProject, duration: TimeInterval, laneWidth: CGFloat) -> some View {
+    private func trackHeader(_ track: TimelineTrack) -> some View {
         let isSelected = model.selectedTimelineTrackIDs.contains(track.id)
-        return HStack(spacing: 0) {
-            // header
-            HStack(spacing: 4) {
+        return HStack(spacing: 4) {
                 Button {
                     model.selectTimelineTrack(id: track.id)
                 } label: {
@@ -209,26 +269,26 @@ struct ProjectTimelineView: View {
             .background(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
             .background(.bar)
             .overlay(alignment: .trailing) { Divider() }
+            .overlay(alignment: .bottom) { Divider() }
+    }
 
-            // lane
-            ZStack(alignment: .topLeading) {
-                ForEach(track.clips) { clip in
-                    clipView(clip, project: project, kind: track.kind, duration: duration, laneWidth: laneWidth)
-                }
-            }
-            .frame(width: laneWidth, height: trackHeight, alignment: .topLeading)
-            .contentShape(Rectangle())
-            .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
-                handleMediaDrop(
-                    providers,
-                    onTrack: track,
-                    atX: location.x,
-                    laneWidth: laneWidth,
-                    duration: duration
-                )
+    private func trackLane(_ track: TimelineTrack, project: TimelineProject, duration: TimeInterval, laneWidth: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(track.clips) { clip in
+                clipView(clip, project: project, kind: track.kind, duration: duration, laneWidth: laneWidth)
             }
         }
-        .frame(height: trackHeight)
+        .frame(width: laneWidth, height: trackHeight, alignment: .topLeading)
+        .contentShape(Rectangle())
+        .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
+            handleMediaDrop(
+                providers,
+                onTrack: track,
+                atX: location.x,
+                laneWidth: laneWidth,
+                duration: duration
+            )
+        }
         .overlay(alignment: .bottom) { Divider() }
     }
 
@@ -428,20 +488,19 @@ struct ProjectTimelineView: View {
         if model.exportTrimSourceDuration > 0 {
             let start = min(duration, max(0, model.effectiveExportTrimStart))
             let end = min(duration, max(start, model.effectiveExportTrimEnd))
-            let startX = headerWidth + CGFloat(start / duration) * laneWidth
-            let endX = headerWidth + CGFloat(end / duration) * laneWidth
+            let startX = CGFloat(start / duration) * laneWidth
+            let endX = CGFloat(end / duration) * laneWidth
 
             ZStack(alignment: .topLeading) {
                 // Dim the region before the in-point.
                 Rectangle()
                     .fill(Color.black.opacity(0.32))
-                    .frame(width: max(0, startX - headerWidth))
-                    .offset(x: headerWidth)
+                    .frame(width: max(0, startX))
                     .allowsHitTesting(false)
                 // Dim the region after the out-point.
                 Rectangle()
                     .fill(Color.black.opacity(0.32))
-                    .frame(width: max(0, headerWidth + laneWidth - endX))
+                    .frame(width: max(0, laneWidth - endX))
                     .offset(x: endX)
                     .allowsHitTesting(false)
 
@@ -529,7 +588,8 @@ struct ProjectTimelineView: View {
     }
 
     private func tickTimes(duration: TimeInterval) -> [TimeInterval] {
-        let step = niceStep(duration)
+        // Pick the step for the zoomed-in visible span so more ticks appear while zoomed.
+        let step = niceStep(duration / max(1, model.timelineZoom))
         var times: [TimeInterval] = []
         var t = 0.0
         while t < duration - step * 0.25 {

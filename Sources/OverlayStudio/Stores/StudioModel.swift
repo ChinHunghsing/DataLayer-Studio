@@ -138,6 +138,19 @@ final class StudioModel: ObservableObject {
     @Published var codec: OverlayVideoCodec = .hevcAlpha
     /// DaVinci-style render scope: one file for the whole export range, or one file per clip.
     @Published var exportRenderScope: ExportRenderScope = .singleClip
+    /// Horizontal timeline zoom (1 = fit the whole timeline in the lane width).
+    @Published private(set) var timelineZoom: Double = 1
+
+    static let timelineZoomRange: ClosedRange<Double> = 1...16
+
+    func setTimelineZoom(_ value: Double) {
+        let clamped = min(
+            Self.timelineZoomRange.upperBound,
+            max(Self.timelineZoomRange.lowerBound, value.isFinite ? value : 1)
+        )
+        guard abs(clamped - timelineZoom) > 1e-9 else { return }
+        timelineZoom = clamped
+    }
     @Published var distanceUnit: OverlayDistanceUnit = .kilometers {
         didSet {
             persistStudioPreferences()
