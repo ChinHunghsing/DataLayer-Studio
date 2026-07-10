@@ -557,6 +557,63 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 100, accuracy: 1e-9)
     }
 
+    func testAddingVideoTimelineTrackCreatesV2AndAcceptsTargetedVideo() throws {
+        let model = StudioModel()
+        let firstURL = URL(fileURLWithPath: "/tmp/multi-track-a.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/multi-track-b.mov")
+        let activityURL = URL(fileURLWithPath: "/tmp/multi-track.fit")
+        model.upsertVideoAsset(
+            url: firstURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 30, fps: 30)
+        )
+        model.videoURL = firstURL
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 20, distanceMeters: 100)
+        ]))
+        model.fitURL = activityURL
+
+        let secondTrackID = try XCTUnwrap(model.addVideoTimelineTrack())
+        let tracksAfterAdd = model.currentTimelineProject.tracks
+        XCTAssertEqual(tracksAfterAdd.map(\.kind), [.video, .video, .overlay])
+        XCTAssertEqual(tracksAfterAdd.filter { $0.kind == .video }.map(\.name), ["V1", "V2"])
+
+        model.upsertVideoAsset(
+            url: secondURL,
+            metadata: videoMetadata(width: 1280, height: 720, duration: 10, fps: 30)
+        )
+        model.addVideoAssetToTimeline(
+            id: secondURL.path,
+            targetTrackID: secondTrackID,
+            timelineStart: 30
+        )
+
+        let secondTrack = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.id == secondTrackID }
+        )
+        XCTAssertEqual(secondTrack.clips.count, 1)
+        XCTAssertEqual(secondTrack.clips[0].assetID, secondURL.path)
+        XCTAssertEqual(secondTrack.clips[0].timelineStart, 30, accuracy: 1e-9)
+    }
+
+    func testAddingVideoTimelineTrackSupportsUndoAndEmptyTrackDeletion() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+
+        let trackID = try XCTUnwrap(model.addVideoTimelineTrack())
+        XCTAssertEqual(model.currentTimelineProject.tracks.map(\.name), ["V1"])
+
+        undoManager.undo()
+        XCTAssertTrue(model.currentTimelineProject.tracks.isEmpty)
+
+        undoManager.redo()
+        XCTAssertEqual(model.currentTimelineProject.tracks.map(\.id), [trackID])
+        model.removeEmptyTimelineTrack(id: trackID)
+        XCTAssertTrue(model.currentTimelineProject.tracks.isEmpty)
+    }
+
     func testTimelineAssetIDsInUseIncludesEveryReferencedVideoAndActivity() {
         let model = StudioModel()
         let firstVideoURL = URL(fileURLWithPath: "/tmp/in-use-video-a.mov")

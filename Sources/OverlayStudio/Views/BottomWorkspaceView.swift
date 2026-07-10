@@ -26,6 +26,19 @@ struct BottomWorkspaceView: View {
                     .frame(width: 330, alignment: .leading)
 
                     Spacer(minLength: 0)
+
+                    if selectedTab == .timeline {
+                        Button {
+                            model.addVideoTimelineTrack()
+                        } label: {
+                            Label(
+                                localization.string("menu.addVideoTimelineTrack"),
+                                systemImage: "plus.rectangle.on.rectangle"
+                            )
+                        }
+                        .disabled(model.isExporting)
+                        .help(localization.string("menu.addVideoTimelineTrack"))
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

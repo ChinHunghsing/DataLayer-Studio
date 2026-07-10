@@ -2268,6 +2268,29 @@ final class StudioModel: ObservableObject {
         )
     }
 
+    /// Add an empty video lane above the existing video stack and below overlay lanes.
+    @discardableResult
+    func addVideoTimelineTrack() -> String? {
+        guard !isExporting else { return nil }
+
+        let previousUndoState = timelineUndoSnapshotNow
+        beginTimelineClipEditingIfNeeded()
+        let track = TimelineTrack(
+            id: "video.track.\(UUID().uuidString)",
+            kind: .video,
+            name: nextTimelineTrackName(kind: .video)
+        )
+        let insertionIndex = timeline.tracks.firstIndex(where: { $0.kind == .overlay })
+            ?? timeline.tracks.endIndex
+        timeline.tracks.insert(track, at: insertionIndex)
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.addTrack",
+            coalescing: false
+        )
+        return track.id
+    }
+
     private func nextTimelineTrackName(kind: TimelineTrack.Kind) -> String {
         let prefix = kind == .video ? "V" : "O"
         let usedNames = Set(timeline.tracks.filter { $0.kind == kind }.map(\.name))
