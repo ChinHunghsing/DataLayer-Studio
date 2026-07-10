@@ -2155,7 +2155,7 @@ final class StudioModel: ObservableObject {
         var clip = TimelineClip(
             id: "overlay.clip.\(UUID().uuidString)",
             assetID: asset.id,
-            timelineStart: max(0, timelineStart ?? timeline.duration),
+            timelineStart: max(0, timelineStart ?? 0),
             duration: asset.duration,
             sourceIn: 0,
             layout: layout.sanitized,
@@ -2169,11 +2169,14 @@ final class StudioModel: ObservableObject {
         }
         if let trackIndex = targetTrackIndex
             ?? timeline.tracks.firstIndex(where: { $0.kind == .overlay && !$0.isLocked }) {
-            // Land in the nearest gap that fits so the track stays overlap-free.
+            // Default append lands after the lane's own last clip (0 on an empty lane) —
+            // other tracks' content must not push it later. Land in the nearest gap that
+            // fits so the track stays overlap-free.
+            let laneEnd = timeline.tracks[trackIndex].clips.map(\.timelineEnd).max() ?? 0
             clip.timelineStart = timeline.tracks[trackIndex].nonOverlappingStart(
                 forClipID: clip.id,
                 duration: clip.duration,
-                proposedStart: clip.timelineStart
+                proposedStart: max(0, timelineStart ?? laneEnd)
             )
             timeline.tracks[trackIndex].clips.append(clip)
             setStatus("status.timelineAddedActivity", asset.displayName)
@@ -2225,7 +2228,7 @@ final class StudioModel: ObservableObject {
         var clip = TimelineClip(
             id: "video.clip.\(UUID().uuidString)",
             assetID: asset.id,
-            timelineStart: max(0, timelineStart ?? timeline.duration),
+            timelineStart: max(0, timelineStart ?? 0),
             duration: asset.duration,
             sourceIn: 0
         )
@@ -2237,10 +2240,13 @@ final class StudioModel: ObservableObject {
         }
         if let trackIndex = targetTrackIndex
             ?? timeline.tracks.firstIndex(where: { $0.kind == .video && !$0.isLocked }) {
+            // Default append lands after the lane's own last clip (0 on an empty lane) —
+            // overlay-track content must not push a new video later.
+            let laneEnd = timeline.tracks[trackIndex].clips.map(\.timelineEnd).max() ?? 0
             clip.timelineStart = timeline.tracks[trackIndex].nonOverlappingStart(
                 forClipID: clip.id,
                 duration: clip.duration,
-                proposedStart: clip.timelineStart
+                proposedStart: max(0, timelineStart ?? laneEnd)
             )
             timeline.tracks[trackIndex].clips.append(clip)
         } else {
@@ -2552,6 +2558,39 @@ final class StudioModel: ObservableObject {
             )
             refreshOverlayOrPreview()
             return
+        }
+    }
+
+    /// Clip boundaries (edit points) across enabled tracks, sorted ascending and including 0.
+    private var timelineEditPoints: [TimeInterval] {
+        var points: Set<TimeInterval> = [0]
+        for track in timeline.tracks where track.isEnabled {
+            for clip in track.clips {
+                points.insert(clip.timelineStart)
+                points.insert(clip.timelineEnd)
+            }
+        }
+        return points.sorted()
+    }
+
+    var canJumpToTimelineEditPoints: Bool {
+        guard !isExporting else { return false }
+        return timeline.tracks.contains { $0.isEnabled && !$0.clips.isEmpty }
+    }
+
+    /// Move the playhead to the nearest clip boundary after it (DaVinci down-arrow).
+    func jumpToNextTimelineEditPoint() {
+        guard canJumpToTimelineEditPoints else { return }
+        if let next = timelineEditPoints.first(where: { $0 > previewTime + 1e-3 }) {
+            seekPreview(to: next)
+        }
+    }
+
+    /// Move the playhead to the nearest clip boundary before it (DaVinci up-arrow).
+    func jumpToPreviousTimelineEditPoint() {
+        guard canJumpToTimelineEditPoints else { return }
+        if let previous = timelineEditPoints.last(where: { $0 < previewTime - 1e-3 }) {
+            seekPreview(to: previous)
         }
     }
 

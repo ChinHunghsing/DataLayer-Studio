@@ -245,6 +245,20 @@ private struct TimelineCommands: Commands {
 
     var body: some Commands {
         CommandMenu(localization.string("menu.timeline")) {
+            Button(localization.string("menu.previousEditPoint")) {
+                actions?.jumpToPreviousEditPoint()
+            }
+            .keyboardShortcut(.upArrow, modifiers: [])
+            .disabled(actions?.canJumpToTimelineEditPoints != true)
+
+            Button(localization.string("menu.nextEditPoint")) {
+                actions?.jumpToNextEditPoint()
+            }
+            .keyboardShortcut(.downArrow, modifiers: [])
+            .disabled(actions?.canJumpToTimelineEditPoints != true)
+
+            Divider()
+
             Button(localization.string("menu.splitTimelineClips")) {
                 actions?.splitTimelineClips()
             }

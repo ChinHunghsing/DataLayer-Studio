@@ -62,8 +62,9 @@ final class MediaPoolTests: XCTestCase {
         let videoTracks = model.currentTimelineProject.tracks.filter { $0.kind == .video }
         XCTAssertEqual(videoTracks.count, 1)
         XCTAssertEqual(videoTracks[0].clips.map(\.assetID), [firstURL.path, secondURL.path])
-        XCTAssertEqual(videoTracks[0].clips[0].timelineStart, 30, accuracy: 1e-9)
-        XCTAssertEqual(videoTracks[0].clips[1].timelineStart, 40, accuracy: 1e-9)
+        // The overlay lane's 30-second FIT must not push the videos: their own lane starts at 0.
+        XCTAssertEqual(videoTracks[0].clips[0].timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(videoTracks[0].clips[1].timelineStart, 10, accuracy: 1e-9)
     }
 
     func testQueuedVideoImportsStartAtZeroWhenTimelineIsEmpty() {
@@ -117,8 +118,9 @@ final class MediaPoolTests: XCTestCase {
         let overlayTracks = model.currentTimelineProject.tracks.filter { $0.kind == .overlay }
         XCTAssertEqual(overlayTracks.count, 1)
         XCTAssertEqual(overlayTracks[0].clips.map(\.assetID), [firstURL.path, secondURL.path])
-        XCTAssertEqual(overlayTracks[0].clips[0].timelineStart, 50, accuracy: 1e-9)
-        XCTAssertEqual(overlayTracks[0].clips[1].timelineStart, 60, accuracy: 1e-9)
+        // The 50-second video must not push the activities: their own lane starts at 0.
+        XCTAssertEqual(overlayTracks[0].clips[0].timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(overlayTracks[0].clips[1].timelineStart, 10, accuracy: 1e-9)
     }
 
     func testActiveVideoDerivedFromLoadedURL() {
@@ -220,7 +222,8 @@ final class MediaPoolTests: XCTestCase {
             .flatMap(\.clips)
         XCTAssertEqual(overlayClips.count, 2)
         XCTAssertEqual(overlayClips.last?.assetID, secondURL.path)
-        XCTAssertEqual(overlayClips.last?.timelineStart ?? -1, 120, accuracy: 1e-9)
+        // Appends after the overlay lane's own last clip (80s), not after the 120-second video.
+        XCTAssertEqual(overlayClips.last?.timelineStart ?? -1, 80, accuracy: 1e-9)
         XCTAssertEqual(
             model.currentTimelineProject.tracks.filter { $0.kind == .overlay }.count,
             1
@@ -528,7 +531,9 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(videoClips.count, 2)
         XCTAssertEqual(videoClips[0].assetID, firstURL.path)
         XCTAssertEqual(videoClips[1].assetID, secondURL.path)
-        XCTAssertEqual(videoClips[1].timelineStart, 150, accuracy: 1e-9)
+        // Appends after the video lane's own last clip (100s); the 150-second activity on the
+        // overlay lane must not push it later.
+        XCTAssertEqual(videoClips[1].timelineStart, 100, accuracy: 1e-9)
         XCTAssertEqual(videoClips[1].duration, 40, accuracy: 1e-9)
     }
 
@@ -981,7 +986,7 @@ final class MediaPoolTests: XCTestCase {
             TelemetrySample(elapsed: 45, distanceMeters: 180)
         ]))
         model.previewTime = 20
-        model.addActivityAssetToTimeline(id: pooledURL.path)
+        model.addActivityAssetToTimeline(id: pooledURL.path, targetTrackID: nil, timelineStart: 120)
 
         let clip = try XCTUnwrap(
             model.currentTimelineProject.tracks
@@ -1159,7 +1164,7 @@ final class MediaPoolTests: XCTestCase {
             TelemetrySample(elapsed: 45, distanceMeters: 180)
         ]))
         model.previewTime = 20
-        model.addActivityAssetToTimeline(id: pooledURL.path)
+        model.addActivityAssetToTimeline(id: pooledURL.path, targetTrackID: nil, timelineStart: 120)
 
         let clip = try XCTUnwrap(
             model.currentTimelineProject.tracks
@@ -1168,8 +1173,8 @@ final class MediaPoolTests: XCTestCase {
                 .first { $0.assetID == pooledURL.path }
         )
 
-        // Default insertion appends after the 120-second project. Ripple deletion removes that
-        // trailing range without disturbing clips that already end before it.
+        // The clip sits at 120, after everything else. Ripple deletion removes that trailing
+        // range without disturbing clips that already end before it.
         model.deleteTimelineClip(id: clip.id, ripple: true)
 
         let videoClips = model.currentTimelineProject.tracks
@@ -1187,6 +1192,44 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(overlayClips[0].duration, 80, accuracy: 1e-9)
 
         XCTAssertEqual(model.currentTimelineProject.duration, 120, accuracy: 1e-9)
+    }
+
+    func testJumpingBetweenTimelineEditPoints() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+        let fitURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = fitURL
+
+        // Split the video at 60: edit points are 0, 60, 80 (overlay end) and 120 (video end).
+        model.previewTime = 60
+        model.splitTimelineClipsAtPlayhead()
+        XCTAssertTrue(model.canJumpToTimelineEditPoints)
+
+        model.previewTime = 15
+        model.jumpToNextTimelineEditPoint()
+        XCTAssertEqual(model.previewTime, 60, accuracy: 1e-6)
+        model.jumpToNextTimelineEditPoint()
+        XCTAssertEqual(model.previewTime, 80, accuracy: 1e-6)
+        model.jumpToNextTimelineEditPoint()
+        XCTAssertEqual(model.previewTime, 120, accuracy: 1e-6)
+        // Nothing after the last edit point: the playhead stays put.
+        model.jumpToNextTimelineEditPoint()
+        XCTAssertEqual(model.previewTime, 120, accuracy: 1e-6)
+
+        model.jumpToPreviousTimelineEditPoint()
+        XCTAssertEqual(model.previewTime, 80, accuracy: 1e-6)
+        model.jumpToPreviousTimelineEditPoint()
+        XCTAssertEqual(model.previewTime, 60, accuracy: 1e-6)
+        model.jumpToPreviousTimelineEditPoint()
+        XCTAssertEqual(model.previewTime, 0, accuracy: 1e-6)
+        model.jumpToPreviousTimelineEditPoint()
+        XCTAssertEqual(model.previewTime, 0, accuracy: 1e-6)
     }
 
     func testTimelineEditsSupportUndoAndRedo() throws {

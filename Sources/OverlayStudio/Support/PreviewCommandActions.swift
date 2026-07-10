@@ -11,6 +11,7 @@ struct StudioCommandActions {
     var canMoveSelectionBackward: Bool
     var canSplitTimelineClips: Bool
     var canDeleteTimelineClip: Bool
+    var canJumpToTimelineEditPoints: Bool
     var chooseVideo: () -> Void
     var chooseFIT: () -> Void
     var openTimelineProject: () -> Void
@@ -25,6 +26,8 @@ struct StudioCommandActions {
     var splitTimelineClips: () -> Void
     var deleteTimelineClip: () -> Void
     var rippleDeleteTimelineClip: () -> Void
+    var jumpToPreviousEditPoint: () -> Void
+    var jumpToNextEditPoint: () -> Void
     var showDebugConsole: () -> Void
     var copyDebugLog: () -> Void
     var clearDebugLog: () -> Void
