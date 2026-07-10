@@ -344,6 +344,7 @@ struct ProjectTimelineView: View {
         let asset = project.asset(id: clip.assetID)
         let name = asset?.displayName ?? clip.assetID
         let isSelected = model.selectedTimelineClipID == clip.id
+        let isOffline = model.isTimelineAssetOffline(id: clip.assetID)
         let waveformPeaks = model.videoWaveformPeaksByAssetID[clip.assetID] ?? []
         let pausedRanges = kind == .overlay
             ? (model.activitySeries(forAssetID: clip.assetID)?.pausedRanges ?? [])
@@ -375,18 +376,21 @@ struct ProjectTimelineView: View {
                 }
             }
             .overlay(alignment: .leading) {
-                Text(name)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.45), radius: 1, y: 1)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .padding(.horizontal, 8)
+                HStack(spacing: 4) {
+                    if isOffline { Image(systemName: "exclamationmark.triangle.fill") }
+                    Text(name)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.45), radius: 1, y: 1)
+                .padding(.horizontal, 8)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.accentColor.opacity(0.9) : Color.white.opacity(0.18),
+                        isOffline ? Color.red.opacity(0.9) : (isSelected ? Color.accentColor.opacity(0.9) : Color.white.opacity(0.18)),
                         lineWidth: isSelected ? 1.5 : 1
                     )
             }

@@ -125,9 +125,11 @@ struct MediaPoolList: View {
     var assets: [MediaAsset]
     var activeID: String?
     var inUseIDs: Set<String>
+    var offlineIDs: Set<String> = []
     var addTitle: String
     var select: (String) -> Void
     var remove: (String) -> Void
+    var relink: ((String) -> Void)? = nil
     var appendToTimeline: ((String) -> Void)? = nil
     var timelineDragPayload: ((MediaAsset) -> String)? = nil
     var add: () -> Void
@@ -149,8 +151,10 @@ struct MediaPoolList: View {
                         systemImage: systemImage,
                         isInUse: inUseIDs.contains(asset.id),
                         isActiveSource: asset.id == activeID,
+                        isOffline: offlineIDs.contains(asset.id),
                         select: { select(asset.id) },
                         remove: { remove(asset.id) },
+                        relink: relink.map { relink in { relink(asset.id) } },
                         appendToTimeline: appendToTimeline.map { append in { append(asset.id) } },
                         timelineDragPayload: timelineDragPayload?(asset)
                     )
@@ -173,17 +177,19 @@ struct MediaPoolRow: View {
     var systemImage: String
     var isInUse: Bool
     var isActiveSource: Bool
+    var isOffline: Bool = false
     var select: () -> Void
     var remove: () -> Void
+    var relink: (() -> Void)? = nil
     var appendToTimeline: (() -> Void)? = nil
     var timelineDragPayload: String? = nil
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
         HStack(spacing: 8) {
-            Button(action: select) {
+            Button(action: isOffline ? (relink ?? select) : select) {
                 HStack(spacing: 11) {
-                    ShellIconTile(systemImage: systemImage, isActive: isInUse)
+                    ShellIconTile(systemImage: isOffline ? "exclamationmark.triangle.fill" : systemImage, isActive: isInUse && !isOffline)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(asset.displayName)
                             .font(.subheadline.weight(.semibold))
@@ -195,7 +201,9 @@ struct MediaPoolRow: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 6)
-                    if isInUse {
+                    if isOffline {
+                        ShellStatusChip(localization.string("mediapool.offline"), systemImage: "exclamationmark.triangle", kind: .pending)
+                    } else if isInUse {
                         ShellStatusChip(localization.string("mediapool.inUse"), systemImage: "checkmark", kind: .active)
                     }
                 }
@@ -203,7 +211,14 @@ struct MediaPoolRow: View {
             }
             .buttonStyle(.plain)
 
-            if let appendToTimeline {
+            if isOffline, let relink {
+                Button(action: relink) {
+                    Image(systemName: "link.badge.plus")
+                        .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.borderless)
+                .help(localization.string("mediapool.relink"))
+            } else if let appendToTimeline {
                 Button(action: appendToTimeline) {
                     Image(systemName: "plus.rectangle.on.rectangle")
                         .foregroundStyle(.secondary.opacity(0.75))
@@ -229,7 +244,7 @@ struct MediaPoolRow: View {
                     .strokeBorder(ShellStyle.accentStroke, lineWidth: 1)
             }
         }
-        .modifier(OptionalTextDragModifier(payload: timelineDragPayload))
+        .modifier(OptionalTextDragModifier(payload: isOffline ? nil : timelineDragPayload))
     }
 
     private var subtitle: String {

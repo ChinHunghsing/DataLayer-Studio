@@ -202,7 +202,9 @@ struct OutputPanelView: View {
     }
 
     private var exportActionFooter: some View {
-        let hasVideo = model.videoURL != nil
+        let hasVideo = model.currentTimelineProject.tracks.contains {
+            $0.kind == .video && !$0.clips.isEmpty
+        }
 
         return HStack(alignment: .top, spacing: 10) {
             exportActionSlot(

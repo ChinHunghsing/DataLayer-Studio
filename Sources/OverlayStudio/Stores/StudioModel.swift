@@ -96,6 +96,7 @@ final class StudioModel: ObservableObject {
     @Published var activityAssets: [MediaAsset] = [] {
         didSet { rebuildCurrentTimelineProject() }
     }
+    @Published private(set) var offlineTimelineAssetIDs: Set<String> = []
     @Published private(set) var videoWaveformPeaksByAssetID: [String: [Float]] = [:]
     @Published private(set) var timeline = TimelineProject(
         outputWidth: 1920,
@@ -392,7 +393,8 @@ final class StudioModel: ObservableObject {
     }
 
     func canExport(as mode: OverlayExportMode) -> Bool {
-        exportReadinessMessageKey(for: mode, codec: mode.defaultCodec) == nil
+        offlineAssetNamesForExport(mode: mode).isEmpty
+            && exportReadinessMessageKey(for: mode, codec: mode.defaultCodec) == nil
     }
 
     var needsOutputSelectionBeforeExport: Bool {
@@ -410,11 +412,31 @@ final class StudioModel: ObservableObject {
     }
 
     var exportReadinessMessage: String? {
-        exportReadinessMessageKey.map { localized($0) }
+        exportReadinessMessage(for: exportMode)
     }
 
     func exportReadinessMessage(for mode: OverlayExportMode) -> String? {
-        exportReadinessMessageKey(for: mode, codec: mode.defaultCodec).map { localized($0) }
+        let offlineNames = offlineAssetNamesForExport(mode: mode)
+        if !offlineNames.isEmpty {
+            return localized("status.timelineOfflineAssets", offlineNames.joined(separator: ", "))
+        }
+        return exportReadinessMessageKey(for: mode, codec: mode.defaultCodec).map { localized($0) }
+    }
+
+    private func offlineAssetNamesForExport(mode: OverlayExportMode) -> [String] {
+        guard !timelineUsesSingleSourceMigration else { return [] }
+        let rangeStart = sourceExportTrimStart
+        let rangeEnd = rangeStart + effectiveExportTrimDuration
+        let relevantKinds: Set<TimelineTrack.Kind> = mode == .video ? [.video, .overlay] : [.overlay]
+        let assetIDs = Set(currentTimelineProject.tracks
+            .filter { $0.isEnabled && relevantKinds.contains($0.kind) }
+            .flatMap(\.clips)
+            .filter { $0.timelineEnd > rangeStart && $0.timelineStart < rangeEnd }
+            .map(\.assetID))
+        return currentTimelineProject.assets
+            .filter { assetIDs.contains($0.id) && offlineTimelineAssetIDs.contains($0.id) }
+            .map(\.displayName)
+            .sorted()
     }
 
     private var exportReadinessMessageKey: String? {
@@ -1038,6 +1060,9 @@ final class StudioModel: ObservableObject {
         timeline = sanitizedProject
         videoAssets = sanitizedProject.assets.filter { $0.kind == .video }
         activityAssets = sanitizedProject.assets.filter { $0.kind == .activity }
+        offlineTimelineAssetIDs = loadAssets
+            ? Set(sanitizedProject.assets.filter { !Self.isReadableMediaURL($0.url) }.map(\.id))
+            : []
         activitySeriesByAssetID.removeAll()
 
         let activeVideo = sanitizedProject.sourceMatchPoint.flatMap { matchPoint in
@@ -1136,13 +1161,217 @@ final class StudioModel: ObservableObject {
     }
 
     private func loadTimelineProjectAssets(_ assets: [MediaAsset]) {
-        for asset in assets {
+        for asset in assets where !offlineTimelineAssetIDs.contains(asset.id) {
             switch asset.kind {
             case .video:
-                addVideoAssetToPool(asset.url)
+                loadTimelineVideoAsset(asset)
             case .activity:
-                addActivityAssetToPool(asset.url)
+                loadTimelineActivityAsset(asset)
             }
+        }
+    }
+
+    private nonisolated static func isReadableMediaURL(_ url: URL) -> Bool {
+        FileManager.default.isReadableFile(atPath: url.path)
+    }
+
+    func isTimelineAssetOffline(id: String) -> Bool {
+        offlineTimelineAssetIDs.contains(id)
+    }
+
+    func chooseReplacementForTimelineAsset(id: String) {
+        guard !isExporting,
+              let asset = currentTimelineProject.asset(id: id) else { return }
+        let panel = NSOpenPanel()
+        panel.title = localized("panel.relinkMedia", asset.displayName)
+        panel.message = localized("panel.relinkMedia.message", asset.displayName)
+        panel.prompt = localized("mediapool.relink")
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        switch asset.kind {
+        case .video:
+            panel.allowedContentTypes = [.movie, .video, .mpeg4Movie, .quickTimeMovie]
+        case .activity:
+            panel.allowedContentTypes = ["fit", "gpx"].compactMap { UTType(filenameExtension: $0) }
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        relinkTimelineAsset(id: id, to: url)
+    }
+
+    func relinkTimelineAsset(id: String, to url: URL) {
+        guard !isExporting,
+              let asset = currentTimelineProject.asset(id: id) else { return }
+        switch asset.kind {
+        case .video:
+            loadTimelineVideoAsset(asset, replacementURL: url, reportsRelinkStatus: true)
+        case .activity:
+            loadTimelineActivityAsset(asset, replacementURL: url, reportsRelinkStatus: true)
+        }
+    }
+
+    private func loadTimelineVideoAsset(
+        _ asset: MediaAsset,
+        replacementURL: URL? = nil,
+        reportsRelinkStatus: Bool = false
+    ) {
+        let url = replacementURL ?? asset.url
+        Task.detached {
+            do {
+                let loaded = try await VideoMetadata.loadAsync(from: url)
+                await MainActor.run { [weak self] in
+                    self?.applyLoadedTimelineVideoAsset(
+                        id: asset.id,
+                        url: url,
+                        metadata: loaded,
+                        reportsRelinkStatus: reportsRelinkStatus
+                    )
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.markTimelineAssetLoadFailed(
+                        id: asset.id,
+                        displayName: asset.displayName,
+                        error: error,
+                        reportsRelinkStatus: reportsRelinkStatus
+                    )
+                }
+            }
+        }
+    }
+
+    private func loadTimelineActivityAsset(
+        _ asset: MediaAsset,
+        replacementURL: URL? = nil,
+        reportsRelinkStatus: Bool = false
+    ) {
+        let url = replacementURL ?? asset.url
+        Task.detached {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let parsed = try TelemetryFileParser().parse(url: url)
+                await MainActor.run { [weak self] in
+                    self?.applyLoadedTimelineActivityAsset(
+                        id: asset.id,
+                        url: url,
+                        series: parsed,
+                        reportsRelinkStatus: reportsRelinkStatus
+                    )
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.markTimelineAssetLoadFailed(
+                        id: asset.id,
+                        displayName: asset.displayName,
+                        error: error,
+                        reportsRelinkStatus: reportsRelinkStatus
+                    )
+                }
+            }
+        }
+    }
+
+    private func applyLoadedTimelineVideoAsset(
+        id: String,
+        url: URL,
+        metadata loaded: VideoMetadata,
+        reportsRelinkStatus: Bool
+    ) {
+        guard let existing = currentTimelineProject.asset(id: id), existing.kind == .video else { return }
+        if reportsRelinkStatus {
+            replaceTimelineAssetLocation(
+                id: id,
+                url: url,
+                duration: loaded.duration,
+                width: Int(loaded.size.width.rounded()),
+                height: Int(loaded.size.height.rounded()),
+                framesPerSecond: loaded.framesPerSecond
+            )
+        } else if let index = videoAssets.firstIndex(where: { $0.id == id }) {
+            var updated = videoAssets[index]
+            updated.duration = loaded.duration
+            updated.width = Int(loaded.size.width.rounded())
+            updated.height = Int(loaded.size.height.rounded())
+            updated.framesPerSecond = loaded.framesPerSecond
+            videoAssets[index] = updated
+            offlineTimelineAssetIDs.remove(id)
+        }
+        if videoURL == existing.url || preferredActiveAssetID(kind: .video) == id {
+            videoURL = url
+            metadata = loaded
+            if usesCustomTimelinePreview { configureTimelinePlayer() } else { configurePlayer(url: url) }
+        }
+        if reportsRelinkStatus { setStatus("status.timelineMediaRelinked", url.lastPathComponent) }
+    }
+
+    private func applyLoadedTimelineActivityAsset(
+        id: String,
+        url: URL,
+        series loaded: TelemetrySeries,
+        reportsRelinkStatus: Bool
+    ) {
+        guard let existing = currentTimelineProject.asset(id: id), existing.kind == .activity else { return }
+        activitySeriesByAssetID[id] = loaded
+        if reportsRelinkStatus {
+            replaceTimelineAssetLocation(id: id, url: url, duration: loaded.duration)
+        } else if let index = activityAssets.firstIndex(where: { $0.id == id }) {
+            var updated = activityAssets[index]
+            updated.duration = loaded.duration
+            activityAssets[index] = updated
+            offlineTimelineAssetIDs.remove(id)
+        }
+        if fitURL == existing.url || preferredActiveAssetID(kind: .activity) == id {
+            fitURL = url
+            series = loaded
+        }
+        refreshOverlayOrPreview()
+        if reportsRelinkStatus { setStatus("status.timelineMediaRelinked", url.lastPathComponent) }
+    }
+
+    private func replaceTimelineAssetLocation(
+        id: String,
+        url: URL,
+        duration: TimeInterval,
+        width: Int? = nil,
+        height: Int? = nil,
+        framesPerSecond: Double? = nil
+    ) {
+        guard let index = timeline.assets.firstIndex(where: { $0.id == id }) else { return }
+        var updated = timeline.assets[index]
+        updated.url = url
+        updated.displayName = url.lastPathComponent
+        updated.duration = duration
+        updated.width = width ?? updated.width
+        updated.height = height ?? updated.height
+        updated.framesPerSecond = framesPerSecond ?? updated.framesPerSecond
+        updated.bookmarkData = securityScopedBookmarkData(for: url)
+        timeline.assets[index] = updated
+        if let poolIndex = videoAssets.firstIndex(where: { $0.id == id }) { videoAssets[poolIndex] = updated }
+        if let poolIndex = activityAssets.firstIndex(where: { $0.id == id }) { activityAssets[poolIndex] = updated }
+        offlineTimelineAssetIDs.remove(id)
+        videoWaveformPeaksByAssetID[id] = nil
+        stopTimelineSecurityScopedAccess()
+        startTimelineSecurityScopedAccess(for: timeline.assets)
+    }
+
+    private func markTimelineAssetLoadFailed(
+        id: String,
+        displayName: String,
+        error: Error,
+        reportsRelinkStatus: Bool
+    ) {
+        offlineTimelineAssetIDs.insert(id)
+        if reportsRelinkStatus {
+            setStatus("status.timelineMediaRelinkError", displayName, error.localizedDescription)
+        }
+    }
+
+    private func preferredActiveAssetID(kind: MediaAsset.Kind) -> String? {
+        switch kind {
+        case .video:
+            return timeline.sourceMatchPoint?.videoAssetID ?? videoAssets.first?.id
+        case .activity:
+            return timeline.sourceMatchPoint?.activityAssetID ?? activityAssets.first?.id
         }
     }
 
@@ -3948,6 +4177,11 @@ final class StudioModel: ObservableObject {
     private func export(allowingUnreadyWeather: Bool) {
         guard !isExporting else { return }
         guard allowingUnreadyWeather || !isWeatherExportConfirmationPresented else { return }
+        let offlineNames = offlineAssetNamesForExport(mode: exportMode)
+        if !offlineNames.isEmpty {
+            setStatus("status.timelineOfflineAssets", offlineNames.joined(separator: ", "))
+            return
+        }
         if let exportReadinessMessageKey {
             setStatus(exportReadinessMessageKey)
             return

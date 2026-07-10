@@ -1005,6 +1005,100 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.currentTimelineProject.outputWidth, 1920)
     }
 
+    func testOpeningProjectKeepsOfflineClipsAndBlocksExportWithAssetName() {
+        let model = StudioModel()
+        let missingURL = URL(fileURLWithPath: "/tmp/datalayer-offline-\(UUID().uuidString).gpx")
+        let asset = MediaAsset(
+            id: "activity.stable-id",
+            kind: .activity,
+            url: missingURL,
+            displayName: "morning-run.gpx",
+            duration: 30
+        )
+        let clip = TimelineClip(
+            id: "activity.clip",
+            assetID: asset.id,
+            timelineStart: 4,
+            duration: 20,
+            sourceIn: 3,
+            layout: .default
+        )
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [asset],
+            tracks: [TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [clip])]
+        )
+
+        model.applyTimelineProject(project, loadAssets: true)
+
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips, [clip])
+        XCTAssertEqual(model.currentTimelineProject.assets[0].id, asset.id)
+        XCTAssertTrue(model.isTimelineAssetOffline(id: asset.id))
+        XCTAssertFalse(model.canExport(as: .overlay))
+        XCTAssertTrue(model.exportReadinessMessage(for: .overlay)?.contains("morning-run.gpx") == true)
+    }
+
+    func testRelinkingActivityPreservesStableAssetAndClipIDs() async throws {
+        let model = StudioModel()
+        let missingURL = URL(fileURLWithPath: "/tmp/datalayer-offline-\(UUID().uuidString).gpx")
+        let replacementURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("datalayer-relinked-\(UUID().uuidString).gpx")
+        defer { try? FileManager.default.removeItem(at: replacementURL) }
+        let gpx = """
+        <gpx version="1.1" creator="DataLayer Studio" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><trkseg>
+            <trkpt lat="35.0" lon="139.0"><time>2026-07-10T00:00:00Z</time></trkpt>
+            <trkpt lat="35.0001" lon="139.0001"><time>2026-07-10T00:00:03Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>
+        """
+        try Data(gpx.utf8).write(to: replacementURL)
+
+        let asset = MediaAsset(
+            id: "activity.stable-id",
+            kind: .activity,
+            url: missingURL,
+            displayName: "missing.gpx",
+            duration: 30
+        )
+        let clip = TimelineClip(
+            id: "activity.clip",
+            assetID: asset.id,
+            timelineStart: 7,
+            duration: 3,
+            sourceIn: 0,
+            layout: .default
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1920,
+                outputHeight: 1080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [asset],
+                tracks: [TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [clip])]
+            ),
+            loadAssets: true
+        )
+
+        model.relinkTimelineAsset(id: asset.id, to: replacementURL)
+        for _ in 0..<40 where model.isTimelineAssetOffline(id: asset.id) {
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        let relinked = try XCTUnwrap(model.currentTimelineProject.asset(id: asset.id))
+        XCTAssertFalse(model.isTimelineAssetOffline(id: asset.id))
+        XCTAssertEqual(relinked.id, asset.id)
+        XCTAssertEqual(relinked.url, replacementURL)
+        XCTAssertEqual(relinked.displayName, replacementURL.lastPathComponent)
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips[0], clip)
+        XCTAssertNotNil(model.activitySeries(forAssetID: asset.id))
+        XCTAssertTrue(model.canExport(as: .overlay))
+    }
+
     func testTrimmingPooledTimelineClipUpdatesClipGeometry() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
