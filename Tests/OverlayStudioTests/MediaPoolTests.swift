@@ -35,6 +35,92 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.videoAssets.map(\.id), ["/tmp/a.mov", "/tmp/b.mov"])
     }
 
+    func testQueuedVideoImportsWaitForSelectionOrderAndAppendToExistingTimeline() {
+        let model = StudioModel()
+        let activityURL = URL(fileURLWithPath: "/tmp/existing.fit")
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 30, distanceMeters: 100)
+        ]))
+        model.fitURL = activityURL
+
+        let firstURL = URL(fileURLWithPath: "/tmp/import-1.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/import-2.mov")
+        model.queueImportedVideosForTimeline([firstURL, secondURL])
+
+        model.upsertVideoAsset(
+            url: secondURL,
+            metadata: videoMetadata(width: 1280, height: 720, duration: 20, fps: 30)
+        )
+        XCTAssertTrue(model.currentTimelineProject.tracks.filter { $0.kind == .video }.isEmpty)
+
+        model.upsertVideoAsset(
+            url: firstURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 10, fps: 30)
+        )
+
+        let videoTracks = model.currentTimelineProject.tracks.filter { $0.kind == .video }
+        XCTAssertEqual(videoTracks.count, 1)
+        XCTAssertEqual(videoTracks[0].clips.map(\.assetID), [firstURL.path, secondURL.path])
+        XCTAssertEqual(videoTracks[0].clips[0].timelineStart, 30, accuracy: 1e-9)
+        XCTAssertEqual(videoTracks[0].clips[1].timelineStart, 40, accuracy: 1e-9)
+    }
+
+    func testQueuedVideoImportsStartAtZeroWhenTimelineIsEmpty() {
+        let model = StudioModel()
+        let firstURL = URL(fileURLWithPath: "/tmp/empty-import-1.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/empty-import-2.mov")
+        model.queueImportedVideosForTimeline([firstURL, secondURL])
+
+        // The first selected file becomes the active source before its metadata is inserted.
+        model.videoURL = firstURL
+        model.upsertVideoAsset(
+            url: secondURL,
+            metadata: videoMetadata(width: 1280, height: 720, duration: 20, fps: 30)
+        )
+        model.upsertVideoAsset(
+            url: firstURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 10, fps: 30)
+        )
+
+        let videoTracks = model.currentTimelineProject.tracks.filter { $0.kind == .video }
+        XCTAssertEqual(videoTracks.count, 1)
+        XCTAssertEqual(videoTracks[0].clips.map(\.assetID), [firstURL.path, secondURL.path])
+        XCTAssertEqual(videoTracks[0].clips[0].timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(videoTracks[0].clips[1].timelineStart, 10, accuracy: 1e-9)
+    }
+
+    func testQueuedActivityImportsWaitForSelectionOrderAndReuseOneOverlayTrack() {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/existing.mov")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 50, fps: 30)
+        )
+        model.videoURL = videoURL
+
+        let firstURL = URL(fileURLWithPath: "/tmp/import-1.fit")
+        let secondURL = URL(fileURLWithPath: "/tmp/import-2.fit")
+        model.queueImportedActivitiesForTimeline([firstURL, secondURL])
+
+        model.upsertActivityAsset(url: secondURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 20, distanceMeters: 100)
+        ]))
+        XCTAssertTrue(model.currentTimelineProject.tracks.filter { $0.kind == .overlay }.isEmpty)
+
+        model.upsertActivityAsset(url: firstURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, distanceMeters: 50)
+        ]))
+
+        let overlayTracks = model.currentTimelineProject.tracks.filter { $0.kind == .overlay }
+        XCTAssertEqual(overlayTracks.count, 1)
+        XCTAssertEqual(overlayTracks[0].clips.map(\.assetID), [firstURL.path, secondURL.path])
+        XCTAssertEqual(overlayTracks[0].clips[0].timelineStart, 50, accuracy: 1e-9)
+        XCTAssertEqual(overlayTracks[0].clips[1].timelineStart, 60, accuracy: 1e-9)
+    }
+
     func testActiveVideoDerivedFromLoadedURL() {
         let model = StudioModel()
         let url = URL(fileURLWithPath: "/tmp/a.mov")
@@ -127,8 +213,6 @@ final class MediaPoolTests: XCTestCase {
             TelemetrySample(elapsed: 45, distanceMeters: 180)
         ])
         model.upsertActivityAsset(url: secondURL, series: secondSeries)
-        model.previewTime = 12
-
         model.addActivityAssetToTimeline(id: secondURL.path)
 
         let overlayClips = model.currentTimelineProject.tracks
@@ -136,7 +220,11 @@ final class MediaPoolTests: XCTestCase {
             .flatMap(\.clips)
         XCTAssertEqual(overlayClips.count, 2)
         XCTAssertEqual(overlayClips.last?.assetID, secondURL.path)
-        XCTAssertEqual(overlayClips.last?.timelineStart ?? -1, 12, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips.last?.timelineStart ?? -1, 120, accuracy: 1e-9)
+        XCTAssertEqual(
+            model.currentTimelineProject.tracks.filter { $0.kind == .overlay }.count,
+            1
+        )
 
         let exportSeries = model.timelineTelemetrySeriesForExport(project: model.currentTimelineProject)
         XCTAssertEqual(exportSeries[firstURL.path]?.duration, firstSeries.duration)
@@ -184,14 +272,13 @@ final class MediaPoolTests: XCTestCase {
         )
 
         let overlayTracks = model.currentTimelineProject.tracks.filter { $0.kind == .overlay }
-        XCTAssertEqual(overlayTracks.count, 2)
+        XCTAssertEqual(overlayTracks.count, 1)
 
         let updatedTrack = try XCTUnwrap(overlayTracks.first { $0.id == targetTrack.id })
-        XCTAssertEqual(updatedTrack.clips.count, 2)
+        XCTAssertEqual(updatedTrack.clips.count, 3)
         XCTAssertEqual(updatedTrack.clips.last?.assetID, secondPooledURL.path)
-        // The drop point 33 sits inside the first pooled clip [0, 45): the new clip lands in the
-        // nearest free gap instead of overlapping.
-        XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 45, accuracy: 1e-9)
+        // The drop point sits inside the occupied [0, 125) span, so the clip lands after it.
+        XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 125, accuracy: 1e-9)
     }
 
     func testMatchPointHelperWritesCanonicalSync() {
@@ -407,7 +494,7 @@ final class MediaPoolTests: XCTestCase {
                 .first { $0.assetID == pooledURL.path }
         )
 
-        model.moveTimelineClip(id: customClip.id, toTimelineStart: 32)
+        model.moveTimelineClip(id: customClip.id, toTimelineStart: 95)
 
         let movedClip = try XCTUnwrap(
             model.currentTimelineProject.tracks
@@ -415,7 +502,7 @@ final class MediaPoolTests: XCTestCase {
                 .flatMap(\.clips)
                 .first { $0.id == customClip.id }
         )
-        XCTAssertEqual(movedClip.timelineStart, 32, accuracy: 1e-9)
+        XCTAssertEqual(movedClip.timelineStart, 95, accuracy: 1e-9)
         XCTAssertEqual(model.activitySyncZeroVideoTime, 10, accuracy: 1e-9)
     }
 
@@ -426,6 +513,12 @@ final class MediaPoolTests: XCTestCase {
         model.upsertVideoAsset(url: firstURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 100, fps: 30))
         model.upsertVideoAsset(url: secondURL, metadata: videoMetadata(width: 1280, height: 720, duration: 40, fps: 30))
         model.videoURL = firstURL
+        let activityURL = URL(fileURLWithPath: "/tmp/longer.fit")
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 150, distanceMeters: 300)
+        ]))
+        model.fitURL = activityURL
 
         model.addVideoAssetToTimeline(id: secondURL.path)
 
@@ -435,7 +528,7 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(videoClips.count, 2)
         XCTAssertEqual(videoClips[0].assetID, firstURL.path)
         XCTAssertEqual(videoClips[1].assetID, secondURL.path)
-        XCTAssertEqual(videoClips[1].timelineStart, 100, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[1].timelineStart, 150, accuracy: 1e-9)
         XCTAssertEqual(videoClips[1].duration, 40, accuracy: 1e-9)
     }
 
@@ -833,8 +926,8 @@ final class MediaPoolTests: XCTestCase {
                 .first { $0.assetID == pooledURL.path }
         )
 
-        model.trimTimelineClipStart(id: clip.id, toTimelineTime: 25)
-        model.trimTimelineClipEnd(id: clip.id, toTimelineTime: 60)
+        model.trimTimelineClipStart(id: clip.id, toTimelineTime: 125)
+        model.trimTimelineClipEnd(id: clip.id, toTimelineTime: 160)
 
         let trimmed = try XCTUnwrap(
             model.currentTimelineProject.tracks
@@ -842,7 +935,7 @@ final class MediaPoolTests: XCTestCase {
                 .flatMap(\.clips)
                 .first { $0.id == clip.id }
         )
-        XCTAssertEqual(trimmed.timelineStart, 25, accuracy: 1e-9)
+        XCTAssertEqual(trimmed.timelineStart, 125, accuracy: 1e-9)
         XCTAssertEqual(trimmed.sourceIn, 5, accuracy: 1e-9)
         XCTAssertEqual(trimmed.duration, 35, accuracy: 1e-9)
     }
@@ -955,29 +1048,25 @@ final class MediaPoolTests: XCTestCase {
                 .first { $0.assetID == pooledURL.path }
         )
 
-        // The pooled clip covers [20, 65); ripple deleting it closes that range everywhere.
+        // Default insertion appends after the 120-second project. Ripple deletion removes that
+        // trailing range without disturbing clips that already end before it.
         model.deleteTimelineClip(id: clip.id, ripple: true)
 
         let videoClips = model.currentTimelineProject.tracks
             .filter { $0.kind == .video }
             .flatMap(\.clips)
-        XCTAssertEqual(videoClips.count, 2)
+        XCTAssertEqual(videoClips.count, 1)
         XCTAssertEqual(videoClips[0].timelineStart, 0, accuracy: 1e-9)
-        XCTAssertEqual(videoClips[0].duration, 20, accuracy: 1e-9)
-        XCTAssertEqual(videoClips[1].timelineStart, 20, accuracy: 1e-9)
-        XCTAssertEqual(videoClips[1].sourceIn, 65, accuracy: 1e-9)
-        XCTAssertEqual(videoClips[1].duration, 55, accuracy: 1e-9)
+        XCTAssertEqual(videoClips[0].duration, 120, accuracy: 1e-9)
 
         let overlayClips = model.currentTimelineProject.tracks
             .filter { $0.kind == .overlay }
             .flatMap(\.clips)
-        XCTAssertEqual(overlayClips.count, 2)
-        XCTAssertEqual(overlayClips[0].duration, 20, accuracy: 1e-9)
-        XCTAssertEqual(overlayClips[1].timelineStart, 20, accuracy: 1e-9)
-        XCTAssertEqual(overlayClips[1].sourceIn, 65, accuracy: 1e-9)
-        XCTAssertEqual(overlayClips[1].duration, 15, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips.count, 1)
+        XCTAssertEqual(overlayClips[0].timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(overlayClips[0].duration, 80, accuracy: 1e-9)
 
-        XCTAssertEqual(model.currentTimelineProject.duration, 75, accuracy: 1e-9)
+        XCTAssertEqual(model.currentTimelineProject.duration, 120, accuracy: 1e-9)
     }
 
     func testTimelineEditsSupportUndoAndRedo() throws {
@@ -1058,9 +1147,9 @@ final class MediaPoolTests: XCTestCase {
         )
 
         // Rapid-fire updates from one drag collapse into a single undo step.
-        model.moveTimelineClip(id: clip.id, toTimelineStart: 5)
-        model.moveTimelineClip(id: clip.id, toTimelineStart: 9)
-        model.moveTimelineClip(id: clip.id, toTimelineStart: 14)
+        model.moveTimelineClip(id: clip.id, toTimelineStart: 65)
+        model.moveTimelineClip(id: clip.id, toTimelineStart: 70)
+        model.moveTimelineClip(id: clip.id, toTimelineStart: 75)
 
         undoManager.undo()
         let restored = try XCTUnwrap(
@@ -1068,7 +1157,7 @@ final class MediaPoolTests: XCTestCase {
                 .flatMap(\.clips)
                 .first { $0.id == clip.id }
         )
-        XCTAssertEqual(restored.timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(restored.timelineStart, 60, accuracy: 1e-9)
     }
 
     func testMovingAndTrimmingClipsCannotOverlapOnSameTrack() throws {
@@ -1156,7 +1245,7 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.selectedTimelineClipID, clip.id)
         XCTAssertNil(model.selectedElement)
 
-        model.setTimelineClipTiming(id: clip.id, timelineStart: 18, sourceIn: 4, duration: 20)
+        model.setTimelineClipTiming(id: clip.id, timelineStart: 70, sourceIn: 4, duration: 20)
         model.setTimelineClipDistanceUnit(id: clip.id, .meters)
 
         var customLayout = model.layout
@@ -1164,7 +1253,7 @@ final class MediaPoolTests: XCTestCase {
         model.setTimelineClipLayout(id: clip.id, customLayout)
 
         let edited = try XCTUnwrap(model.selectedTimelineClip)
-        XCTAssertEqual(edited.timelineStart, 18, accuracy: 1e-9)
+        XCTAssertEqual(edited.timelineStart, 70, accuracy: 1e-9)
         XCTAssertEqual(edited.sourceIn, 4, accuracy: 1e-9)
         XCTAssertEqual(edited.duration, 20, accuracy: 1e-9)
         XCTAssertEqual(edited.distanceUnit, .meters)

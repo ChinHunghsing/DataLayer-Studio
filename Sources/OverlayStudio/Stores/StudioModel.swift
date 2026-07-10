@@ -231,6 +231,8 @@ final class StudioModel: ObservableObject {
     private var fitLoadTask: Task<Void, Never>?
     private var weatherLoadTask: Task<Void, Never>?
     private var videoWaveformLoadTasks: [String: Task<Void, Never>] = [:]
+    private var pendingVideoTimelineImportIDs: [String] = []
+    private var pendingActivityTimelineImportIDs: [String] = []
     private var pendingOverlayRefreshAfterCurrentRender = false
     private var pendingOverlayRefreshDisplaysIntermediateResult = false
     private var isScrubbingPreview = false
@@ -642,6 +644,7 @@ final class StudioModel: ObservableObject {
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.movie, .video, .mpeg4Movie, .quickTimeMovie]
         guard panel.runModal() == .OK, let first = panel.urls.first else { return }
+        queueImportedVideosForTimeline(panel.urls)
         setVideo(first)
         for url in panel.urls.dropFirst() { addVideoAssetToPool(url) }
     }
@@ -656,6 +659,7 @@ final class StudioModel: ObservableObject {
         panel.canChooseDirectories = false
         panel.allowedContentTypes = ["fit", "gpx"].compactMap { UTType(filenameExtension: $0) }
         guard panel.runModal() == .OK, let first = panel.urls.first else { return }
+        queueImportedActivitiesForTimeline(panel.urls)
         setFIT(first)
         for url in panel.urls.dropFirst() { addActivityAssetToPool(url) }
     }
@@ -664,9 +668,15 @@ final class StudioModel: ObservableObject {
     /// active source. Used when multiple files are imported at once.
     private func addVideoAssetToPool(_ url: URL) {
         Task.detached {
-            guard let loaded = try? await VideoMetadata.loadAsync(from: url) else { return }
-            await MainActor.run { [weak self] in
-                self?.upsertVideoAsset(url: url, metadata: loaded)
+            do {
+                let loaded = try await VideoMetadata.loadAsync(from: url)
+                await MainActor.run { [weak self] in
+                    self?.upsertVideoAsset(url: url, metadata: loaded)
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.discardPendingVideoTimelineImport(id: url.path)
+                }
             }
         }
     }
@@ -677,9 +687,15 @@ final class StudioModel: ObservableObject {
         Task.detached {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
-            guard let parsed = try? TelemetryFileParser().parse(url: url) else { return }
-            await MainActor.run { [weak self] in
-                self?.upsertActivityAsset(url: url, series: parsed)
+            do {
+                let parsed = try TelemetryFileParser().parse(url: url)
+                await MainActor.run { [weak self] in
+                    self?.upsertActivityAsset(url: url, series: parsed)
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.discardPendingActivityTimelineImport(id: url.path)
+                }
             }
         }
     }
@@ -1240,7 +1256,13 @@ final class StudioModel: ObservableObject {
         videoLoadTask = Task.detached {
             do {
                 let loaded = try await VideoMetadata.loadAsync(from: url)
-                guard !Task.isCancelled else { return }
+                if Task.isCancelled {
+                    await MainActor.run { [weak self] in
+                        guard let self, self.videoLoadGeneration == loadGeneration else { return }
+                        self.discardPendingVideoTimelineImport(id: url.path)
+                    }
+                    return
+                }
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     guard !Task.isCancelled,
@@ -1258,7 +1280,11 @@ final class StudioModel: ObservableObject {
                     self.resetExportTrimRangeToFullDuration()
                     self.applySuggestedOutputURLIfNeeded(for: url, replacingManualSelection: true)
                     self.previewTime = 0
-                    self.configurePlayer(url: url)
+                    if self.timelineUsesSingleSourceMigration {
+                        self.configurePlayer(url: url)
+                    } else {
+                        self.configureTimelinePlayer()
+                    }
                     self.setStatus("status.loadedVideo", url.lastPathComponent)
                     self.refreshPreview()
                     self.videoLoadTask = nil
@@ -1267,6 +1293,7 @@ final class StudioModel: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     guard self.videoLoadGeneration == loadGeneration else { return }
+                    self.discardPendingVideoTimelineImport(id: url.path)
                     self.videoLoadTask = nil
                 }
             } catch {
@@ -1276,6 +1303,7 @@ final class StudioModel: ObservableObject {
                     guard !Task.isCancelled,
                           self.videoLoadGeneration == loadGeneration else { return }
                     self.videoLoadFailure = SourceLoadFailure(url: url, messageKey: "status.videoError", detail: message)
+                    self.discardPendingVideoTimelineImport(id: url.path)
                     self.setStatus("status.videoError", message)
                     self.videoLoadTask = nil
                 }
@@ -1928,6 +1956,7 @@ final class StudioModel: ObservableObject {
         } else {
             videoAssets.append(asset)
         }
+        drainPendingVideoTimelineImports()
     }
 
     /// Add or refresh an activity in the pool (called once its telemetry has parsed). Deduplicated by path.
@@ -1945,6 +1974,65 @@ final class StudioModel: ObservableObject {
         } else {
             activityAssets.append(asset)
         }
+        drainPendingActivityTimelineImports()
+    }
+
+    /// Keep the Finder selection order even though metadata loading can finish out of order.
+    func queueImportedVideosForTimeline(_ urls: [URL]) {
+        preserveExistingTimelineForImportedAppendIfNeeded()
+        pendingVideoTimelineImportIDs.removeAll(keepingCapacity: true)
+        for id in urls.map(\.path) where !pendingVideoTimelineImportIDs.contains(id) {
+            pendingVideoTimelineImportIDs.append(id)
+        }
+        drainPendingVideoTimelineImports()
+    }
+
+    /// Keep the Finder selection order even though telemetry parsing can finish out of order.
+    func queueImportedActivitiesForTimeline(_ urls: [URL]) {
+        preserveExistingTimelineForImportedAppendIfNeeded()
+        pendingActivityTimelineImportIDs.removeAll(keepingCapacity: true)
+        for id in urls.map(\.path) where !pendingActivityTimelineImportIDs.contains(id) {
+            pendingActivityTimelineImportIDs.append(id)
+        }
+        drainPendingActivityTimelineImports()
+    }
+
+    private func preserveExistingTimelineForImportedAppendIfNeeded() {
+        guard timelineUsesSingleSourceMigration,
+              timeline.tracks.contains(where: { !$0.clips.isEmpty }) else { return }
+        rebuildCurrentTimelineProject()
+        timelineUsesSingleSourceMigration = false
+    }
+
+    private func drainPendingVideoTimelineImports() {
+        while let id = pendingVideoTimelineImportIDs.first,
+              videoAssets.contains(where: { $0.id == id }) {
+            pendingVideoTimelineImportIDs.removeFirst()
+            if !timelineContainsAsset(id: id) {
+                addVideoAssetToTimeline(id: id)
+            }
+        }
+    }
+
+    private func drainPendingActivityTimelineImports() {
+        while let id = pendingActivityTimelineImportIDs.first,
+              activityAssets.contains(where: { $0.id == id }),
+              activitySeriesByAssetID[id] != nil {
+            pendingActivityTimelineImportIDs.removeFirst()
+            if !timelineContainsAsset(id: id) {
+                addActivityAssetToTimeline(id: id)
+            }
+        }
+    }
+
+    private func discardPendingVideoTimelineImport(id: String) {
+        pendingVideoTimelineImportIDs.removeAll { $0 == id }
+        drainPendingVideoTimelineImports()
+    }
+
+    private func discardPendingActivityTimelineImport(id: String) {
+        pendingActivityTimelineImportIDs.removeAll { $0 == id }
+        drainPendingActivityTimelineImports()
     }
 
     /// Make a pooled video the active source.
@@ -2031,8 +2119,8 @@ final class StudioModel: ObservableObject {
         addActivityAssetToTimeline(id: id, targetTrackID: nil, timelineStart: nil)
     }
 
-    /// Add a pooled activity as an overlay clip. Without a target track this preserves the
-    /// existing behavior and creates a new overlay lane; drops can append to a chosen lane.
+    /// Add a pooled activity as an overlay clip. Button-based insertion appends at the end of the
+    /// project on the first available overlay lane; drops can target a lane and relative time.
     func addActivityAssetToTimeline(id: String, targetTrackID: String?, timelineStart: TimeInterval?) {
         guard !isExporting,
               let asset = activityAssets.first(where: { $0.id == id }),
@@ -2061,17 +2149,20 @@ final class StudioModel: ObservableObject {
         var clip = TimelineClip(
             id: "overlay.clip.\(UUID().uuidString)",
             assetID: asset.id,
-            timelineStart: max(0, timelineStart ?? previewTime),
+            timelineStart: max(0, timelineStart ?? timeline.duration),
             duration: asset.duration,
             sourceIn: 0,
             layout: layout.sanitized,
             distanceUnit: distanceUnit
         )
 
-        if let targetTrackID,
-           let trackIndex = timeline.tracks.firstIndex(where: {
-               $0.id == targetTrackID && $0.kind == .overlay && !$0.isLocked
-           }) {
+        let targetTrackIndex = targetTrackID.flatMap { targetTrackID in
+            timeline.tracks.firstIndex {
+                $0.id == targetTrackID && $0.kind == .overlay && !$0.isLocked
+            }
+        }
+        if let trackIndex = targetTrackIndex
+            ?? timeline.tracks.firstIndex(where: { $0.kind == .overlay && !$0.isLocked }) {
             // Land in the nearest gap that fits so the track stays overlap-free.
             clip.timelineStart = timeline.tracks[trackIndex].nonOverlappingStart(
                 forClipID: clip.id,
@@ -2128,11 +2219,7 @@ final class StudioModel: ObservableObject {
         var clip = TimelineClip(
             id: "video.clip.\(UUID().uuidString)",
             assetID: asset.id,
-            timelineStart: max(0, timelineStart ?? timeline.tracks
-                .filter { $0.kind == .video }
-                .flatMap(\.clips)
-                .map(\.timelineEnd)
-                .max() ?? 0),
+            timelineStart: max(0, timelineStart ?? timeline.duration),
             duration: asset.duration,
             sourceIn: 0
         )
@@ -2688,7 +2775,13 @@ final class StudioModel: ObservableObject {
                     }
                 }
                 let parsedSeries = try TelemetryFileParser().parse(url: url)
-                guard !Task.isCancelled else { return }
+                if Task.isCancelled {
+                    await MainActor.run { [weak self] in
+                        guard let self, self.fitLoadGeneration == loadGeneration else { return }
+                        self.discardPendingActivityTimelineImport(id: url.path)
+                    }
+                    return
+                }
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     guard !Task.isCancelled,
@@ -2714,6 +2807,7 @@ final class StudioModel: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     guard self.fitLoadGeneration == loadGeneration else { return }
+                    self.discardPendingActivityTimelineImport(id: url.path)
                     self.fitLoadTask = nil
                 }
             } catch {
@@ -2732,6 +2826,7 @@ final class StudioModel: ObservableObject {
                     guard !Task.isCancelled,
                           self.fitLoadGeneration == loadGeneration else { return }
                     self.fitLoadFailure = SourceLoadFailure(url: url, messageKey: "status.fitError", detail: message)
+                    self.discardPendingActivityTimelineImport(id: url.path)
                     self.setStatus("status.fitError", message)
                     self.addDebugLog(.input, "Activity file error: \(message)")
                     self.fitLoadTask = nil
