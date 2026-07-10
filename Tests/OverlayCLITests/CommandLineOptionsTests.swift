@@ -200,7 +200,7 @@ final class CommandLineOptionsTests: XCTestCase {
         XCTAssertEqual(loaded, project)
     }
 
-    func testTimelineProjectCLIAllowsVideoGapDuringSharedPreflight() throws {
+    func testTimelineProjectCLIAllowsVideoGapAndUpperTrackOverlapDuringSharedPreflight() throws {
         let activityURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("datalayer-cli-preflight-\(UUID().uuidString)")
             .appendingPathExtension("gpx")
@@ -236,9 +236,11 @@ final class CommandLineOptionsTests: XCTestCase {
                 MediaAsset(id: "activity", kind: .activity, url: activityURL, displayName: activityURL.lastPathComponent, duration: 3)
             ],
             tracks: [
-                TimelineTrack(id: "video", kind: .video, name: "V1", clips: [
-                    TimelineClip(id: "video-a", assetID: "video-a", timelineStart: 0, duration: 1),
-                    TimelineClip(id: "video-b", assetID: "video-b", timelineStart: 1.5, duration: 1)
+                TimelineTrack(id: "video-a", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "video-a", assetID: "video-a", timelineStart: 0, duration: 2)
+                ]),
+                TimelineTrack(id: "video-b", kind: .video, name: "V2", clips: [
+                    TimelineClip(id: "video-b", assetID: "video-b", timelineStart: 0.5, duration: 1)
                 ]),
                 TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
                     TimelineClip(id: "activity", assetID: "activity", timelineStart: 0, duration: 2.5)

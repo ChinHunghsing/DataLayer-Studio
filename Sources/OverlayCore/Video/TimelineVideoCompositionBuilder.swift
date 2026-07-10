@@ -1,9 +1,9 @@
 import AVFoundation
 import Foundation
 
-/// Assembles an `AVMutableComposition` from a timeline's video clips: every clip's video and
-/// audio land at the clip's timeline position, and uncovered ranges stay empty so playback and
-/// sample reading produce black frames and silence there.
+/// Assembles an `AVMutableComposition` from a timeline's resolved visible video segments: every
+/// segment's video and audio land at its timeline position, and uncovered ranges stay empty so
+/// playback and sample reading produce black frames and silence there.
 ///
 /// Shared by `TimelineVideoWriter` (export) and the studio preview player so both read the same
 /// clip geometry the same way.

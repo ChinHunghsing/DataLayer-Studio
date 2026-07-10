@@ -135,22 +135,44 @@ final class TimelineModelTests: XCTestCase {
         )
     }
 
-    func testVideoExportPreflightRejectsOverlapBeforeWriting() {
-        let project = exportProject(
-            videoClips: [
-                TimelineClip(id: "video-a", assetID: "video-a", timelineStart: 0, duration: 1.5),
-                TimelineClip(id: "video-b", assetID: "video-b", timelineStart: 1, duration: 1.5)
+    func testVideoExportResolvesUpperTrackCoverageAndRestoresLowerSourceTime() throws {
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [
+                videoAsset(id: "bottom", duration: 10),
+                videoAsset(id: "top", duration: 10),
+                activityAsset(id: "activity", duration: 10)
+            ],
+            tracks: [
+                TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "bottom-clip", assetID: "bottom", timelineStart: 0, duration: 10)
+                ]),
+                TimelineTrack(id: "v2", kind: .video, name: "V2", clips: [
+                    TimelineClip(id: "top-clip", assetID: "top", timelineStart: 3, duration: 4, sourceIn: 1)
+                ]),
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "activity-clip", assetID: "activity", timelineStart: 0, duration: 10)
+                ])
             ]
         )
 
-        XCTAssertEqual(
+        let visible = try project.validatedVideoClipsForExport(timelineStart: 0, duration: 10)
+        XCTAssertEqual(visible.map(\.assetID), ["bottom", "top", "bottom"])
+        XCTAssertEqual(visible.map(\.timelineStart), [0, 3, 7])
+        XCTAssertEqual(visible.map(\.duration), [3, 4, 3])
+        XCTAssertEqual(visible.map(\.sourceIn), [0, 1, 7])
+        XCTAssertEqual(visible.map(\.id), ["bottom-clip", "top-clip", "bottom-clip.visible.1"])
+
+        XCTAssertNil(
             project.firstExportValidationIssue(
                 mode: .video,
                 timelineStart: 0,
-                duration: 2.5,
+                duration: 10,
                 availableTelemetryAssetIDs: ["activity"]
-            ),
-            .videoOverlap(previousClipID: "video-a", nextClipID: "video-b")
+            )
         )
     }
 

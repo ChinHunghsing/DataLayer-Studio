@@ -466,8 +466,6 @@ final class StudioModel: ObservableObject {
             return "status.timelineMissingVideoAsset"
         case .invalidVideoSourceRange:
             return "status.timelineVideoSourceRange"
-        case .videoOverlap:
-            return "status.timelineVideoOverlap"
         }
     }
 
@@ -1394,9 +1392,8 @@ final class StudioModel: ObservableObject {
         let generation = timelinePlayerBuildGeneration
 
         let project = currentTimelineProject
-        let videoClips = project.enabledClips(kind: .video)
         let endTime = project.duration
-        guard !videoClips.isEmpty, endTime > 0 else {
+        guard !project.enabledClips(kind: .video).isEmpty, endTime > 0 else {
             tearDownTimelinePlayer(signature: signature)
             return
         }
@@ -1410,6 +1407,10 @@ final class StudioModel: ObservableObject {
             }
             let box: CompositionBox
             do {
+                let videoClips = try project.validatedVideoClipsForExport(
+                    timelineStart: 0,
+                    duration: endTime
+                )
                 let built = try TimelineVideoCompositionBuilder.make(
                     project: project,
                     videoClips: videoClips,

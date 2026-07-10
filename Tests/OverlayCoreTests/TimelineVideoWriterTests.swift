@@ -852,6 +852,115 @@ final class TimelineVideoWriterTests: XCTestCase {
         XCTAssertFalse(audioTracks.isEmpty)
     }
 
+    func testTimelineWriterUsesUpperVideoTrackAndReturnsToLowerTrack() async throws {
+        let bottomSourceURL = temporaryMovieURL("timeline-bottom-video")
+        let topSourceURL = temporaryMovieURL("timeline-top-video")
+        let outputURL = temporaryMovieURL("timeline-stacked-video-output")
+        defer {
+            Self.removeTemporaryFile(bottomSourceURL)
+            Self.removeTemporaryFile(topSourceURL)
+            Self.removeTemporaryFile(outputURL)
+        }
+
+        try makeTinySourceVideo(
+            at: bottomSourceURL,
+            frameCount: 4,
+            includeAudio: true,
+            audioSampleByte: 32
+        ) { _ in (220, 20, 20) }
+        try makeTinySourceVideo(
+            at: topSourceURL,
+            frameCount: 2,
+            includeAudio: true,
+            audioSampleByte: 96
+        ) { _ in (20, 40, 220) }
+
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 2, distanceMeters: 6)
+        ])
+        let project = TimelineProject(
+            outputWidth: 64,
+            outputHeight: 64,
+            framesPerSecond: 2,
+            distanceUnit: .kilometers,
+            assets: [
+                MediaAsset(
+                    id: "bottom-video",
+                    kind: .video,
+                    url: bottomSourceURL,
+                    displayName: bottomSourceURL.lastPathComponent,
+                    duration: 2,
+                    width: 64,
+                    height: 64,
+                    framesPerSecond: 2
+                ),
+                MediaAsset(
+                    id: "top-video",
+                    kind: .video,
+                    url: topSourceURL,
+                    displayName: topSourceURL.lastPathComponent,
+                    duration: 1,
+                    width: 64,
+                    height: 64,
+                    framesPerSecond: 2
+                ),
+                MediaAsset(
+                    id: "activity",
+                    kind: .activity,
+                    url: URL(fileURLWithPath: "/tmp/activity.fit"),
+                    displayName: "activity.fit",
+                    duration: 2
+                )
+            ],
+            tracks: [
+                TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "bottom-clip", assetID: "bottom-video", timelineStart: 0, duration: 2)
+                ]),
+                TimelineTrack(id: "v2", kind: .video, name: "V2", clips: [
+                    TimelineClip(id: "top-clip", assetID: "top-video", timelineStart: 0.5, duration: 1)
+                ]),
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "overlay-clip",
+                        assetID: "activity",
+                        timelineStart: 0,
+                        duration: 2,
+                        layout: OverlayLayout(elements: [])
+                    )
+                ])
+            ]
+        )
+        let writer = TimelineVideoWriter(
+            outputURL: outputURL,
+            project: project,
+            telemetrySeriesByAssetID: ["activity": series],
+            config: TimelineVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: 2,
+                duration: 2,
+                averageBitRate: 400_000,
+                codec: .h264
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            throw XCTSkip("Timeline stacked-video test encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let beforeCover = try await frameMeanRGB(from: outputURL, at: 0.25)
+        let duringCover = try await frameMeanRGB(from: outputURL, at: 0.75)
+        let afterCover = try await frameMeanRGB(from: outputURL, at: 1.75)
+        XCTAssertGreaterThan(beforeCover.red, beforeCover.blue + 80)
+        XCTAssertGreaterThan(duringCover.blue, duringCover.red + 80)
+        XCTAssertGreaterThan(afterCover.red, afterCover.blue + 80)
+        let audioTracks = try await AVURLAsset(url: outputURL).loadTracks(withMediaType: .audio)
+        XCTAssertFalse(audioTracks.isEmpty)
+    }
+
     private func temporaryMovieURL(_ name: String) -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("\(name)-\(UUID().uuidString)")
