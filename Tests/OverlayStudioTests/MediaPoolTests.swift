@@ -878,6 +878,97 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.currentTimelineProject.duration, 75, accuracy: 1e-9)
     }
 
+    func testTimelineEditsSupportUndoAndRedo() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        // Tests have no run-loop event boundaries; disable event grouping so each explicit
+        // undo group stands alone, matching the per-event grouping the app gets at runtime.
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
+        model.videoURL = videoURL
+        let fitURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = fitURL
+
+        func videoClips() -> [TimelineClip] {
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .video }
+                .flatMap(\.clips)
+        }
+
+        model.previewTime = 30
+        model.splitTimelineClipsAtPlayhead()
+        XCTAssertEqual(videoClips().count, 2)
+        XCTAssertTrue(model.usesCustomTimelinePreview)
+        XCTAssertTrue(undoManager.canUndo)
+
+        // Undo restores the unsplit timeline and the single-source preview mode.
+        undoManager.undo()
+        XCTAssertEqual(videoClips().count, 1)
+        XCTAssertFalse(model.usesCustomTimelinePreview)
+
+        XCTAssertTrue(undoManager.canRedo)
+        undoManager.redo()
+        XCTAssertEqual(videoClips().count, 2)
+
+        // Undo of a delete restores the clip and its selection.
+        let clip = try XCTUnwrap(videoClips().first)
+        model.selectTimelineClip(id: clip.id)
+        model.deleteTimelineClip(id: clip.id, ripple: false)
+        XCTAssertEqual(videoClips().count, 1)
+        XCTAssertNil(model.selectedTimelineClipID)
+
+        undoManager.undo()
+        XCTAssertEqual(videoClips().count, 2)
+        XCTAssertEqual(model.selectedTimelineClipID, clip.id)
+    }
+
+    func testDraggedMoveCoalescesIntoOneUndoStep() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+
+        let pooledURL = URL(fileURLWithPath: "/tmp/b.fit")
+        model.upsertActivityAsset(url: pooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.previewTime = 0
+        model.addActivityAssetToTimeline(id: pooledURL.path)
+
+        let clip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first { $0.assetID == pooledURL.path }
+        )
+
+        // Rapid-fire updates from one drag collapse into a single undo step.
+        model.moveTimelineClip(id: clip.id, toTimelineStart: 5)
+        model.moveTimelineClip(id: clip.id, toTimelineStart: 9)
+        model.moveTimelineClip(id: clip.id, toTimelineStart: 14)
+
+        undoManager.undo()
+        let restored = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .flatMap(\.clips)
+                .first { $0.id == clip.id }
+        )
+        XCTAssertEqual(restored.timelineStart, 0, accuracy: 1e-9)
+    }
+
     func testMovingAndTrimmingClipsCannotOverlapOnSameTrack() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
