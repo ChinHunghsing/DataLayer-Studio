@@ -4021,7 +4021,10 @@ final class StudioModel: ObservableObject {
                         )
                     }
                     self.addDebugLog(.export, "Export finished: \(segments.count) file(s), first \(segments[0].outputURL.lastPathComponent)")
-                    self.notifyExportCompleted(segments.first?.outputURL ?? outputURL)
+                    self.notifyExportCompleted(
+                        segments.first?.outputURL ?? outputURL,
+                        fileCount: segments.count
+                    )
                     self.refreshOverlayOrPreview()
                 }
             } catch OverlayVideoError.cancelled {
@@ -4095,9 +4098,11 @@ final class StudioModel: ObservableObject {
         lastExportWasCancelled = false
     }
 
-    private func notifyExportCompleted(_ outputURL: URL) {
+    private func notifyExportCompleted(_ outputURL: URL, fileCount: Int = 1) {
         let title = localized("notification.exportCompleted.title")
-        let body = localized("notification.exportCompleted.body", outputURL.lastPathComponent)
+        let body = fileCount > 1
+            ? localized("notification.exportCompleted.bodyMultiple", fileCount)
+            : localized("notification.exportCompleted.body", outputURL.lastPathComponent)
         let center = UNUserNotificationCenter.current()
 
         center.requestAuthorization(options: [.alert, .sound]) { granted, _ in

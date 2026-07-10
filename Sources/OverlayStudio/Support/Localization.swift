@@ -772,6 +772,7 @@ enum AppLocalizer {
         "status.wroteFile": "Wrote %@",
         "notification.exportCompleted.title": "Export complete",
         "notification.exportCompleted.body": "%@ is ready.",
+        "notification.exportCompleted.bodyMultiple": "Exported %d files.",
         "status.exportError": "Export error: %@",
         "status.cancellingExport": "Cancelling export...",
 
@@ -1311,6 +1312,7 @@ enum AppLocalizer {
         "status.wroteFile": "已写入 %@",
         "notification.exportCompleted.title": "导出完成",
         "notification.exportCompleted.body": "%@ 已准备好。",
+        "notification.exportCompleted.bodyMultiple": "已导出 %d 个文件。",
         "status.exportError": "导出错误：%@",
         "status.cancellingExport": "正在取消导出...",
 
@@ -1850,6 +1852,7 @@ enum AppLocalizer {
         "status.wroteFile": "已寫入 %@",
         "notification.exportCompleted.title": "匯出完成",
         "notification.exportCompleted.body": "%@ 已準備好。",
+        "notification.exportCompleted.bodyMultiple": "已匯出 %d 個檔案。",
         "status.exportError": "匯出錯誤：%@",
         "status.cancellingExport": "正在取消匯出...",
 
@@ -2389,6 +2392,7 @@ enum AppLocalizer {
         "status.wroteFile": "%@ に書き込みました",
         "notification.exportCompleted.title": "書き出し完了",
         "notification.exportCompleted.body": "%@ の準備ができました。",
+        "notification.exportCompleted.bodyMultiple": "%d 個のファイルを書き出しました。",
         "status.exportError": "書き出しエラー：%@",
         "status.cancellingExport": "書き出しをキャンセル中...",
 
