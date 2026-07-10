@@ -610,8 +610,15 @@ final class MediaPoolTests: XCTestCase {
 
         undoManager.redo()
         XCTAssertEqual(model.currentTimelineProject.tracks.map(\.id), [trackID])
+        model.selectTimelineTrack(id: trackID)
+        XCTAssertEqual(model.selectedTimelineTrackIDs, [trackID])
         model.removeEmptyTimelineTrack(id: trackID)
         XCTAssertTrue(model.currentTimelineProject.tracks.isEmpty)
+        XCTAssertTrue(model.selectedTimelineTrackIDs.isEmpty)
+
+        undoManager.undo()
+        XCTAssertEqual(model.currentTimelineProject.tracks.map(\.id), [trackID])
+        XCTAssertEqual(model.selectedTimelineTrackIDs, [trackID])
     }
 
     func testTimelineAssetIDsInUseIncludesEveryReferencedVideoAndActivity() {
@@ -1033,6 +1040,62 @@ final class MediaPoolTests: XCTestCase {
 
         // Splitting is a real edit: the timeline is now the custom, stored one.
         XCTAssertTrue(model.usesCustomTimelinePreview)
+    }
+
+    func testSelectedTimelineTrackLimitsSplitAndTogglesOff() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/selected-track.mov")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30)
+        )
+        model.videoURL = videoURL
+        let fitURL = URL(fileURLWithPath: "/tmp/selected-track.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = fitURL
+
+        let videoTrack = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .video }
+        )
+        let overlayTrack = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .overlay }
+        )
+        model.previewTime = 30
+
+        model.selectTimelineTrack(id: videoTrack.id)
+        model.selectTimelineTrack(id: overlayTrack.id)
+        XCTAssertEqual(model.selectedTimelineTrackIDs, [videoTrack.id, overlayTrack.id])
+        model.selectTimelineTrack(id: overlayTrack.id)
+        XCTAssertEqual(model.selectedTimelineTrackIDs, [videoTrack.id])
+        XCTAssertTrue(model.canSplitTimelineClipsAtPlayhead)
+        model.splitTimelineClipsAtPlayhead()
+
+        XCTAssertEqual(
+            model.currentTimelineProject.tracks.first { $0.id == videoTrack.id }?.clips.count,
+            2
+        )
+        XCTAssertEqual(
+            model.currentTimelineProject.tracks.first { $0.id == overlayTrack.id }?.clips.count,
+            1
+        )
+
+        model.selectTimelineTrack(id: videoTrack.id)
+        XCTAssertTrue(model.selectedTimelineTrackIDs.isEmpty)
+        XCTAssertTrue(model.canSplitTimelineClipsAtPlayhead)
+        model.splitTimelineClipsAtPlayhead()
+
+        // The video already has a cut at the playhead, while the unselected overlay track is cut now.
+        XCTAssertEqual(
+            model.currentTimelineProject.tracks.first { $0.id == videoTrack.id }?.clips.count,
+            2
+        )
+        XCTAssertEqual(
+            model.currentTimelineProject.tracks.first { $0.id == overlayTrack.id }?.clips.count,
+            2
+        )
     }
 
     func testDeletingTimelineClipLeavesGap() throws {

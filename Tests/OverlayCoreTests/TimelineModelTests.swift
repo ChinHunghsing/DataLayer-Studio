@@ -400,6 +400,38 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(project.tracks[2].clips.map(\.id), ["locked-clip"])
     }
 
+    func testSplitClipsCutsOnlyTheSelectedTrack() {
+        var project = editingProject()
+        XCTAssertEqual(
+            project.splittableClipIDs(atTimelineTime: 15, trackIDs: ["video-track"]),
+            ["video-b"]
+        )
+
+        let count = project.splitClips(atTimelineTime: 15, trackIDs: ["video-track"]) {
+            "video-b-right"
+        }
+
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(
+            project.tracks[0].clips.map(\.id),
+            ["video-a", "video-b", "video-b-right", "video-c"]
+        )
+        XCTAssertEqual(project.tracks[1].clips.map(\.id), ["overlay-a"])
+        XCTAssertEqual(project.tracks[2].clips.map(\.id), ["locked-clip"])
+        XCTAssertTrue(
+            project.splittableClipIDs(atTimelineTime: 15, trackIDs: ["locked-track"]).isEmpty
+        )
+
+        var multipleTracks = editingProject()
+        XCTAssertEqual(
+            multipleTracks.splitClips(
+                atTimelineTime: 15,
+                trackIDs: ["video-track", "overlay-track"]
+            ),
+            2
+        )
+    }
+
     func testSplitClipsSkipsCutsTooCloseToClipEdges() {
         var project = editingProject()
         // 10.05 is within the 0.1s minimum piece of video-b's left edge; overlay-a is unaffected
