@@ -139,6 +139,8 @@ final class StudioModel: ObservableObject {
     @Published var exportRenderScope: ExportRenderScope = .singleClip
     /// Horizontal timeline zoom (1 = fit the whole timeline in the lane width).
     @Published private(set) var timelineZoom: Double = 1
+    /// Incremented when edit-point navigation asks the timeline viewport to reveal the playhead.
+    @Published private(set) var timelinePlayheadFocusGeneration = 0
 
     static let timelineZoomRange: ClosedRange<Double> = 1...16
 
@@ -2628,6 +2630,7 @@ final class StudioModel: ObservableObject {
         guard canJumpToTimelineEditPoints else { return }
         if let next = timelineEditPoints.first(where: { $0 > previewTime + 1e-3 }) {
             seekPreview(to: next)
+            timelinePlayheadFocusGeneration &+= 1
         }
     }
 
@@ -2636,6 +2639,7 @@ final class StudioModel: ObservableObject {
         guard canJumpToTimelineEditPoints else { return }
         if let previous = timelineEditPoints.last(where: { $0 < previewTime - 1e-3 }) {
             seekPreview(to: previous)
+            timelinePlayheadFocusGeneration &+= 1
         }
     }
 

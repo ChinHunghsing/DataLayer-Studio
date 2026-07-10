@@ -61,10 +61,10 @@ struct ProjectTimelineView: View {
                                     .frame(width: laneWidth, height: timelineContentHeight, alignment: .topLeading)
                                 }
                                 .onChange(of: model.timelineZoom) { _ in
-                                    // Keep the playhead in view when the zoom level changes.
-                                    DispatchQueue.main.async {
-                                        scrollProxy.scrollTo(Self.playheadMarkerID, anchor: .center)
-                                    }
+                                    focusPlayhead(using: scrollProxy)
+                                }
+                                .onChange(of: model.timelinePlayheadFocusGeneration) { _ in
+                                    focusPlayhead(using: scrollProxy)
                                 }
                             }
                         }
@@ -159,12 +159,32 @@ struct ProjectTimelineView: View {
             .fill(playheadColor)
             .allowsHitTesting(false)
 
-            // Invisible scroll anchor used to keep the playhead centered on zoom changes.
+            playheadScrollAnchor(playheadX: playheadX, laneWidth: laneWidth)
+        }
+    }
+
+    private func playheadScrollAnchor(playheadX: CGFloat, laneWidth: CGFloat) -> some View {
+        let markerWidth: CGFloat = 1
+        let leadingWidth = min(max(0, playheadX), max(0, laneWidth - markerWidth))
+
+        return HStack(spacing: 0) {
             Color.clear
-                .frame(width: 1, height: 1)
-                .offset(x: playheadX)
+                .frame(width: leadingWidth, height: markerWidth)
+            Color.clear
+                .frame(width: markerWidth, height: markerWidth)
                 .id(Self.playheadMarkerID)
-                .allowsHitTesting(false)
+            Spacer(minLength: 0)
+        }
+        .frame(width: laneWidth, height: markerWidth, alignment: .leading)
+        .allowsHitTesting(false)
+    }
+
+    private func focusPlayhead(using scrollProxy: ScrollViewProxy) {
+        // Wait for the zoom or seek to lay out the marker at its new timeline position.
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: 0.12)) {
+                scrollProxy.scrollTo(Self.playheadMarkerID, anchor: .center)
+            }
         }
     }
 

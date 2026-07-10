@@ -1276,24 +1276,39 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertTrue(model.canJumpToTimelineEditPoints)
 
         model.previewTime = 15
+        var expectedFocusGeneration = model.timelinePlayheadFocusGeneration
         model.jumpToNextTimelineEditPoint()
+        expectedFocusGeneration += 1
         XCTAssertEqual(model.previewTime, 60, accuracy: 1e-6)
+        XCTAssertEqual(model.timelinePlayheadFocusGeneration, expectedFocusGeneration)
         model.jumpToNextTimelineEditPoint()
+        expectedFocusGeneration += 1
         XCTAssertEqual(model.previewTime, 80, accuracy: 1e-6)
+        XCTAssertEqual(model.timelinePlayheadFocusGeneration, expectedFocusGeneration)
         model.jumpToNextTimelineEditPoint()
+        expectedFocusGeneration += 1
         XCTAssertEqual(model.previewTime, 120, accuracy: 1e-6)
+        XCTAssertEqual(model.timelinePlayheadFocusGeneration, expectedFocusGeneration)
         // Nothing after the last edit point: the playhead stays put.
         model.jumpToNextTimelineEditPoint()
         XCTAssertEqual(model.previewTime, 120, accuracy: 1e-6)
+        XCTAssertEqual(model.timelinePlayheadFocusGeneration, expectedFocusGeneration)
 
         model.jumpToPreviousTimelineEditPoint()
+        expectedFocusGeneration += 1
         XCTAssertEqual(model.previewTime, 80, accuracy: 1e-6)
+        XCTAssertEqual(model.timelinePlayheadFocusGeneration, expectedFocusGeneration)
         model.jumpToPreviousTimelineEditPoint()
+        expectedFocusGeneration += 1
         XCTAssertEqual(model.previewTime, 60, accuracy: 1e-6)
+        XCTAssertEqual(model.timelinePlayheadFocusGeneration, expectedFocusGeneration)
+        model.jumpToPreviousTimelineEditPoint()
+        expectedFocusGeneration += 1
+        XCTAssertEqual(model.previewTime, 0, accuracy: 1e-6)
+        XCTAssertEqual(model.timelinePlayheadFocusGeneration, expectedFocusGeneration)
         model.jumpToPreviousTimelineEditPoint()
         XCTAssertEqual(model.previewTime, 0, accuracy: 1e-6)
-        model.jumpToPreviousTimelineEditPoint()
-        XCTAssertEqual(model.previewTime, 0, accuracy: 1e-6)
+        XCTAssertEqual(model.timelinePlayheadFocusGeneration, expectedFocusGeneration)
     }
 
     func testTimelineEditsSupportUndoAndRedo() throws {
