@@ -106,6 +106,19 @@ struct ContentView: View {
         } message: {
             Text(model.pendingTimelineActionMessage)
         }
+        .alert(
+            localization.string("exportWeatherWarning.title"),
+            isPresented: weatherExportConfirmationBinding
+        ) {
+            Button(localization.string("exportWeatherWarning.continue")) {
+                model.confirmWeatherExport()
+            }
+            Button(localization.string("common.cancel"), role: .cancel) {
+                model.cancelWeatherExportConfirmation()
+            }
+        } message: {
+            Text(localization.string("exportWeatherWarning.message"))
+        }
         .focusedSceneValue(\.studioCommandActions, studioCommandActions)
         .focusedSceneValue(\.previewCommandActions, previewCommandActions)
         .onOpenURL(perform: openActivityFile)
@@ -268,6 +281,17 @@ struct ContentView: View {
             set: { isPresented in
                 if !isPresented {
                     model.cancelPendingTimelineAction()
+                }
+            }
+        )
+    }
+
+    private var weatherExportConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { model.isWeatherExportConfirmationPresented },
+            set: { isPresented in
+                if !isPresented {
+                    model.cancelWeatherExportConfirmation()
                 }
             }
         )

@@ -587,6 +587,107 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(exportSeries[activityURL.path]?.samples.last?.weatherTemperatureCelsius, 22)
     }
 
+    func testWeatherExportConfirmationIsRequiredOnlyForUnreadyVisibleWeatherGauge() {
+        let activityURL = URL(fileURLWithPath: "/tmp/weather-export.fit")
+        let asset = MediaAsset(
+            id: activityURL.path,
+            kind: .activity,
+            url: activityURL,
+            displayName: activityURL.lastPathComponent,
+            duration: 20
+        )
+        let weatherLayout = OverlayLayout(elements: [
+            OverlayElement.defaultElement(kind: .weather)
+        ])
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [asset],
+            tracks: [
+                TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "weather-clip",
+                        assetID: asset.id,
+                        timelineStart: 0,
+                        duration: 20,
+                        layout: weatherLayout
+                    )
+                ])
+            ]
+        )
+        let rawSeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0),
+            TelemetrySample(elapsed: 20)
+        ])
+        let loadedSeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, weatherTemperatureCelsius: 22),
+            TelemetrySample(elapsed: 20, weatherTemperatureCelsius: 22)
+        ])
+        var hiddenWeatherProject = project
+        hiddenWeatherProject.tracks[0].clips[0].layout?.elements[0].frame.isVisible = false
+
+        XCTAssertTrue(StudioModel.requiresWeatherExportConfirmation(
+            project: project,
+            telemetrySeriesByAssetID: [asset.id: rawSeries],
+            timelineStart: 0,
+            duration: 20,
+            isWeatherLoading: false
+        ))
+        XCTAssertTrue(StudioModel.requiresWeatherExportConfirmation(
+            project: project,
+            telemetrySeriesByAssetID: [asset.id: loadedSeries],
+            timelineStart: 0,
+            duration: 20,
+            isWeatherLoading: true
+        ))
+        XCTAssertFalse(StudioModel.requiresWeatherExportConfirmation(
+            project: project,
+            telemetrySeriesByAssetID: [asset.id: loadedSeries],
+            timelineStart: 0,
+            duration: 20,
+            isWeatherLoading: false
+        ))
+        XCTAssertFalse(StudioModel.requiresWeatherExportConfirmation(
+            project: project,
+            telemetrySeriesByAssetID: [asset.id: rawSeries],
+            timelineStart: 30,
+            duration: 10,
+            isWeatherLoading: false
+        ))
+        XCTAssertFalse(StudioModel.requiresWeatherExportConfirmation(
+            project: hiddenWeatherProject,
+            telemetrySeriesByAssetID: [asset.id: rawSeries],
+            timelineStart: 0,
+            duration: 20,
+            isWeatherLoading: false
+        ))
+    }
+
+    func testExportRequestsConfirmationBeforeChoosingOutputWhenWeatherIsUnready() {
+        let model = StudioModel()
+        let activityURL = URL(fileURLWithPath: "/tmp/weather-confirmation.fit")
+        let rawSeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0),
+            TelemetrySample(elapsed: 20)
+        ])
+        model.series = rawSeries
+        model.upsertActivityAsset(url: activityURL, series: rawSeries)
+        model.fitURL = activityURL
+        model.addElement(kind: .weather)
+
+        model.export()
+
+        XCTAssertTrue(model.isWeatherExportConfirmationPresented)
+        XCTAssertFalse(model.isExporting)
+        XCTAssertNil(model.outputURL)
+
+        model.cancelWeatherExportConfirmation()
+
+        XCTAssertFalse(model.isWeatherExportConfirmationPresented)
+    }
+
     func testExportReadinessReportsSourceDurationInsteadOfEditableDuration() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/source.mov")

@@ -188,6 +188,7 @@ final class StudioModel: ObservableObject {
     @Published private(set) var fitLoadFailure: SourceLoadFailure?
     @Published var previewWarning: String?
     @Published var isExporting = false
+    @Published private(set) var isWeatherExportConfirmationPresented = false
     @Published var exportProgress = 0.0
     @Published private(set) var exportETASeconds: TimeInterval?
     @Published private(set) var lastExportedURL: URL?
@@ -3168,14 +3169,82 @@ final class StudioModel: ObservableObject {
         refreshOverlayOrPreview()
     }
 
+    nonisolated static func requiresWeatherExportConfirmation(
+        project: TimelineProject,
+        telemetrySeriesByAssetID: [String: TelemetrySeries],
+        timelineStart: TimeInterval,
+        duration: TimeInterval,
+        isWeatherLoading: Bool
+    ) -> Bool {
+        guard timelineStart.isFinite,
+              timelineStart >= 0,
+              duration.isFinite,
+              duration > 0,
+              (timelineStart + duration).isFinite else { return false }
+
+        let timelineEnd = timelineStart + duration
+        let weatherClips = project.enabledClips(kind: .overlay).filter { clip in
+            guard clip.timelineEnd > timelineStart,
+                  clip.timelineStart < timelineEnd else { return false }
+            return (clip.layout ?? .default).visibleElements.contains { $0.kind == .weather }
+        }
+        guard !weatherClips.isEmpty else { return false }
+        if isWeatherLoading { return true }
+
+        return weatherClips.contains { clip in
+            guard let series = telemetrySeriesByAssetID[clip.assetID] else { return true }
+            return !series.samples.contains { sample in
+                sample.weatherTemperatureCelsius != nil
+                    || sample.weatherHumidityPercent != nil
+                    || sample.weatherSummary != nil
+            }
+        }
+    }
+
     func export() {
+        export(allowingUnreadyWeather: false)
+    }
+
+    func confirmWeatherExport() {
+        guard isWeatherExportConfirmationPresented else { return }
+        isWeatherExportConfirmationPresented = false
+        addDebugLog(.export, "Continuing export without ready weather data")
+        export(allowingUnreadyWeather: true)
+    }
+
+    func cancelWeatherExportConfirmation() {
+        guard isWeatherExportConfirmationPresented else { return }
+        isWeatherExportConfirmationPresented = false
+        addDebugLog(.export, "Export cancelled before rendering: weather data not ready")
+    }
+
+    private func export(allowingUnreadyWeather: Bool) {
         guard !isExporting else { return }
+        guard allowingUnreadyWeather || !isWeatherExportConfirmationPresented else { return }
         if let exportReadinessMessageKey {
             setStatus(exportReadinessMessageKey)
             return
         }
         guard let exportSettings = validatedExportSettings else {
             setStatus("status.checkOutputSettings")
+            return
+        }
+        let timelineProject = currentTimelineProject
+        let timelineTelemetrySeries = timelineTelemetrySeriesForExport(project: timelineProject)
+        guard !timelineTelemetrySeries.isEmpty else {
+            setStatus("status.chooseFitBeforeExport")
+            return
+        }
+        if !allowingUnreadyWeather,
+           Self.requiresWeatherExportConfirmation(
+               project: timelineProject,
+               telemetrySeriesByAssetID: timelineTelemetrySeries,
+               timelineStart: exportSettings.startTime,
+               duration: exportSettings.duration,
+               isWeatherLoading: weatherLoadTask != nil
+           ) {
+            isWeatherExportConfirmationPresented = true
+            addDebugLog(.export, "Export confirmation requested: weather data not ready")
             return
         }
         if needsOutputSelectionBeforeExport {
@@ -3186,12 +3255,6 @@ final class StudioModel: ObservableObject {
             return
         }
         guard confirmOverwriteIfNeeded(outputURL) else { return }
-        let timelineProject = currentTimelineProject
-        let timelineTelemetrySeries = timelineTelemetrySeriesForExport(project: timelineProject)
-        guard !timelineTelemetrySeries.isEmpty else {
-            setStatus("status.chooseFitBeforeExport")
-            return
-        }
 
         pausePlayback()
         cancelPreviewRenderTasks()
