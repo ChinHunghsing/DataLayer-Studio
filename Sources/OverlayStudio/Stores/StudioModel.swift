@@ -3005,32 +3005,55 @@ final class StudioModel: ObservableObject {
 
     /// Move one timeline clip without changing the source match-point inputs.
     func moveTimelineClip(id: String, toTimelineStart timelineStart: TimeInterval) {
-        guard !isExporting else { return }
-        let sanitizedStart = max(0, timelineStart)
-        let previousUndoState = timelineUndoSnapshotNow
-
-        for trackIndex in timeline.tracks.indices {
-            guard !timeline.tracks[trackIndex].isLocked else { continue }
-            guard let clipIndex = timeline.tracks[trackIndex].clips.firstIndex(where: { $0.id == id }) else {
-                continue
-            }
-            let clip = timeline.tracks[trackIndex].clips[clipIndex]
-            let constrainedStart = timeline.tracks[trackIndex].nonOverlappingStart(
-                forClipID: id,
-                duration: clip.duration,
-                proposedStart: sanitizedStart
-            )
-            guard abs(clip.timelineStart - constrainedStart) > 1e-6 else { return }
-            beginTimelineClipEditingIfNeeded()
-            timeline.tracks[trackIndex].clips[clipIndex].timelineStart = constrainedStart
-            registerTimelineUndoIfChanged(
-                previous: previousUndoState,
-                actionKey: "undo.timeline.moveClip",
-                coalescing: true
-            )
-            refreshOverlayOrPreview()
+        guard let sourceTrackID = timeline.tracks.first(where: { track in
+            track.clips.contains { $0.id == id }
+        })?.id else {
             return
         }
+        moveTimelineClip(id: id, toTrackID: sourceTrackID, toTimelineStart: timelineStart)
+    }
+
+    /// Move a clip horizontally and, when requested, into another unlocked track of the same kind.
+    func moveTimelineClip(id: String, toTrackID targetTrackID: String, toTimelineStart timelineStart: TimeInterval) {
+        guard !isExporting,
+              let sourceTrackIndex = timeline.tracks.firstIndex(where: { track in
+                  track.clips.contains { $0.id == id }
+              }),
+              let sourceClipIndex = timeline.tracks[sourceTrackIndex].clips.firstIndex(where: { $0.id == id }),
+              let targetTrackIndex = timeline.tracks.firstIndex(where: { $0.id == targetTrackID }),
+              !timeline.tracks[sourceTrackIndex].isLocked,
+              !timeline.tracks[targetTrackIndex].isLocked,
+              timeline.tracks[sourceTrackIndex].kind == timeline.tracks[targetTrackIndex].kind else {
+            return
+        }
+
+        let sanitizedStart = max(0, timelineStart.isFinite ? timelineStart : 0)
+        let previousUndoState = timelineUndoSnapshotNow
+        var clip = timeline.tracks[sourceTrackIndex].clips[sourceClipIndex]
+        let constrainedStart = timeline.tracks[targetTrackIndex].nonOverlappingStart(
+            forClipID: id,
+            duration: clip.duration,
+            proposedStart: sanitizedStart
+        )
+        guard sourceTrackIndex != targetTrackIndex
+                || abs(clip.timelineStart - constrainedStart) > 1e-6 else {
+            return
+        }
+
+        beginTimelineClipEditingIfNeeded()
+        clip.timelineStart = constrainedStart
+        if sourceTrackIndex == targetTrackIndex {
+            timeline.tracks[sourceTrackIndex].clips[sourceClipIndex] = clip
+        } else {
+            timeline.tracks[sourceTrackIndex].clips.remove(at: sourceClipIndex)
+            timeline.tracks[targetTrackIndex].clips.append(clip)
+        }
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.moveClip",
+            coalescing: true
+        )
+        refreshOverlayOrPreview()
     }
 
     /// Clip boundaries (edit points) across enabled tracks, sorted ascending and including 0.

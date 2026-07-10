@@ -551,6 +551,91 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.activitySyncZeroVideoTime, 10, accuracy: 1e-9)
     }
 
+    func testMovingClipAcrossSameKindTracksPreservesContentAvoidsOverlapAndSupportsUndo() throws {
+        let model = StudioModel()
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+                    TimelineClip(
+                        id: "moving",
+                        assetID: "video-a",
+                        timelineStart: 0,
+                        duration: 10,
+                        sourceIn: 3
+                    )
+                ]),
+                TimelineTrack(id: "v2", kind: .video, name: "V2", clips: [
+                    TimelineClip(id: "occupied", assetID: "video-b", timelineStart: 10, duration: 10)
+                ])
+            ]
+        )
+        model.applyTimelineProject(project, loadAssets: false)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        model.selectTimelineClip(id: "moving")
+
+        model.moveTimelineClip(id: "moving", toTrackID: "v2", toTimelineStart: 15)
+
+        XCTAssertTrue(model.currentTimelineProject.tracks[0].clips.isEmpty)
+        let movedClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks[1].clips.first { $0.id == "moving" }
+        )
+        XCTAssertEqual(movedClip.timelineStart, 20, accuracy: 1e-9)
+        XCTAssertEqual(movedClip.duration, 10, accuracy: 1e-9)
+        XCTAssertEqual(movedClip.sourceIn, 3, accuracy: 1e-9)
+        XCTAssertEqual(model.selectedTimelineClip?.id, "moving")
+
+        undoManager.undo()
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips.map(\.id), ["moving"])
+        XCTAssertEqual(model.currentTimelineProject.tracks[1].clips.map(\.id), ["occupied"])
+
+        undoManager.redo()
+        XCTAssertTrue(model.currentTimelineProject.tracks[0].clips.isEmpty)
+        XCTAssertEqual(
+            Set(model.currentTimelineProject.tracks[1].clips.map(\.id)),
+            Set(["occupied", "moving"])
+        )
+    }
+
+    func testMovingClipAcrossTracksRejectsDifferentKindAndLockedTargets() {
+        let model = StudioModel()
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "moving", assetID: "activity", timelineStart: 5, duration: 10)
+                ]),
+                TimelineTrack(id: "o2", kind: .overlay, name: "O2", isLocked: true),
+                TimelineTrack(id: "o3", kind: .overlay, name: "O3"),
+                TimelineTrack(id: "v1", kind: .video, name: "V1")
+            ]
+        )
+        model.applyTimelineProject(project, loadAssets: false)
+
+        model.moveTimelineClip(id: "moving", toTrackID: "o2", toTimelineStart: 20)
+        model.moveTimelineClip(id: "moving", toTrackID: "v1", toTimelineStart: 30)
+
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips.map(\.id), ["moving"])
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips[0].timelineStart, 5, accuracy: 1e-9)
+        XCTAssertTrue(model.currentTimelineProject.tracks[1].clips.isEmpty)
+        XCTAssertTrue(model.currentTimelineProject.tracks[2].clips.isEmpty)
+        XCTAssertTrue(model.currentTimelineProject.tracks[3].clips.isEmpty)
+
+        model.moveTimelineClip(id: "moving", toTrackID: "o3", toTimelineStart: 30)
+
+        XCTAssertTrue(model.currentTimelineProject.tracks[0].clips.isEmpty)
+        XCTAssertEqual(model.currentTimelineProject.tracks[2].clips.map(\.id), ["moving"])
+        XCTAssertEqual(model.currentTimelineProject.tracks[2].clips[0].timelineStart, 30, accuracy: 1e-9)
+    }
+
     func testAddingPooledVideoAppendsToVideoTrack() throws {
         let model = StudioModel()
         let firstURL = URL(fileURLWithPath: "/tmp/a.mov")

@@ -850,6 +850,58 @@ final class StudioModelTests: XCTestCase {
         )
     }
 
+    func testProjectTimelineVerticalDragTargetsOnlyUnlockedTracksOfTheSameKind() {
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "v1", kind: .video, name: "V1"),
+                TimelineTrack(id: "v2", kind: .video, name: "V2"),
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1"),
+                TimelineTrack(id: "o2", kind: .overlay, name: "O2", isLocked: true)
+            ]
+        )
+
+        XCTAssertEqual(
+            ProjectTimelineView.targetTrackID(
+                project: project,
+                sourceTrackID: "v1",
+                verticalTranslation: -48,
+                trackHeight: 48
+            ),
+            "v2"
+        )
+        XCTAssertEqual(
+            ProjectTimelineView.targetTrackID(
+                project: project,
+                sourceTrackID: "v2",
+                verticalTranslation: -48,
+                trackHeight: 48
+            ),
+            "v2"
+        )
+        XCTAssertEqual(
+            ProjectTimelineView.targetTrackID(
+                project: project,
+                sourceTrackID: "o1",
+                verticalTranslation: -48,
+                trackHeight: 48
+            ),
+            "o1"
+        )
+        XCTAssertEqual(
+            ProjectTimelineView.targetTrackID(
+                project: project,
+                sourceTrackID: "v2",
+                verticalTranslation: 48,
+                trackHeight: 48
+            ),
+            "v1"
+        )
+    }
+
     func testProjectTimelineTrimSnapsClipHeadAndTailToPlayheadWithinThreshold() {
         let project = TimelineProject(
             outputWidth: 1_920,

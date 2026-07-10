@@ -15,8 +15,11 @@ struct ProjectTimelineView: View {
     private let playheadColor = Color(red: 1.0, green: 0.42, blue: 0.34)
 
     @State private var dragClipID: String?
+    @State private var dragStartTrackID: String?
+    @State private var dragTargetTrackID: String?
     @State private var dragStartClipTimelineStart: TimeInterval?
     @State private var dragTimelineDuration: TimeInterval?
+    @State private var dragVerticalOffset: CGFloat = 0
     @State private var clipTrimID: String?
     @State private var clipTrimIsStart: Bool?
     @State private var clipTrimBaseTime: TimeInterval?
@@ -233,6 +236,30 @@ struct ProjectTimelineView: View {
         )
     }
 
+    static func targetTrackID(
+        project: TimelineProject,
+        sourceTrackID: String,
+        verticalTranslation: CGFloat,
+        trackHeight: CGFloat
+    ) -> String {
+        let displayTracks = Array(project.tracks.reversed())
+        guard verticalTranslation.isFinite,
+              trackHeight.isFinite,
+              trackHeight > 0,
+              let sourceIndex = displayTracks.firstIndex(where: { $0.id == sourceTrackID }) else {
+            return sourceTrackID
+        }
+
+        let proposedIndex = sourceIndex + Int((verticalTranslation / trackHeight).rounded())
+        let targetIndex = min(displayTracks.count - 1, max(0, proposedIndex))
+        let sourceTrack = displayTracks[sourceIndex]
+        let targetTrack = displayTracks[targetIndex]
+        guard targetTrack.kind == sourceTrack.kind, !targetTrack.isLocked else {
+            return sourceTrackID
+        }
+        return targetTrack.id
+    }
+
     // MARK: ruler
 
     private func ruler(duration: TimeInterval, laneWidth: CGFloat) -> some View {
@@ -339,6 +366,11 @@ struct ProjectTimelineView: View {
         }
         .frame(width: laneWidth, height: trackHeight, alignment: .topLeading)
         .contentShape(Rectangle())
+        .background(
+            dragTargetTrackID == track.id
+                ? Color.accentColor.opacity(0.10)
+                : Color.clear
+        )
         .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
             handleMediaDrop(
                 providers,
@@ -349,6 +381,7 @@ struct ProjectTimelineView: View {
             )
         }
         .opacity(track.isEnabled ? 1 : 0.42)
+        .zIndex(track.clips.contains { $0.id == dragClipID } ? 1 : 0)
         .overlay(alignment: .bottom) { Divider() }
     }
 
@@ -410,6 +443,7 @@ struct ProjectTimelineView: View {
         let pausedRanges = kind == .overlay
             ? (model.activitySeries(forAssetID: clip.assetID)?.pausedRanges ?? [])
             : []
+        let activeDragVerticalOffset = dragClipID == clip.id ? dragVerticalOffset : 0
 
         let clipBody = RoundedRectangle(cornerRadius: 7, style: .continuous)
             .fill(clipFill(kind))
@@ -469,7 +503,8 @@ struct ProjectTimelineView: View {
             }
         }
         .frame(width: width, height: trackHeight - 12)
-        .offset(x: x, y: 6)
+        .offset(x: x, y: 6 + activeDragVerticalOffset)
+        .zIndex(dragClipID == clip.id ? 1 : 0)
         .onTapGesture {
             model.selectTimelineClip(id: clip.id)
         }
@@ -553,8 +588,20 @@ struct ProjectTimelineView: View {
             .onChanged { value in
                 if dragClipID != clip.id {
                     dragClipID = clip.id
+                    dragStartTrackID = project.tracks.first(where: { track in
+                        track.clips.contains { $0.id == clip.id }
+                    })?.id
                     dragStartClipTimelineStart = clip.timelineStart
                     dragTimelineDuration = duration
+                }
+                dragVerticalOffset = value.translation.height
+                if let dragStartTrackID {
+                    dragTargetTrackID = Self.targetTrackID(
+                        project: project,
+                        sourceTrackID: dragStartTrackID,
+                        verticalTranslation: value.translation.height,
+                        trackHeight: trackHeight
+                    )
                 }
                 let base = dragStartClipTimelineStart ?? clip.timelineStart
                 let gestureDuration = dragTimelineDuration ?? duration
@@ -563,10 +610,34 @@ struct ProjectTimelineView: View {
                 let newStart = project.snappedTimelineTime(base + deltaT, threshold: snap, excludingClipID: clip.id)
                 model.moveTimelineClip(id: clip.id, toTimelineStart: newStart)
             }
-            .onEnded { _ in
+            .onEnded { value in
+                if let dragStartTrackID {
+                    let gestureDuration = dragTimelineDuration ?? duration
+                    let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
+                    let snap = Double(6 / laneWidth) * gestureDuration
+                    let finalStart = project.snappedTimelineTime(
+                        (dragStartClipTimelineStart ?? clip.timelineStart) + deltaT,
+                        threshold: snap,
+                        excludingClipID: clip.id
+                    )
+                    let targetTrackID = Self.targetTrackID(
+                        project: project,
+                        sourceTrackID: dragStartTrackID,
+                        verticalTranslation: value.translation.height,
+                        trackHeight: trackHeight
+                    )
+                    model.moveTimelineClip(
+                        id: clip.id,
+                        toTrackID: targetTrackID,
+                        toTimelineStart: finalStart
+                    )
+                }
                 dragClipID = nil
+                dragStartTrackID = nil
+                dragTargetTrackID = nil
                 dragStartClipTimelineStart = nil
                 dragTimelineDuration = nil
+                dragVerticalOffset = 0
             }
     }
 
