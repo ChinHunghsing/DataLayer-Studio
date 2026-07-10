@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Timeline clip editing (split / delete / ripple delete)
 //
 // Simplified DaVinci-style editing semantics for the timeline tab:
-// - Splitting cuts every unlocked clip under a timeline time, or only explicitly targeted tracks,
+// - Splitting cuts every unlocked clip under a timeline time, or only an explicitly selected clip,
 //   into two clips whose source content stays continuous across the cut.
 // - Removing a clip leaves a gap; gaps are legal timeline content (composited export
 //   fills them with black frames, overlay-only export keeps them transparent).
@@ -96,18 +96,19 @@ extension TimelineProject {
     /// Minimum piece length produced by a split, matching the interactive trim floor.
     public static let minimumEditableClipDuration: TimeInterval = 0.1
 
-    /// IDs of clips that `splitClips(atTimelineTime:trackIDs:)` would cut. With no `trackIDs`, all
-    /// unlocked tracks are targeted; otherwise only those unlocked tracks are considered.
+    /// IDs of clips that `splitClips(atTimelineTime:clipID:)` would cut. With no `clipID`, every
+    /// unlocked clip under the playhead is targeted; otherwise only that selected clip is considered.
     public func splittableClipIDs(
         atTimelineTime t: TimeInterval,
-        trackIDs: Set<String>? = nil
+        clipID: String? = nil
     ) -> [String] {
         guard t.isFinite else { return [] }
         return tracks
-            .filter { !$0.isLocked && (trackIDs?.contains($0.id) ?? true) }
+            .filter { !$0.isLocked }
             .flatMap(\.clips)
             .filter {
-                t - $0.timelineStart >= Self.minimumEditableClipDuration
+                (clipID == nil || $0.id == clipID)
+                    && t - $0.timelineStart >= Self.minimumEditableClipDuration
                     && $0.timelineEnd - t >= Self.minimumEditableClipDuration
             }
             .map(\.id)
@@ -119,15 +120,14 @@ extension TimelineProject {
     @discardableResult
     public mutating func splitClips(
         atTimelineTime t: TimeInterval,
-        trackIDs: Set<String>? = nil,
+        clipID: String? = nil,
         makeClipID: () -> String = { UUID().uuidString }
     ) -> Int {
-        let targets = Set(splittableClipIDs(atTimelineTime: t, trackIDs: trackIDs))
+        let targets = Set(splittableClipIDs(atTimelineTime: t, clipID: clipID))
         guard !targets.isEmpty else { return 0 }
 
         var splitCount = 0
-        for trackIndex in tracks.indices where !tracks[trackIndex].isLocked
-            && (trackIDs?.contains(tracks[trackIndex].id) ?? true) {
+        for trackIndex in tracks.indices where !tracks[trackIndex].isLocked {
             var clips: [TimelineClip] = []
             clips.reserveCapacity(tracks[trackIndex].clips.count + targets.count)
             for clip in tracks[trackIndex].clips {

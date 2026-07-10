@@ -302,6 +302,48 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.activitySyncZeroVideoTime, -12, accuracy: 1e-9)
     }
 
+    func testTimelineSyncRequiresExactlyOneFullUntrimmedPair() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/sync-availability.mov")
+        let activityURL = URL(fileURLWithPath: "/tmp/sync-availability.fit")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30)
+        )
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.videoURL = videoURL
+        model.fitURL = activityURL
+
+        XCTAssertTrue(model.canEditTimelineSync)
+
+        model.moveTimelineClip(id: "single.video.clip", toTimelineStart: 12)
+        XCTAssertTrue(model.canEditTimelineSync, "Relative placement does not trim either source")
+
+        model.trimTimelineClipEnd(id: "single.video.clip", toTimelineTime: 100)
+        XCTAssertFalse(model.canEditTimelineSync)
+
+        model.setTimelineClipTiming(id: "single.video.clip", sourceIn: 0, duration: 120)
+        XCTAssertTrue(model.canEditTimelineSync)
+
+        var lockedProject = model.currentTimelineProject
+        let videoTrackIndex = try XCTUnwrap(lockedProject.tracks.firstIndex { $0.kind == .video })
+        lockedProject.tracks[videoTrackIndex].isLocked = true
+        model.applyTimelineProject(lockedProject, loadAssets: false)
+        XCTAssertFalse(model.canEditTimelineSync)
+
+        lockedProject.tracks[videoTrackIndex].isLocked = false
+        model.applyTimelineProject(lockedProject, loadAssets: false)
+        XCTAssertTrue(model.canEditTimelineSync)
+
+        model.selectedTimelineClipID = nil
+        model.previewTime = 30
+        model.splitTimelineClipsAtPlayhead()
+        XCTAssertFalse(model.canEditTimelineSync)
+    }
+
     func testSingleSourceVideoAndActivityClipsMoveIndependentlyAndAllowLeadingBlank() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
@@ -615,15 +657,11 @@ final class MediaPoolTests: XCTestCase {
 
         undoManager.redo()
         XCTAssertEqual(model.currentTimelineProject.tracks.map(\.id), [trackID])
-        model.selectTimelineTrack(id: trackID)
-        XCTAssertEqual(model.selectedTimelineTrackIDs, [trackID])
         model.removeEmptyTimelineTrack(id: trackID)
         XCTAssertTrue(model.currentTimelineProject.tracks.isEmpty)
-        XCTAssertTrue(model.selectedTimelineTrackIDs.isEmpty)
 
         undoManager.undo()
         XCTAssertEqual(model.currentTimelineProject.tracks.map(\.id), [trackID])
-        XCTAssertEqual(model.selectedTimelineTrackIDs, [trackID])
     }
 
     func testTimelineAssetIDsInUseIncludesEveryReferencedVideoAndActivity() {
@@ -1047,7 +1085,7 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertTrue(model.usesCustomTimelinePreview)
     }
 
-    func testSelectedTimelineTrackLimitsSplitAndTogglesOff() throws {
+    func testSelectedTimelineClipLimitsSplitToThatClip() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/selected-track.mov")
         model.upsertVideoAsset(
@@ -1062,19 +1100,13 @@ final class MediaPoolTests: XCTestCase {
         ]))
         model.fitURL = fitURL
 
-        let videoTrack = try XCTUnwrap(
-            model.currentTimelineProject.tracks.first { $0.kind == .video }
-        )
-        let overlayTrack = try XCTUnwrap(
-            model.currentTimelineProject.tracks.first { $0.kind == .overlay }
-        )
+        let videoTrack = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.kind == .video })
+        let overlayTrack = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.kind == .overlay })
+        let videoClip = try XCTUnwrap(videoTrack.clips.first)
         model.previewTime = 30
 
-        model.selectTimelineTrack(id: videoTrack.id)
-        model.selectTimelineTrack(id: overlayTrack.id)
-        XCTAssertEqual(model.selectedTimelineTrackIDs, [videoTrack.id, overlayTrack.id])
-        model.selectTimelineTrack(id: overlayTrack.id)
-        XCTAssertEqual(model.selectedTimelineTrackIDs, [videoTrack.id])
+        model.selectTimelineClip(id: videoClip.id)
+        XCTAssertEqual(model.selectedTimelineClipID, videoClip.id)
         XCTAssertTrue(model.canSplitTimelineClipsAtPlayhead)
         model.splitTimelineClipsAtPlayhead()
 
@@ -1086,9 +1118,9 @@ final class MediaPoolTests: XCTestCase {
             model.currentTimelineProject.tracks.first { $0.id == overlayTrack.id }?.clips.count,
             1
         )
+        XCTAssertEqual(model.selectedTimelineClipID, videoClip.id)
 
-        model.selectTimelineTrack(id: videoTrack.id)
-        XCTAssertTrue(model.selectedTimelineTrackIDs.isEmpty)
+        model.selectedTimelineClipID = nil
         XCTAssertTrue(model.canSplitTimelineClipsAtPlayhead)
         model.splitTimelineClipsAtPlayhead()
 
@@ -1101,6 +1133,38 @@ final class MediaPoolTests: XCTestCase {
             model.currentTimelineProject.tracks.first { $0.id == overlayTrack.id }?.clips.count,
             2
         )
+    }
+
+    func testSelectedTimelineClipOutsidePlayheadPreventsSplit() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/selected-away.mov")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30)
+        )
+        model.videoURL = videoURL
+        let fitURL = URL(fileURLWithPath: "/tmp/selected-away.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = fitURL
+
+        let videoClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .video }?.clips.first
+        )
+        model.selectTimelineClip(id: videoClip.id)
+        model.previewTime = 70
+        model.splitTimelineClipsAtPlayhead()
+        let overlayClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .overlay }?.clips.first
+        )
+        model.selectTimelineClip(id: overlayClip.id)
+        model.previewTime = 100
+
+        XCTAssertFalse(model.canSplitTimelineClipsAtPlayhead)
+        model.splitTimelineClipsAtPlayhead()
+        XCTAssertEqual(model.currentTimelineProject.tracks.flatMap(\.clips).count, 3)
     }
 
     func testDeletingTimelineClipLeavesGap() throws {

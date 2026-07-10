@@ -223,53 +223,39 @@ struct ProjectTimelineView: View {
     // MARK: track row
 
     private func trackHeader(_ track: TimelineTrack) -> some View {
-        let isSelected = model.selectedTimelineTrackIDs.contains(track.id)
-        return HStack(spacing: 4) {
+        HStack(spacing: 8) {
+            Text(trackBadge(track))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(track.kind == .video ? Color.secondary : Color.accentColor)
+                .frame(width: 22, height: 18)
+                .background(
+                    (track.kind == .video ? Color.secondary.opacity(0.16) : ShellStyle.accentSoft),
+                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                )
+            Text(track.name)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+
+            if track.clips.isEmpty {
                 Button {
-                    model.selectTimelineTrack(id: track.id)
+                    model.removeEmptyTimelineTrack(id: track.id)
                 } label: {
-                    HStack(spacing: 8) {
-                        Text(trackBadge(track))
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(isSelected ? Color.accentColor : (track.kind == .video ? Color.secondary : Color.accentColor))
-                            .frame(width: 22, height: 18)
-                            .background(
-                                (isSelected || track.kind == .overlay ? ShellStyle.accentSoft : Color.secondary.opacity(0.16)),
-                                in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            )
-                        Text(track.name)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                    }
-                    .contentShape(Rectangle())
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary.opacity(0.7))
                 }
                 .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .disabled(model.isExporting)
-                .help(localization.string("timeline.track.selectHelp"))
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-
-                if track.clips.isEmpty {
-                    Button {
-                        model.removeEmptyTimelineTrack(id: track.id)
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary.opacity(0.7))
-                    }
-                    .buttonStyle(.plain)
-                    .help(localization.string("menu.deleteEmptyTimelineTrack"))
-                    .accessibilityLabel(localization.string("menu.deleteEmptyTimelineTrack"))
-                }
+                .help(localization.string("menu.deleteEmptyTimelineTrack"))
+                .accessibilityLabel(localization.string("menu.deleteEmptyTimelineTrack"))
             }
-            .padding(.horizontal, 10)
-            .frame(width: headerWidth, height: trackHeight)
-            .background(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
-            .background(.bar)
-            .overlay(alignment: .trailing) { Divider() }
-            .overlay(alignment: .bottom) { Divider() }
+        }
+        .padding(.horizontal, 10)
+        .frame(width: headerWidth, height: trackHeight)
+        .background(.bar)
+        .overlay(alignment: .trailing) { Divider() }
+        .overlay(alignment: .bottom) { Divider() }
     }
 
     private func trackLane(_ track: TimelineTrack, project: TimelineProject, duration: TimeInterval, laneWidth: CGFloat) -> some View {
@@ -404,9 +390,12 @@ struct ProjectTimelineView: View {
         }
         .contextMenu {
             Button(localization.string("menu.splitTimelineClips")) {
+                model.selectTimelineClip(id: clip.id)
                 model.splitTimelineClipsAtPlayhead()
             }
-            .disabled(!model.canSplitTimelineClipsAtPlayhead)
+            .disabled(
+                project.splittableClipIDs(atTimelineTime: model.previewTime, clipID: clip.id).isEmpty
+            )
 
             Divider()
 

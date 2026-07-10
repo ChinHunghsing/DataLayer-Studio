@@ -12,12 +12,15 @@ struct SidebarSyncSection: View {
                     message: localization.string("sidebar.sync.noVideo.message"),
                     systemImage: "info.circle"
                 )
+            } else if !model.canEditTimelineSync {
+                SyncInfoBox(
+                    title: localization.string("sidebar.sync.unavailable.title"),
+                    message: localization.string("sidebar.sync.unavailable.message"),
+                    systemImage: "lock.circle"
+                )
             } else {
                 matchPointControls
             }
-        }
-        .onAppear {
-            model.useMatchPointSyncMode()
         }
     }
 
@@ -59,6 +62,9 @@ struct SidebarSyncSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+        .onAppear {
+            model.useMatchPointSyncMode()
         }
     }
 

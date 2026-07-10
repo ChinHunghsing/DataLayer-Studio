@@ -452,14 +452,14 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(project.tracks[2].clips.map(\.id), ["locked-clip"])
     }
 
-    func testSplitClipsCutsOnlyTheSelectedTrack() {
+    func testSplitClipsCutsOnlyTheSelectedClip() {
         var project = editingProject()
         XCTAssertEqual(
-            project.splittableClipIDs(atTimelineTime: 15, trackIDs: ["video-track"]),
+            project.splittableClipIDs(atTimelineTime: 15, clipID: "video-b"),
             ["video-b"]
         )
 
-        let count = project.splitClips(atTimelineTime: 15, trackIDs: ["video-track"]) {
+        let count = project.splitClips(atTimelineTime: 15, clipID: "video-b") {
             "video-b-right"
         }
 
@@ -471,16 +471,7 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(project.tracks[1].clips.map(\.id), ["overlay-a"])
         XCTAssertEqual(project.tracks[2].clips.map(\.id), ["locked-clip"])
         XCTAssertTrue(
-            project.splittableClipIDs(atTimelineTime: 15, trackIDs: ["locked-track"]).isEmpty
-        )
-
-        var multipleTracks = editingProject()
-        XCTAssertEqual(
-            multipleTracks.splitClips(
-                atTimelineTime: 15,
-                trackIDs: ["video-track", "overlay-track"]
-            ),
-            2
+            project.splittableClipIDs(atTimelineTime: 15, clipID: "locked-clip").isEmpty
         )
     }
 

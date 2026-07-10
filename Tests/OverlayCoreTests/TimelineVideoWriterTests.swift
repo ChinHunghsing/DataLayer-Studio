@@ -852,6 +852,106 @@ final class TimelineVideoWriterTests: XCTestCase {
         XCTAssertFalse(audioTracks.isEmpty)
     }
 
+    func testTimelineWriterRendersSequentialClipsWithChangingVideoFormats() async throws {
+        let firstSourceURL = temporaryMovieURL("timeline-format-h264-source")
+        let secondSourceURL = temporaryMovieURL("timeline-format-hevc-source")
+        let thirdSourceURL = temporaryMovieURL("timeline-format-h264-return-source")
+        let outputURL = temporaryMovieURL("timeline-format-change-output")
+        defer {
+            Self.removeTemporaryFile(firstSourceURL)
+            Self.removeTemporaryFile(secondSourceURL)
+            Self.removeTemporaryFile(thirdSourceURL)
+            Self.removeTemporaryFile(outputURL)
+        }
+
+        do {
+            try makeTinySourceVideo(
+                at: firstSourceURL,
+                frameCount: 2,
+                framesPerSecond: 2,
+                width: 64,
+                height: 64,
+                codec: .h264,
+                includeAudio: true
+            ) { _ in (220, 20, 20) }
+            try makeTinySourceVideo(
+                at: secondSourceURL,
+                frameCount: 3,
+                framesPerSecond: 3,
+                width: 96,
+                height: 64,
+                codec: .hevc,
+                includeAudio: true
+            ) { _ in (20, 220, 20) }
+            try makeTinySourceVideo(
+                at: thirdSourceURL,
+                frameCount: 2,
+                framesPerSecond: 2,
+                width: 64,
+                height: 96,
+                codec: .h264,
+                includeAudio: true
+            ) { _ in (20, 40, 220) }
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            throw XCTSkip("Mixed-format timeline source encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 3, distanceMeters: 9)
+        ])
+        let project = TimelineProject(
+            outputWidth: 64,
+            outputHeight: 64,
+            framesPerSecond: 2,
+            distanceUnit: .kilometers,
+            assets: [
+                MediaAsset(id: "video-a", kind: .video, url: firstSourceURL, displayName: "a.mov", duration: 1, width: 64, height: 64, framesPerSecond: 2),
+                MediaAsset(id: "video-b", kind: .video, url: secondSourceURL, displayName: "b.mov", duration: 1, width: 96, height: 64, framesPerSecond: 3),
+                MediaAsset(id: "video-c", kind: .video, url: thirdSourceURL, displayName: "c.mov", duration: 1, width: 64, height: 96, framesPerSecond: 2),
+                MediaAsset(id: "activity", kind: .activity, url: URL(fileURLWithPath: "/tmp/activity.fit"), displayName: "activity.fit", duration: 3)
+            ],
+            tracks: [
+                TimelineTrack(id: "video-track", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "clip-a", assetID: "video-a", timelineStart: 0, duration: 1),
+                    TimelineClip(id: "clip-b", assetID: "video-b", timelineStart: 1, duration: 1),
+                    TimelineClip(id: "clip-c", assetID: "video-c", timelineStart: 2, duration: 1)
+                ]),
+                TimelineTrack(id: "overlay-track", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "overlay", assetID: "activity", timelineStart: 0, duration: 3, layout: OverlayLayout(elements: []))
+                ])
+            ]
+        )
+        let writer = TimelineVideoWriter(
+            outputURL: outputURL,
+            project: project,
+            telemetrySeriesByAssetID: ["activity": series],
+            config: TimelineVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: 2,
+                duration: 3,
+                averageBitRate: 400_000,
+                codec: .h264
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            throw XCTSkip("Mixed-format timeline output encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let firstFrame = try await frameMeanRGB(from: outputURL, at: 0.25)
+        let secondFrame = try await frameMeanRGB(from: outputURL, at: 1.25)
+        let thirdFrame = try await frameMeanRGB(from: outputURL, at: 2.25)
+        XCTAssertGreaterThan(firstFrame.red, firstFrame.blue + 80)
+        XCTAssertGreaterThan(secondFrame.green, secondFrame.red + 80)
+        XCTAssertGreaterThan(thirdFrame.blue, thirdFrame.red + 80)
+        let audioTracks = try await AVURLAsset(url: outputURL).loadTracks(withMediaType: .audio)
+        XCTAssertFalse(audioTracks.isEmpty)
+    }
+
     func testTimelineWriterUsesUpperVideoTrackAndReturnsToLowerTrack() async throws {
         let bottomSourceURL = temporaryMovieURL("timeline-bottom-video")
         let topSourceURL = temporaryMovieURL("timeline-top-video")
@@ -976,6 +1076,9 @@ final class TimelineVideoWriterTests: XCTestCase {
         at url: URL,
         frameCount: Int = 2,
         framesPerSecond: Int32 = 2,
+        width: Int = 64,
+        height: Int = 64,
+        codec: AVVideoCodecType = .h264,
         includeAudio: Bool = false,
         audioSampleByte: UInt8 = 0,
         frameColor: (Int) -> (red: UInt8, green: UInt8, blue: UInt8) = { index in
@@ -986,9 +1089,9 @@ final class TimelineVideoWriterTests: XCTestCase {
         let input = AVAssetWriterInput(
             mediaType: .video,
             outputSettings: [
-                AVVideoCodecKey: AVVideoCodecType.h264,
-                AVVideoWidthKey: 64,
-                AVVideoHeightKey: 64
+                AVVideoCodecKey: codec,
+                AVVideoWidthKey: width,
+                AVVideoHeightKey: height
             ]
         )
         input.expectsMediaDataInRealTime = false
@@ -997,8 +1100,8 @@ final class TimelineVideoWriterTests: XCTestCase {
             assetWriterInput: input,
             sourcePixelBufferAttributes: [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                kCVPixelBufferWidthKey as String: 64,
-                kCVPixelBufferHeightKey as String: 64,
+                kCVPixelBufferWidthKey as String: width,
+                kCVPixelBufferHeightKey as String: height,
                 kCVPixelBufferIOSurfacePropertiesKey as String: [:]
             ]
         )
@@ -1042,7 +1145,13 @@ final class TimelineVideoWriterTests: XCTestCase {
                 Thread.sleep(forTimeInterval: 0.001)
             }
             let color = frameColor(frameIndex)
-            let buffer = try makePixelBuffer(red: color.red, green: color.green, blue: color.blue)
+            let buffer = try makePixelBuffer(
+                width: width,
+                height: height,
+                red: color.red,
+                green: color.green,
+                blue: color.blue
+            )
             let time = CMTime(value: CMTimeValue(frameIndex), timescale: framesPerSecond)
             guard adaptor.append(buffer, withPresentationTime: time) else {
                 throw OverlayVideoError.writerFailed(writer.error?.localizedDescription ?? "Could not append tiny source frame.")
@@ -1146,12 +1255,18 @@ final class TimelineVideoWriterTests: XCTestCase {
         return sampleBuffer
     }
 
-    private func makePixelBuffer(red: UInt8, green: UInt8, blue: UInt8) throws -> CVPixelBuffer {
+    private func makePixelBuffer(
+        width: Int = 64,
+        height: Int = 64,
+        red: UInt8,
+        green: UInt8,
+        blue: UInt8
+    ) throws -> CVPixelBuffer {
         var pixelBuffer: CVPixelBuffer?
         let status = CVPixelBufferCreate(
             kCFAllocatorDefault,
-            64,
-            64,
+            width,
+            height,
             kCVPixelFormatType_32BGRA,
             [kCVPixelBufferIOSurfacePropertiesKey as String: [:]] as CFDictionary,
             &pixelBuffer
@@ -1167,8 +1282,8 @@ final class TimelineVideoWriterTests: XCTestCase {
         }
         let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
         let bytes = baseAddress.assumingMemoryBound(to: UInt8.self)
-        for y in 0..<64 {
-            for x in 0..<64 {
+        for y in 0..<height {
+            for x in 0..<width {
                 let offset = y * bytesPerRow + x * 4
                 bytes[offset] = blue
                 bytes[offset + 1] = green

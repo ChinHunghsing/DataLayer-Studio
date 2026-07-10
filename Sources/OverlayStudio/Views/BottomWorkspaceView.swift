@@ -104,6 +104,11 @@ struct BottomWorkspaceView: View {
         .frame(maxHeight: .infinity)
         .background(.bar)
         .controlSize(.small)
+        .onAppear {
+            if BottomWorkspaceTab(rawValue: selectedTabRawValue) == nil {
+                selectedTabRawValue = BottomWorkspaceTab.sync.rawValue
+            }
+        }
         .onChange(of: model.videoURL) { url in
             if url != nil {
                 selectedTabRawValue = BottomWorkspaceTab.sync.rawValue
@@ -126,89 +131,14 @@ struct BottomWorkspaceView: View {
         case .sync:
             SidebarSyncSection(model: model)
                 .disabled(model.isExporting)
-        case .trim:
-            trimContent
         case .timeline:
             EmptyView() // rendered directly in the body (fills the area)
         }
-    }
-
-    private var trimContent: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 12) {
-                activityTrimRangeCard
-                exportTrimRangeCard
-            }
-            VStack(alignment: .leading, spacing: 12) {
-                activityTrimRangeCard
-                exportTrimRangeCard
-            }
-        }
-    }
-
-    private var exportTrimRangeCard: some View {
-        ExportTrimRangeControl(
-            start: Binding(
-                get: { model.effectiveExportTrimStart },
-                set: { model.setExportTrimStart($0) }
-            ),
-            end: Binding(
-                get: { model.effectiveExportTrimEnd },
-                set: { model.setExportTrimEnd($0) }
-            ),
-            sourceDuration: model.exportTrimSourceDuration,
-            currentTime: model.previewTime,
-            reset: { model.resetExportTrimRange() },
-            formatTime: formatTrimTime
-        )
-        .disabled(model.isExporting || model.exportTrimSourceDuration <= 0)
-    }
-
-    private var activityTrimRangeCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ExportTrimRangeControl(
-                start: Binding(
-                    get: { model.effectiveActivityTrimStart },
-                    set: { model.setActivityTrimStart($0) }
-                ),
-                end: Binding(
-                    get: { model.effectiveActivityTrimEnd },
-                    set: { model.setActivityTrimEnd($0) }
-                ),
-                sourceDuration: model.activityTrimSourceDuration,
-                currentTime: model.currentActivityElapsedForTrim,
-                titleKey: "sidebar.activityRange",
-                fullKey: "sidebar.activityRange.full",
-                setStartKey: "sidebar.activityRange.setStart",
-                setEndKey: "sidebar.activityRange.setEnd",
-                reset: { model.resetActivityTrimRange() },
-                formatTime: formatTrimTime
-            )
-            Text(localization.string("sidebar.activityRange.help"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .disabled(model.isExporting || model.activityTrimSourceDuration <= 0)
-    }
-
-    private func formatTrimTime(_ seconds: TimeInterval) -> String {
-        let milliseconds = max(0, Int((seconds * 1000).rounded()))
-        let ms = milliseconds % 1000
-        let totalSeconds = milliseconds / 1000
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds / 60) % 60
-        let secs = totalSeconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d.%03d", hours, minutes, secs, ms)
-        }
-        return String(format: "%02d:%02d.%03d", minutes, secs, ms)
     }
 }
 
 private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
     case sync
-    case trim
     case timeline
 
     var id: String { rawValue }
@@ -217,8 +147,6 @@ private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
         switch self {
         case .sync:
             return "workspace.sync"
-        case .trim:
-            return "workspace.trim"
         case .timeline:
             return "workspace.timeline"
         }
@@ -228,8 +156,6 @@ private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
         switch self {
         case .sync:
             return "workspace.sync.hint"
-        case .trim:
-            return "workspace.trim.hint"
         case .timeline:
             return "workspace.timeline.hint"
         }
@@ -239,8 +165,6 @@ private enum BottomWorkspaceTab: String, CaseIterable, Identifiable {
         switch self {
         case .sync:
             return "arrow.left.arrow.right"
-        case .trim:
-            return "scissors"
         case .timeline:
             return "timeline.selection"
         }

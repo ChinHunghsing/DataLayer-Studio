@@ -185,16 +185,53 @@ public final class CompositedVideoWriter {
         let readerOutput: AVAssetReaderOutput?
         let sourceTransform: CGAffineTransform
         if let sourceAsset {
-            guard let videoTrack = sourceAsset.tracks(withMediaType: .video).first else {
+            let videoTracks = sourceAsset.tracks(withMediaType: .video)
+            guard let videoTrack = videoTracks.first else {
                 throw OverlayVideoError.unreadableVideo("No video track found in \(sourceDescription).")
             }
             let newReader = try AVAssetReader(asset: sourceAsset)
-            newReader.timeRange = CMTimeRange(start: trimStartTime, duration: timing.outputDuration)
-            let newOutput = AVAssetReaderTrackOutput(
-                track: videoTrack,
-                outputSettings: readerSettings
-            )
-            sourceTransform = makeSourceTransform(track: videoTrack, width: width, height: height)
+            let readerDuration: CMTime
+            if let sourceVideoRanges {
+                // AVMutableComposition does not extend its reported duration for a trailing empty
+                // range. Reading past the last real segment makes VideoCompositionOutput reject an
+                // otherwise valid sparse timeline; the render loop supplies black frames afterward.
+                let lastVideoEnd = sourceVideoRanges
+                    .map(CMTimeRangeGetEnd)
+                    .max { CMTimeCompare($0, $1) < 0 } ?? trimStartTime
+                readerDuration = minTime(
+                    timing.outputDuration,
+                    CMTimeSubtract(lastVideoEnd, trimStartTime)
+                )
+            } else {
+                readerDuration = timing.outputDuration
+            }
+            newReader.timeRange = CMTimeRange(start: trimStartTime, duration: readerDuration)
+            let newOutput: AVAssetReaderOutput
+            if sourceVideoRanges != nil {
+                // A timeline composition can switch source codec, dimensions, or frame rate at
+                // every edit point. TrackOutput may decode all requested frames and still finish
+                // in `.failed` with “Cannot Decode” after such a format change. Let AVFoundation's
+                // video compositor normalize those transitions before the frames reach our writer.
+                let videoComposition = AVMutableVideoComposition(propertiesOf: sourceAsset)
+                let compositionOutput = AVAssetReaderVideoCompositionOutput(
+                    videoTracks: videoTracks,
+                    videoSettings: readerSettings
+                )
+                compositionOutput.videoComposition = videoComposition
+                newOutput = compositionOutput
+                sourceTransform = makeSourceTransform(
+                    naturalSize: videoComposition.renderSize,
+                    preferredTransform: .identity,
+                    width: width,
+                    height: height
+                )
+            } else {
+                newOutput = AVAssetReaderTrackOutput(
+                    track: videoTrack,
+                    outputSettings: readerSettings
+                )
+                sourceTransform = makeSourceTransform(track: videoTrack, width: width, height: height)
+            }
             newOutput.alwaysCopiesSampleData = false
             guard newReader.canAdd(newOutput) else {
                 throw OverlayVideoError.unreadableVideo("Could not read composited video frames from \(sourceDescription).")
@@ -439,9 +476,21 @@ public final class CompositedVideoWriter {
     }
 
     private func makeSourceTransform(track: AVAssetTrack, width: Int, height: Int) -> CGAffineTransform {
+        makeSourceTransform(
+            naturalSize: track.naturalSize,
+            preferredTransform: track.preferredTransform,
+            width: width,
+            height: height
+        )
+    }
+
+    private func makeSourceTransform(
+        naturalSize: CGSize,
+        preferredTransform: CGAffineTransform,
+        width: Int,
+        height: Int
+    ) -> CGAffineTransform {
         let outputSize = CGSize(width: width, height: height)
-        let naturalSize = track.naturalSize
-        let preferredTransform = track.preferredTransform
         let transformedRect = CGRect(origin: .zero, size: naturalSize).applying(preferredTransform)
         let displaySize = CGSize(width: abs(transformedRect.width), height: abs(transformedRect.height))
         let scale = min(outputSize.width / max(1, displaySize.width), outputSize.height / max(1, displaySize.height))

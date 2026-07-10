@@ -104,7 +104,6 @@ final class StudioModel: ObservableObject {
         distanceUnit: .kilometers
     ) {
         didSet {
-            repairSelectedTimelineTrackIfNeeded()
             updateTimelineDirtyState()
             updateDefaultExportRangeForTimelineChange()
             scheduleTimelinePlayerRefreshIfNeeded()
@@ -184,7 +183,6 @@ final class StudioModel: ObservableObject {
     }
     @Published var selectedElementID: String?
     @Published var selectedTimelineClipID: String?
-    @Published private(set) var selectedTimelineTrackIDs: Set<String> = []
     @Published var layoutPresets: [LayoutPreset]
     @Published var defaultLayoutPresetID: String?
     @Published var layoutPresetSyncStatus: LayoutPresetSyncStatus = .localOnly
@@ -1065,7 +1063,6 @@ final class StudioModel: ObservableObject {
         videoLoadFailure = nil
         fitLoadFailure = nil
         selectedTimelineClipID = nil
-        selectedTimelineTrackIDs.removeAll()
         previewTime = clampedPreviewTime(previewTime)
         if let sourceURL = activeVideo?.url ?? activeActivity?.url {
             applySuggestedOutputURLIfNeeded(for: sourceURL)
@@ -2433,14 +2430,6 @@ final class StudioModel: ObservableObject {
         }
     }
 
-    private func repairSelectedTimelineTrackIfNeeded() {
-        let validTrackIDs = Set(timeline.tracks.map(\.id))
-        let repairedTrackIDs = selectedTimelineTrackIDs.intersection(validTrackIDs)
-        if repairedTrackIDs != selectedTimelineTrackIDs {
-            selectedTimelineTrackIDs = repairedTrackIDs
-        }
-    }
-
     private func removeTimelineAsset(id: String) {
         guard !timelineUsesSingleSourceMigration else { return }
         clearUndoStackForTimelineReplacement()
@@ -2533,7 +2522,39 @@ final class StudioModel: ObservableObject {
     }
 
     var canMarkSportStart: Bool {
-        !isExporting && player != nil && currentVideoSourceTimeForSync != nil
+        !isExporting && canEditTimelineSync && player != nil && currentVideoSourceTimeForSync != nil
+    }
+
+    /// Sync edits are intentionally limited to the unambiguous single-pair workflow. Moving the
+    /// complete clips is allowed; splitting, source trimming, adding clips, or locking either track
+    /// disables the panel.
+    var canEditTimelineSync: Bool {
+        let project = currentTimelineProject
+        let videoTracks = project.tracks.filter { $0.kind == .video }
+        let overlayTracks = project.tracks.filter { $0.kind == .overlay }
+        let videoClips = videoTracks.flatMap(\.clips)
+        let overlayClips = overlayTracks.flatMap(\.clips)
+        guard videoClips.count == 1,
+              overlayClips.count == 1,
+              let videoClip = videoClips.first,
+              let overlayClip = overlayClips.first,
+              let videoTrack = videoTracks.first(where: { !$0.clips.isEmpty }),
+              let overlayTrack = overlayTracks.first(where: { !$0.clips.isEmpty }),
+              let videoAsset = project.asset(id: videoClip.assetID),
+              let overlayAsset = project.asset(id: overlayClip.assetID),
+              videoAsset.kind == .video,
+              overlayAsset.kind == .activity,
+              videoClip.assetID == activeVideoAssetID,
+              overlayClip.assetID == activeActivityAssetID,
+              !videoTrack.isLocked,
+              !overlayTrack.isLocked else {
+            return false
+        }
+        let epsilon = 1e-6
+        return abs(videoClip.sourceIn) <= epsilon
+            && abs(overlayClip.sourceIn) <= epsilon
+            && abs(videoClip.duration - videoAsset.duration) <= epsilon
+            && abs(overlayClip.duration - overlayAsset.duration) <= epsilon
     }
 
     /// Video time at which activity elapsed 0 currently lands (the overlay clip's zero point on the timeline).
@@ -2621,22 +2642,20 @@ final class StudioModel: ObservableObject {
     /// Whether the blade (⌘B) has anything to cut at the playhead.
     var canSplitTimelineClipsAtPlayhead: Bool {
         guard !isExporting else { return false }
-        let trackIDs = selectedTimelineTrackIDs.isEmpty ? nil : selectedTimelineTrackIDs
         return !currentTimelineProject.splittableClipIDs(
             atTimelineTime: previewTime,
-            trackIDs: trackIDs
+            clipID: selectedTimelineClipID
         ).isEmpty
     }
 
-    /// Split the selected tracks under the playhead, or every unlocked track when none is selected.
+    /// Split the selected clip under the playhead, or every unlocked track when no clip is selected.
     func splitTimelineClipsAtPlayhead() {
         guard !isExporting else { return }
         let previousUndoState = timelineUndoSnapshotNow
         var updated = timeline
-        let trackIDs = selectedTimelineTrackIDs.isEmpty ? nil : selectedTimelineTrackIDs
         guard updated.splitClips(
             atTimelineTime: previewTime,
-            trackIDs: trackIDs
+            clipID: selectedTimelineClipID
         ) > 0 else { return }
         beginTimelineClipEditingIfNeeded()
         timeline = updated
@@ -2692,15 +2711,6 @@ final class StudioModel: ObservableObject {
         }
         selectedTimelineClipID = id
         selectedElementID = nil
-    }
-
-    func selectTimelineTrack(id: String) {
-        guard !isExporting, timeline.tracks.contains(where: { $0.id == id }) else { return }
-        if selectedTimelineTrackIDs.contains(id) {
-            selectedTimelineTrackIDs.remove(id)
-        } else {
-            selectedTimelineTrackIDs.insert(id)
-        }
     }
 
     func selectElement(id: String) {
@@ -3798,15 +3808,13 @@ final class StudioModel: ObservableObject {
         var timeline: TimelineProject
         var usesSingleSourceMigration: Bool
         var selectedClipID: String?
-        var selectedTrackIDs: Set<String>
     }
 
     private var timelineUndoSnapshotNow: TimelineUndoSnapshot {
         TimelineUndoSnapshot(
             timeline: timeline,
             usesSingleSourceMigration: timelineUsesSingleSourceMigration,
-            selectedClipID: selectedTimelineClipID,
-            selectedTrackIDs: selectedTimelineTrackIDs
+            selectedClipID: selectedTimelineClipID
         )
     }
 
@@ -3868,8 +3876,6 @@ final class StudioModel: ObservableObject {
         } else {
             repairSelectedTimelineClipIfNeeded()
         }
-        selectedTimelineTrackIDs = previous.selectedTrackIDs
-        repairSelectedTimelineTrackIfNeeded()
         if !usesCustomTimelinePreview, let videoURL {
             // Undo back into single-source mode: return the player to the raw video item.
             configurePlayer(url: videoURL)
