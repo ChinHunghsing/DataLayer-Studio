@@ -444,6 +444,16 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNil(model.exportReadinessMessage)
     }
 
+    func testIndividualClipExportRequiresExplicitDirectorySelection() {
+        let model = StudioModel()
+        model.outputURL = URL(fileURLWithPath: "/tmp/export.mov")
+        XCTAssertFalse(model.needsOutputSelectionBeforeExport)
+
+        model.exportRenderScope = .individualClips
+
+        XCTAssertTrue(model.needsOutputSelectionBeforeExport)
+    }
+
     func testExportTrimRangeDefaultsToFullActivityAndClamps() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [

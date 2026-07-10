@@ -203,7 +203,7 @@ final class TransparentVideoWriterTests: XCTestCase {
         }
     }
 
-    func testTemporaryOutputIsWrittenInDestinationDirectory() {
+    func testTemporaryOutputIsWrittenInAppTemporaryDirectory() {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("sandbox-target-\(UUID().uuidString)")
             .appendingPathComponent("overlay.mov")
@@ -217,7 +217,7 @@ final class TransparentVideoWriterTests: XCTestCase {
 
         XCTAssertEqual(
             temporaryURL.deletingLastPathComponent().standardizedFileURL.path,
-            outputURL.deletingLastPathComponent().standardizedFileURL.path
+            FileManager.default.temporaryDirectory.standardizedFileURL.path
         )
         XCTAssertTrue(temporaryURL.lastPathComponent.hasPrefix("DataLayerStudio-\(ProcessInfo.processInfo.processIdentifier)-"))
         XCTAssertEqual(temporaryURL.pathExtension, "mov")

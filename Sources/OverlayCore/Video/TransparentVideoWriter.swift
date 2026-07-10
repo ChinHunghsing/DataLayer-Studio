@@ -204,7 +204,7 @@ public final class TransparentVideoWriter {
             throw OverlayVideoError.cancelled
         }
 
-        Self.removeStaleTemporaryOutputs(in: outputURL.deletingLastPathComponent())
+        Self.removeStaleTemporaryOutputs()
         let temporaryOutputURL = makeTemporaryOutputURL()
         removePartialOutput(at: temporaryOutputURL)
 
@@ -618,7 +618,7 @@ public final class TransparentVideoWriter {
         let pathExtension = outputURL.pathExtension.isEmpty ? "mov" : outputURL.pathExtension
         let safeBaseName = baseName.isEmpty ? fallbackBaseName : baseName
         let tagComponent = tag.map { "\($0)-" } ?? ""
-        return outputURL.deletingLastPathComponent()
+        return FileManager.default.temporaryDirectory
             .appendingPathComponent("\(temporaryFilePrefix)\(ProcessInfo.processInfo.processIdentifier)-\(tagComponent)\(safeBaseName)-\(UUID().uuidString)")
             .appendingPathExtension(pathExtension)
     }
@@ -658,7 +658,14 @@ public final class TransparentVideoWriter {
             }
         }
 
-        try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
+        do {
+            try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
+        } catch {
+            // The app-container temporary directory and the user-selected destination can live
+            // on different volumes. Copying preserves sandbox safety and supports external disks.
+            try fileManager.copyItem(at: temporaryOutputURL, to: outputURL)
+            try? fileManager.removeItem(at: temporaryOutputURL)
+        }
     }
 
     private func removePartialOutput(at url: URL) {

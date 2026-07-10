@@ -134,9 +134,7 @@ public final class CompositedVideoWriter {
             throw OverlayVideoError.cancelled
         }
 
-        TransparentVideoWriter.removeStaleTemporaryOutputs(
-            in: outputURL.deletingLastPathComponent()
-        )
+        TransparentVideoWriter.removeStaleTemporaryOutputs()
         let videoOnlyURL = makeTemporaryOutputURL(tag: "video")
         let finalURL = makeTemporaryOutputURL(tag: "final")
         removePartialOutput(at: videoOnlyURL)
@@ -685,7 +683,12 @@ public final class CompositedVideoWriter {
             }
         }
 
-        try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
+        do {
+            try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
+        } catch {
+            try fileManager.copyItem(at: temporaryOutputURL, to: outputURL)
+            try? fileManager.removeItem(at: temporaryOutputURL)
+        }
     }
 
     private func removePartialOutput(at url: URL) {

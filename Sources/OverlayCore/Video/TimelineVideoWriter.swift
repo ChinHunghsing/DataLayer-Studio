@@ -206,9 +206,7 @@ public final class TimelineVideoWriter {
         let fps = timing.framesPerSecond
         let encoderFrameRate = try encoderFrameRateValue(fps)
         let hardwareProfile = OverlayHardwareProfile.current
-        TransparentVideoWriter.removeStaleTemporaryOutputs(
-            in: outputURL.deletingLastPathComponent()
-        )
+        TransparentVideoWriter.removeStaleTemporaryOutputs()
         let temporaryOutputURL = makeTemporaryOutputURL(tag: "timeline-overlay")
         removePartialOutput(at: temporaryOutputURL)
 
@@ -550,7 +548,12 @@ public final class TimelineVideoWriter {
         }
 
         do {
-            try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
+            do {
+                try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
+            } catch {
+                try fileManager.copyItem(at: temporaryOutputURL, to: outputURL)
+                try? fileManager.removeItem(at: temporaryOutputURL)
+            }
         } catch {
             throw OverlayVideoError.writerFailed(
                 "Could not move completed output into place: \(error.localizedDescription)"
