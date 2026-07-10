@@ -1019,7 +1019,7 @@ struct PreviewCanvasState: Equatable {
 
     @MainActor
     init(model: StudioModel) {
-        player = model.usesCustomTimelinePreview ? nil : model.player
+        player = model.player
         backgroundImage = model.backgroundImage
         overlayImage = model.overlayImage
         layout = model.layout

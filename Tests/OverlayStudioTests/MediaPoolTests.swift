@@ -1125,7 +1125,7 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertNil(model.previewWarning)
     }
 
-    func testCustomTimelineCanvasPrefersRenderedFrameOverSingleSourcePlayer() {
+    func testCustomTimelineCanvasUsesSharedPlayerAndTearsDownWithoutVideo() {
         let model = StudioModel()
         let activeURL = URL(fileURLWithPath: "/tmp/a.fit")
         model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
@@ -1140,12 +1140,16 @@ final class MediaPoolTests: XCTestCase {
             TelemetrySample(elapsed: 45, distanceMeters: 180)
         ]))
         model.previewTime = 12
-        model.addActivityAssetToTimeline(id: pooledURL.path)
         model.player = AVPlayer()
+        // Entering custom-timeline mode with no video clips tears the player down so the
+        // overlay clock and frame rendering drive the preview.
+        model.addActivityAssetToTimeline(id: pooledURL.path)
+        XCTAssertNil(model.player)
 
+        // The canvas mirrors the shared player: composition-backed playback shows through it.
+        model.player = AVPlayer()
         let state = PreviewCanvasState(model: model)
-
-        XCTAssertNil(state.player)
+        XCTAssertNotNil(state.player)
     }
 
     private func waitForOverlayPreview(

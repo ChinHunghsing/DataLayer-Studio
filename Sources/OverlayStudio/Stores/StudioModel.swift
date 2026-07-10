@@ -105,6 +105,7 @@ final class StudioModel: ObservableObject {
         didSet {
             updateTimelineDirtyState()
             updateDefaultExportRangeForTimelineChange()
+            scheduleTimelinePlayerRefreshIfNeeded()
         }
     }
     @Published private(set) var hasUnsavedTimelineChanges = false
@@ -210,6 +211,9 @@ final class StudioModel: ObservableObject {
     private var playerTimeObserver: PlayerTimeObserver?
     private var overlayPlaybackTimer: Timer?
     private var overlayPlaybackLastTick: Date?
+    private var timelinePlayerRebuildTask: Task<Void, Never>?
+    private var timelinePlayerBuildGeneration = 0
+    private var timelinePlayerBuiltSignature: TimelinePlayerSignature?
     private var previewRenderGeneration = 0
     private var videoLoadGeneration = 0
     private var fitLoadGeneration = 0
@@ -1263,9 +1267,14 @@ final class StudioModel: ObservableObject {
         pausePlayback()
         playerTimeObserver?.remove()
         playerTimeObserver = nil
+        timelinePlayerBuiltSignature = nil
 
         let player = AVPlayer(url: url)
         self.player = player
+        attachPlayerTimeObserver(to: player)
+    }
+
+    private func attachPlayerTimeObserver(to player: AVPlayer) {
         let observerToken = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: Self.playerTimeObserverInterval, preferredTimescale: 600),
             queue: .main
@@ -1290,13 +1299,148 @@ final class StudioModel: ObservableObject {
         playerTimeObserver = PlayerTimeObserver(player: player, token: observerToken)
     }
 
+    // MARK: - Custom timeline preview player
+
+    /// Video geometry that determines the preview composition. Rebuilds are skipped while it is
+    /// unchanged, so overlay-only edits never disturb playback.
+    private struct TimelinePlayerSignature: Equatable {
+        var clips: [TimelineClip]
+        var assetURLs: [String: URL]
+        var endTime: TimeInterval
+    }
+
+    private var currentTimelinePlayerSignature: TimelinePlayerSignature? {
+        guard usesCustomTimelinePreview else { return nil }
+        let clips = timeline.enabledClips(kind: .video)
+        var assetURLs: [String: URL] = [:]
+        for clip in clips {
+            if let asset = timeline.asset(id: clip.assetID) {
+                assetURLs[clip.assetID] = asset.url
+            }
+        }
+        return TimelinePlayerSignature(clips: clips, assetURLs: assetURLs, endTime: timeline.duration)
+    }
+
+    /// Debounced rebuild so a clip drag's rapid timeline updates produce one rebuild at the end.
+    private func scheduleTimelinePlayerRefreshIfNeeded() {
+        guard !isExporting, usesCustomTimelinePreview else { return }
+        guard currentTimelinePlayerSignature != timelinePlayerBuiltSignature else { return }
+        timelinePlayerRebuildTask?.cancel()
+        timelinePlayerRebuildTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.timelinePlayerRebuildTask = nil
+            self.configureTimelinePlayer()
+        }
+    }
+
+    /// Point the shared AVPlayer at a composition assembled from the timeline's video clips, so
+    /// custom-timeline playback gets smooth video and audio instead of timer-driven frame
+    /// extraction. Gaps in the composition play as black frames with silent audio.
+    private func configureTimelinePlayer() {
+        guard !isExporting, usesCustomTimelinePreview else { return }
+        timelinePlayerRebuildTask?.cancel()
+        timelinePlayerRebuildTask = nil
+        let signature = currentTimelinePlayerSignature
+        timelinePlayerBuildGeneration += 1
+        let generation = timelinePlayerBuildGeneration
+
+        let project = currentTimelineProject
+        let videoClips = project.enabledClips(kind: .video)
+        let endTime = project.duration
+        guard !videoClips.isEmpty, endTime > 0 else {
+            tearDownTimelinePlayer(signature: signature)
+            return
+        }
+
+        Task.detached(priority: .userInitiated) {
+            // AVMutableComposition is not Sendable; it is built here and then handed to the main
+            // actor without further touches from this task.
+            struct CompositionBox: @unchecked Sendable {
+                let composition: AVMutableComposition?
+                let failureMessage: String?
+            }
+            let box: CompositionBox
+            do {
+                let built = try TimelineVideoCompositionBuilder.make(
+                    project: project,
+                    videoClips: videoClips,
+                    requiredEnd: endTime
+                )
+                box = CompositionBox(composition: built.composition, failureMessage: nil)
+            } catch {
+                box = CompositionBox(composition: nil, failureMessage: error.localizedDescription)
+            }
+            await MainActor.run { [weak self] in
+                guard let self,
+                      generation == self.timelinePlayerBuildGeneration,
+                      !self.isExporting,
+                      self.usesCustomTimelinePreview else { return }
+                if let composition = box.composition {
+                    self.applyTimelinePlayerComposition(composition, signature: signature)
+                } else {
+                    // Unreadable/missing source: fall back to frame-extraction preview.
+                    self.tearDownTimelinePlayer(signature: signature)
+                    self.addDebugLog(
+                        .preview,
+                        "Timeline preview player unavailable: \(box.failureMessage ?? "unknown error")"
+                    )
+                }
+            }
+        }
+    }
+
+    private func applyTimelinePlayerComposition(
+        _ composition: AVMutableComposition,
+        signature: TimelinePlayerSignature?
+    ) {
+        let item = AVPlayerItem(asset: composition)
+        let wasPlaying = isPlaying
+        if let player {
+            player.replaceCurrentItem(with: item)
+        } else {
+            // Switch drivers: the overlay clock hands playback over to the player.
+            stopOverlayPlaybackTimer()
+            let player = AVPlayer(playerItem: item)
+            self.player = player
+            attachPlayerTimeObserver(to: player)
+        }
+        timelinePlayerBuiltSignature = signature
+        backgroundImage = nil
+        player?.seek(
+            to: CMTime(seconds: previewTime, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        )
+        if wasPlaying {
+            player?.play()
+        }
+        refreshOverlayOnly()
+    }
+
+    private func tearDownTimelinePlayer(signature: TimelinePlayerSignature?) {
+        timelinePlayerBuiltSignature = signature
+        guard player != nil else { return }
+        pausePlayback()
+        playerTimeObserver?.remove()
+        playerTimeObserver = nil
+        player = nil
+        refreshPreview()
+    }
+
     func togglePlayback() {
         isPlaying ? pausePlayback() : startPlayback()
     }
 
     func startPlayback() {
         guard !isExporting else { return }
-        if let player, !usesCustomTimelinePreview {
+        if usesCustomTimelinePreview,
+           currentTimelinePlayerSignature != timelinePlayerBuiltSignature {
+            // Stale or missing composition: rebuild in the background; if a player already
+            // exists it keeps playing and picks up the fresh item when the build lands.
+            configureTimelinePlayer()
+        }
+        if let player {
             if previewTime < previewTimeRange.lowerBound || previewTime >= previewTimeRange.upperBound {
                 seekPreview(to: previewTimeRange.lowerBound)
             }
@@ -1317,6 +1461,7 @@ final class StudioModel: ObservableObject {
         pausePlayback()
         playerTimeObserver?.remove()
         playerTimeObserver = nil
+        timelinePlayerBuiltSignature = nil
         self.player = nil
     }
 
@@ -1338,7 +1483,7 @@ final class StudioModel: ObservableObject {
     }
 
     private func advanceOverlayPlayback() {
-        guard isPlaying, player == nil || usesCustomTimelinePreview else {
+        guard isPlaying, player == nil else {
             stopOverlayPlaybackTimer()
             return
         }
@@ -1362,6 +1507,11 @@ final class StudioModel: ObservableObject {
 
     private func refreshPlaybackPreview(minimumInterval: TimeInterval, coalesceIfBusy: Bool) {
         guard !usesCustomTimelinePreview else {
+            if player != nil {
+                // The composition player shows the video; only the overlay needs re-rendering.
+                refreshOverlayOnly(minimumInterval: minimumInterval, coalesceIfBusy: coalesceIfBusy)
+                return
+            }
             let now = Date()
             if minimumInterval > 0, now.timeIntervalSince(lastOverlayRefresh) < minimumInterval {
                 return
@@ -1602,7 +1752,22 @@ final class StudioModel: ObservableObject {
         }
         previewTime = clamped
         guard !usesCustomTimelinePreview else {
-            refreshPreview()
+            guard let player else {
+                refreshPreview()
+                return
+            }
+            if isScrubbing {
+                refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh, displayIntermediateResults: true)
+                player.currentItem?.cancelPendingSeeks()
+            }
+            player.seek(
+                to: CMTime(seconds: clamped, preferredTimescale: 600),
+                toleranceBefore: isScrubbing ? scrubSeekTolerance : .zero,
+                toleranceAfter: isScrubbing ? scrubSeekTolerance : .zero
+            )
+            if !isScrubbing {
+                refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
+            }
             return
         }
         if let player {
@@ -1830,6 +1995,7 @@ final class StudioModel: ObservableObject {
                 actionKey: "undo.timeline.addClip",
                 coalescing: false
             )
+            configureTimelinePlayer()
         }
 
         if timelineUsesSingleSourceMigration {
@@ -1891,6 +2057,7 @@ final class StudioModel: ObservableObject {
                 actionKey: "undo.timeline.addClip",
                 coalescing: false
             )
+            configureTimelinePlayer()
         }
 
         if timelineUsesSingleSourceMigration {
@@ -2371,6 +2538,9 @@ final class StudioModel: ObservableObject {
         guard timelineUsesSingleSourceMigration else { return }
         pausePlayback()
         timelineUsesSingleSourceMigration = false
+        // Entering custom-timeline mode: swap the raw-video player item for the timeline
+        // composition so playback and scrubbing follow clip geometry (with audio).
+        configureTimelinePlayer()
     }
 
     func retryVideoLoad() {
@@ -2626,6 +2796,17 @@ final class StudioModel: ObservableObject {
     }
 
     private func refreshTimelinePreview() {
+        if player != nil {
+            // The composition player renders the video surface; only draw the overlay layers.
+            backgroundImage = nil
+            refreshTimelineOverlayOnly(
+                previewSize: nil,
+                minimumInterval: 0,
+                coalesceIfBusy: false,
+                displayIntermediateResults: false
+            )
+            return
+        }
         guard let snapshot = timelinePreviewSnapshot(at: previewTime) else {
             backgroundImage = nil
             overlayImage = nil
@@ -3373,6 +3554,10 @@ final class StudioModel: ObservableObject {
             selectedTimelineClipID = selectedClipID
         } else {
             repairSelectedTimelineClipIfNeeded()
+        }
+        if !usesCustomTimelinePreview, let videoURL {
+            // Undo back into single-source mode: return the player to the raw video item.
+            configurePlayer(url: videoURL)
         }
         previewTime = clampedPreviewTime(previewTime)
         refreshOverlayOrPreview()
