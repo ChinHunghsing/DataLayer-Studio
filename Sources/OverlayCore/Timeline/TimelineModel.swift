@@ -32,6 +32,9 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
     public var framesPerSecond: Double?
     /// Optional security-scoped bookmark used by the sandboxed GUI app when reopening projects.
     public var bookmarkData: Data?
+    /// Optional path relative to the project JSON directory, used as a portable fallback when
+    /// bookmarks and the original absolute URL no longer resolve.
+    public var relativePath: String?
 
     public init(
         id: String,
@@ -42,7 +45,8 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         width: Int? = nil,
         height: Int? = nil,
         framesPerSecond: Double? = nil,
-        bookmarkData: Data? = nil
+        bookmarkData: Data? = nil,
+        relativePath: String? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -53,6 +57,7 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         self.height = height
         self.framesPerSecond = framesPerSecond
         self.bookmarkData = bookmarkData
+        self.relativePath = relativePath
     }
 }
 
@@ -172,8 +177,44 @@ public struct TimelineTrack: Codable, Equatable, Identifiable {
     }
 }
 
+public struct TimelineProjectExportSettings: Codable, Equatable {
+    public enum RenderScope: String, Codable {
+        case singleClip
+        case individualClips
+    }
+
+    public var timelineStart: TimeInterval
+    public var timelineEnd: TimeInterval?
+    public var activityTrim: ActivityTrim
+    public var renderScope: RenderScope
+    public var exportMode: OverlayExportMode
+    public var codec: OverlayVideoCodec
+    public var bitRateKbps: Int
+
+    public init(
+        timelineStart: TimeInterval = 0,
+        timelineEnd: TimeInterval? = nil,
+        activityTrim: ActivityTrim = .none,
+        renderScope: RenderScope = .singleClip,
+        exportMode: OverlayExportMode = .overlay,
+        codec: OverlayVideoCodec = .hevcAlpha,
+        bitRateKbps: Int = 12_000
+    ) {
+        self.timelineStart = timelineStart
+        self.timelineEnd = timelineEnd
+        self.activityTrim = activityTrim
+        self.renderScope = renderScope
+        self.exportMode = exportMode
+        self.codec = codec
+        self.bitRateKbps = bitRateKbps
+    }
+}
+
 /// A whole project: output settings, imported assets, and a bottom-to-top stack of tracks.
 public struct TimelineProject: Codable, Equatable {
+    public static let currentSchemaVersion = 2
+
+    public var schemaVersion: Int
     public var outputWidth: Int
     public var outputHeight: Int
     public var framesPerSecond: Double
@@ -184,6 +225,9 @@ public struct TimelineProject: Codable, Equatable {
     /// Optional primary source match point. It is independent from mutable clip placement and is
     /// optional so timeline projects saved before this field existed remain decodable.
     public var sourceMatchPoint: TimelineSourceMatchPoint?
+    /// App-level render intent. Nil only for legacy schema-1 projects and programmatic projects
+    /// that do not need GUI export-state persistence.
+    public var exportSettings: TimelineProjectExportSettings?
 
     public init(
         outputWidth: Int,
@@ -192,8 +236,11 @@ public struct TimelineProject: Codable, Equatable {
         distanceUnit: OverlayDistanceUnit,
         assets: [MediaAsset] = [],
         tracks: [TimelineTrack] = [],
-        sourceMatchPoint: TimelineSourceMatchPoint? = nil
+        sourceMatchPoint: TimelineSourceMatchPoint? = nil,
+        exportSettings: TimelineProjectExportSettings? = nil,
+        schemaVersion: Int = TimelineProject.currentSchemaVersion
     ) {
+        self.schemaVersion = schemaVersion
         self.outputWidth = outputWidth
         self.outputHeight = outputHeight
         self.framesPerSecond = framesPerSecond
@@ -201,6 +248,53 @@ public struct TimelineProject: Codable, Equatable {
         self.assets = assets
         self.tracks = tracks
         self.sourceMatchPoint = sourceMatchPoint
+        self.exportSettings = exportSettings
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case outputWidth
+        case outputHeight
+        case framesPerSecond
+        case distanceUnit
+        case assets
+        case tracks
+        case sourceMatchPoint
+        case exportSettings
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        guard decodedVersion >= 1, decodedVersion <= Self.currentSchemaVersion else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .schemaVersion,
+                in: container,
+                debugDescription: "Unsupported timeline project schema version: \(decodedVersion)"
+            )
+        }
+        schemaVersion = decodedVersion
+        outputWidth = try container.decode(Int.self, forKey: .outputWidth)
+        outputHeight = try container.decode(Int.self, forKey: .outputHeight)
+        framesPerSecond = try container.decode(Double.self, forKey: .framesPerSecond)
+        distanceUnit = try container.decode(OverlayDistanceUnit.self, forKey: .distanceUnit)
+        assets = try container.decodeIfPresent([MediaAsset].self, forKey: .assets) ?? []
+        tracks = try container.decodeIfPresent([TimelineTrack].self, forKey: .tracks) ?? []
+        sourceMatchPoint = try container.decodeIfPresent(TimelineSourceMatchPoint.self, forKey: .sourceMatchPoint)
+        exportSettings = try container.decodeIfPresent(TimelineProjectExportSettings.self, forKey: .exportSettings)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(outputWidth, forKey: .outputWidth)
+        try container.encode(outputHeight, forKey: .outputHeight)
+        try container.encode(framesPerSecond, forKey: .framesPerSecond)
+        try container.encode(distanceUnit, forKey: .distanceUnit)
+        try container.encode(assets, forKey: .assets)
+        try container.encode(tracks, forKey: .tracks)
+        try container.encodeIfPresent(sourceMatchPoint, forKey: .sourceMatchPoint)
+        try container.encodeIfPresent(exportSettings, forKey: .exportSettings)
     }
 
     public func asset(id: String) -> MediaAsset? {

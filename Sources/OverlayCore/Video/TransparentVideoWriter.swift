@@ -7,7 +7,7 @@ import Darwin
 import Foundation
 import VideoToolbox
 
-public enum OverlayExportMode: String, CaseIterable, Hashable, Identifiable, Sendable {
+public enum OverlayExportMode: String, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case overlay
     case video
 
@@ -23,7 +23,7 @@ public enum OverlayExportMode: String, CaseIterable, Hashable, Identifiable, Sen
     }
 }
 
-public enum OverlayVideoCodec: String, CaseIterable, Hashable, Identifiable, Sendable {
+public enum OverlayVideoCodec: String, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case hevcAlpha = "hevc-alpha"
     case proRes4444 = "prores-4444"
     case hevc = "hevc"

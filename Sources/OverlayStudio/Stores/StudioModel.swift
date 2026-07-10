@@ -124,20 +124,33 @@ final class StudioModel: ObservableObject {
         didSet { rebuildCurrentTimelineProject() }
     }
     @Published var sourceDuration: TimeInterval = 0
-    @Published var exportTrimStartSeconds: TimeInterval = 0
-    @Published var exportTrimEndSeconds: TimeInterval = 0
-    @Published var activityTrim: ActivityTrim = .none
-    @Published var bitRateKbps = 12_000
+    @Published var exportTrimStartSeconds: TimeInterval = 0 {
+        didSet { updateTimelineProjectExportSettings() }
+    }
+    @Published var exportTrimEndSeconds: TimeInterval = 0 {
+        didSet { updateTimelineProjectExportSettings() }
+    }
+    @Published var activityTrim: ActivityTrim = .none {
+        didSet { updateTimelineProjectExportSettings() }
+    }
+    @Published var bitRateKbps = 12_000 {
+        didSet { updateTimelineProjectExportSettings() }
+    }
     @Published var exportMode: OverlayExportMode = .overlay {
         didSet {
             guard oldValue != exportMode else { return }
             normalizeCodecForExportMode()
             refreshSuggestedOutputURLForCurrentSource()
+            updateTimelineProjectExportSettings()
         }
     }
-    @Published var codec: OverlayVideoCodec = .hevcAlpha
+    @Published var codec: OverlayVideoCodec = .hevcAlpha {
+        didSet { updateTimelineProjectExportSettings() }
+    }
     /// DaVinci-style render scope: one file for the whole export range, or one file per clip.
-    @Published var exportRenderScope: ExportRenderScope = .singleClip
+    @Published var exportRenderScope: ExportRenderScope = .singleClip {
+        didSet { updateTimelineProjectExportSettings() }
+    }
     /// Horizontal timeline zoom (1 = fit the whole timeline in the lane width).
     @Published private(set) var timelineZoom: Double = 1
     /// Incremented when edit-point navigation asks the timeline viewport to reveal the playhead.
@@ -275,6 +288,8 @@ final class StudioModel: ObservableObject {
     private var timelineSecurityScopedURLs: [URL] = []
     private var cleanTimelineSnapshot: TimelineProject?
     private var allowsNextWindowClose = false
+    private var isApplyingTimelineProject = false
+    private var isUpdatingTimelineProjectExportSettings = false
 
     init(
         layoutPresetStore: LayoutPresetStore = LayoutPresetStore(),
@@ -991,7 +1006,7 @@ final class StudioModel: ObservableObject {
 
         do {
             let data = try Data(contentsOf: url)
-            try loadTimelineProject(from: data, loadAssets: true)
+            try loadTimelineProject(from: data, loadAssets: true, projectURL: url)
             setStatus("status.timelineProjectLoaded", url.lastPathComponent)
         } catch {
             setStatus("status.timelineProjectLoadError", error.localizedDescription)
@@ -1009,7 +1024,7 @@ final class StudioModel: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            let data = try timelineProjectJSONData()
+            let data = try timelineProjectJSONData(relativeTo: url)
             try data.write(to: url, options: .atomic)
             markTimelineProjectClean()
             setStatus("status.timelineProjectSaved", url.lastPathComponent)
@@ -1018,16 +1033,16 @@ final class StudioModel: ObservableObject {
         }
     }
 
-    func timelineProjectJSONData() throws -> Data {
+    func timelineProjectJSONData(relativeTo projectURL: URL? = nil) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(timelineProjectForSaving())
+        return try encoder.encode(timelineProjectForSaving(relativeTo: projectURL))
     }
 
-    func loadTimelineProject(from data: Data, loadAssets: Bool = true) throws {
+    func loadTimelineProject(from data: Data, loadAssets: Bool = true, projectURL: URL? = nil) throws {
         guard !isExporting else { return }
         let decoded = try JSONDecoder().decode(TimelineProject.self, from: data)
-        let project = resolvedTimelineProject(decoded)
+        let project = resolvedTimelineProject(decoded, relativeTo: projectURL)
         stopTimelineSecurityScopedAccess()
         startTimelineSecurityScopedAccess(for: project.assets)
         applyTimelineProject(project, loadAssets: loadAssets)
@@ -1035,6 +1050,7 @@ final class StudioModel: ObservableObject {
 
     func applyTimelineProject(_ project: TimelineProject, loadAssets: Bool = true) {
         guard !isExporting else { return }
+        isApplyingTimelineProject = true
         clearUndoStackForTimelineReplacement()
         stopPlayback()
         cancelPreviewRenderTasks()
@@ -1056,7 +1072,6 @@ final class StudioModel: ObservableObject {
         outputHeight = sanitizedProject.outputHeight
         outputFPS = sanitizedProject.framesPerSecond
         distanceUnit = sanitizedProject.distanceUnit
-        exportTrimRangeWasManuallyEdited = false
         timeline = sanitizedProject
         videoAssets = sanitizedProject.assets.filter { $0.kind == .video }
         activityAssets = sanitizedProject.assets.filter { $0.kind == .activity }
@@ -1081,9 +1096,7 @@ final class StudioModel: ObservableObject {
         metadata = nil
         series = nil
         sourceDuration = Self.sanitizedSourceDuration(max(sanitizedProject.duration, activeVideo?.duration ?? 0, activeActivity?.duration ?? 0))
-        exportTrimStartSeconds = 0
-        exportTrimEndSeconds = exportTrimEditingDuration
-        activityTrim = .none
+        restoreTimelineProjectExportSettings(sanitizedProject.exportSettings)
         backgroundImage = nil
         overlayImage = nil
         previewWarning = nil
@@ -1095,20 +1108,74 @@ final class StudioModel: ObservableObject {
             applySuggestedOutputURLIfNeeded(for: sourceURL)
         }
         refreshOverlayOrPreview()
+        isApplyingTimelineProject = false
+        updateTimelineProjectExportSettings()
         markTimelineProjectClean()
 
         guard loadAssets else { return }
         loadTimelineProjectAssets(sanitizedProject.assets)
     }
 
-    private func timelineProjectForSaving() -> TimelineProject {
+    private func timelineProjectForSaving(relativeTo projectURL: URL?) -> TimelineProject {
         var project = currentTimelineProject
+        project.schemaVersion = TimelineProject.currentSchemaVersion
+        project.exportSettings = currentTimelineProjectExportSettings
         project.assets = project.assets.map { asset in
             var updated = asset
             updated.bookmarkData = securityScopedBookmarkData(for: asset.url) ?? asset.bookmarkData
+            updated.relativePath = projectURL.flatMap {
+                Self.projectRelativeMediaPath(for: asset.url, projectURL: $0)
+            } ?? asset.relativePath
             return updated
         }
         return project
+    }
+
+    private var currentTimelineProjectExportSettings: TimelineProjectExportSettings {
+        TimelineProjectExportSettings(
+            timelineStart: effectiveExportTrimStart,
+            timelineEnd: effectiveExportTrimEnd,
+            activityTrim: activityTrim,
+            renderScope: exportRenderScope == .individualClips ? .individualClips : .singleClip,
+            exportMode: exportMode,
+            codec: codec,
+            bitRateKbps: bitRateKbps
+        )
+    }
+
+    private func restoreTimelineProjectExportSettings(_ settings: TimelineProjectExportSettings?) {
+        guard let settings else {
+            exportTrimRangeWasManuallyEdited = false
+            exportTrimStartSeconds = 0
+            exportTrimEndSeconds = exportTrimEditingDuration
+            activityTrim = .none
+            exportRenderScope = .singleClip
+            return
+        }
+
+        exportMode = settings.exportMode
+        codec = settings.codec.exportMode == settings.exportMode ? settings.codec : settings.exportMode.defaultCodec
+        bitRateKbps = Self.sanitizedBitRateKbps(settings.bitRateKbps)
+        exportRenderScope = settings.renderScope == .individualClips ? .individualClips : .singleClip
+        activityTrim = settings.activityTrim
+        exportTrimRangeWasManuallyEdited = true
+        exportTrimStartSeconds = sanitizedExportTrimStart(
+            settings.timelineStart,
+            sourceDuration: exportTrimEditingDuration
+        )
+        exportTrimEndSeconds = sanitizedExportTrimEnd(
+            settings.timelineEnd ?? exportTrimEditingDuration,
+            start: exportTrimStartSeconds,
+            sourceDuration: exportTrimEditingDuration
+        )
+    }
+
+    private func updateTimelineProjectExportSettings() {
+        guard !isApplyingTimelineProject, !isUpdatingTimelineProjectExportSettings else { return }
+        isUpdatingTimelineProjectExportSettings = true
+        timeline.schemaVersion = TimelineProject.currentSchemaVersion
+        timeline.exportSettings = currentTimelineProjectExportSettings
+        isUpdatingTimelineProjectExportSettings = false
     }
 
     private func securityScopedBookmarkData(for url: URL) -> Data? {
@@ -1125,24 +1192,46 @@ final class StudioModel: ObservableObject {
         )
     }
 
-    private func resolvedTimelineProject(_ project: TimelineProject) -> TimelineProject {
+    private func resolvedTimelineProject(_ project: TimelineProject, relativeTo projectURL: URL?) -> TimelineProject {
         var resolved = project
         resolved.assets = project.assets.map { asset in
-            guard let bookmarkData = asset.bookmarkData else { return asset }
-            var isStale = false
-            guard let resolvedURL = try? URL(
-                resolvingBookmarkData: bookmarkData,
-                options: .withSecurityScope,
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            ) else {
-                return asset
+            var candidates: [URL] = []
+            if let bookmarkData = asset.bookmarkData {
+                var isStale = false
+                if let bookmarkURL = try? URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: .withSecurityScope,
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                ) {
+                    candidates.append(bookmarkURL)
+                }
             }
+            candidates.append(asset.url)
+            if let projectURL,
+               let relativePath = asset.relativePath,
+               !relativePath.isEmpty {
+                candidates.append(
+                    projectURL.deletingLastPathComponent()
+                        .appendingPathComponent(relativePath)
+                        .standardizedFileURL
+                )
+            }
+            guard let resolvedURL = candidates.first(where: Self.isReadableMediaURL) else { return asset }
             var updated = asset
             updated.url = resolvedURL
             return updated
         }
         return resolved
+    }
+
+    private nonisolated static func projectRelativeMediaPath(for mediaURL: URL, projectURL: URL) -> String? {
+        let directoryPath = projectURL.deletingLastPathComponent().standardizedFileURL.path
+        let mediaPath = mediaURL.standardizedFileURL.path
+        let prefix = directoryPath.hasSuffix("/") ? directoryPath : directoryPath + "/"
+        guard mediaPath.hasPrefix(prefix) else { return nil }
+        let relative = String(mediaPath.dropFirst(prefix.count))
+        return relative.isEmpty ? nil : relative
     }
 
     private func startTimelineSecurityScopedAccess(for assets: [MediaAsset]) {
@@ -1172,7 +1261,9 @@ final class StudioModel: ObservableObject {
     }
 
     private nonisolated static func isReadableMediaURL(_ url: URL) -> Bool {
-        FileManager.default.isReadableFile(atPath: url.path)
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        return FileManager.default.isReadableFile(atPath: url.path)
     }
 
     func isTimelineAssetOffline(id: String) -> Bool {
@@ -2567,7 +2658,7 @@ final class StudioModel: ObservableObject {
         }
         let video = videoURL.flatMap { url in videoAssets.first { $0.url == url } }
         let activity = fitURL.flatMap { url in activityAssets.first { $0.url == url } }
-        timeline = TimelineProject.migratingSingleSource(
+        var project = TimelineProject.migratingSingleSource(
             outputWidth: outputWidth,
             outputHeight: outputHeight,
             framesPerSecond: outputFPS,
@@ -2577,6 +2668,8 @@ final class StudioModel: ObservableObject {
             sync: timeSync,
             layout: layout
         )
+        project.exportSettings = currentTimelineProjectExportSettings
+        timeline = project
         if isPlaying, usesCustomTimelinePreview {
             pausePlayback()
         }

@@ -241,6 +241,7 @@ final class TimelineModelTests: XCTestCase {
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(TimelineProject.self, from: data)
         XCTAssertEqual(decoded, original)
+        XCTAssertEqual(decoded.schemaVersion, TimelineProject.currentSchemaVersion)
     }
 
     func testProjectDecodesLegacyJSONWithoutSourceMatchPoint() throws {
@@ -257,7 +258,25 @@ final class TimelineModelTests: XCTestCase {
 
         let project = try JSONDecoder().decode(TimelineProject.self, from: data)
 
+        XCTAssertEqual(project.schemaVersion, 1)
         XCTAssertNil(project.sourceMatchPoint)
+        XCTAssertNil(project.exportSettings)
+    }
+
+    func testProjectRejectsUnsupportedFutureSchema() {
+        let data = Data("""
+        {
+          "schemaVersion": 999,
+          "outputWidth": 1920,
+          "outputHeight": 1080,
+          "framesPerSecond": 30,
+          "distanceUnit": "km",
+          "assets": [],
+          "tracks": []
+        }
+        """.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(TimelineProject.self, from: data))
     }
 
     // MARK: migration reproduces the sync mapping

@@ -1005,6 +1005,112 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.currentTimelineProject.outputWidth, 1920)
     }
 
+    func testTimelineProjectPersistsVersionedExportSettingsAndRestoresThem() throws {
+        let model = StudioModel()
+        let activityURL = URL(fileURLWithPath: "/tmp/export-settings.fit")
+        let activitySeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, distanceMeters: 200)
+        ])
+        model.upsertActivityAsset(url: activityURL, series: activitySeries)
+        model.fitURL = activityURL
+        model.series = activitySeries
+        model.addActivityAssetToTimeline(id: activityURL.path)
+        model.setExportTrimStart(5)
+        model.setExportTrimEnd(42)
+        model.setActivityTrimStart(3)
+        model.setActivityTrimEnd(50)
+        model.exportRenderScope = .individualClips
+        model.exportMode = .video
+        model.codec = .h264
+        model.setBitRateKbps(18_500)
+
+        let data = try model.timelineProjectJSONData()
+        let saved = try JSONDecoder().decode(TimelineProject.self, from: data)
+        let settings = try XCTUnwrap(saved.exportSettings)
+        XCTAssertEqual(saved.schemaVersion, TimelineProject.currentSchemaVersion)
+        XCTAssertEqual(settings.timelineStart, 5, accuracy: 1e-9)
+        XCTAssertEqual(settings.timelineEnd, 42)
+        XCTAssertEqual(settings.activityTrim, ActivityTrim(startSeconds: 3, endSeconds: 50))
+        XCTAssertEqual(settings.renderScope, .individualClips)
+        XCTAssertEqual(settings.exportMode, .video)
+        XCTAssertEqual(settings.codec, .h264)
+        XCTAssertEqual(settings.bitRateKbps, 18_500)
+
+        let restored = StudioModel()
+        try restored.loadTimelineProject(from: data, loadAssets: false)
+
+        XCTAssertEqual(restored.effectiveExportTrimStart, 5, accuracy: 1e-9)
+        XCTAssertEqual(restored.effectiveExportTrimEnd, 42, accuracy: 1e-9)
+        XCTAssertEqual(restored.activityTrim, ActivityTrim(startSeconds: 3, endSeconds: 50))
+        XCTAssertEqual(restored.exportRenderScope, .individualClips)
+        XCTAssertEqual(restored.exportMode, .video)
+        XCTAssertEqual(restored.codec, .h264)
+        XCTAssertEqual(restored.bitRateKbps, 18_500)
+        XCTAssertFalse(restored.hasUnsavedTimelineChanges)
+    }
+
+    func testChangingProjectExportSettingsMarksTimelineDirty() {
+        let model = StudioModel()
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1920,
+                outputHeight: 1080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers
+            ),
+            loadAssets: false
+        )
+        XCTAssertFalse(model.hasUnsavedTimelineChanges)
+
+        model.setBitRateKbps(16_000)
+
+        XCTAssertTrue(model.hasUnsavedTimelineChanges)
+    }
+
+    func testProjectStoresAndResolvesMediaPathRelativeToProjectFile() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("datalayer-project-relative-\(UUID().uuidString)", isDirectory: true)
+        let mediaDirectory = directory.appendingPathComponent("Media", isDirectory: true)
+        let mediaURL = mediaDirectory.appendingPathComponent("run.gpx")
+        let projectURL = directory.appendingPathComponent("project.json")
+        try FileManager.default.createDirectory(at: mediaDirectory, withIntermediateDirectories: true)
+        try Data("placeholder".utf8).write(to: mediaURL)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let model = StudioModel()
+        let asset = MediaAsset(
+            id: "activity.stable-id",
+            kind: .activity,
+            url: mediaURL,
+            displayName: mediaURL.lastPathComponent,
+            duration: 30
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1920,
+                outputHeight: 1080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [asset]
+            ),
+            loadAssets: false
+        )
+
+        let data = try model.timelineProjectJSONData(relativeTo: projectURL)
+        var saved = try JSONDecoder().decode(TimelineProject.self, from: data)
+        XCTAssertEqual(saved.assets[0].relativePath, "Media/run.gpx")
+
+        saved.assets[0].url = URL(fileURLWithPath: "/missing/original/run.gpx")
+        saved.assets[0].bookmarkData = nil
+        let movedData = try JSONEncoder().encode(saved)
+        let restored = StudioModel()
+        try restored.loadTimelineProject(from: movedData, loadAssets: false, projectURL: projectURL)
+
+        XCTAssertEqual(restored.currentTimelineProject.assets[0].url, mediaURL)
+        XCTAssertEqual(restored.currentTimelineProject.assets[0].id, asset.id)
+    }
+
     func testOpeningProjectKeepsOfflineClipsAndBlocksExportWithAssetName() {
         let model = StudioModel()
         let missingURL = URL(fileURLWithPath: "/tmp/datalayer-offline-\(UUID().uuidString).gpx")
