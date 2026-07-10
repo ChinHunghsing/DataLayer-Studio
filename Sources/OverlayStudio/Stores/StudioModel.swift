@@ -202,7 +202,7 @@ final class StudioModel: ObservableObject {
     private var statusMessage: (key: String, arguments: [CVarArg]) = ("status.chooseVideoAndFit", [])
     private let videoFrameService = VideoFrameService()
     private let previewRenderer = OverlayPreviewRenderer()
-    private let openWeatherService = OpenWeatherService()
+    private let openWeatherService: OpenWeatherService
     private let layoutPresetStore: LayoutPresetStore
     private let preferenceStore: StudioPreferenceStore
     private var layoutPresetCloudObserver: NSObjectProtocol?
@@ -250,10 +250,12 @@ final class StudioModel: ObservableObject {
 
     init(
         layoutPresetStore: LayoutPresetStore = LayoutPresetStore(),
-        preferenceStore: StudioPreferenceStore = StudioPreferenceStore()
+        preferenceStore: StudioPreferenceStore = StudioPreferenceStore(),
+        openWeatherService: OpenWeatherService = OpenWeatherService()
     ) {
         self.layoutPresetStore = layoutPresetStore
         self.preferenceStore = preferenceStore
+        self.openWeatherService = openWeatherService
         let presetState = layoutPresetStore.loadIncludingSharedAppDomains()
         let preferenceState = preferenceStore.load()
         let validDefaultPresetID = presetState.presets.contains { $0.id == presetState.defaultPresetID } ? presetState.defaultPresetID : nil
@@ -2364,6 +2366,9 @@ final class StudioModel: ObservableObject {
                     guard let self,
                           self.fitLoadGeneration == generation else { return }
                     self.series = enrichedSeries
+                    if let activeActivityAssetID = self.activeActivityAssetID {
+                        self.activitySeriesByAssetID[activeActivityAssetID] = enrichedSeries
+                    }
                     let weatherSampleCount = enrichedSeries.samples.filter { $0.weatherTemperatureCelsius != nil || $0.weatherHumidityPercent != nil || $0.weatherSummary != nil }.count
                     if weatherSampleCount > 0 {
                         self.setStatus("status.loadedFitWithWeather", sourceName)

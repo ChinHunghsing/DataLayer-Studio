@@ -548,6 +548,45 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.weatherRefreshMessage, model.status)
     }
 
+    func testWeatherRefreshUpdatesFullTimelineExportSeriesBeyondDeviceTemperatureSamples() async throws {
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("StudioModelWeatherTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+        let service = OpenWeatherService(cacheDirectory: cacheDirectory) { _ in
+            Data(#"{"data":[{"dt":3600,"temp":22,"humidity":58,"weather":[{"main":"Clear"}]}]}"#.utf8)
+        }
+        let model = StudioModel(openWeatherService: service)
+        let activityURL = URL(fileURLWithPath: "/tmp/weather-activity.fit")
+        let originalSeries = TelemetrySeries(samples: [
+            TelemetrySample(
+                elapsed: 0,
+                date: Date(timeIntervalSince1970: 3_900),
+                latitude: 35.6812,
+                longitude: 139.7671,
+                temperatureCelsius: 18
+            ),
+            TelemetrySample(
+                elapsed: 7_200,
+                date: Date(timeIntervalSince1970: 11_100),
+                latitude: 35.6813,
+                longitude: 139.7672
+            )
+        ])
+        model.fitURL = activityURL
+        model.series = originalSeries
+        model.upsertActivityAsset(url: activityURL, series: originalSeries)
+        model.openWeatherAPIKey = "test-key"
+
+        model.refreshOpenWeatherForCurrentFIT()
+        try await waitUntil {
+            model.series?.samples.first?.weatherTemperatureCelsius == 22
+        }
+
+        let exportSeries = model.timelineTelemetrySeriesForExport(project: model.currentTimelineProject)
+        XCTAssertEqual(exportSeries[activityURL.path]?.samples.first?.weatherTemperatureCelsius, 22)
+        XCTAssertEqual(exportSeries[activityURL.path]?.samples.last?.weatherTemperatureCelsius, 22)
+    }
+
     func testExportReadinessReportsSourceDurationInsteadOfEditableDuration() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/source.mov")
