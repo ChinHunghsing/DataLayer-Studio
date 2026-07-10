@@ -417,12 +417,23 @@ struct PreviewCanvasView: View {
         var insets = CanvasOverflowInsets()
         let hitPadding: CGFloat = 18
 
+        // Only elements that actually extend past the canvas grow the scrollable content
+        // (plus padding so their drag handles stay reachable). Elements merely near an edge
+        // must not create scroll bars when nothing is clipped.
         for element in visibleElements {
             let rect = componentUnitRect(element: element, alignedMetricWidth: alignedMetricWidth)
-            insets.left = max(insets.left, -rect.minX * canvasSize.width + hitPadding)
-            insets.right = max(insets.right, (rect.maxX - 1) * canvasSize.width + hitPadding)
-            insets.top = max(insets.top, -rect.minY * canvasSize.height + hitPadding)
-            insets.bottom = max(insets.bottom, (rect.maxY - 1) * canvasSize.height + hitPadding)
+            if rect.minX < 0 {
+                insets.left = max(insets.left, -rect.minX * canvasSize.width + hitPadding)
+            }
+            if rect.maxX > 1 {
+                insets.right = max(insets.right, (rect.maxX - 1) * canvasSize.width + hitPadding)
+            }
+            if rect.minY < 0 {
+                insets.top = max(insets.top, -rect.minY * canvasSize.height + hitPadding)
+            }
+            if rect.maxY > 1 {
+                insets.bottom = max(insets.bottom, (rect.maxY - 1) * canvasSize.height + hitPadding)
+            }
         }
 
         return insets.roundedUp
