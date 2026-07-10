@@ -99,6 +99,18 @@ struct OutputPanelView: View {
 
     private var encodingCard: some View {
         settingsCard(title: localization.string("output.section.encoding"), systemImage: "slider.horizontal.3") {
+            settingRow(localization.string("output.renderScope")) {
+                Picker(localization.string("output.renderScope"), selection: $model.exportRenderScope) {
+                    ForEach(ExportRenderScope.allCases) { scope in
+                        Text(localization.string(scope.localizationKey)).tag(scope)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .help(localization.string("help.renderScope"))
+            }
+            rowDivider
             settingRow(localization.string("sidebar.codec")) {
                 Picker(localization.string("sidebar.codec"), selection: $model.codec) {
                     ForEach(model.availableCodecs) { codec in
@@ -371,6 +383,10 @@ struct ExportSummaryCard: View {
                 SidebarSummaryRow(
                     title: localization.string("sidebar.exportSummary.duration"),
                     value: formatTrimTime(model.effectiveExportTrimDuration)
+                )
+                SidebarSummaryRow(
+                    title: localization.string("output.renderScope"),
+                    value: localization.string(model.exportRenderScope.localizationKey)
                 )
                 SidebarSummaryRow(
                     title: localization.string("sidebar.exportSummary.estimatedSize"),

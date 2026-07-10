@@ -136,6 +136,8 @@ final class StudioModel: ObservableObject {
         }
     }
     @Published var codec: OverlayVideoCodec = .hevcAlpha
+    /// DaVinci-style render scope: one file for the whole export range, or one file per clip.
+    @Published var exportRenderScope: ExportRenderScope = .singleClip
     @Published var distanceUnit: OverlayDistanceUnit = .kilometers {
         didSet {
             persistStudioPreferences()
@@ -3906,7 +3908,42 @@ final class StudioModel: ObservableObject {
             setStatus("status.chooseOutputFile")
             return
         }
-        guard confirmOverwriteIfNeeded(outputURL) else { return }
+
+        // Resolve the files to write: the whole range as one file, or (DaVinci-style
+        // "individual clips") one file per clip inside the export range.
+        let currentExportMode = exportMode
+        let segments: [ExportSegment]
+        if exportRenderScope == .individualClips {
+            let ranges = timelineProject.individualClipExportRanges(
+                kind: currentExportMode == .video ? .video : .overlay,
+                timelineStart: exportSettings.startTime,
+                duration: exportSettings.duration
+            )
+            guard !ranges.isEmpty else {
+                setStatus("status.noClipsInExportRange")
+                return
+            }
+            if ranges.count == 1, let only = ranges.first {
+                segments = [ExportSegment(startTime: only.start, duration: only.duration, outputURL: outputURL)]
+            } else {
+                segments = ranges.enumerated().map { index, range in
+                    ExportSegment(
+                        startTime: range.start,
+                        duration: range.duration,
+                        outputURL: Self.segmentOutputURL(base: outputURL, index: index + 1, count: ranges.count)
+                    )
+                }
+            }
+        } else {
+            segments = [
+                ExportSegment(
+                    startTime: exportSettings.startTime,
+                    duration: exportSettings.duration,
+                    outputURL: outputURL
+                )
+            ]
+        }
+        guard confirmOverwriteIfNeeded(segments.map(\.outputURL)) else { return }
 
         pausePlayback()
         cancelPreviewRenderTasks()
@@ -3920,59 +3957,43 @@ final class StudioModel: ObservableObject {
         lastExportErrorMessage = nil
         lastExportWasCancelled = false
         setStatus("status.exporting")
-        addDebugLog(.export, "Export started: \(outputURL.lastPathComponent), \(exportSettings.width)x\(exportSettings.height), start=\(Self.formatDebugSeconds(exportSettings.startTime)), duration=\(Self.formatDebugSeconds(exportSettings.duration))")
+        addDebugLog(.export, "Export started: \(segments.count) file(s), first \(segments[0].outputURL.lastPathComponent), \(exportSettings.width)x\(exportSettings.height), start=\(Self.formatDebugSeconds(exportSettings.startTime)), duration=\(Self.formatDebugSeconds(exportSettings.duration))")
         let cancellationToken = ExportCancellationToken()
         exportCancellationToken = cancellationToken
 
-        let currentExportMode = exportMode
         let currentCodec = codec
         let currentActivityTrim = self.currentActivityTrim
-        let progressHandler: (Int, Int) -> Void = { [weak self] completed, total in
-            Task { @MainActor in
-                self?.updateExportProgress(total > 0 ? Double(completed) / Double(total) : 0)
-            }
-        }
+        let diagnosticsHandler: ((String) -> Void)? = currentExportMode == .video
+            ? { message in studioDebugLogger.info("[export] \(message, privacy: .public)") }
+            : nil
 
         exportTask = Task.detached {
             do {
-                switch currentExportMode {
-                case .overlay:
+                let totalSegments = segments.count
+                for (index, segment) in segments.enumerated() {
+                    let segmentProgressHandler: (Int, Int) -> Void = { [weak self] completed, total in
+                        let inner = total > 0 ? Double(completed) / Double(total) : 0
+                        let overall = (Double(index) + inner) / Double(totalSegments)
+                        Task { @MainActor in
+                            self?.updateExportProgress(overall)
+                        }
+                    }
                     try TimelineVideoWriter(
-                        outputURL: outputURL,
+                        outputURL: segment.outputURL,
                         project: timelineProject,
                         telemetrySeriesByAssetID: timelineTelemetrySeries,
                         config: TimelineVideoWriterConfig(
                             width: exportSettings.width,
                             height: exportSettings.height,
                             framesPerSecond: exportSettings.framesPerSecond,
-                            timelineStart: exportSettings.startTime,
-                            duration: exportSettings.duration,
+                            timelineStart: segment.startTime,
+                            duration: segment.duration,
                             averageBitRate: exportSettings.averageBitRate,
                             codec: currentCodec,
                             activityTrim: currentActivityTrim,
-                            progressHandler: progressHandler,
-                            cancellationHandler: { cancellationToken.isCancelled }
-                        )
-                    ).write()
-                case .video:
-                    try TimelineVideoWriter(
-                        outputURL: outputURL,
-                        project: timelineProject,
-                        telemetrySeriesByAssetID: timelineTelemetrySeries,
-                        config: TimelineVideoWriterConfig(
-                            width: exportSettings.width,
-                            height: exportSettings.height,
-                            framesPerSecond: exportSettings.framesPerSecond,
-                            timelineStart: exportSettings.startTime,
-                            duration: exportSettings.duration,
-                            averageBitRate: exportSettings.averageBitRate,
-                            codec: currentCodec,
-                            activityTrim: currentActivityTrim,
-                            progressHandler: progressHandler,
+                            progressHandler: segmentProgressHandler,
                             cancellationHandler: { cancellationToken.isCancelled },
-                            diagnosticsHandler: { message in
-                                studioDebugLogger.info("[export] \(message, privacy: .public)")
-                            }
+                            diagnosticsHandler: diagnosticsHandler
                         )
                     ).write()
                 }
@@ -3981,13 +4002,21 @@ final class StudioModel: ObservableObject {
                     self.isExporting = false
                     self.exportProgress = 1
                     self.exportETASeconds = nil
-                    self.lastExportedURL = outputURL
+                    self.lastExportedURL = segments.first?.outputURL ?? outputURL
                     self.lastExportElapsedSeconds = Date().timeIntervalSince(exportStartedAt)
                     self.exportTask = nil
                     self.exportCancellationToken = nil
-                    self.setStatus("status.wroteFile", outputURL.path)
-                    self.addDebugLog(.export, "Export finished: \(outputURL.lastPathComponent)")
-                    self.notifyExportCompleted(outputURL)
+                    if segments.count == 1 {
+                        self.setStatus("status.wroteFile", outputURL.path)
+                    } else {
+                        self.setStatus(
+                            "status.wroteFiles",
+                            segments.count,
+                            outputURL.deletingLastPathComponent().path
+                        )
+                    }
+                    self.addDebugLog(.export, "Export finished: \(segments.count) file(s), first \(segments[0].outputURL.lastPathComponent)")
+                    self.notifyExportCompleted(segments.first?.outputURL ?? outputURL)
                     self.refreshOverlayOrPreview()
                 }
             } catch OverlayVideoError.cancelled {
@@ -4091,15 +4120,31 @@ final class StudioModel: ObservableObject {
         setStatus("status.cancellingExport")
     }
 
-    private func confirmOverwriteIfNeeded(_ url: URL) -> Bool {
-        guard FileManager.default.fileExists(atPath: url.path) else { return true }
+    private func confirmOverwriteIfNeeded(_ urls: [URL]) -> Bool {
+        let existing = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard let first = existing.first else { return true }
         let alert = NSAlert()
         alert.messageText = localized("alert.overwriteOutput.title")
-        alert.informativeText = localized("alert.overwriteOutput.message", url.lastPathComponent)
+        alert.informativeText = existing.count == 1
+            ? localized("alert.overwriteOutput.message", first.lastPathComponent)
+            : localized("alert.overwriteOutput.multipleMessage", existing.count)
         alert.alertStyle = .warning
         alert.addButton(withTitle: localized("alert.overwriteOutput.confirm"))
         alert.addButton(withTitle: localized("common.cancel"))
         return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Output URL for one segment of an "individual clips" export: `name.mov` → `name_01.mov`.
+    nonisolated static func segmentOutputURL(base: URL, index: Int, count: Int) -> URL {
+        let fileExtension = base.pathExtension
+        let stem = base.deletingPathExtension().lastPathComponent
+        let width = max(2, String(count).count)
+        let name = stem + String(format: "_%0\(width)d", index)
+        var url = base.deletingLastPathComponent().appendingPathComponent(name)
+        if !fileExtension.isEmpty {
+            url = url.appendingPathExtension(fileExtension)
+        }
+        return url
     }
 
     func refreshLocalizedStatus() {
@@ -4521,6 +4566,28 @@ final class StudioModel: ObservableObject {
     private static func formatDebugSeconds(_ seconds: TimeInterval) -> String {
         String(format: "%.1fs", seconds)
     }
+}
+
+/// DaVinci-style render scope: render the export range as one file, or every clip in the range
+/// as its own file.
+enum ExportRenderScope: String, CaseIterable, Identifiable {
+    case singleClip
+    case individualClips
+
+    var id: String { rawValue }
+
+    var localizationKey: String {
+        switch self {
+        case .singleClip: return "renderScope.singleClip"
+        case .individualClips: return "renderScope.individualClips"
+        }
+    }
+}
+
+private struct ExportSegment {
+    var startTime: TimeInterval
+    var duration: TimeInterval
+    var outputURL: URL
 }
 
 private struct ExportSettings {

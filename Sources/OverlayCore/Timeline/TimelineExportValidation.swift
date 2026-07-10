@@ -44,6 +44,35 @@ extension TimelineProject {
             .flatMap(\.clips)
     }
 
+    /// Time ranges for DaVinci-style "individual clips" rendering: one range per enabled clip of
+    /// `kind`, intersected with the export range and sorted by start time. Ranges from clips on
+    /// different tracks may overlap; exact duplicates are merged. Slivers shorter than the
+    /// interactive minimum clip duration (left when the export in/out cuts through a clip edge)
+    /// are dropped.
+    public func individualClipExportRanges(
+        kind: TimelineTrack.Kind,
+        timelineStart: TimeInterval,
+        duration: TimeInterval
+    ) -> [(start: TimeInterval, duration: TimeInterval)] {
+        guard timelineStart.isFinite, duration.isFinite, duration > 0 else { return [] }
+        let rangeEnd = timelineStart + duration
+
+        var seen = Set<String>()
+        return enabledClips(kind: kind)
+            .compactMap { clip -> (start: TimeInterval, duration: TimeInterval)? in
+                let start = max(clip.timelineStart, timelineStart)
+                let end = min(clip.timelineEnd, rangeEnd)
+                guard end - start >= Self.minimumEditableClipDuration else { return nil }
+                return (start, end - start)
+            }
+            .sorted { lhs, rhs in
+                lhs.start != rhs.start ? lhs.start < rhs.start : lhs.duration < rhs.duration
+            }
+            .filter { range in
+                seen.insert("\(range.start)-\(range.duration)").inserted
+            }
+    }
+
     public func firstExportValidationIssue(
         mode: OverlayExportMode,
         timelineStart: TimeInterval,

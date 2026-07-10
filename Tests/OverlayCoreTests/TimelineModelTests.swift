@@ -108,6 +108,58 @@ final class TimelineModelTests: XCTestCase {
         )
     }
 
+    func testIndividualClipExportRangesIntersectSortAndDedupe() {
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [videoAsset(id: "video", duration: 500), activityAsset(id: "activity", duration: 500)],
+            tracks: [
+                TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "a", assetID: "video", timelineStart: 0, duration: 10),
+                    TimelineClip(id: "b", assetID: "video", timelineStart: 20, duration: 10)
+                ]),
+                TimelineTrack(id: "v2", kind: .video, name: "V2", clips: [
+                    // Same range as "b" on another track: merged into one output range.
+                    TimelineClip(id: "b2", assetID: "video", timelineStart: 20, duration: 10),
+                    TimelineClip(id: "c", assetID: "video", timelineStart: 40, duration: 10)
+                ]),
+                TimelineTrack(id: "disabled", kind: .video, name: "V3", isEnabled: false, clips: [
+                    TimelineClip(id: "hidden", assetID: "video", timelineStart: 60, duration: 5)
+                ]),
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "data", assetID: "activity", timelineStart: 2, duration: 30)
+                ])
+            ]
+        )
+
+        // Full range: video ranges come from enabled video tracks only, sorted and deduped.
+        let full = project.individualClipExportRanges(kind: .video, timelineStart: 0, duration: 100)
+        XCTAssertEqual(full.map(\.start), [0, 20, 40])
+        XCTAssertEqual(full.map(\.duration), [10, 10, 10])
+
+        // Export in/out cuts through clips: ranges clamp to the export window, and a leftover
+        // sliver shorter than the minimum clip duration is dropped.
+        let clipped = project.individualClipExportRanges(kind: .video, timelineStart: 5, duration: 44.95)
+        XCTAssertEqual(clipped.count, 3)
+        XCTAssertEqual(clipped[0].start, 5, accuracy: 1e-9)
+        XCTAssertEqual(clipped[0].duration, 5, accuracy: 1e-9)
+        XCTAssertEqual(clipped[2].start, 40, accuracy: 1e-9)
+        XCTAssertEqual(clipped[2].duration, 9.95, accuracy: 1e-9)
+
+        let sliver = project.individualClipExportRanges(kind: .video, timelineStart: 0, duration: 40.05)
+        XCTAssertEqual(sliver.map(\.start), [0, 20])
+
+        // Overlay segmentation follows overlay clips.
+        let overlay = project.individualClipExportRanges(kind: .overlay, timelineStart: 0, duration: 100)
+        XCTAssertEqual(overlay.count, 1)
+        XCTAssertEqual(overlay[0].start, 2, accuracy: 1e-9)
+        XCTAssertEqual(overlay[0].duration, 30, accuracy: 1e-9)
+
+        XCTAssertTrue(project.individualClipExportRanges(kind: .video, timelineStart: 200, duration: 10).isEmpty)
+    }
+
     func testVideoExportPreflightAllowsSparseClipsAndEmptyVideoRanges() {
         let project = exportProject(
             videoClips: [

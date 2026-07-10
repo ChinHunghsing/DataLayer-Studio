@@ -1175,4 +1175,29 @@ final class StudioModelTests: XCTestCase {
         model.setFIT(missingURL)
         XCTAssertNil(model.fitLoadFailure)
     }
+
+    func testSegmentOutputURLAppendsPaddedIndexBeforeExtension() {
+        let base = URL(fileURLWithPath: "/tmp/out/render.mov")
+        XCTAssertEqual(
+            StudioModel.segmentOutputURL(base: base, index: 1, count: 3).lastPathComponent,
+            "render_01.mov"
+        )
+        XCTAssertEqual(
+            StudioModel.segmentOutputURL(base: base, index: 12, count: 120).lastPathComponent,
+            "render_012.mov"
+        )
+        let withoutExtension = URL(fileURLWithPath: "/tmp/out/render")
+        XCTAssertEqual(
+            StudioModel.segmentOutputURL(base: withoutExtension, index: 2, count: 2).lastPathComponent,
+            "render_02"
+        )
+        XCTAssertEqual(
+            StudioModel.segmentOutputURL(base: base, index: 2, count: 3).deletingLastPathComponent().path,
+            "/tmp/out"
+        )
+    }
+
+    func testExportRenderScopeDefaultsToSingleClip() {
+        XCTAssertEqual(StudioModel().exportRenderScope, .singleClip)
+    }
 }
