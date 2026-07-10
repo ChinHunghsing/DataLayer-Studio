@@ -96,6 +96,7 @@ final class StudioModel: ObservableObject {
     @Published var activityAssets: [MediaAsset] = [] {
         didSet { rebuildCurrentTimelineProject() }
     }
+    @Published private(set) var videoWaveformPeaksByAssetID: [String: [Float]] = [:]
     @Published private(set) var timeline = TimelineProject(
         outputWidth: 1920,
         outputHeight: 1080,
@@ -229,6 +230,7 @@ final class StudioModel: ObservableObject {
     private var videoLoadTask: Task<Void, Never>?
     private var fitLoadTask: Task<Void, Never>?
     private var weatherLoadTask: Task<Void, Never>?
+    private var videoWaveformLoadTasks: [String: Task<Void, Never>] = [:]
     private var pendingOverlayRefreshAfterCurrentRender = false
     private var pendingOverlayRefreshDisplaysIntermediateResult = false
     private var isScrubbingPreview = false
@@ -288,6 +290,7 @@ final class StudioModel: ObservableObject {
         videoLoadTask?.cancel()
         fitLoadTask?.cancel()
         weatherLoadTask?.cancel()
+        videoWaveformLoadTasks.values.forEach { $0.cancel() }
         previewRenderTask?.cancel()
         pendingPreviewSizeRefreshTask?.cancel()
         scrubInteractionTask?.cancel()
@@ -1880,6 +1883,34 @@ final class StudioModel: ObservableObject {
         return activityAssets.first { $0.url == fitURL }?.id
     }
 
+    var timelineAssetIDsInUse: Set<String> {
+        Set(timeline.tracks.flatMap(\.clips).map(\.assetID))
+    }
+
+    func loadVideoWaveformIfNeeded(assetID: String) {
+        guard videoWaveformPeaksByAssetID[assetID] == nil,
+              videoWaveformLoadTasks[assetID] == nil,
+              let asset = videoAssets.first(where: { $0.id == assetID }),
+              asset.kind == .video,
+              asset.duration > 0 else {
+            return
+        }
+
+        let task = Task.detached(priority: .utility) { [weak self] in
+            let peaks = (try? await AudioWaveformLoader.loadPeaks(
+                from: asset.url,
+                duration: asset.duration
+            )) ?? []
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.videoWaveformLoadTasks[assetID] != nil else { return }
+                self.videoWaveformPeaksByAssetID[assetID] = peaks
+                self.videoWaveformLoadTasks[assetID] = nil
+            }
+        }
+        videoWaveformLoadTasks[assetID] = task
+    }
+
     /// Add or refresh a video in the pool (called once its metadata has loaded). Deduplicated by path.
     func upsertVideoAsset(url: URL, metadata: VideoMetadata) {
         let asset = MediaAsset(
@@ -1966,6 +1997,9 @@ final class StudioModel: ObservableObject {
 
     private func performRemoveVideoAsset(id: String) {
         guard id != activeVideoAssetID else { return }
+        videoWaveformLoadTasks[id]?.cancel()
+        videoWaveformLoadTasks[id] = nil
+        videoWaveformPeaksByAssetID[id] = nil
         videoAssets.removeAll { $0.id == id }
         removeTimelineAsset(id: id)
     }
@@ -2024,7 +2058,6 @@ final class StudioModel: ObservableObject {
             timeline.assets.append(asset)
         }
 
-        let overlayTrackCount = timeline.tracks.filter { $0.kind == .overlay }.count
         var clip = TimelineClip(
             id: "overlay.clip.\(UUID().uuidString)",
             assetID: asset.id,
@@ -2054,7 +2087,7 @@ final class StudioModel: ObservableObject {
             TimelineTrack(
                 id: "overlay.track.\(UUID().uuidString)",
                 kind: .overlay,
-                name: "O\(overlayTrackCount + 1)",
+                name: nextTimelineTrackName(kind: .overlay),
                 clips: [clip]
             )
         )
@@ -2063,6 +2096,12 @@ final class StudioModel: ObservableObject {
 
     /// Add a pooled video as the next clip on the base video track.
     func addVideoAssetToTimeline(id: String) {
+        addVideoAssetToTimeline(id: id, targetTrackID: nil, timelineStart: nil)
+    }
+
+    /// Add a pooled video to a chosen video lane at a relative timeline position. Button-based
+    /// insertion keeps appending to the end of the base lane; a drop uses the nearest free gap.
+    func addVideoAssetToTimeline(id: String, targetTrackID: String?, timelineStart: TimeInterval?) {
         guard !isExporting,
               let asset = videoAssets.first(where: { $0.id == id }),
               asset.duration > 0 else { return }
@@ -2086,27 +2125,70 @@ final class StudioModel: ObservableObject {
             timeline.assets.append(asset)
         }
 
-        let clip = TimelineClip(
+        var clip = TimelineClip(
             id: "video.clip.\(UUID().uuidString)",
             assetID: asset.id,
-            timelineStart: timeline.tracks
+            timelineStart: max(0, timelineStart ?? timeline.tracks
                 .filter { $0.kind == .video }
                 .flatMap(\.clips)
                 .map(\.timelineEnd)
-                .max() ?? 0,
+                .max() ?? 0),
             duration: asset.duration,
             sourceIn: 0
         )
 
-        if let trackIndex = timeline.tracks.firstIndex(where: { $0.kind == .video }) {
+        let targetTrackIndex = targetTrackID.flatMap { targetTrackID in
+            timeline.tracks.firstIndex {
+                $0.id == targetTrackID && $0.kind == .video && !$0.isLocked
+            }
+        }
+        if let trackIndex = targetTrackIndex
+            ?? timeline.tracks.firstIndex(where: { $0.kind == .video && !$0.isLocked }) {
+            clip.timelineStart = timeline.tracks[trackIndex].nonOverlappingStart(
+                forClipID: clip.id,
+                duration: clip.duration,
+                proposedStart: clip.timelineStart
+            )
             timeline.tracks[trackIndex].clips.append(clip)
         } else {
             timeline.tracks.insert(
-                TimelineTrack(id: "video.track.\(UUID().uuidString)", kind: .video, name: "V1", clips: [clip]),
+                TimelineTrack(
+                    id: "video.track.\(UUID().uuidString)",
+                    kind: .video,
+                    name: nextTimelineTrackName(kind: .video),
+                    clips: [clip]
+                ),
                 at: 0
             )
         }
         setStatus("status.timelineAddedActivity", asset.displayName)
+    }
+
+    func removeEmptyTimelineTrack(id: String) {
+        guard !isExporting,
+              let trackIndex = timeline.tracks.firstIndex(where: { $0.id == id }),
+              timeline.tracks[trackIndex].clips.isEmpty else {
+            return
+        }
+
+        let previousUndoState = timelineUndoSnapshotNow
+        beginTimelineClipEditingIfNeeded()
+        timeline.tracks.remove(at: trackIndex)
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.deleteTrack",
+            coalescing: false
+        )
+    }
+
+    private func nextTimelineTrackName(kind: TimelineTrack.Kind) -> String {
+        let prefix = kind == .video ? "V" : "O"
+        let usedNames = Set(timeline.tracks.filter { $0.kind == kind }.map(\.name))
+        var number = 1
+        while usedNames.contains("\(prefix)\(number)") {
+            number += 1
+        }
+        return "\(prefix)\(number)"
     }
 
     /// Timeline representation of the currently active source(s), used by preview/export.
@@ -3969,8 +4051,10 @@ final class StudioModel: ObservableObject {
     private func cancelLoadTasks() {
         videoLoadTask?.cancel()
         fitLoadTask?.cancel()
+        videoWaveformLoadTasks.values.forEach { $0.cancel() }
         videoLoadTask = nil
         fitLoadTask = nil
+        videoWaveformLoadTasks.removeAll()
     }
 
     private var validatedExportSettings: ExportSettings? {

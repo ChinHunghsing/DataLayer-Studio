@@ -116,13 +116,15 @@ struct FilePickRow: View {
 }
 
 /// A pooled list of imported media of one kind (videos or activities). Empty shows an import row;
-/// otherwise it lists each asset (active highlighted, others removable) with an "add more" button.
+/// otherwise it lists each asset (timeline references highlighted, unused sources removable) with
+/// an "add more" button.
 struct MediaPoolList: View {
     var kindTitle: String
     var placeholder: String
     var systemImage: String
     var assets: [MediaAsset]
     var activeID: String?
+    var inUseIDs: Set<String>
     var addTitle: String
     var select: (String) -> Void
     var remove: (String) -> Void
@@ -145,7 +147,8 @@ struct MediaPoolList: View {
                     MediaPoolRow(
                         asset: asset,
                         systemImage: systemImage,
-                        isActive: asset.id == activeID,
+                        isInUse: inUseIDs.contains(asset.id),
+                        isActiveSource: asset.id == activeID,
                         select: { select(asset.id) },
                         remove: { remove(asset.id) },
                         appendToTimeline: appendToTimeline.map { append in { append(asset.id) } },
@@ -168,7 +171,8 @@ struct MediaPoolList: View {
 struct MediaPoolRow: View {
     var asset: MediaAsset
     var systemImage: String
-    var isActive: Bool
+    var isInUse: Bool
+    var isActiveSource: Bool
     var select: () -> Void
     var remove: () -> Void
     var appendToTimeline: (() -> Void)? = nil
@@ -179,7 +183,7 @@ struct MediaPoolRow: View {
         HStack(spacing: 8) {
             Button(action: select) {
                 HStack(spacing: 11) {
-                    ShellIconTile(systemImage: systemImage, isActive: isActive)
+                    ShellIconTile(systemImage: systemImage, isActive: isInUse)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(asset.displayName)
                             .font(.subheadline.weight(.semibold))
@@ -191,7 +195,7 @@ struct MediaPoolRow: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 6)
-                    if isActive {
+                    if isInUse {
                         ShellStatusChip(localization.string("mediapool.inUse"), systemImage: "checkmark", kind: .active)
                     }
                 }
@@ -208,7 +212,7 @@ struct MediaPoolRow: View {
                 .help(localization.string("mediapool.addToTimeline"))
             }
 
-            if !isActive {
+            if !isInUse && !isActiveSource {
                 Button(action: remove) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary.opacity(0.55))
@@ -220,7 +224,7 @@ struct MediaPoolRow: View {
         .padding(9)
         .shellGroupSurface(cornerRadius: 9)
         .overlay {
-            if isActive {
+            if isInUse {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .strokeBorder(ShellStyle.accentStroke, lineWidth: 1)
             }

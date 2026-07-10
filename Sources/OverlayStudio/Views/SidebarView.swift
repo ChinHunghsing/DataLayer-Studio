@@ -70,10 +70,12 @@ struct SidebarView: View {
                     systemImage: "film",
                     assets: model.videoAssets,
                     activeID: model.activeVideoAssetID,
+                    inUseIDs: model.timelineAssetIDsInUse,
                     addTitle: localization.string("mediapool.addVideo"),
                     select: model.selectVideoAsset,
                     remove: model.removeVideoAsset,
                     appendToTimeline: model.addVideoAssetToTimeline,
+                    timelineDragPayload: { TimelineDragPayload.video(assetID: $0.id) },
                     add: model.chooseVideo
                 )
 
@@ -93,6 +95,7 @@ struct SidebarView: View {
                     systemImage: "figure.run",
                     assets: model.activityAssets,
                     activeID: model.activeActivityAssetID,
+                    inUseIDs: model.timelineAssetIDsInUse,
                     addTitle: localization.string("mediapool.addActivity"),
                     select: model.selectActivityAsset,
                     remove: model.removeActivityAsset,

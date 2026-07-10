@@ -439,6 +439,108 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(videoClips[1].duration, 40, accuracy: 1e-9)
     }
 
+    func testAddingPooledVideoCanDropOnTargetTrackAtRelativePosition() throws {
+        let model = StudioModel()
+        let firstURL = URL(fileURLWithPath: "/tmp/drop-video-a.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/drop-video-b.mov")
+        model.upsertVideoAsset(url: firstURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 100, fps: 30))
+        model.upsertVideoAsset(url: secondURL, metadata: videoMetadata(width: 1280, height: 720, duration: 40, fps: 30))
+        model.videoURL = firstURL
+
+        let targetTrack = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .video }
+        )
+        model.addVideoAssetToTimeline(
+            id: secondURL.path,
+            targetTrackID: targetTrack.id,
+            timelineStart: 40
+        )
+
+        let updatedTrack = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.id == targetTrack.id }
+        )
+        XCTAssertEqual(updatedTrack.clips.count, 2)
+        XCTAssertEqual(updatedTrack.clips.last?.assetID, secondURL.path)
+        XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 100, accuracy: 1e-9)
+    }
+
+    func testTimelineAssetIDsInUseIncludesEveryReferencedVideoAndActivity() {
+        let model = StudioModel()
+        let firstVideoURL = URL(fileURLWithPath: "/tmp/in-use-video-a.mov")
+        let secondVideoURL = URL(fileURLWithPath: "/tmp/in-use-video-b.mov")
+        let firstActivityURL = URL(fileURLWithPath: "/tmp/in-use-activity-a.fit")
+        let secondActivityURL = URL(fileURLWithPath: "/tmp/in-use-activity-b.fit")
+
+        model.upsertVideoAsset(url: firstVideoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 100, fps: 30))
+        model.upsertVideoAsset(url: secondVideoURL, metadata: videoMetadata(width: 1280, height: 720, duration: 40, fps: 30))
+        model.upsertActivityAsset(url: firstActivityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.upsertActivityAsset(url: secondActivityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 45, distanceMeters: 180)
+        ]))
+        model.videoURL = firstVideoURL
+        model.fitURL = firstActivityURL
+        model.addVideoAssetToTimeline(id: secondVideoURL.path)
+        model.addActivityAssetToTimeline(id: secondActivityURL.path)
+
+        XCTAssertEqual(
+            model.timelineAssetIDsInUse,
+            Set([
+                firstVideoURL.path,
+                secondVideoURL.path,
+                firstActivityURL.path,
+                secondActivityURL.path
+            ])
+        )
+    }
+
+    func testOnlyEmptyTimelineTracksCanBeRemoved() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let videoURL = URL(fileURLWithPath: "/tmp/occupied-track.mov")
+        model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 30, fps: 30))
+        model.videoURL = videoURL
+
+        let occupiedTrackID = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .video }?.id
+        )
+        model.removeEmptyTimelineTrack(id: occupiedTrackID)
+        XCTAssertTrue(model.currentTimelineProject.tracks.contains { $0.id == occupiedTrackID })
+
+        let clipID = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.id == occupiedTrackID }?.clips.first?.id
+        )
+        model.deleteTimelineClip(id: clipID, ripple: false)
+        XCTAssertTrue(
+            model.currentTimelineProject.tracks.contains { $0.id == occupiedTrackID && $0.clips.isEmpty }
+        )
+
+        model.removeEmptyTimelineTrack(id: occupiedTrackID)
+
+        XCTAssertFalse(model.currentTimelineProject.tracks.contains { $0.id == occupiedTrackID })
+
+        undoManager.undo()
+
+        XCTAssertTrue(
+            model.currentTimelineProject.tracks.contains { $0.id == occupiedTrackID && $0.clips.isEmpty }
+        )
+    }
+
+    func testTimelineDragPayloadSupportsVideoAndActivityAssets() {
+        let videoPayload = TimelineDragPayload.video(assetID: "/tmp/video.mov")
+        let activityPayload = TimelineDragPayload.activity(assetID: "/tmp/activity.fit")
+
+        XCTAssertEqual(TimelineDragPayload.videoAssetID(from: videoPayload), "/tmp/video.mov")
+        XCTAssertNil(TimelineDragPayload.activityAssetID(from: videoPayload))
+        XCTAssertEqual(TimelineDragPayload.activityAssetID(from: activityPayload), "/tmp/activity.fit")
+        XCTAssertNil(TimelineDragPayload.videoAssetID(from: activityPayload))
+    }
+
     func testCustomTimelineSourceSelectionRequiresConfirmationBeforeReplacingTimeline() {
         let model = StudioModel()
         let firstURL = URL(fileURLWithPath: "/tmp/a.mov")

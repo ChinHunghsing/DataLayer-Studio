@@ -37,58 +37,65 @@ struct ProjectTimelineView: View {
                     let laneWidth = max(1, proxy.size.width - headerWidth)
                     let clampedProgress = min(1, max(0, model.previewTime / duration))
                     let playheadX = headerWidth + CGFloat(clampedProgress) * laneWidth
+                    let timelineContentHeight = max(
+                        proxy.size.height,
+                        rulerHeight + CGFloat(displayTracks.count) * trackHeight
+                    )
 
-                    ZStack(alignment: .topLeading) {
-                        // Scrub layer (bottom): empty lane areas and video clips pass through to here.
-                        HStack(spacing: 0) {
-                            Color.clear
-                                .frame(width: headerWidth)
-                                .allowsHitTesting(false)
-                            Color.clear
-                                .contentShape(Rectangle())
-                                .frame(width: laneWidth)
-                                .gesture(
-                                    DragGesture(minimumDistance: 0)
-                                        .onChanged { value in
-                                            model.scrubPreview(
-                                                to: Self.scrubTime(
-                                                    laneLocationX: value.location.x,
-                                                    laneWidth: laneWidth,
-                                                    duration: duration
+                    ScrollView(.vertical) {
+                        ZStack(alignment: .topLeading) {
+                            // Scrub layer (bottom): empty lane areas and video clips pass through to here.
+                            HStack(spacing: 0) {
+                                Color.clear
+                                    .frame(width: headerWidth)
+                                    .allowsHitTesting(false)
+                                Color.clear
+                                    .contentShape(Rectangle())
+                                    .frame(width: laneWidth)
+                                    .gesture(
+                                        DragGesture(minimumDistance: 0)
+                                            .onChanged { value in
+                                                model.scrubPreview(
+                                                    to: Self.scrubTime(
+                                                        laneLocationX: value.location.x,
+                                                        laneWidth: laneWidth,
+                                                        duration: duration
+                                                    )
                                                 )
-                                            )
-                                        }
-                                )
-                        }
-
-                        // Tracks and clips capture their own move/trim gestures.
-                        VStack(spacing: 0) {
-                            ruler(duration: duration, laneWidth: laneWidth)
-                            ForEach(displayTracks) { track in
-                                trackRow(track, project: project, duration: duration, laneWidth: laneWidth)
+                                            }
+                                    )
                             }
-                            Spacer(minLength: 0)
-                        }
-                        .allowsHitTesting(true)
 
-                        // Export range (in/out band): dims excluded regions, drag edges to trim.
-                        exportRangeLayer(duration: duration, laneWidth: laneWidth)
+                            // Tracks and clips capture their own move/trim gestures.
+                            VStack(spacing: 0) {
+                                ruler(duration: duration, laneWidth: laneWidth)
+                                ForEach(displayTracks) { track in
+                                    trackRow(track, project: project, duration: duration, laneWidth: laneWidth)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .allowsHitTesting(true)
 
-                        // Playhead
-                        Rectangle()
+                            // Export range (in/out band): dims excluded regions, drag edges to trim.
+                            exportRangeLayer(duration: duration, laneWidth: laneWidth)
+
+                            // Playhead
+                            Rectangle()
+                                .fill(playheadColor)
+                                .frame(width: 2)
+                                .offset(x: playheadX - 1)
+                                .shadow(color: playheadColor.opacity(0.6), radius: 3)
+                                .allowsHitTesting(false)
+                            Path { p in
+                                p.move(to: CGPoint(x: playheadX - 6, y: 0))
+                                p.addLine(to: CGPoint(x: playheadX + 6, y: 0))
+                                p.addLine(to: CGPoint(x: playheadX, y: 8))
+                                p.closeSubpath()
+                            }
                             .fill(playheadColor)
-                            .frame(width: 2)
-                            .offset(x: playheadX - 1)
-                            .shadow(color: playheadColor.opacity(0.6), radius: 3)
                             .allowsHitTesting(false)
-                        Path { p in
-                            p.move(to: CGPoint(x: playheadX - 6, y: 0))
-                            p.addLine(to: CGPoint(x: playheadX + 6, y: 0))
-                            p.addLine(to: CGPoint(x: playheadX, y: 8))
-                            p.closeSubpath()
                         }
-                        .fill(playheadColor)
-                        .allowsHitTesting(false)
+                        .frame(height: timelineContentHeight, alignment: .top)
                     }
                 }
             }
@@ -170,6 +177,18 @@ struct ProjectTimelineView: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                if track.clips.isEmpty {
+                    Button {
+                        model.removeEmptyTimelineTrack(id: track.id)
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                    .help(localization.string("menu.deleteEmptyTimelineTrack"))
+                    .accessibilityLabel(localization.string("menu.deleteEmptyTimelineTrack"))
+                }
             }
             .padding(.horizontal, 10)
             .frame(width: headerWidth, height: trackHeight)
@@ -185,7 +204,7 @@ struct ProjectTimelineView: View {
             .frame(width: laneWidth, height: trackHeight, alignment: .topLeading)
             .contentShape(Rectangle())
             .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
-                handleActivityDrop(
+                handleMediaDrop(
                     providers,
                     onTrack: track,
                     atX: location.x,
@@ -198,14 +217,14 @@ struct ProjectTimelineView: View {
         .overlay(alignment: .bottom) { Divider() }
     }
 
-    private func handleActivityDrop(
+    private func handleMediaDrop(
         _ providers: [NSItemProvider],
         onTrack track: TimelineTrack,
         atX locationX: CGFloat,
         laneWidth: CGFloat,
         duration: TimeInterval
     ) -> Bool {
-        guard track.kind == .overlay else { return false }
+        guard !track.isLocked else { return false }
         guard let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else {
             return false
         }
@@ -213,14 +232,25 @@ struct ProjectTimelineView: View {
         guard laneWidth > 0, duration > 0 else { return false }
         let timelineStart = min(duration, max(0, Double(locationX / laneWidth) * duration))
         provider.loadObject(ofClass: NSString.self) { object, _ in
-            guard let payload = object as? NSString,
-                  let assetID = TimelineDragPayload.activityAssetID(from: String(payload)) else { return }
+            guard let payload = object as? NSString else { return }
+            let value = String(payload)
             DispatchQueue.main.async {
-                model.addActivityAssetToTimeline(
-                    id: assetID,
-                    targetTrackID: track.id,
-                    timelineStart: timelineStart
-                )
+                switch track.kind {
+                case .video:
+                    guard let assetID = TimelineDragPayload.videoAssetID(from: value) else { return }
+                    model.addVideoAssetToTimeline(
+                        id: assetID,
+                        targetTrackID: track.id,
+                        timelineStart: timelineStart
+                    )
+                case .overlay:
+                    guard let assetID = TimelineDragPayload.activityAssetID(from: value) else { return }
+                    model.addActivityAssetToTimeline(
+                        id: assetID,
+                        targetTrackID: track.id,
+                        timelineStart: timelineStart
+                    )
+                }
             }
         }
         return true
@@ -230,11 +260,25 @@ struct ProjectTimelineView: View {
     private func clipView(_ clip: TimelineClip, project: TimelineProject, kind: TimelineTrack.Kind, duration: TimeInterval, laneWidth: CGFloat) -> some View {
         let x = CGFloat(clip.timelineStart / duration) * laneWidth
         let width = max(6, CGFloat(clip.duration / duration) * laneWidth)
-        let name = project.asset(id: clip.assetID)?.displayName ?? clip.assetID
+        let asset = project.asset(id: clip.assetID)
+        let name = asset?.displayName ?? clip.assetID
         let isSelected = model.selectedTimelineClipID == clip.id
+        let waveformPeaks = model.videoWaveformPeaksByAssetID[clip.assetID] ?? []
 
         let clipBody = RoundedRectangle(cornerRadius: 7, style: .continuous)
             .fill(clipFill(kind))
+            .overlay {
+                if kind == .video, let asset, !waveformPeaks.isEmpty {
+                    TimelineAudioWaveform(
+                        peaks: waveformPeaks,
+                        sourceIn: clip.sourceIn,
+                        clipDuration: clip.duration,
+                        assetDuration: asset.duration
+                    )
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 5)
+                }
+            }
             .overlay(alignment: .leading) {
                 Text(name)
                     .font(.system(size: 10.5, weight: .semibold))
@@ -290,7 +334,12 @@ struct ProjectTimelineView: View {
         .accessibilityLabel(name)
         .accessibilityValue("\(localization.string("timelineClip.inspector.timelineStart")) \(timecode(clip.timelineStart))")
 
-        block.gesture(clipMoveGesture(clip: clip, project: project, laneWidth: laneWidth, duration: duration))
+        block
+            .gesture(clipMoveGesture(clip: clip, project: project, laneWidth: laneWidth, duration: duration))
+            .task(id: kind == .video ? asset?.id : nil) {
+                guard kind == .video, let assetID = asset?.id else { return }
+                model.loadVideoWaveformIfNeeded(assetID: assetID)
+            }
     }
 
     private func clipTrimHandle(clip: TimelineClip, project: TimelineProject, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some View {
@@ -487,5 +536,46 @@ struct ProjectTimelineView: View {
             return String(format: "%d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
         }
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+private struct TimelineAudioWaveform: View {
+    let peaks: [Float]
+    let sourceIn: TimeInterval
+    let clipDuration: TimeInterval
+    let assetDuration: TimeInterval
+
+    var body: some View {
+        Canvas { context, size in
+            guard !peaks.isEmpty,
+                  size.width > 0,
+                  size.height > 0,
+                  assetDuration.isFinite,
+                  assetDuration > 0 else {
+                return
+            }
+
+            let barCount = max(1, min(peaks.count, Int(size.width / 2)))
+            var path = Path()
+            for bar in 0..<barCount {
+                let clipFraction = (Double(bar) + 0.5) / Double(barCount)
+                let sourceTime = min(
+                    assetDuration,
+                    max(0, sourceIn + clipDuration * clipFraction)
+                )
+                let peakIndex = min(
+                    peaks.count - 1,
+                    max(0, Int(sourceTime / assetDuration * Double(peaks.count)))
+                )
+                let amplitude = CGFloat(peaks[peakIndex])
+                let halfHeight = max(0.6, amplitude * size.height * 0.46)
+                let x = (CGFloat(bar) + 0.5) / CGFloat(barCount) * size.width
+                path.move(to: CGPoint(x: x, y: size.height / 2 - halfHeight))
+                path.addLine(to: CGPoint(x: x, y: size.height / 2 + halfHeight))
+            }
+            context.stroke(path, with: .color(.white.opacity(0.32)), lineWidth: 1)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
