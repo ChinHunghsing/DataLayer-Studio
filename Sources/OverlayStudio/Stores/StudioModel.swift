@@ -254,6 +254,7 @@ final class StudioModel: ObservableObject {
     @Published var previewWarning: String?
     @Published var isExporting = false
     @Published private(set) var isWeatherExportConfirmationPresented = false
+    @Published private(set) var isWeatherAPIKeyPromptPresented = false
     @Published var exportProgress = 0.0
     @Published private(set) var exportETASeconds: TimeInterval?
     @Published private(set) var lastExportedURL: URL?
@@ -887,6 +888,10 @@ final class StudioModel: ObservableObject {
         openWeatherAPIKey = value
         OpenWeatherKeyStore.save(value)
         addDebugLog(.weather, "OpenWeather key updated: \(redactedKeySummary(value))")
+    }
+
+    func dismissWeatherAPIKeyPrompt() {
+        isWeatherAPIKeyPromptPresented = false
     }
 
     func refreshOpenWeatherForCurrentFIT() {
@@ -4243,6 +4248,11 @@ final class StudioModel: ObservableObject {
             layout.elements.append(element)
             selectedElementID = element.id
             clearTimelineClipSelection()
+        }
+        if kind == .weather,
+           openWeatherAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            isWeatherAPIKeyPromptPresented = true
+            addDebugLog(.weather, "Weather gauge added without an OpenWeather key")
         }
         refreshOverlayOrPreview()
     }

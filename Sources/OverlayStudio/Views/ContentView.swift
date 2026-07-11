@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
+    @Environment(\.openURL) private var openURL
     @SceneStorage("previewZoom") private var previewZoom = 1.0
     @SceneStorage("bottomWorkspaceHeight") private var bottomWorkspaceHeight = 240.0
     @State private var resizeStartHeight: Double?
@@ -118,6 +119,20 @@ struct ContentView: View {
             }
         } message: {
             Text(localization.string("exportWeatherWarning.message"))
+        }
+        .alert(
+            localization.string("weatherKeyPrompt.title"),
+            isPresented: weatherAPIKeyPromptBinding
+        ) {
+            Button(localization.string("weatherKeyPrompt.openKeyPage")) {
+                model.dismissWeatherAPIKeyPrompt()
+                openURL(OpenWeatherService.apiKeyPageURL)
+            }
+            Button(localization.string("weatherKeyPrompt.later"), role: .cancel) {
+                model.dismissWeatherAPIKeyPrompt()
+            }
+        } message: {
+            Text(localization.string("weatherKeyPrompt.message"))
         }
         .focusedSceneValue(\.studioCommandActions, studioCommandActions)
         .focusedSceneValue(\.previewCommandActions, previewCommandActions)
@@ -300,6 +315,17 @@ struct ContentView: View {
             set: { isPresented in
                 if !isPresented {
                     model.cancelWeatherExportConfirmation()
+                }
+            }
+        )
+    }
+
+    private var weatherAPIKeyPromptBinding: Binding<Bool> {
+        Binding(
+            get: { model.isWeatherAPIKeyPromptPresented },
+            set: { isPresented in
+                if !isPresented {
+                    model.dismissWeatherAPIKeyPrompt()
                 }
             }
         )

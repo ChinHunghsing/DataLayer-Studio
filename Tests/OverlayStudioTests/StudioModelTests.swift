@@ -311,6 +311,26 @@ final class StudioModelTests: XCTestCase {
         XCTAssertFalse(model.canAddElement(kind: .heartRate))
     }
 
+    func testAddingWeatherElementWithoutAPIKeyRequestsPrompt() {
+        let model = StudioModel()
+        model.openWeatherAPIKey = "   "
+
+        model.addElement(kind: .weather)
+
+        XCTAssertTrue(model.isWeatherAPIKeyPromptPresented)
+        model.dismissWeatherAPIKeyPrompt()
+        XCTAssertFalse(model.isWeatherAPIKeyPromptPresented)
+    }
+
+    func testAddingWeatherElementWithAPIKeyDoesNotRequestPrompt() {
+        let model = StudioModel()
+        model.openWeatherAPIKey = "configured-key"
+
+        model.addElement(kind: .weather)
+
+        XCTAssertFalse(model.isWeatherAPIKeyPromptPresented)
+    }
+
     func testActivityTrimRebasesPreviewSampleData() {
         let model = StudioModel()
         let startDate = Date(timeIntervalSince1970: 1_000)
