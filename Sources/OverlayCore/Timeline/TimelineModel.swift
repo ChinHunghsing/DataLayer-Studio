@@ -30,6 +30,9 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
     public var width: Int?
     public var height: Int?
     public var framesPerSecond: Double?
+    /// Real-world recording start (video creation date, or the activity's first absolute
+    /// timestamp). Nil when the source carries no such metadata; used for wall-clock alignment.
+    public var wallClockStart: Date?
     /// Optional security-scoped bookmark used by the sandboxed GUI app when reopening projects.
     public var bookmarkData: Data?
     /// Optional path relative to the project JSON directory, used as a portable fallback when
@@ -45,6 +48,7 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         width: Int? = nil,
         height: Int? = nil,
         framesPerSecond: Double? = nil,
+        wallClockStart: Date? = nil,
         bookmarkData: Data? = nil,
         relativePath: String? = nil
     ) {
@@ -56,6 +60,7 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         self.width = width
         self.height = height
         self.framesPerSecond = framesPerSecond
+        self.wallClockStart = wallClockStart
         self.bookmarkData = bookmarkData
         self.relativePath = relativePath
     }

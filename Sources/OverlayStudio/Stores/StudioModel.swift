@@ -1742,6 +1742,7 @@ final class StudioModel: ObservableObject {
                         self.configureTimelinePlayer()
                     }
                     self.setStatus("status.loadedVideo", url.lastPathComponent)
+                    self.applyWallClockAutoSyncIfPossible()
                     self.refreshPreview()
                     self.videoLoadTask = nil
                     self.completeSourceReplacementUndoIfNeeded(kind: .video)
@@ -2434,7 +2435,8 @@ final class StudioModel: ObservableObject {
             duration: metadata.duration,
             width: Int(metadata.size.width.rounded()),
             height: Int(metadata.size.height.rounded()),
-            framesPerSecond: metadata.framesPerSecond
+            framesPerSecond: metadata.framesPerSecond,
+            wallClockStart: metadata.creationDate
         )
         if let index = videoAssets.firstIndex(where: { $0.id == asset.id }) {
             videoAssets[index] = asset
@@ -2451,7 +2453,8 @@ final class StudioModel: ObservableObject {
             kind: .activity,
             url: url,
             displayName: url.lastPathComponent,
-            duration: series.duration
+            duration: series.duration,
+            wallClockStart: series.activityStartDate
         )
         activitySeriesByAssetID[asset.id] = series
         if let index = activityAssets.firstIndex(where: { $0.id == asset.id }) {
@@ -2651,10 +2654,15 @@ final class StudioModel: ObservableObject {
             timeline.assets.append(asset)
         }
 
+        let placement = resolveAutoAlignedTimelineStart(
+            explicitStart: timelineStart,
+            assetWallClockStart: asset.wallClockStart
+        )
+
         var clip = TimelineClip(
             id: "overlay.clip.\(UUID().uuidString)",
             assetID: asset.id,
-            timelineStart: max(0, timelineStart ?? 0),
+            timelineStart: max(0, placement.start ?? 0),
             duration: asset.duration,
             sourceIn: 0,
             layout: layout.sanitized,
@@ -2675,10 +2683,10 @@ final class StudioModel: ObservableObject {
             clip.timelineStart = timeline.tracks[trackIndex].nonOverlappingStart(
                 forClipID: clip.id,
                 duration: clip.duration,
-                proposedStart: max(0, timelineStart ?? laneEnd)
+                proposedStart: max(0, placement.start ?? laneEnd)
             )
             timeline.tracks[trackIndex].clips.append(clip)
-            setStatus("status.timelineAddedActivity", asset.displayName)
+            setStatus(placement.statusKey, asset.displayName)
             return
         }
 
@@ -2690,7 +2698,29 @@ final class StudioModel: ObservableObject {
                 clips: [clip]
             )
         )
-        setStatus("status.timelineAddedActivity", asset.displayName)
+        setStatus(placement.statusKey, asset.displayName)
+    }
+
+    /// Wall-clock placement for imports without an explicit drop position. An explicit position
+    /// (a drop) always wins; otherwise recording times decide, and a missing or implausible
+    /// result falls back to the lane-end default (`start == nil`) with an explaining status.
+    private func resolveAutoAlignedTimelineStart(
+        explicitStart: TimeInterval?,
+        assetWallClockStart: Date?
+    ) -> (start: TimeInterval?, statusKey: String) {
+        if let explicitStart {
+            return (explicitStart, "status.timelineAddedActivity")
+        }
+        switch TimelineAutoAlignment.placement(forAssetWallClockStart: assetWallClockStart, in: timeline) {
+        case let .aligned(start):
+            return (start, "status.timelineAutoAligned")
+        case .missingWallClock:
+            return (nil, "status.timelineAutoAlignUnavailable")
+        case .unreasonable:
+            return (nil, "status.timelineAutoAlignGapTooLarge")
+        case .noReference:
+            return (nil, "status.timelineAddedActivity")
+        }
     }
 
     /// Add a pooled video as the next clip on the base video track.
@@ -2724,10 +2754,15 @@ final class StudioModel: ObservableObject {
             timeline.assets.append(asset)
         }
 
+        let placement = resolveAutoAlignedTimelineStart(
+            explicitStart: timelineStart,
+            assetWallClockStart: asset.wallClockStart
+        )
+
         var clip = TimelineClip(
             id: "video.clip.\(UUID().uuidString)",
             assetID: asset.id,
-            timelineStart: max(0, timelineStart ?? 0),
+            timelineStart: max(0, placement.start ?? 0),
             duration: asset.duration,
             sourceIn: 0
         )
@@ -2745,7 +2780,7 @@ final class StudioModel: ObservableObject {
             clip.timelineStart = timeline.tracks[trackIndex].nonOverlappingStart(
                 forClipID: clip.id,
                 duration: clip.duration,
-                proposedStart: max(0, timelineStart ?? laneEnd)
+                proposedStart: max(0, placement.start ?? laneEnd)
             )
             timeline.tracks[trackIndex].clips.append(clip)
         } else {
@@ -2759,7 +2794,7 @@ final class StudioModel: ObservableObject {
                 at: 0
             )
         }
-        setStatus("status.timelineAddedActivity", asset.displayName)
+        setStatus(placement.statusKey, asset.displayName)
     }
 
     func removeEmptyTimelineTrack(id: String) {
@@ -2913,7 +2948,47 @@ final class StudioModel: ObservableObject {
     /// project they rebuild the relative placement from scratch. After manual timeline editing,
     /// they re-align only the active video/activity pair while preserving the video's timeline
     /// position whenever both clips can stay at or after timeline zero.
+    /// Whether the current match point came from `applyWallClockAutoSyncIfPossible`. An
+    /// auto-derived sync may be replaced by a newer auto-alignment (e.g. after loading a
+    /// different activity), but any other sync source is treated as user intent and kept.
+    private var syncWasAutoAlignedByWallClock = false
+    private var isApplyingWallClockAutoSync = false
+
+    /// Single-source auto alignment: when the active video and activity both carry recording
+    /// times and the user has not set a match point, derive the sync from the wall clocks so
+    /// the migrated timeline places both clips at their real relative positions.
+    func applyWallClockAutoSyncIfPossible() {
+        guard timelineUsesSingleSourceMigration, videoURL != nil, let fitURL else { return }
+        let syncIsUntouched = syncMode == .syncPoint && syncVideoSeconds == 0 && syncFITSeconds == 0
+        guard syncIsUntouched || syncWasAutoAlignedByWallClock else { return }
+        switch TimelineAutoAlignment.singleSourceAlignment(
+            videoWallClockStart: metadata?.creationDate,
+            activityWallClockStart: series?.activityStartDate
+        ) {
+        case let .aligned(videoSourceTime, activitySourceTime):
+            guard syncVideoSeconds != videoSourceTime || syncFITSeconds != activitySourceTime else { return }
+            isApplyingWallClockAutoSync = true
+            syncMode = .syncPoint
+            syncVideoSeconds = videoSourceTime
+            syncFITSeconds = activitySourceTime
+            isApplyingWallClockAutoSync = false
+            syncWasAutoAlignedByWallClock = true
+            setStatus("status.timelineAutoAligned", fitURL.lastPathComponent)
+        case .gapTooLarge:
+            setStatus("status.autoSyncGapTooLarge")
+        case .missingWallClock:
+            // Old behavior (both sources start together) — common enough that a notice on
+            // every load would be noise.
+            break
+        }
+    }
+
     private func updateTimelineForSyncChange() {
+        if !isApplyingWallClockAutoSync {
+            // Any other sync write (launch options, project restore) is user/state intent;
+            // stop auto-alignment from overriding it later.
+            syncWasAutoAlignedByWallClock = false
+        }
         guard !isRestoringTimelineSourceMatchPoint else { return }
         guard !timelineUsesSingleSourceMigration else {
             rebuildCurrentTimelineProject()
@@ -3582,6 +3657,7 @@ final class StudioModel: ObservableObject {
                     }
                     self.setStatus("status.loadedFit", url.lastPathComponent)
                     self.addDebugLog(.input, "Loaded activity file: \(url.lastPathComponent), samples=\(parsedSeries.samples.count), duration=\(Self.formatDebugSeconds(parsedSeries.duration))")
+                    self.applyWallClockAutoSyncIfPossible()
                     self.refreshOverlayOrPreview()
                     self.loadOpenWeatherIfPossible(
                         for: parsedSeries,

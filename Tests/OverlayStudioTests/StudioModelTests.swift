@@ -1359,4 +1359,113 @@ final class StudioModelTests: XCTestCase {
         model.setTimelineZoom(.nan)
         XCTAssertEqual(model.timelineZoom, 1, accuracy: 1e-9)
     }
+
+    private func loadedSingleSourceModel(
+        videoCreationDate: Date?,
+        activityStartDate: Date?
+    ) -> StudioModel {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/autosync.mov")
+        let fitURL = URL(fileURLWithPath: "/tmp/autosync.fit")
+        let metadata = VideoMetadata(
+            size: CGSize(width: 1920, height: 1080),
+            duration: 147,
+            framesPerSecond: 30,
+            bitRateBitsPerSecond: 0,
+            creationDate: videoCreationDate
+        )
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: activityStartDate, distanceMeters: 0),
+            TelemetrySample(elapsed: 100, date: activityStartDate?.addingTimeInterval(100), distanceMeters: 300)
+        ])
+        model.upsertVideoAsset(url: videoURL, metadata: metadata)
+        model.upsertActivityAsset(url: fitURL, series: series)
+        model.videoURL = videoURL
+        model.metadata = metadata
+        model.fitURL = fitURL
+        model.series = series
+        return model
+    }
+
+    func testWallClockAutoSyncAlignsSingleSourcePair() {
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let model = loadedSingleSourceModel(
+            videoCreationDate: base,
+            activityStartDate: base.addingTimeInterval(622)
+        )
+
+        model.applyWallClockAutoSyncIfPossible()
+
+        XCTAssertEqual(model.syncVideoSeconds, 622, accuracy: 0.001)
+        XCTAssertEqual(model.syncFITSeconds, 0, accuracy: 0.001)
+        let overlayStart = model.timeline.tracks
+            .first { $0.kind == .overlay }?.clips.first?.timelineStart
+        XCTAssertEqual(overlayStart ?? -1, 622, accuracy: 0.001)
+    }
+
+    func testWallClockAutoSyncActivityBeforeVideoShiftsVideoRight() {
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let model = loadedSingleSourceModel(
+            videoCreationDate: base,
+            activityStartDate: base.addingTimeInterval(-300)
+        )
+
+        model.applyWallClockAutoSyncIfPossible()
+
+        XCTAssertEqual(model.syncVideoSeconds, 0, accuracy: 0.001)
+        XCTAssertEqual(model.syncFITSeconds, 300, accuracy: 0.001)
+        // Both sources stay complete: the video clip shifts right instead of trimming the activity.
+        let videoStart = model.timeline.tracks
+            .first { $0.kind == .video }?.clips.first?.timelineStart
+        XCTAssertEqual(videoStart ?? -1, 300, accuracy: 0.001)
+    }
+
+    func testWallClockAutoSyncKeepsManualMatchPoint() {
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let model = loadedSingleSourceModel(
+            videoCreationDate: base,
+            activityStartDate: base.addingTimeInterval(622)
+        )
+        model.syncVideoSeconds = 50
+
+        model.applyWallClockAutoSyncIfPossible()
+
+        XCTAssertEqual(model.syncVideoSeconds, 50, accuracy: 0.001)
+        XCTAssertEqual(model.syncFITSeconds, 0, accuracy: 0.001)
+    }
+
+    func testWallClockAutoSyncStaysQuietWithoutRecordingTimes() {
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let model = loadedSingleSourceModel(
+            videoCreationDate: nil,
+            activityStartDate: base
+        )
+
+        model.applyWallClockAutoSyncIfPossible()
+
+        XCTAssertEqual(model.syncVideoSeconds, 0, accuracy: 0.001)
+        XCTAssertEqual(model.syncFITSeconds, 0, accuracy: 0.001)
+    }
+
+    func testWallClockAutoSyncCanReplaceEarlierAutoAlignment() {
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let model = loadedSingleSourceModel(
+            videoCreationDate: base,
+            activityStartDate: base.addingTimeInterval(622)
+        )
+        model.applyWallClockAutoSyncIfPossible()
+        XCTAssertEqual(model.syncVideoSeconds, 622, accuracy: 0.001)
+
+        // Loading a different activity re-derives the sync as long as the previous one was
+        // auto-aligned rather than set by the user.
+        let laterSeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: base.addingTimeInterval(900), distanceMeters: 0),
+            TelemetrySample(elapsed: 100, date: base.addingTimeInterval(1000), distanceMeters: 300)
+        ])
+        model.series = laterSeries
+        model.applyWallClockAutoSyncIfPossible()
+
+        XCTAssertEqual(model.syncVideoSeconds, 900, accuracy: 0.001)
+        XCTAssertEqual(model.syncFITSeconds, 0, accuracy: 0.001)
+    }
 }

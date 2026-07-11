@@ -2240,6 +2240,152 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertNotNil(state.player)
     }
 
+    func testImportedAssetsAutoAlignByRecordingTime() {
+        let model = StudioModel()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/cam1.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 147,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/cam1.mov")
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/cam2.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 35,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base.addingTimeInterval(2434)
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/cam2.mov")
+
+        let fitURL = URL(fileURLWithPath: "/tmp/run.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: base.addingTimeInterval(622), distanceMeters: 0),
+            TelemetrySample(elapsed: 5383, date: base.addingTimeInterval(6005), distanceMeters: 15000)
+        ]))
+        model.addActivityAssetToTimeline(id: fitURL.path)
+
+        let videoStarts = model.timeline.tracks
+            .first { $0.kind == .video }?.clips
+            .map(\.timelineStart) ?? []
+        XCTAssertEqual(videoStarts, [0, 2434])
+
+        let overlayStart = model.timeline.tracks
+            .first { $0.kind == .overlay }?.clips.first?.timelineStart
+        XCTAssertEqual(overlayStart ?? -1, 622, accuracy: 0.001)
+    }
+
+    func testImportWithoutRecordingTimeAppendsToLaneEnd() {
+        let model = StudioModel()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/dated.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 147,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/dated.mov")
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/undated.mov"),
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 35, fps: 30)
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/undated.mov")
+
+        let videoStarts = model.timeline.tracks
+            .first { $0.kind == .video }?.clips
+            .map(\.timelineStart) ?? []
+        XCTAssertEqual(videoStarts, [0, 147])
+    }
+
+    func testImportWithImplausibleRecordingTimeAppendsToLaneEnd() {
+        let model = StudioModel()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/today.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 147,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/today.mov")
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/next-week.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 35,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base.addingTimeInterval(7 * 24 * 60 * 60)
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/next-week.mov")
+
+        let videoStarts = model.timeline.tracks
+            .first { $0.kind == .video }?.clips
+            .map(\.timelineStart) ?? []
+        XCTAssertEqual(videoStarts, [0, 147])
+    }
+
+    func testAutoAlignedImportIsUndoable() {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/cam1.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 147,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/cam1.mov")
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/cam2.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 35,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base.addingTimeInterval(2434)
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/cam2.mov")
+        XCTAssertEqual(model.timeline.tracks.first { $0.kind == .video }?.clips.count, 2)
+
+        undoManager.undo()
+        let videoStarts = model.timeline.tracks
+            .first { $0.kind == .video }?.clips
+            .map(\.timelineStart) ?? []
+        XCTAssertEqual(videoStarts, [0])
+    }
+
     private func waitForOverlayPreview(
         _ model: StudioModel,
         file: StaticString = #filePath,

@@ -7,12 +7,21 @@ public struct VideoMetadata {
     public var duration: TimeInterval
     public var framesPerSecond: Double
     public var bitRateBitsPerSecond: Double?
+    /// Recording start from the container's creation-date metadata; nil when the file carries none.
+    public var creationDate: Date?
 
-    public init(size: CGSize, duration: TimeInterval, framesPerSecond: Double, bitRateBitsPerSecond: Double? = nil) {
+    public init(
+        size: CGSize,
+        duration: TimeInterval,
+        framesPerSecond: Double,
+        bitRateBitsPerSecond: Double? = nil,
+        creationDate: Date? = nil
+    ) {
         self.size = size
         self.duration = duration
         self.framesPerSecond = framesPerSecond
         self.bitRateBitsPerSecond = bitRateBitsPerSecond
+        self.creationDate = creationDate
     }
 
     public static func load(from url: URL) throws -> VideoMetadata {
@@ -59,11 +68,17 @@ public struct VideoMetadata {
             let bitRate = Double(rate)
             return bitRate.isFinite && bitRate > 0 ? bitRate : nil
         }
+        // Missing creation-date metadata is common and must not fail the load.
+        var creationDate: Date?
+        if let creationDateItem = try? await asset.load(.creationDate) {
+            creationDate = try? await creationDateItem.load(.dateValue)
+        }
         return VideoMetadata(
             size: size,
             duration: duration,
             framesPerSecond: fps,
-            bitRateBitsPerSecond: trackBitRate ?? fileBitRateBitsPerSecond(for: url, duration: duration)
+            bitRateBitsPerSecond: trackBitRate ?? fileBitRateBitsPerSecond(for: url, duration: duration),
+            creationDate: creationDate
         )
     }
 
