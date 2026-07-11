@@ -399,7 +399,7 @@ struct ProjectTimelineView: View {
     // MARK: track row
 
     private func trackHeader(_ track: TimelineTrack) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             Text(trackBadge(track))
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .foregroundStyle(track.kind == .video ? Color.secondary : Color.accentColor)
@@ -408,56 +408,59 @@ struct ProjectTimelineView: View {
                     (track.kind == .video ? Color.secondary.opacity(0.16) : ShellStyle.accentSoft),
                     in: RoundedRectangle(cornerRadius: 5, style: .continuous)
                 )
-            VStack(alignment: .leading, spacing: 3) {
-                Button {
-                    beginRenaming(track)
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(track.name)
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
-                        Image(systemName: "pencil")
-                            .font(.system(size: 8, weight: .semibold))
-                    }
-                    .foregroundStyle(track.isEnabled ? Color.primary : Color.secondary)
+
+            Button {
+                beginRenaming(track)
+            } label: {
+                HStack(spacing: 4) {
+                    Text(track.name)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Image(systemName: "pencil")
+                        .font(.system(size: 8, weight: .semibold))
+                        .fixedSize()
                 }
-                .buttonStyle(.plain)
-                .help(localization.string("timeline.track.rename"))
-
-                HStack(spacing: 10) {
-                    Button {
-                        model.setTimelineTrackEnabled(id: track.id, isEnabled: !track.isEnabled)
-                    } label: {
-                        Image(systemName: track.isEnabled ? "eye" : "eye.slash")
-                    }
-                    .help(localization.string(track.isEnabled ? "timeline.track.disable" : "timeline.track.enable"))
-                    .accessibilityLabel(localization.string(track.isEnabled ? "timeline.track.disable" : "timeline.track.enable"))
-
-                    Button {
-                        model.setTimelineTrackLocked(id: track.id, isLocked: !track.isLocked)
-                    } label: {
-                        Image(systemName: track.isLocked ? "lock.fill" : "lock.open")
-                    }
-                    .help(localization.string(track.isLocked ? "timeline.track.unlock" : "timeline.track.lock"))
-                    .accessibilityLabel(localization.string(track.isLocked ? "timeline.track.unlock" : "timeline.track.lock"))
-
-                    if track.clips.isEmpty, !track.isLocked {
-                        Button {
-                            model.removeEmptyTimelineTrack(id: track.id)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                        }
-                        .help(localization.string("menu.deleteEmptyTimelineTrack"))
-                        .accessibilityLabel(localization.string("menu.deleteEmptyTimelineTrack"))
-                    }
-                }
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .buttonStyle(.plain)
+                .foregroundStyle(track.isEnabled ? Color.primary : Color.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
+            .help(localization.string("timeline.track.rename"))
+
+            Button {
+                model.setTimelineTrackEnabled(id: track.id, isEnabled: !track.isEnabled)
+            } label: {
+                Image(systemName: track.isEnabled ? "eye" : "eye.slash")
+                    .frame(width: 16, height: 18)
+            }
+            .help(localization.string(track.isEnabled ? "timeline.track.disable" : "timeline.track.enable"))
+            .accessibilityLabel(localization.string(track.isEnabled ? "timeline.track.disable" : "timeline.track.enable"))
+
+            Button {
+                model.setTimelineTrackLocked(id: track.id, isLocked: !track.isLocked)
+            } label: {
+                Image(systemName: track.isLocked ? "lock.fill" : "lock.open")
+                    .frame(width: 16, height: 18)
+            }
+            .help(localization.string(track.isLocked ? "timeline.track.unlock" : "timeline.track.lock"))
+            .accessibilityLabel(localization.string(track.isLocked ? "timeline.track.unlock" : "timeline.track.lock"))
+
+            if track.clips.isEmpty, !track.isLocked {
+                Button {
+                    model.removeEmptyTimelineTrack(id: track.id)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .frame(width: 16, height: 18)
+                }
+                .help(localization.string("menu.deleteEmptyTimelineTrack"))
+                .accessibilityLabel(localization.string("menu.deleteEmptyTimelineTrack"))
+            }
         }
-        .padding(.horizontal, 10)
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
         .frame(width: headerWidth, height: trackHeight)
         .background(.bar)
         .overlay(alignment: .trailing) { Divider() }
