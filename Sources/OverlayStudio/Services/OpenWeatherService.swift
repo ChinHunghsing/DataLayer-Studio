@@ -5,8 +5,57 @@ import Security
 enum OpenWeatherKeyStore {
     private static let service = "run.libo.datalayer-studio.openweather"
     private static let account = "api-key"
+    private static let defaultsKey = "openweather.api-key"
 
     static func load() -> String {
+        load(defaults: .standard, legacyLoader: loadFromLegacyKeychain)
+    }
+
+    static func save(_ key: String) {
+        save(key, defaults: .standard, legacyDeleter: deleteLegacyKeychainItem)
+    }
+
+    /// Prefer the new local preference, but treat an empty value as missing so a failed first
+    /// migration can retry. Keep the legacy keychain item after migration as a rollback copy;
+    /// subsequent launches return before touching Keychain, so it does not cause repeated prompts.
+    static func load(
+        defaults: UserDefaults,
+        legacyLoader: () -> String
+    ) -> String {
+        if let stored = normalized(defaults.string(forKey: defaultsKey)) {
+            if defaults.string(forKey: defaultsKey) != stored {
+                defaults.set(stored, forKey: defaultsKey)
+            }
+            return stored
+        }
+
+        defaults.removeObject(forKey: defaultsKey)
+        guard let migrated = normalized(legacyLoader()) else { return "" }
+        defaults.set(migrated, forKey: defaultsKey)
+        return migrated
+    }
+
+    static func save(
+        _ key: String,
+        defaults: UserDefaults,
+        legacyDeleter: () -> Void
+    ) {
+        guard let trimmed = normalized(key) else {
+            defaults.removeObject(forKey: defaultsKey)
+            legacyDeleter()
+            return
+        }
+
+        defaults.set(trimmed, forKey: defaultsKey)
+    }
+
+    private static func normalized(_ key: String?) -> String? {
+        guard let key else { return nil }
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func loadFromLegacyKeychain() -> String {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -23,26 +72,13 @@ enum OpenWeatherKeyStore {
         return key
     }
 
-    static func save(_ key: String) {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func deleteLegacyKeychainItem() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
-
-        guard !trimmed.isEmpty else {
-            SecItemDelete(query as CFDictionary)
-            return
-        }
-
-        let data = Data(trimmed.utf8)
-        let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if status == errSecItemNotFound {
-            var item = query
-            item[kSecValueData as String] = data
-            SecItemAdd(item as CFDictionary, nil)
-        }
+        SecItemDelete(query as CFDictionary)
     }
 }
 

@@ -4,6 +4,55 @@ import OverlayCore
 @testable import OverlayStudio
 
 final class OpenWeatherServiceTests: XCTestCase {
+    func testWeatherKeyMigrationRetriesAfterEmptyDefaultsAndKeepsMigratedValue() throws {
+        let suiteName = "OpenWeatherKeyStoreTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("   ", forKey: "openweather.api-key")
+
+        var legacyLoadCount = 0
+        let migrated = OpenWeatherKeyStore.load(defaults: defaults) {
+            legacyLoadCount += 1
+            return "  legacy-key  "
+        }
+
+        XCTAssertEqual(migrated, "legacy-key")
+        XCTAssertEqual(legacyLoadCount, 1)
+
+        let reloaded = OpenWeatherKeyStore.load(defaults: defaults) {
+            XCTFail("A persisted migrated key must avoid another Keychain lookup")
+            return ""
+        }
+        XCTAssertEqual(reloaded, "legacy-key")
+    }
+
+    func testSavingWeatherKeyOnlyDeletesLegacyValueWhenUserClearsIt() throws {
+        let suiteName = "OpenWeatherKeyStoreTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var legacyDeleteCount = 0
+
+        OpenWeatherKeyStore.save("  current-key  ", defaults: defaults) {
+            legacyDeleteCount += 1
+        }
+
+        XCTAssertEqual(
+            OpenWeatherKeyStore.load(defaults: defaults, legacyLoader: { "legacy-key" }),
+            "current-key"
+        )
+        XCTAssertEqual(legacyDeleteCount, 0)
+
+        OpenWeatherKeyStore.save("   ", defaults: defaults) {
+            legacyDeleteCount += 1
+        }
+
+        XCTAssertEqual(legacyDeleteCount, 1)
+        XCTAssertEqual(
+            OpenWeatherKeyStore.load(defaults: defaults, legacyLoader: { "" }),
+            ""
+        )
+    }
+
     func testWeatherFetchUsesLocalCacheForSameTimeAndLocation() async throws {
         let cacheDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("OpenWeatherServiceTests-\(UUID().uuidString)", isDirectory: true)
