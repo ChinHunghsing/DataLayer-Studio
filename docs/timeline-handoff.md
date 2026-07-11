@@ -122,7 +122,7 @@
 - 多片段合成导出通过 `AVAssetReaderVideoCompositionOutput` 先规范化剪辑点处的编码、尺寸和帧率变化，避免单一 `TrackOutput` 在读完后以 `Cannot Decode` 失败；尾部视频空隙仍由 writer 补黑帧。
 - 多条视频轨允许时间重叠；轨道按工程数组自底向上堆叠，同一时刻取最后一条已启用视频轨的活动片段。上层片段结束后，下层片段从对应的连续源时间恢复，不会从头重播。
 - DataLayer Studio 暂无独立音频轨；重叠区间使用当前可见上层视频的音频，上层结束后恢复下层视频对应源时间的音频，避免上下层声音意外叠加。
-- 多视频通过 `AVMutableComposition` 组合；目前只取第一段视频的 `preferredTransform` 作为组合轨 transform。
+- 多视频通过 `AVMutableComposition` 组合；每个可见片段使用独立组合轨和自己的 `preferredTransform`，按输出画布等比居中，横竖屏切换不会继承前一片段方向。
 - 启用的 overlay 轨按 `TimelineProject.tracks` 自底向上合成；禁用轨不导出。
 - `Sources/OverlayCore/Timeline/TimelineExportValidation.swift` 提供 App、CLI 和 writer 共用的导出预检及可见视频片段解析；视频空隙、没有视频和跨视频轨重叠都合法，源范围越界、缺少 asset/telemetry 仍会在编码前返回明确错误。
 
@@ -169,18 +169,18 @@
 
 验证状态：
 
-- `swift test`：382 个测试全部通过，0 failure。
+- `swift test`：383 个测试全部通过，0 failure。
 - `swift test --filter MediaPoolTests`：59 个测试全部通过。
 - `swift test --filter AudioWaveformLoaderTests`：2 个测试全部通过；另用本地真实 AAC 视频验证了流式峰值抽取。
 - `swift test --filter TimelineModelTests`：23 个测试全部通过。
-- `swift test --filter TimelineVideoWriterTests`：12 个测试全部通过，包含混合格式连续视频、稀疏视频、黑帧、音频静音区间和透明空白帧的真实写出检查。
+- `swift test --filter TimelineVideoWriterTests`：13 个测试全部通过，包含混合方向/格式连续视频、稀疏视频、黑帧、音频静音区间和透明空白帧的真实写出检查。
 - `swift test --filter OverlayCLITests`：22 个测试全部通过。
 - `swift test --filter LocalizationTests`：15 个 macOS 本地化测试全部通过。
 - `swift test --filter StudioModelTests`：70 个 macOS 状态模型测试全部通过。
 - `scripts/build_app_bundle.sh` 成功生成 `.build/DataLayer Studio.app`。
 - `scripts/verify_app_bundle.sh` 验证通过。
 
-注意：硬件编码器相关测试允许在不可用机器上 skip；“测试通过”不等于已经验证多浮层 Alpha 的真实视觉质量或混合方向视频。
+注意：硬件编码器相关测试允许在不可用机器上 skip；“测试通过”不等于已经验证多浮层 Alpha 的真实视觉质量。
 
 ## 2026-07-11 真实素材里程碑验收
 
@@ -202,7 +202,7 @@
 - 工程恢复：App 保存 `roundtrip.json` 后重新打开，4 个素材、2 条轨道、4 个片段、输出规格、片段位置/源入点、布局和距离单位与原工程的规范化 JSON 签名一致。
 - GUI 导出：App 输出页直接导出 10 秒三片段完整合成视频成功，自动从 HEVC Alpha 切换为普通 HEVC；结果为 640×360、5 fps、10 秒，并保留三段 AAC 音轨。
 
-本轮没有发现新的时间线阻塞缺陷，因此没有为通过验收而修改核心代码。尚未覆盖且不属于本里程碑收口条件的风险：横竖屏混合 transform、多浮层 Alpha 在深浅背景上的逐像素边缘检查、素材移动后的 relink，以及完整 4K/29.97 fps 的 110 分钟成片输出。
+本轮没有发现新的时间线阻塞缺陷，因此没有为通过验收而修改核心代码。尚未覆盖且不属于本里程碑收口条件的风险：多浮层 Alpha 在深浅背景上的逐像素边缘检查、素材移动后的 relink，以及完整 4K/29.97 fps 的 110 分钟成片输出。
 
 ## 阶段 5/6 完成项与后续问题
 
@@ -276,13 +276,13 @@
 自动测试还不能证明以下场景可交付：
 
 - HEVC Alpha 与 ProRes 4444 的多浮层结果放在深色/浅色背景时边缘不灰。
-- 横屏 + 竖屏、不同分辨率、不同帧率视频连续或稀疏组合。
+- 不同方向、分辨率、帧率和编码的真实用户视频连续或稀疏组合仍需扩大素材矩阵；横竖屏逐片段 transform 已有自动写出测试。
 - 多视频边界无错帧/重复帧，视频空隙黑帧和音频静音位置准确。
 - 长视频、多轨预览和导出内存稳定。
 - 自定义时间线定时器预览的播放流畅度、拖动响应和无音频行为。
 - 保存、退出 App、重新打开、重新授权素材后的预览与两种导出。
 
-混合方向尤其要谨慎：组合轨目前只使用第一段视频的 transform，不能把它写成“已经支持”。
+混合方向的基础正确性已由横屏红色视频接竖屏绿色视频的实际写出像素测试覆盖；真实相机素材矩阵仍保留在验收清单。
 
 ### P2：编辑体验和轨道管理
 
@@ -327,11 +327,18 @@
 - ⌘B 会分割播放头下的全部选中片段；⌫ / ⇧⌫ 可批量普通删除或波纹删除，并把整批操作作为一个 Undo/Redo 步骤。
 - `StudioModelTests` 覆盖片段头尾吸附及来源解析；`MediaPoolTests` 覆盖多选、批量分割、批量删除和选择状态的 Undo 恢复。
 
+### 阶段 9.6（已完成）：逐片段视频方向与画布适配
+
+- `TimelineVideoCompositionBuilder` 不再把第一段视频的 transform 套给整条组合轨；每个最终可见片段使用独立 `AVMutableCompositionTrack` 和 `AVMutableVideoCompositionInstruction`。
+- 每个片段分别读取自己的 `naturalSize` 与 `preferredTransform`，在统一输出画布中等比缩放并居中；未覆盖区间由黑色 instruction 填充。
+- 时间线预览的 `AVPlayerItem` 和合成导出的 `AVAssetReaderVideoCompositionOutput` 使用同一份 video composition，因此方向、比例和黑边语义一致。
+- 单片段覆盖完整导出范围时仍走原有直接读取路径，保持既有性能；多片段/稀疏路径继续逐帧流式读取。
+- 实际写出测试使用 96×48 横屏红色视频和带 90° transform 的竖屏绿色视频连续组合，在 96×96 输出中逐点验证横屏上下黑边、竖屏左右黑边和颜色方向正确。
+
 ## 建议的下一轮执行顺序
 
-1. 处理混合横竖屏视频的逐片段 transform。
-2. 补齐素材替换/移除 Undo、离线原因细分和删除确认。
-3. 用 `assets/resourses/` 真实素材复测工程保存/重开、相对路径、relink、两种导出和长时内存；该目录和产物不得提交。
+1. 补齐素材替换/移除 Undo、离线原因细分和删除确认。
+2. 用 `assets/resourses/` 真实素材复测工程保存/重开、相对路径、relink、两种导出和长时内存；该目录和产物不得提交。
 
 ## 手动 QA 清单
 

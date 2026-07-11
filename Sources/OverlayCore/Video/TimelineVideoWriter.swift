@@ -141,6 +141,7 @@ public final class TimelineVideoWriter {
                 sourceAsset: video.asset,
                 sourceDescription: video.description,
                 sourceVideoRanges: video.videoRanges,
+                sourceVideoComposition: video.videoComposition,
                 config: writerConfig,
                 overlayStartTime: config.timelineStart,
                 renderOverlay: renderOverlay
@@ -403,7 +404,8 @@ public final class TimelineVideoWriter {
         asset: AVAsset,
         description: String,
         startTime: TimeInterval,
-        videoRanges: [CMTimeRange]?
+        videoRanges: [CMTimeRange]?,
+        videoComposition: AVVideoComposition?
     ) {
         if videoClips.count == 1, clipCoversExportRange(videoClips[0]) {
             let clip = videoClips[0]
@@ -414,7 +416,7 @@ public final class TimelineVideoWriter {
             guard startTime.isFinite, startTime >= 0 else {
                 throw OverlayVideoError.invalidConfiguration("Timeline export maps to an invalid source video start time.")
             }
-            return (AVURLAsset(url: videoAsset.url), videoAsset.url.path, startTime, nil)
+            return (AVURLAsset(url: videoAsset.url), videoAsset.url.path, startTime, nil, nil)
         }
 
         let timelineComposition = try makeTimelineVideoComposition(videoClips)
@@ -422,19 +424,26 @@ public final class TimelineVideoWriter {
             timelineComposition.asset,
             "sparse timeline video composition",
             config.timelineStart,
-            timelineComposition.videoRanges
+            timelineComposition.videoRanges,
+            timelineComposition.videoComposition
         )
     }
 
     private func makeTimelineVideoComposition(
         _ videoClips: [TimelineClip]
-    ) throws -> (asset: AVAsset, videoRanges: [CMTimeRange]) {
+    ) throws -> (
+        asset: AVAsset,
+        videoRanges: [CMTimeRange],
+        videoComposition: AVVideoComposition
+    ) {
         let built = try TimelineVideoCompositionBuilder.make(
             project: project,
             videoClips: videoClips,
-            requiredEnd: config.timelineStart + config.duration
+            requiredEnd: config.timelineStart + config.duration,
+            renderSize: CGSize(width: config.width, height: config.height),
+            framesPerSecond: config.framesPerSecond
         )
-        return (built.composition, built.videoRanges)
+        return (built.composition, built.videoRanges, built.videoComposition)
     }
 
     private func minTime(_ lhs: CMTime, _ rhs: CMTime) -> CMTime {

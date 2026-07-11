@@ -1061,6 +1061,119 @@ final class TimelineVideoWriterTests: XCTestCase {
         XCTAssertFalse(audioTracks.isEmpty)
     }
 
+    func testTimelineWriterAppliesEachClipsOrientationTransform() async throws {
+        let landscapeURL = temporaryMovieURL("timeline-landscape-source")
+        let portraitURL = temporaryMovieURL("timeline-portrait-source")
+        let outputURL = temporaryMovieURL("timeline-mixed-orientation-output")
+        defer {
+            Self.removeTemporaryFile(landscapeURL)
+            Self.removeTemporaryFile(portraitURL)
+            Self.removeTemporaryFile(outputURL)
+        }
+
+        try makeTinySourceVideo(
+            at: landscapeURL,
+            width: 96,
+            height: 48,
+            frameColor: { _ in (220, 20, 20) }
+        )
+        try makeTinySourceVideo(
+            at: portraitURL,
+            width: 96,
+            height: 48,
+            preferredTransform: CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 48, ty: 0),
+            frameColor: { _ in (20, 220, 20) }
+        )
+
+        let activity = MediaAsset(
+            id: "activity",
+            kind: .activity,
+            url: URL(fileURLWithPath: "/tmp/mixed-orientation.fit"),
+            displayName: "mixed-orientation.fit",
+            duration: 2
+        )
+        let project = TimelineProject(
+            outputWidth: 96,
+            outputHeight: 96,
+            framesPerSecond: 2,
+            distanceUnit: .kilometers,
+            assets: [
+                MediaAsset(
+                    id: "landscape",
+                    kind: .video,
+                    url: landscapeURL,
+                    displayName: landscapeURL.lastPathComponent,
+                    duration: 1,
+                    width: 96,
+                    height: 48,
+                    framesPerSecond: 2
+                ),
+                MediaAsset(
+                    id: "portrait",
+                    kind: .video,
+                    url: portraitURL,
+                    displayName: portraitURL.lastPathComponent,
+                    duration: 1,
+                    width: 48,
+                    height: 96,
+                    framesPerSecond: 2
+                ),
+                activity
+            ],
+            tracks: [
+                TimelineTrack(id: "video", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "landscape-clip", assetID: "landscape", timelineStart: 0, duration: 1),
+                    TimelineClip(id: "portrait-clip", assetID: "portrait", timelineStart: 1, duration: 1)
+                ]),
+                TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "overlay-clip",
+                        assetID: activity.id,
+                        timelineStart: 0,
+                        duration: 2,
+                        layout: OverlayLayout(elements: [])
+                    )
+                ])
+            ]
+        )
+        let writer = TimelineVideoWriter(
+            outputURL: outputURL,
+            project: project,
+            telemetrySeriesByAssetID: [activity.id: TelemetrySeries(samples: [
+                TelemetrySample(elapsed: 0, distanceMeters: 0),
+                TelemetrySample(elapsed: 2, distanceMeters: 10)
+            ])],
+            config: TimelineVideoWriterConfig(
+                width: 96,
+                height: 96,
+                framesPerSecond: 2,
+                duration: 2,
+                averageBitRate: 400_000,
+                codec: .h264
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableTimelineTestEncoder {
+            throw XCTSkip("Timeline mixed-orientation test encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let landscapeCenter = try await frameRGB(from: outputURL, at: 0.25, x: 48, y: 48)
+        let landscapeTop = try await frameRGB(from: outputURL, at: 0.25, x: 48, y: 8)
+        let landscapeLeft = try await frameRGB(from: outputURL, at: 0.25, x: 8, y: 48)
+        XCTAssertGreaterThan(landscapeCenter.red, landscapeCenter.green + 100)
+        XCTAssertGreaterThan(landscapeLeft.red, landscapeLeft.green + 100)
+        XCTAssertLessThan(max(landscapeTop.red, landscapeTop.green, landscapeTop.blue), 35)
+
+        let portraitCenter = try await frameRGB(from: outputURL, at: 1.25, x: 48, y: 48)
+        let portraitTop = try await frameRGB(from: outputURL, at: 1.25, x: 48, y: 8)
+        let portraitLeft = try await frameRGB(from: outputURL, at: 1.25, x: 8, y: 48)
+        XCTAssertGreaterThan(portraitCenter.green, portraitCenter.red + 100)
+        XCTAssertGreaterThan(portraitTop.green, portraitTop.red + 100)
+        XCTAssertLessThan(max(portraitLeft.red, portraitLeft.green, portraitLeft.blue), 35)
+    }
+
     private func temporaryMovieURL(_ name: String) -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("\(name)-\(UUID().uuidString)")
@@ -1079,6 +1192,7 @@ final class TimelineVideoWriterTests: XCTestCase {
         width: Int = 64,
         height: Int = 64,
         codec: AVVideoCodecType = .h264,
+        preferredTransform: CGAffineTransform = .identity,
         includeAudio: Bool = false,
         audioSampleByte: UInt8 = 0,
         frameColor: (Int) -> (red: UInt8, green: UInt8, blue: UInt8) = { index in
@@ -1095,6 +1209,7 @@ final class TimelineVideoWriterTests: XCTestCase {
             ]
         )
         input.expectsMediaDataInRealTime = false
+        input.transform = preferredTransform
 
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: input,
@@ -1376,6 +1491,45 @@ final class TimelineVideoWriterTests: XCTestCase {
             }
         }
         return maximum
+    }
+
+    private func frameRGB(
+        from url: URL,
+        at seconds: TimeInterval,
+        x: Int,
+        y: Int
+    ) async throws -> (red: Double, green: Double, blue: Double) {
+        let asset = AVURLAsset(url: url)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        let reader = try AVAssetReader(asset: asset)
+        reader.timeRange = CMTimeRange(
+            start: CMTime(seconds: seconds, preferredTimescale: 600),
+            duration: CMTime(seconds: 0.25, preferredTimescale: 600)
+        )
+        let output = AVAssetReaderTrackOutput(
+            track: try XCTUnwrap(tracks.first),
+            outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        )
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+        let sampleBuffer = try XCTUnwrap(output.copyNextSampleBuffer())
+        let pixelBuffer = try XCTUnwrap(CMSampleBufferGetImageBuffer(sampleBuffer))
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        XCTAssertTrue((0..<width).contains(x))
+        XCTAssertTrue((0..<height).contains(y))
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let bytes = try XCTUnwrap(CVPixelBufferGetBaseAddress(pixelBuffer))
+            .assumingMemoryBound(to: UInt8.self)
+        let offset = y * bytesPerRow + x * 4
+        return (
+            red: Double(bytes[offset + 2]),
+            green: Double(bytes[offset + 1]),
+            blue: Double(bytes[offset])
+        )
     }
 
     private func audioMeanAbsoluteAmplitude(from url: URL, at seconds: TimeInterval) async throws -> Double {

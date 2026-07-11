@@ -61,6 +61,7 @@ public final class CompositedVideoWriter {
     private let sourceAsset: AVAsset?
     private let sourceDescription: String
     private let sourceVideoRanges: [CMTimeRange]?
+    private let sourceVideoComposition: AVVideoComposition?
     private let series: TelemetrySeries?
     private let config: CompositedVideoWriterConfig
     private let overlayStartTime: TimeInterval
@@ -71,6 +72,7 @@ public final class CompositedVideoWriter {
         self.sourceAsset = AVURLAsset(url: sourceVideoURL)
         self.sourceDescription = sourceVideoURL.path
         self.sourceVideoRanges = nil
+        self.sourceVideoComposition = nil
         self.series = series
         self.config = config
         self.overlayStartTime = config.startTime
@@ -88,6 +90,7 @@ public final class CompositedVideoWriter {
         self.sourceAsset = AVURLAsset(url: sourceVideoURL)
         self.sourceDescription = sourceVideoURL.path
         self.sourceVideoRanges = nil
+        self.sourceVideoComposition = nil
         self.series = nil
         self.config = config
         self.overlayStartTime = overlayStartTime
@@ -99,6 +102,7 @@ public final class CompositedVideoWriter {
         sourceAsset: AVAsset,
         sourceDescription: String,
         sourceVideoRanges: [CMTimeRange]? = nil,
+        sourceVideoComposition: AVVideoComposition? = nil,
         config: CompositedVideoWriterConfig,
         overlayStartTime: TimeInterval,
         renderOverlay: @escaping (TimeInterval, CVPixelBuffer) throws -> Void
@@ -107,6 +111,7 @@ public final class CompositedVideoWriter {
         self.sourceAsset = sourceAsset
         self.sourceDescription = sourceDescription
         self.sourceVideoRanges = sourceVideoRanges
+        self.sourceVideoComposition = sourceVideoComposition
         self.series = nil
         self.config = config
         self.overlayStartTime = overlayStartTime
@@ -123,6 +128,7 @@ public final class CompositedVideoWriter {
         self.sourceAsset = nil
         self.sourceDescription = "black timeline canvas"
         self.sourceVideoRanges = nil
+        self.sourceVideoComposition = nil
         self.series = nil
         self.config = config
         self.overlayStartTime = overlayStartTime
@@ -211,7 +217,8 @@ public final class CompositedVideoWriter {
                 // every edit point. TrackOutput may decode all requested frames and still finish
                 // in `.failed` with “Cannot Decode” after such a format change. Let AVFoundation's
                 // video compositor normalize those transitions before the frames reach our writer.
-                let videoComposition = AVMutableVideoComposition(propertiesOf: sourceAsset)
+                let videoComposition = sourceVideoComposition
+                    ?? AVMutableVideoComposition(propertiesOf: sourceAsset)
                 let compositionOutput = AVAssetReaderVideoCompositionOutput(
                     videoTracks: videoTracks,
                     videoSettings: readerSettings

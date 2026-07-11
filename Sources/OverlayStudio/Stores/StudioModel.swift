@@ -1787,6 +1787,7 @@ final class StudioModel: ObservableObject {
             // actor without further touches from this task.
             struct CompositionBox: @unchecked Sendable {
                 let composition: AVMutableComposition?
+                let videoComposition: AVVideoComposition?
                 let failureMessage: String?
             }
             let box: CompositionBox
@@ -1800,9 +1801,17 @@ final class StudioModel: ObservableObject {
                     videoClips: videoClips,
                     requiredEnd: endTime
                 )
-                box = CompositionBox(composition: built.composition, failureMessage: nil)
+                box = CompositionBox(
+                    composition: built.composition,
+                    videoComposition: built.videoComposition,
+                    failureMessage: nil
+                )
             } catch {
-                box = CompositionBox(composition: nil, failureMessage: error.localizedDescription)
+                box = CompositionBox(
+                    composition: nil,
+                    videoComposition: nil,
+                    failureMessage: error.localizedDescription
+                )
             }
             await MainActor.run { [weak self] in
                 guard let self,
@@ -1810,7 +1819,11 @@ final class StudioModel: ObservableObject {
                       !self.isExporting,
                       self.usesCustomTimelinePreview else { return }
                 if let composition = box.composition {
-                    self.applyTimelinePlayerComposition(composition, signature: signature)
+                    self.applyTimelinePlayerComposition(
+                        composition,
+                        videoComposition: box.videoComposition,
+                        signature: signature
+                    )
                 } else {
                     // Unreadable/missing source: fall back to frame-extraction preview.
                     self.tearDownTimelinePlayer(signature: signature)
@@ -1825,9 +1838,11 @@ final class StudioModel: ObservableObject {
 
     private func applyTimelinePlayerComposition(
         _ composition: AVMutableComposition,
+        videoComposition: AVVideoComposition?,
         signature: TimelinePlayerSignature?
     ) {
         let item = AVPlayerItem(asset: composition)
+        item.videoComposition = videoComposition
         let wasPlaying = isPlaying
         if let player {
             player.replaceCurrentItem(with: item)
