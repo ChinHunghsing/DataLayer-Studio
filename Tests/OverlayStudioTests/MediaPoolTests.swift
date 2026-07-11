@@ -914,8 +914,64 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.currentTimelineProject, originalTimeline)
     }
 
+    func testConfirmedActivitySourceReplacementSupportsUndoAndRedo() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("activity-source-replacement-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let firstURL = directory.appendingPathComponent("first.gpx")
+        let secondURL = directory.appendingPathComponent("second.gpx")
+        let gpx = """
+        <gpx version="1.1" creator="DataLayer Studio" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><trkseg>
+            <trkpt lat="35.0" lon="139.0"><time>2026-07-10T00:00:00Z</time></trkpt>
+            <trkpt lat="35.0001" lon="139.0001"><time>2026-07-10T00:00:03Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>
+        """
+        try Data(gpx.utf8).write(to: firstURL)
+        try Data(gpx.utf8).write(to: secondURL)
+
+        let model = StudioModel()
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 3, distanceMeters: 10)
+        ])
+        model.upsertActivityAsset(url: firstURL, series: series)
+        model.fitURL = firstURL
+        model.series = series
+        model.upsertActivityAsset(url: secondURL, series: series)
+        model.addActivityAssetToTimeline(id: secondURL.path)
+        let originalTimeline = model.currentTimelineProject
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+
+        model.selectActivityAsset(id: secondURL.path)
+        XCTAssertEqual(model.pendingTimelineAction, .selectActivityAsset(id: secondURL.path))
+        XCTAssertEqual(model.confirmPendingTimelineAction(), .selectActivityAsset(id: secondURL.path))
+        for _ in 0..<80 where model.fitURL != secondURL || !undoManager.canUndo {
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        XCTAssertEqual(model.fitURL, secondURL)
+        XCTAssertTrue(undoManager.canUndo)
+        XCTAssertNotEqual(model.currentTimelineProject, originalTimeline)
+
+        undoManager.undo()
+        XCTAssertEqual(model.fitURL, firstURL)
+        XCTAssertEqual(model.currentTimelineProject, originalTimeline)
+
+        undoManager.redo()
+        XCTAssertEqual(model.fitURL, secondURL)
+        XCTAssertNotEqual(model.currentTimelineProject, originalTimeline)
+    }
+
     func testRemovingReferencedAssetRequiresConfirmationAndKeepsProjectDirty() {
         let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
         let firstURL = URL(fileURLWithPath: "/tmp/a.mov")
         let secondURL = URL(fileURLWithPath: "/tmp/b.mov")
         model.upsertVideoAsset(url: firstURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 100, fps: 30))
@@ -934,6 +990,17 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertFalse(model.videoAssets.contains { $0.id == secondURL.path })
         XCTAssertFalse(model.currentTimelineProject.assets.contains { $0.id == secondURL.path })
         XCTAssertTrue(model.hasUnsavedTimelineChanges)
+
+        undoManager.undo()
+        XCTAssertTrue(model.videoAssets.contains { $0.id == secondURL.path })
+        XCTAssertTrue(model.currentTimelineProject.assets.contains { $0.id == secondURL.path })
+        XCTAssertTrue(
+            model.currentTimelineProject.tracks.flatMap(\.clips).contains { $0.assetID == secondURL.path }
+        )
+
+        undoManager.redo()
+        XCTAssertFalse(model.videoAssets.contains { $0.id == secondURL.path })
+        XCTAssertFalse(model.currentTimelineProject.assets.contains { $0.id == secondURL.path })
     }
 
     func testApplyingProjectMarksItCleanAndEditingMarksItDirty() throws {
@@ -1341,6 +1408,11 @@ final class MediaPoolTests: XCTestCase {
             ),
             loadAssets: true
         )
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+
+        XCTAssertEqual(model.offlineTimelineAssetReasons[asset.id], .fileMissing)
 
         model.relinkTimelineAsset(id: asset.id, to: replacementURL)
         for _ in 0..<40 where model.isTimelineAssetOffline(id: asset.id) {
@@ -1355,6 +1427,58 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.currentTimelineProject.tracks[0].clips[0], clip)
         XCTAssertNotNil(model.activitySeries(forAssetID: asset.id))
         XCTAssertTrue(model.canExport(as: .overlay))
+
+        undoManager.undo()
+        let unlinked = try XCTUnwrap(model.currentTimelineProject.asset(id: asset.id))
+        XCTAssertEqual(unlinked.url, missingURL)
+        XCTAssertEqual(model.offlineTimelineAssetReasons[asset.id], .fileMissing)
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips[0], clip)
+
+        undoManager.redo()
+        let redone = try XCTUnwrap(model.currentTimelineProject.asset(id: asset.id))
+        XCTAssertEqual(redone.url, replacementURL)
+        XCTAssertFalse(model.isTimelineAssetOffline(id: asset.id))
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips[0], clip)
+    }
+
+    func testFailedActivityRelinkReportsInvalidFormatReason() async throws {
+        let model = StudioModel()
+        let missingURL = URL(fileURLWithPath: "/tmp/missing-invalid-relink.fit")
+        let replacementURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("invalid-relink-\(UUID().uuidString)")
+            .appendingPathExtension("fit")
+        try Data([0x00, 0x01, 0x02]).write(to: replacementURL)
+        defer { try? FileManager.default.removeItem(at: replacementURL) }
+
+        let asset = MediaAsset(
+            id: "invalid-activity",
+            kind: .activity,
+            url: missingURL,
+            displayName: missingURL.lastPathComponent,
+            duration: 30
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [asset],
+                tracks: [TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "activity-clip", assetID: asset.id, timelineStart: 0, duration: 30)
+                ])]
+            ),
+            loadAssets: true
+        )
+
+        XCTAssertEqual(model.offlineTimelineAssetReasons[asset.id], .fileMissing)
+        model.relinkTimelineAsset(id: asset.id, to: replacementURL)
+        for _ in 0..<40 where model.offlineTimelineAssetReasons[asset.id] != .invalidFormat {
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        XCTAssertEqual(model.offlineTimelineAssetReasons[asset.id], .invalidFormat)
+        XCTAssertEqual(model.currentTimelineProject.asset(id: asset.id)?.url, missingURL)
     }
 
     func testTrimmingPooledTimelineClipUpdatesClipGeometry() throws {

@@ -125,7 +125,7 @@ struct MediaPoolList: View {
     var assets: [MediaAsset]
     var activeID: String?
     var inUseIDs: Set<String>
-    var offlineIDs: Set<String> = []
+    var offlineReasons: [String: TimelineAssetOfflineReason] = [:]
     var addTitle: String
     var select: (String) -> Void
     var remove: (String) -> Void
@@ -151,7 +151,7 @@ struct MediaPoolList: View {
                         systemImage: systemImage,
                         isInUse: inUseIDs.contains(asset.id),
                         isActiveSource: asset.id == activeID,
-                        isOffline: offlineIDs.contains(asset.id),
+                        offlineReason: offlineReasons[asset.id],
                         select: { select(asset.id) },
                         remove: { remove(asset.id) },
                         relink: relink.map { relink in { relink(asset.id) } },
@@ -177,13 +177,15 @@ struct MediaPoolRow: View {
     var systemImage: String
     var isInUse: Bool
     var isActiveSource: Bool
-    var isOffline: Bool = false
+    var offlineReason: TimelineAssetOfflineReason? = nil
     var select: () -> Void
     var remove: () -> Void
     var relink: (() -> Void)? = nil
     var appendToTimeline: (() -> Void)? = nil
     var timelineDragPayload: String? = nil
     @EnvironmentObject private var localization: LocalizationStore
+
+    private var isOffline: Bool { offlineReason != nil }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -195,7 +197,7 @@ struct MediaPoolRow: View {
                             .font(.subheadline.weight(.semibold))
                             .lineLimit(1)
                             .truncationMode(.middle)
-                        Text(subtitle)
+                        Text(offlineReason.map { localization.string($0.localizationKey) } ?? subtitle)
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
