@@ -160,14 +160,6 @@ struct PreviewControlsPanel: View {
                 .font(.system(.callout, design: .monospaced).weight(.semibold))
                 .foregroundStyle(.primary)
 
-            if state.syncMode == .syncPoint, state.syncFITSeconds == 0 {
-                ShellStatusChip(
-                    localization.string("preview.sportStartAt", formatTimecode(state.syncVideoSeconds)),
-                    systemImage: "flag.checkered",
-                    kind: .active
-                )
-            }
-
             Spacer(minLength: 8)
 
             Text(verbatim: "\(state.outputWidth)×\(state.outputHeight)")
@@ -229,9 +221,6 @@ struct PreviewControlsState: Equatable {
     var hasPlayer: Bool
     var isExporting: Bool
     var hasSeries: Bool
-    var syncMode: SyncMode
-    var syncFITSeconds: Double
-    var syncVideoSeconds: Double
     var outputWidth: Int
     var outputHeight: Int
     var previewWarning: String?
@@ -247,9 +236,6 @@ struct PreviewControlsState: Equatable {
         hasPlayer = model.player != nil
         isExporting = model.isExporting
         hasSeries = model.series != nil
-        syncMode = model.syncMode
-        syncFITSeconds = model.syncFITSeconds
-        syncVideoSeconds = model.syncVideoSeconds
         outputWidth = model.outputWidth
         outputHeight = model.outputHeight
         previewWarning = model.previewWarning

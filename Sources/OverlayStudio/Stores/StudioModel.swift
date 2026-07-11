@@ -3377,9 +3377,10 @@ final class StudioModel: ObservableObject {
             clip.duration = min(maxDuration, max(minimumDuration, duration ?? clip.duration))
             // Keep the track overlap-free: place the start in the nearest fitting gap, then cap
             // the duration at the next clip on the track.
+            let isMovingWholeClip = timelineStart != nil && sourceIn == nil && duration == nil
             clip.timelineStart = track.nonOverlappingStart(
                 forClipID: clip.id,
-                duration: minimumDuration,
+                duration: isMovingWholeClip ? clip.duration : minimumDuration,
                 proposedStart: max(0, timelineStart ?? clip.timelineStart)
             )
             if let gapLimit = track.maximumNonOverlappingDuration(

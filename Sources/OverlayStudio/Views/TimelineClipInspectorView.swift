@@ -56,10 +56,12 @@ struct TimelineClipInspectorView: View {
             }
 
             section(title: localization.string("timelineClip.inspector.timing"), systemImage: "timeline.selection") {
-                TimelineClipTimeValue(
+                TimecodeField(
                     title: localization.string("timelineClip.inspector.timelineStart"),
-                    value: currentClip.timelineStart
+                    value: timelineStartBinding,
+                    range: timelineStartRange
                 )
+                .disabled(!model.selectedTimelineClipIsEditable)
 
                 TimelineClipTimeValue(
                     title: localization.string("timelineClip.inspector.sourceIn"),
@@ -138,6 +140,17 @@ struct TimelineClipInspectorView: View {
             get: { model.distanceUnitForCurrentSelection },
             set: { model.setDistanceUnitForCurrentSelection($0) }
         )
+    }
+
+    private var timelineStartBinding: Binding<Double> {
+        Binding(
+            get: { currentClip.timelineStart },
+            set: { model.setTimelineClipTiming(id: currentClip.id, timelineStart: $0) }
+        )
+    }
+
+    private var timelineStartRange: ClosedRange<Double> {
+        0...max(86_400, model.currentTimelineProject.duration + currentClip.duration)
     }
 
     static func formatTimecode(_ seconds: TimeInterval) -> String {

@@ -1000,7 +1000,7 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(originSnap.source, .timelineStart)
     }
 
-    func testTimelineClipInspectorFormatsReadOnlyTimingForHumans() {
+    func testTimelineClipInspectorFormatsTimingForHumans() {
         XCTAssertEqual(TimelineClipInspectorView.formatTimecode(0), "00:00.000")
         XCTAssertEqual(TimelineClipInspectorView.formatTimecode(2), "00:02.000")
         XCTAssertEqual(TimelineClipInspectorView.formatTimecode(4_749.98), "1:19:09.980")

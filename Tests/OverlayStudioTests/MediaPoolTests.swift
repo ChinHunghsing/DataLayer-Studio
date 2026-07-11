@@ -2034,6 +2034,97 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.selectedElement?.id, elementID)
     }
 
+    func testInspectorTimelineStartEditMovesClipAndSupportsUndo() throws {
+        let model = StudioModel()
+        let asset = MediaAsset(
+            id: "inspector-activity",
+            kind: .activity,
+            url: URL(fileURLWithPath: "/tmp/inspector-timeline-start.fit"),
+            displayName: "inspector-timeline-start.fit",
+            duration: 60
+        )
+        let clip = TimelineClip(
+            id: "inspector-clip",
+            assetID: asset.id,
+            timelineStart: 5,
+            duration: 20,
+            sourceIn: 3
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [asset],
+                tracks: [TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [clip])]
+            ),
+            loadAssets: false
+        )
+        model.selectTimelineClip(id: clip.id)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+
+        model.setTimelineClipTiming(id: clip.id, timelineStart: 12.345)
+
+        let moved = try XCTUnwrap(model.selectedTimelineClip)
+        XCTAssertEqual(moved.timelineStart, 12.345, accuracy: 0.000_1)
+        XCTAssertEqual(moved.sourceIn, clip.sourceIn, accuracy: 0.000_1)
+        XCTAssertEqual(moved.duration, clip.duration, accuracy: 0.000_1)
+
+        undoManager.undo()
+        XCTAssertEqual(model.selectedTimelineClip?.timelineStart ?? -1, clip.timelineStart, accuracy: 0.000_1)
+
+        undoManager.redo()
+        XCTAssertEqual(model.selectedTimelineClip?.timelineStart ?? -1, 12.345, accuracy: 0.000_1)
+    }
+
+    func testInspectorTimelineStartEditKeepsWholeClipWhenAvoidingConflict() throws {
+        let model = StudioModel()
+        let asset = MediaAsset(
+            id: "shared-video",
+            kind: .video,
+            url: URL(fileURLWithPath: "/tmp/shared-video.mov"),
+            displayName: "shared-video.mov",
+            duration: 100
+        )
+        let moving = TimelineClip(
+            id: "moving",
+            assetID: asset.id,
+            timelineStart: 0,
+            duration: 20,
+            sourceIn: 4
+        )
+        let anchor = TimelineClip(
+            id: "anchor",
+            assetID: asset.id,
+            timelineStart: 30,
+            duration: 20,
+            sourceIn: 30
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [asset],
+                tracks: [TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [moving, anchor])]
+            ),
+            loadAssets: false
+        )
+
+        model.setTimelineClipTiming(id: moving.id, timelineStart: 35)
+
+        let edited = try XCTUnwrap(
+            model.currentTimelineProject.tracks.flatMap(\.clips).first { $0.id == moving.id }
+        )
+        XCTAssertEqual(edited.timelineStart, 50, accuracy: 0.000_1)
+        XCTAssertEqual(edited.duration, moving.duration, accuracy: 0.000_1)
+        XCTAssertEqual(edited.sourceIn, moving.sourceIn, accuracy: 0.000_1)
+    }
+
     func testDistanceUnitForCurrentSelectionReadsAndWritesSelectedActivityClip() throws {
         let model = StudioModel()
         let originalDistanceUnit = model.distanceUnit
