@@ -94,8 +94,8 @@ burned in.
 
 | | |
 | --- | --- |
-| 🎨 **Focused, modern workspace** | A redesigned control shell — a one-tap **Output** panel, a resizable DaVinci-style sync/trim area, and clean, uncluttered controls. |
-| 🎯 **Frame-accurate sync** | Line up video and FIT activity time with match points, an elapsed offset, or a manual sync point. |
+| 🎨 **Lightweight multitrack timeline** | Video and activity tracks support moving, trimming, splitting, snapping, locking, and undo, with gaps allowed anywhere. |
+| 🎯 **Timeline-based alignment** | Drag video and activity clips, or enter an exact timeline start, so matching source events land at the same relative time. |
 | 🖱 **Live layout canvas** | Drag pace, heart rate, cadence, route, distance, time, weather, and more over a live video preview. |
 | ▶️ **Preview with data alone** | No video yet? Preview and play the overlay straight from a `.fit` file — just press Space. |
 | 💾 **Reusable presets** | Save layout presets and reuse them across videos and styles. |
@@ -104,9 +104,9 @@ burned in.
 
 ## App Store screenshots
 
-From footage to a broadcast-ready overlay in three steps: preview and sync, arrange the data widgets, export a transparent layer.
+From footage to a broadcast-ready overlay in three steps: align clips on the timeline, arrange the data widgets, export a transparent layer.
 
-| 1 · Preview & sync | 2 · Arrange widgets | 3 · Export alpha |
+| 1 · Align timeline | 2 · Arrange widgets | 3 · Export alpha |
 | --- | --- | --- |
 | <img src="assets/appstore/v0.2.0/en-US/desktop/01-preview-overlay.png" alt="DataLayer Studio live overlay preview" width="100%"> | <img src="assets/appstore/v0.2.0/en-US/desktop/02-arrange-gauges.png" alt="DataLayer Studio gauge arrangement screen" width="100%"> | <img src="assets/appstore/v0.2.0/en-US/desktop/03-export-alpha.png" alt="DataLayer Studio alpha overlay export screen" width="100%"> |
 
@@ -256,10 +256,13 @@ The GUI supports:
 - selecting a source video and `.fit` file
 - playing the source video in the preview while rendering the overlay on top
 - previewing and playing straight from a `.fit` file even without a video — press Space to play or pause
-- a resizable bottom workspace (DaVinci-style) that spans the window for sync and trim
+- a resizable multitrack timeline for video and activity clips
 - configuring every output setting — resolution, frame rate, codec, bitrate, and destination — in a single **Output** panel
-- editing time sync through offset, FIT start, or sync-point mode
-- setting the current preview time as the activity start, which maps that video frame to FIT elapsed `0`
+- aligning video and activity data by dragging clips or entering an exact relative timeline start
+- gaps at the beginning or between clips, rendered as black canvas or transparency according to export mode
+- moving, trimming, snapping, splitting, multiselecting, deleting, and ripple deleting timeline clips
+- renaming, enabling, locking, and deleting empty tracks, plus moving clips between same-kind tracks
+- saving and reopening timeline projects, with relinking for moved or inaccessible media
 - dragging overlay components on the preview canvas
 - changing the layer order for overlapping components
 - changing component visibility, position, and size
