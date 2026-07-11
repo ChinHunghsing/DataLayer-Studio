@@ -33,6 +33,7 @@ struct OverlayStudioApp: App {
         }
         .commands {
             AppInfoCommands(localization: localization)
+            EditCommands(localization: localization)
             StudioFileCommands(localization: localization)
             LanguageCommands(localization: localization)
             PreviewCommands(localization: localization)
@@ -186,6 +187,29 @@ private struct LanguageCommands: Commands {
                     Text(selection.nativeName).tag(selection)
                 }
             }
+        }
+    }
+}
+
+/// Replaces the responder-chain Undo/Redo with model-routed commands so timeline and layout
+/// undo works whenever the window is key, regardless of which track or clip has keyboard focus.
+private struct EditCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
+    @FocusedValue(\.studioCommandActions) private var actions
+
+    var body: some Commands {
+        CommandGroup(replacing: .undoRedo) {
+            Button(localization.string("menu.undo")) {
+                actions?.undo()
+            }
+            .keyboardShortcut("z", modifiers: [.command])
+            .disabled(actions?.canUndo != true)
+
+            Button(localization.string("menu.redo")) {
+                actions?.redo()
+            }
+            .keyboardShortcut("z", modifiers: [.command, .shift])
+            .disabled(actions?.canRedo != true)
         }
     }
 }

@@ -64,11 +64,6 @@ struct TimelineClipInspectorView: View {
                 .disabled(!model.selectedTimelineClipIsEditable)
 
                 TimelineClipTimeValue(
-                    title: localization.string("timelineClip.inspector.sourceIn"),
-                    value: currentClip.sourceIn
-                )
-
-                TimelineClipTimeValue(
                     title: localization.string("timelineClip.inspector.duration"),
                     value: currentClip.duration
                 )
@@ -88,21 +83,6 @@ struct TimelineClipInspectorView: View {
                         }
                         .pickerStyle(.segmented)
                     }
-
-                    HStack(spacing: 10) {
-                        Button {
-                            model.setTimelineClipLayout(id: clip.id, model.layout)
-                        } label: {
-                            Label(localization.string("timelineClip.inspector.useCurrentLayout"), systemImage: "square.on.square")
-                        }
-
-                        Button {
-                            model.setTimelineClipLayout(id: clip.id, nil)
-                        } label: {
-                            Label(localization.string("timelineClip.inspector.useDefaultLayout"), systemImage: "arrow.uturn.backward")
-                        }
-                    }
-                    .buttonStyle(.bordered)
                 }
                 .disabled(!model.selectedTimelineClipIsEditable)
             }

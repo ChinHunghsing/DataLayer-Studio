@@ -599,13 +599,23 @@ struct ProjectTimelineView: View {
                 .padding(.horizontal, 8)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(
-                        isOffline ? Color.red.opacity(0.9) : (isSelected ? Color.accentColor.opacity(0.9) : Color.white.opacity(0.18)),
-                        lineWidth: isSelected ? 1.5 : 1
-                    )
+                // 选中态：更粗的高亮描边 + 内侧白色发丝线，让选中片段和未选片段一眼区分。
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(
+                            isOffline ? Color.red.opacity(0.9) : (isSelected ? Color.accentColor : Color.white.opacity(0.18)),
+                            lineWidth: isSelected ? 3 : 1
+                        )
+                    if isSelected, !isOffline {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .inset(by: 2.5)
+                            .strokeBorder(Color.white.opacity(0.85), lineWidth: 1)
+                    }
+                }
             }
             .frame(width: width, height: trackHeight - 12)
+            // 选中片段加一圈柔和的强调色辉光，进一步突出焦点。
+            .shadow(color: isSelected && !isOffline ? Color.accentColor.opacity(0.65) : .clear, radius: 5)
 
         let block = ZStack {
             clipBody

@@ -229,6 +229,8 @@ struct ContentView: View {
             canSplitTimelineClips: model.canSplitTimelineClipsAtPlayhead,
             canDeleteTimelineClip: model.selectedTimelineClipIsEditable,
             canJumpToTimelineEditPoints: model.canJumpToTimelineEditPoints,
+            canUndo: model.canPerformUndo,
+            canRedo: model.canPerformRedo,
             chooseVideo: model.chooseVideo,
             chooseFIT: model.chooseFIT,
             openTimelineProject: model.openTimelineProject,
@@ -245,6 +247,8 @@ struct ContentView: View {
             rippleDeleteTimelineClip: { model.deleteSelectedTimelineClip(ripple: true) },
             jumpToPreviousEditPoint: model.jumpToPreviousTimelineEditPoint,
             jumpToNextEditPoint: model.jumpToNextTimelineEditPoint,
+            undo: model.performUndo,
+            redo: model.performRedo,
             showDebugConsole: { isDebugConsolePresented = true },
             copyDebugLog: model.copyDebugLog,
             clearDebugLog: model.clearDebugLog

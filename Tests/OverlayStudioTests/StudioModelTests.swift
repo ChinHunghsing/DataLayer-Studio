@@ -190,7 +190,21 @@ final class StudioModelTests: XCTestCase {
     }
 
     func testEstimatedExportFileSizeUsesTargetBitrateForLongGOPCodecs() {
-        for codec in [OverlayVideoCodec.hevcAlpha, .hevc, .h264] {
+        // Transparent overlay carries no audio track, so the estimate tracks the video bitrate exactly.
+        XCTAssertEqual(
+            StudioModel.estimatedExportFileSizeBytes(
+                duration: 10,
+                width: 1_920,
+                height: 1_080,
+                framesPerSecond: 30,
+                bitRateKbps: 12_000,
+                codec: .hevcAlpha
+            ),
+            15_000_000
+        )
+
+        // Composited video muxes the source audio, so the estimate adds a fixed 256 kbps AAC allowance.
+        for codec in [OverlayVideoCodec.hevc, .h264] {
             XCTAssertEqual(
                 StudioModel.estimatedExportFileSizeBytes(
                     duration: 10,
@@ -200,7 +214,7 @@ final class StudioModelTests: XCTestCase {
                     bitRateKbps: 12_000,
                     codec: codec
                 ),
-                15_000_000
+                15_320_000
             )
         }
     }

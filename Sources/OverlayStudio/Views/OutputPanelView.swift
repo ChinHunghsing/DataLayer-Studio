@@ -211,16 +211,14 @@ struct OutputPanelView: View {
                 mode: .overlay,
                 titleKey: "sidebar.exportOverlay",
                 helpKey: "help.exportTransparentOverlay",
-                systemImage: "square.on.square",
-                isPrimary: !hasVideo
+                systemImage: "square.on.square"
             )
             if hasVideo {
                 exportActionSlot(
                     mode: .video,
                     titleKey: "sidebar.exportVideo",
                     helpKey: "help.exportCompositedVideo",
-                    systemImage: "play.fill",
-                    isPrimary: true
+                    systemImage: "play.fill"
                 )
             }
         }
@@ -232,16 +230,14 @@ struct OutputPanelView: View {
         mode: OverlayExportMode,
         titleKey: String,
         helpKey: String,
-        systemImage: String,
-        isPrimary: Bool
+        systemImage: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             exportButton(
                 mode: mode,
                 titleKey: titleKey,
                 helpKey: helpKey,
-                systemImage: systemImage,
-                isPrimary: isPrimary
+                systemImage: systemImage
             )
 
             if !model.isExporting, let message = model.exportReadinessMessage(for: mode) {
@@ -258,25 +254,19 @@ struct OutputPanelView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder
     private func exportButton(
         mode: OverlayExportMode,
         titleKey: String,
         helpKey: String,
-        systemImage: String,
-        isPrimary: Bool
+        systemImage: String
     ) -> some View {
         let label = Label(localization.string(titleKey), systemImage: systemImage)
             .frame(maxWidth: .infinity)
-        let button = Button { model.export(as: mode) } label: { label }
+        // 导出视频与导出浮层使用同一种蓝色主按钮样式，避免两个动作视觉权重不一致。
+        return Button { model.export(as: mode) } label: { label }
             .disabled(model.isExporting || !model.canExport(as: mode))
             .help(model.exportReadinessMessage(for: mode) ?? localization.string(helpKey))
-
-        if isPrimary {
-            button.buttonStyle(.borderedProminent)
-        } else {
-            button.buttonStyle(.bordered)
-        }
+            .buttonStyle(.borderedProminent)
     }
 
     private var resolutionPresetSelection: Binding<String> {

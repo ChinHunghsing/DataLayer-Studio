@@ -307,6 +307,22 @@ final class StudioModel: ObservableObject {
     weak var undoManager: UndoManager? {
         didSet { undoManager?.levelsOfUndo = 100 }
     }
+
+    /// Undo/redo availability surfaced to the menu commands. Routing undo/redo through the model
+    /// (instead of the responder-chain Edit menu) lets it fire whenever the window is key, so it no
+    /// longer depends on which timeline track or clip currently holds keyboard focus.
+    var canPerformUndo: Bool { !isExporting && (undoManager?.canUndo ?? false) }
+    var canPerformRedo: Bool { !isExporting && (undoManager?.canRedo ?? false) }
+
+    func performUndo() {
+        guard canPerformUndo else { return }
+        undoManager?.undo()
+    }
+
+    func performRedo() {
+        guard canPerformRedo else { return }
+        undoManager?.redo()
+    }
     private var layoutUndoTransaction: (layout: OverlayLayout, selectedElementID: String?, actionKey: String)?
     private var lastCoalescedLayoutUndo: (actionKey: String, date: Date)?
     private static let layoutUndoCoalescingInterval: TimeInterval = 0.8
@@ -2204,6 +2220,10 @@ final class StudioModel: ObservableObject {
     ) -> Int64 {
         guard duration.isFinite, duration > 0 else { return 0 }
 
+        // Composited-video exports (HEVC/H.264) mux the source audio through, so add a nominal
+        // AAC allowance on top of the video bitrate. Transparent overlay codecs carry no audio.
+        let muxedAudioKbps: Double = 256
+
         let estimatedBitRateKbps: Double
         switch codec {
         case .proRes4444:
@@ -2215,8 +2235,12 @@ final class StudioModel: ObservableObject {
                 * max(0, framesPerSecond)
                 * bitsPerPixelPerFrame
                 / 1_000
-        case .hevcAlpha, .hevc, .h264:
+        case .hevcAlpha:
             estimatedBitRateKbps = Double(max(0, bitRateKbps))
+        case .hevc, .h264:
+            // The encoder targets the chosen average bitrate regardless of resolution/frame rate,
+            // so the video size tracks bitrate × duration; audio adds a small fixed overhead.
+            estimatedBitRateKbps = Double(max(0, bitRateKbps)) + muxedAudioKbps
         }
 
         let estimatedBytes = duration * estimatedBitRateKbps * 125
