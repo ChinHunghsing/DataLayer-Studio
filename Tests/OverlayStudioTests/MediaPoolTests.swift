@@ -2347,6 +2347,128 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(videoStarts, [0, 147])
     }
 
+    func testReverseOrderImportShiftsExistingClipsToMatchChronology() {
+        let model = StudioModel()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+
+        // Latest recording imported first: it starts at zero...
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/cam3.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 60,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base.addingTimeInterval(2483)
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/cam3.mov")
+
+        // ...then the earliest one shifts it right and lands at zero itself.
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/cam1.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 147,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/cam1.mov")
+
+        let fitURL = URL(fileURLWithPath: "/tmp/run.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: base.addingTimeInterval(622), distanceMeters: 0),
+            TelemetrySample(elapsed: 5383, date: base.addingTimeInterval(6005), distanceMeters: 15000)
+        ]))
+        model.addActivityAssetToTimeline(id: fitURL.path)
+
+        let videoClips = model.timeline.tracks.first { $0.kind == .video }?.clips ?? []
+        XCTAssertEqual(videoClips.first { $0.assetID == "/tmp/cam1.mov" }?.timelineStart ?? -1, 0, accuracy: 0.001)
+        XCTAssertEqual(videoClips.first { $0.assetID == "/tmp/cam3.mov" }?.timelineStart ?? -1, 2483, accuracy: 0.001)
+
+        let overlayStart = model.timeline.tracks
+            .first { $0.kind == .overlay }?.clips.first?.timelineStart
+        XCTAssertEqual(overlayStart ?? -1, 622, accuracy: 0.001)
+    }
+
+    func testAutoAlignShiftMovesManualExportRangeAndPlayhead() {
+        let model = StudioModel()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/late.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 147,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base.addingTimeInterval(500)
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/late.mov")
+        model.setExportTrimStart(10)
+        model.setExportTrimEnd(100)
+        model.previewTime = 42
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/early.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 60,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/early.mov")
+
+        // The manually set range and the playhead keep pointing at the same content.
+        XCTAssertEqual(model.exportTrimStartSeconds, 510, accuracy: 0.001)
+        XCTAssertEqual(model.exportTrimEndSeconds, 600, accuracy: 0.001)
+        XCTAssertEqual(model.previewTime, 542, accuracy: 0.001)
+    }
+
+    func testAutoAlignShiftFallsBackWhenALockedTrackHasClips() {
+        let model = StudioModel()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/late.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 147,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base.addingTimeInterval(500)
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/late.mov")
+        let videoTrackID = model.timeline.tracks.first { $0.kind == .video }?.id ?? ""
+        model.setTimelineTrackLocked(id: videoTrackID, isLocked: true)
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/early.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 60,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/early.mov")
+
+        // The locked track cannot move, so nothing shifts and the new clip appends instead.
+        let lockedClipStart = model.timeline.tracks
+            .first { $0.id == videoTrackID }?.clips.first?.timelineStart
+        XCTAssertEqual(lockedClipStart ?? -1, 0, accuracy: 0.001)
+        let newTrackClips = model.timeline.tracks
+            .first { $0.kind == .video && $0.id != videoTrackID }?.clips ?? []
+        XCTAssertEqual(newTrackClips.first?.timelineStart ?? -1, 0, accuracy: 0.001)
+    }
+
     func testAutoAlignedImportIsUndoable() {
         let model = StudioModel()
         let undoManager = UndoManager()

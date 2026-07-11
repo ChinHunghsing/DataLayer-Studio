@@ -2702,8 +2702,10 @@ final class StudioModel: ObservableObject {
     }
 
     /// Wall-clock placement for imports without an explicit drop position. An explicit position
-    /// (a drop) always wins; otherwise recording times decide, and a missing or implausible
-    /// result falls back to the lane-end default (`start == nil`) with an explaining status.
+    /// (a drop) always wins; otherwise recording times decide regardless of import order — an
+    /// asset recorded before the current timeline zero shifts the existing content right and
+    /// lands at zero. A missing or implausible result falls back to the lane-end default
+    /// (`start == nil`) with an explaining status.
     private func resolveAutoAlignedTimelineStart(
         explicitStart: TimeInterval?,
         assetWallClockStart: Date?
@@ -2713,7 +2715,14 @@ final class StudioModel: ObservableObject {
         }
         switch TimelineAutoAlignment.placement(forAssetWallClockStart: assetWallClockStart, in: timeline) {
         case let .aligned(start):
-            return (start, "status.timelineAutoAligned")
+            guard start < 0 else { return (start, "status.timelineAutoAligned") }
+            // Shifting must move every track to keep relative alignment; a locked track
+            // cannot move, so fall back instead of silently breaking its sync.
+            guard !timeline.tracks.contains(where: { $0.isLocked && !$0.clips.isEmpty }) else {
+                return (nil, "status.timelineAutoAlignLocked")
+            }
+            shiftTimelineContent(by: -start)
+            return (0, "status.timelineAutoAligned")
         case .missingWallClock:
             return (nil, "status.timelineAutoAlignUnavailable")
         case .unreasonable:
@@ -2721,6 +2730,24 @@ final class StudioModel: ObservableObject {
         case .noReference:
             return (nil, "status.timelineAddedActivity")
         }
+    }
+
+    /// Move every clip later by `delta` so an earlier-recorded asset can land at timeline
+    /// zero. Relative positions are untouched; a manually set export range and the playhead
+    /// shift along so they keep pointing at the same content. Callers register the enclosing
+    /// timeline undo step, which restores the shifted clips together with the added one.
+    private func shiftTimelineContent(by delta: TimeInterval) {
+        guard delta > 0 else { return }
+        for trackIndex in timeline.tracks.indices {
+            for clipIndex in timeline.tracks[trackIndex].clips.indices {
+                timeline.tracks[trackIndex].clips[clipIndex].timelineStart += delta
+            }
+        }
+        if exportTrimRangeWasManuallyEdited {
+            exportTrimStartSeconds += delta
+            exportTrimEndSeconds += delta
+        }
+        previewTime += delta
     }
 
     /// Add a pooled video as the next clip on the base video track.

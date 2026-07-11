@@ -6,7 +6,9 @@ import Foundation
 /// timestamps (both surfaced as `MediaAsset.wallClockStart`). When an already placed clip's
 /// asset has a known recording start, the two sources share one real-world clock, so a new
 /// asset's correct relative position can be computed instead of appending it at a lane's end.
-/// A placement is an insertion hint only — existing clips are never repositioned.
+/// Import order does not matter: an asset recorded before the current timeline zero gets a
+/// negative position, and the caller shifts the existing content right by that amount so the
+/// relative arrangement always matches the recording chronology.
 public enum TimelineAutoAlignment {
     /// Footage belonging to one project is recorded within hours of the rest. A computed
     /// position further than this beyond the existing content very likely belongs to a
@@ -18,13 +20,15 @@ public enum TimelineAutoAlignment {
     private static let negativeTolerance: TimeInterval = 1
 
     public enum Placement: Equatable {
-        /// Insert the new asset at this timeline time.
+        /// Insert the new asset at this timeline time. A negative value means the asset was
+        /// recorded before the current timeline zero: the caller shifts the existing content
+        /// right by `-start` and inserts the new clip at zero.
         case aligned(TimeInterval)
         /// No placed clip has a known recording start to align against.
         case noReference
         /// The new asset carries no recording time.
         case missingWallClock
-        /// A position was computed but lies before timeline zero or implausibly far away.
+        /// A position was computed but is implausibly far from the existing content.
         case unreasonable
     }
 
@@ -41,11 +45,12 @@ public enum TimelineAutoAlignment {
         let timelineZero = reference.wallClockStart
             .addingTimeInterval(reference.clip.sourceIn - reference.clip.timelineStart)
         let candidate = start.timeIntervalSince(timelineZero)
-        guard candidate >= -negativeTolerance,
+        guard candidate >= -maximumReasonableGap,
               candidate <= project.duration + maximumReasonableGap else {
             return .unreasonable
         }
-        return .aligned(max(0, candidate))
+        // Sub-second clock disagreement is "starts together", not a real shift.
+        return .aligned(candidate >= -negativeTolerance ? max(0, candidate) : candidate)
     }
 
     public enum SingleSourceAlignment: Equatable {

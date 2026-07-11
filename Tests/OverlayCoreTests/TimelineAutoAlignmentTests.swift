@@ -120,7 +120,7 @@ final class TimelineAutoAlignmentTests: XCTestCase {
         )
     }
 
-    func testCandidateBeforeTimelineZeroIsUnreasonable() {
+    func testCandidateBeforeTimelineZeroIsNegativeSoCallerCanShift() {
         let reference = asset(id: "cam1.mov", duration: 147, wallClockStart: base)
         let project = project(
             assets: [reference],
@@ -131,6 +131,13 @@ final class TimelineAutoAlignmentTests: XCTestCase {
 
         XCTAssertEqual(
             TimelineAutoAlignment.placement(forAssetWallClockStart: base.addingTimeInterval(-100), in: project),
+            .aligned(-100)
+        )
+        XCTAssertEqual(
+            TimelineAutoAlignment.placement(
+                forAssetWallClockStart: base.addingTimeInterval(-TimelineAutoAlignment.maximumReasonableGap - 1),
+                in: project
+            ),
             .unreasonable
         )
     }
