@@ -204,7 +204,18 @@ final class StudioModel: ObservableObject {
         didSet { rebuildCurrentTimelineProject() }
     }
     @Published var selectedElementID: String?
-    @Published var selectedTimelineClipID: String?
+    @Published private(set) var selectedTimelineClipIDs: Set<String> = []
+    @Published var selectedTimelineClipID: String? {
+        didSet {
+            if let selectedTimelineClipID {
+                if !selectedTimelineClipIDs.contains(selectedTimelineClipID) {
+                    selectedTimelineClipIDs = [selectedTimelineClipID]
+                }
+            } else if !selectedTimelineClipIDs.isEmpty {
+                selectedTimelineClipIDs = []
+            }
+        }
+    }
     @Published var layoutPresets: [LayoutPreset]
     @Published var defaultLayoutPresetID: String?
     @Published var layoutPresetSyncStatus: LayoutPresetSyncStatus = .localOnly
@@ -1138,7 +1149,7 @@ final class StudioModel: ObservableObject {
         previewWarning = nil
         videoLoadFailure = nil
         fitLoadFailure = nil
-        selectedTimelineClipID = nil
+        clearTimelineClipSelection()
         previewTime = clampedPreviewTime(previewTime)
         if let sourceURL = activeVideo?.url ?? activeActivity?.url {
             applySuggestedOutputURLIfNeeded(for: sourceURL)
@@ -2851,9 +2862,10 @@ final class StudioModel: ObservableObject {
     }
 
     private func repairSelectedTimelineClipIfNeeded() {
+        selectedTimelineClipIDs = selectedTimelineClipIDs.filter { timelineClip(id: $0) != nil }
         guard let selectedTimelineClipID else { return }
         if timelineClip(id: selectedTimelineClipID) == nil {
-            self.selectedTimelineClipID = nil
+            self.selectedTimelineClipID = firstSelectedTimelineClipID
         }
     }
 
@@ -3094,10 +3106,14 @@ final class StudioModel: ObservableObject {
     /// Whether the blade (⌘B) has anything to cut at the playhead.
     var canSplitTimelineClipsAtPlayhead: Bool {
         guard !isExporting else { return false }
-        return !currentTimelineProject.splittableClipIDs(
-            atTimelineTime: previewTime,
-            clipID: selectedTimelineClipID
-        ).isEmpty
+        let selectedIDs = effectiveSelectedTimelineClipIDs
+        if selectedIDs.isEmpty {
+            return !currentTimelineProject.splittableClipIDs(atTimelineTime: previewTime).isEmpty
+        }
+        return !currentTimelineProject
+            .splittableClipIDs(atTimelineTime: previewTime)
+            .filter(selectedIDs.contains)
+            .isEmpty
     }
 
     /// Split the selected clip under the playhead, or every unlocked track when no clip is selected.
@@ -3105,10 +3121,16 @@ final class StudioModel: ObservableObject {
         guard !isExporting else { return }
         let previousUndoState = timelineUndoSnapshotNow
         var updated = timeline
-        guard updated.splitClips(
-            atTimelineTime: previewTime,
-            clipID: selectedTimelineClipID
-        ) > 0 else { return }
+        let selectedIDs = effectiveSelectedTimelineClipIDs
+        let splitCount: Int
+        if selectedIDs.isEmpty {
+            splitCount = updated.splitClips(atTimelineTime: previewTime)
+        } else {
+            splitCount = selectedIDs.reduce(into: 0) { count, clipID in
+                count += updated.splitClips(atTimelineTime: previewTime, clipID: clipID)
+            }
+        }
+        guard splitCount > 0 else { return }
         beginTimelineClipEditingIfNeeded()
         timeline = updated
         registerTimelineUndoIfChanged(
@@ -3139,7 +3161,10 @@ final class StudioModel: ObservableObject {
         beginTimelineClipEditingIfNeeded()
         timeline = updated
         if selectedTimelineClipID == id {
-            selectedTimelineClipID = nil
+            selectedTimelineClipIDs.remove(id)
+            selectedTimelineClipID = firstSelectedTimelineClipID
+        } else {
+            selectedTimelineClipIDs.remove(id)
         }
         registerTimelineUndoIfChanged(
             previous: previousUndoState,
@@ -3152,21 +3177,84 @@ final class StudioModel: ObservableObject {
     }
 
     func deleteSelectedTimelineClip(ripple: Bool) {
-        guard let selectedTimelineClipID else { return }
-        deleteTimelineClip(id: selectedTimelineClipID, ripple: ripple)
-    }
-
-    func selectTimelineClip(id: String) {
-        guard timelineClip(id: id) != nil else {
-            selectedTimelineClipID = nil
+        let selectedIDs = effectiveSelectedTimelineClipIDs.filter(canDeleteTimelineClip)
+        guard !selectedIDs.isEmpty else { return }
+        if selectedIDs.count == 1, let id = selectedIDs.first {
+            deleteTimelineClip(id: id, ripple: ripple)
             return
         }
-        selectedTimelineClipID = id
+
+        let previousUndoState = timelineUndoSnapshotNow
+        var updated = timeline
+        let orderedIDs = selectedIDs.sorted { lhs, rhs in
+            let lhsStart = timelineClip(id: lhs)?.timelineStart ?? 0
+            let rhsStart = timelineClip(id: rhs)?.timelineStart ?? 0
+            return lhsStart > rhsStart
+        }
+        let removed = orderedIDs.reduce(into: false) { didRemove, id in
+            let currentRemoved = ripple ? updated.rippleRemoveClip(id: id) : updated.removeClip(id: id)
+            didRemove = currentRemoved || didRemove
+        }
+        guard removed else { return }
+
+        beginTimelineClipEditingIfNeeded()
+        timeline = updated
+        clearTimelineClipSelection()
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: ripple ? "undo.timeline.rippleDeleteClip" : "undo.timeline.deleteClip",
+            coalescing: false
+        )
+        previewTime = clampedPreviewTime(previewTime)
+        refreshOverlayOrPreview()
+        setStatus(ripple ? "status.timelineClipRippleDeleted" : "status.timelineClipDeleted")
+    }
+
+    func selectTimelineClip(id: String, extendingSelection: Bool = false) {
+        guard timelineClip(id: id) != nil else {
+            clearTimelineClipSelection()
+            return
+        }
+        if extendingSelection {
+            if selectedTimelineClipIDs.contains(id) {
+                selectedTimelineClipIDs.remove(id)
+                selectedTimelineClipID = firstSelectedTimelineClipID
+            } else {
+                selectedTimelineClipIDs.insert(id)
+                selectedTimelineClipID = id
+            }
+        } else {
+            selectedTimelineClipIDs = [id]
+            selectedTimelineClipID = id
+        }
         selectedElementID = nil
     }
 
-    func selectElement(id: String) {
+    func isTimelineClipSelected(id: String) -> Bool {
+        selectedTimelineClipIDs.contains(id) || selectedTimelineClipID == id
+    }
+
+    private var effectiveSelectedTimelineClipIDs: Set<String> {
+        if !selectedTimelineClipIDs.isEmpty {
+            return selectedTimelineClipIDs
+        }
+        return selectedTimelineClipID.map { [$0] } ?? []
+    }
+
+    private var firstSelectedTimelineClipID: String? {
+        timeline.tracks
+            .flatMap(\.clips)
+            .first { selectedTimelineClipIDs.contains($0.id) }?
+            .id
+    }
+
+    func clearTimelineClipSelection() {
+        selectedTimelineClipIDs = []
         selectedTimelineClipID = nil
+    }
+
+    func selectElement(id: String) {
+        clearTimelineClipSelection()
         if selectedElementID != id {
             selectedElementID = id
         }
@@ -4060,7 +4148,7 @@ final class StudioModel: ObservableObject {
             element.frame.y = PreviewLayoutLimits.clampPosition(element.frame.y + offset)
             layout.elements.append(element)
             selectedElementID = element.id
-            selectedTimelineClipID = nil
+            clearTimelineClipSelection()
         }
         refreshOverlayOrPreview()
     }
@@ -4074,7 +4162,7 @@ final class StudioModel: ObservableObject {
             element.frame.y = PreviewLayoutLimits.clampPosition(element.frame.y + 0.035)
             layout.elements.append(element)
             selectedElementID = element.id
-            selectedTimelineClipID = nil
+            clearTimelineClipSelection()
         }
         refreshOverlayOrPreview()
     }
@@ -4125,7 +4213,7 @@ final class StudioModel: ObservableObject {
         if selectedElementID != id {
             selectedElementID = id
         }
-        selectedTimelineClipID = nil
+        clearTimelineClipSelection()
         updateElement(id) { element in
             element.frame.x = PreviewLayoutLimits.clampPosition(element.frame.x + deltaX)
             element.frame.y = PreviewLayoutLimits.clampPosition(element.frame.y + deltaY)
@@ -4260,13 +4348,15 @@ final class StudioModel: ObservableObject {
         var timeline: TimelineProject
         var usesSingleSourceMigration: Bool
         var selectedClipID: String?
+        var selectedClipIDs: Set<String>
     }
 
     private var timelineUndoSnapshotNow: TimelineUndoSnapshot {
         TimelineUndoSnapshot(
             timeline: timeline,
             usesSingleSourceMigration: timelineUsesSingleSourceMigration,
-            selectedClipID: selectedTimelineClipID
+            selectedClipID: selectedTimelineClipID,
+            selectedClipIDs: selectedTimelineClipIDs
         )
     }
 
@@ -4323,6 +4413,7 @@ final class StudioModel: ObservableObject {
         pausePlayback()
         timeline = previous.timeline
         timelineUsesSingleSourceMigration = previous.usesSingleSourceMigration
+        selectedTimelineClipIDs = previous.selectedClipIDs.filter { timelineClip(id: $0) != nil }
         if let selectedClipID = previous.selectedClipID, timelineClip(id: selectedClipID) != nil {
             selectedTimelineClipID = selectedClipID
         } else {

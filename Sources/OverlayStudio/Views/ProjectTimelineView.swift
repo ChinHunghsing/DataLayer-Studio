@@ -1,6 +1,21 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import OverlayCore
+#if canImport(AppKit)
+import AppKit
+#endif
+
+enum TimelineSnapSource: Equatable {
+    case timelineStart
+    case playhead
+    case clipEdge
+}
+
+struct TimelineSnapResult: Equatable {
+    var timelineStart: TimeInterval
+    var guideTime: TimeInterval? = nil
+    var source: TimelineSnapSource? = nil
+}
 
 /// Timeline editor for the current project. Every clip owns its relative timeline position;
 /// source match-point controls can align clips, but dragging never rewrites those source times.
@@ -20,6 +35,8 @@ struct ProjectTimelineView: View {
     @State private var dragStartClipTimelineStart: TimeInterval?
     @State private var dragTimelineDuration: TimeInterval?
     @State private var dragVerticalOffset: CGFloat = 0
+    @State private var snapGuideTime: TimeInterval?
+    @State private var snapGuideSource: TimelineSnapSource?
     @State private var clipTrimID: String?
     @State private var clipTrimIsStart: Bool?
     @State private var clipTrimBaseTime: TimeInterval?
@@ -147,6 +164,11 @@ struct ProjectTimelineView: View {
                                 )
                             )
                         }
+                        .onEnded { value in
+                            if abs(value.translation.width) < 2, abs(value.translation.height) < 2 {
+                                model.clearTimelineClipSelection()
+                            }
+                        }
                 )
 
             // Tracks and clips capture their own move/trim gestures.
@@ -161,6 +183,8 @@ struct ProjectTimelineView: View {
 
             // Export range (in/out band): dims excluded regions, drag edges to trim.
             exportRangeLayer(duration: duration, laneWidth: laneWidth)
+
+            snapGuideLayer(duration: duration, laneWidth: laneWidth, contentHeight: contentHeight)
 
             // Playhead
             Rectangle()
@@ -228,11 +252,100 @@ struct ProjectTimelineView: View {
         clipID: String,
         playheadTime: TimeInterval
     ) -> TimeInterval {
-        project.snappedTimelineTime(
-            proposedTime,
+        trimSnapResult(
+            project: project,
+            proposedTime: proposedTime,
             threshold: threshold,
-            excludingClipID: clipID,
-            additionalCandidates: [playheadTime]
+            clipID: clipID,
+            playheadTime: playheadTime
+        ).timelineStart
+    }
+
+    static func trimSnapResult(
+        project: TimelineProject,
+        proposedTime: TimeInterval,
+        threshold: TimeInterval,
+        clipID: String,
+        playheadTime: TimeInterval
+    ) -> TimelineSnapResult {
+        snapResult(
+            project: project,
+            proposedEdges: [(timelineStart: proposedTime, offset: 0)],
+            threshold: threshold,
+            clipID: clipID,
+            playheadTime: playheadTime
+        )
+    }
+
+    static func moveSnapResult(
+        project: TimelineProject,
+        proposedStart: TimeInterval,
+        clipDuration: TimeInterval,
+        threshold: TimeInterval,
+        clipID: String,
+        playheadTime: TimeInterval
+    ) -> TimelineSnapResult {
+        snapResult(
+            project: project,
+            proposedEdges: [
+                (timelineStart: proposedStart, offset: 0),
+                (timelineStart: proposedStart + clipDuration, offset: clipDuration)
+            ],
+            threshold: threshold,
+            clipID: clipID,
+            playheadTime: playheadTime
+        )
+    }
+
+    private static func snapResult(
+        project: TimelineProject,
+        proposedEdges: [(timelineStart: TimeInterval, offset: TimeInterval)],
+        threshold: TimeInterval,
+        clipID: String,
+        playheadTime: TimeInterval
+    ) -> TimelineSnapResult {
+        guard let proposedStart = proposedEdges.first.map({ $0.timelineStart - $0.offset }),
+              proposedStart.isFinite,
+              threshold.isFinite,
+              threshold > 0 else {
+            return TimelineSnapResult(timelineStart: max(0, proposedEdges.first?.timelineStart ?? 0))
+        }
+
+        var candidates: [(time: TimeInterval, source: TimelineSnapSource)] = [
+            (0, .timelineStart)
+        ]
+        if playheadTime.isFinite, playheadTime >= 0 {
+            candidates.append((playheadTime, .playhead))
+        }
+        candidates.append(contentsOf: project.tracks
+            .flatMap(\.clips)
+            .filter { $0.id != clipID }
+            .flatMap { clip in
+                [
+                    (time: clip.timelineStart, source: TimelineSnapSource.clipEdge),
+                    (time: clip.timelineEnd, source: TimelineSnapSource.clipEdge)
+                ]
+            })
+
+        var best: (start: TimeInterval, guide: TimeInterval, source: TimelineSnapSource, distance: TimeInterval)?
+        for edge in proposedEdges where edge.timelineStart.isFinite {
+            for candidate in candidates where candidate.time.isFinite && candidate.time >= 0 {
+                let distance = abs(candidate.time - edge.timelineStart)
+                let snappedStart = proposedStart + candidate.time - edge.timelineStart
+                guard distance <= threshold, snappedStart >= 0 else { continue }
+                if best == nil || distance < best!.distance - 1e-9 {
+                    best = (snappedStart, candidate.time, candidate.source, distance)
+                }
+            }
+        }
+
+        guard let best else {
+            return TimelineSnapResult(timelineStart: max(0, proposedStart))
+        }
+        return TimelineSnapResult(
+            timelineStart: max(0, best.start),
+            guideTime: best.guide,
+            source: best.source
         )
     }
 
@@ -437,7 +550,7 @@ struct ProjectTimelineView: View {
         let width = max(6, CGFloat(clip.duration / duration) * laneWidth)
         let asset = project.asset(id: clip.assetID)
         let name = asset?.displayName ?? clip.assetID
-        let isSelected = model.selectedTimelineClipID == clip.id
+        let isSelected = model.isTimelineClipSelected(id: clip.id)
         let isOffline = model.isTimelineAssetOffline(id: clip.assetID)
         let waveformPeaks = model.videoWaveformPeaksByAssetID[clip.assetID] ?? []
         let pausedRanges = kind == .overlay
@@ -506,11 +619,16 @@ struct ProjectTimelineView: View {
         .offset(x: x, y: 6 + activeDragVerticalOffset)
         .zIndex(dragClipID == clip.id ? 1 : 0)
         .onTapGesture {
-            model.selectTimelineClip(id: clip.id)
+            model.selectTimelineClip(
+                id: clip.id,
+                extendingSelection: Self.isCommandKeyPressed
+            )
         }
         .contextMenu {
             Button(localization.string("menu.splitTimelineClips")) {
-                model.selectTimelineClip(id: clip.id)
+                if !model.isTimelineClipSelected(id: clip.id) {
+                    model.selectTimelineClip(id: clip.id)
+                }
                 model.splitTimelineClipsAtPlayhead()
             }
             .disabled(
@@ -520,17 +638,24 @@ struct ProjectTimelineView: View {
             Divider()
 
             Button(localization.string("menu.deleteTimelineClip")) {
-                model.deleteTimelineClip(id: clip.id, ripple: false)
+                if !model.isTimelineClipSelected(id: clip.id) {
+                    model.selectTimelineClip(id: clip.id)
+                }
+                model.deleteSelectedTimelineClip(ripple: false)
             }
             .disabled(!model.canDeleteTimelineClip(id: clip.id))
 
             Button(localization.string("menu.rippleDeleteTimelineClip")) {
-                model.deleteTimelineClip(id: clip.id, ripple: true)
+                if !model.isTimelineClipSelected(id: clip.id) {
+                    model.selectTimelineClip(id: clip.id)
+                }
+                model.deleteSelectedTimelineClip(ripple: true)
             }
             .disabled(!model.canDeleteTimelineClip(id: clip.id))
         }
         .accessibilityLabel(name)
         .accessibilityValue("\(localization.string("timelineClip.inspector.timelineStart")) \(timecode(clip.timelineStart))")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
 
         block
             .gesture(
@@ -563,23 +688,27 @@ struct ProjectTimelineView: View {
                 let base = clipTrimBaseTime ?? (isStart ? clip.timelineStart : clip.timelineEnd)
                 let deltaT = Double(value.translation.width / laneWidth) * duration
                 let threshold = Double(6 / laneWidth) * duration
-                let target = Self.trimSnapTime(
+                let snapResult = Self.trimSnapResult(
                     project: project,
                     proposedTime: base + deltaT,
                     threshold: threshold,
                     clipID: clip.id,
                     playheadTime: model.previewTime
                 )
+                snapGuideTime = snapResult.guideTime
+                snapGuideSource = snapResult.source
                 if isStart {
-                    model.trimTimelineClipStart(id: clip.id, toTimelineTime: target)
+                    model.trimTimelineClipStart(id: clip.id, toTimelineTime: snapResult.timelineStart)
                 } else {
-                    model.trimTimelineClipEnd(id: clip.id, toTimelineTime: target)
+                    model.trimTimelineClipEnd(id: clip.id, toTimelineTime: snapResult.timelineStart)
                 }
             }
             .onEnded { _ in
                 clipTrimID = nil
                 clipTrimIsStart = nil
                 clipTrimBaseTime = nil
+                snapGuideTime = nil
+                snapGuideSource = nil
             }
     }
 
@@ -607,18 +736,30 @@ struct ProjectTimelineView: View {
                 let gestureDuration = dragTimelineDuration ?? duration
                 let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
                 let snap = Double(6 / laneWidth) * gestureDuration
-                let newStart = project.snappedTimelineTime(base + deltaT, threshold: snap, excludingClipID: clip.id)
-                model.moveTimelineClip(id: clip.id, toTimelineStart: newStart)
+                let snapResult = Self.moveSnapResult(
+                    project: project,
+                    proposedStart: base + deltaT,
+                    clipDuration: clip.duration,
+                    threshold: snap,
+                    clipID: clip.id,
+                    playheadTime: model.previewTime
+                )
+                snapGuideTime = snapResult.guideTime
+                snapGuideSource = snapResult.source
+                model.moveTimelineClip(id: clip.id, toTimelineStart: snapResult.timelineStart)
             }
             .onEnded { value in
                 if let dragStartTrackID {
                     let gestureDuration = dragTimelineDuration ?? duration
                     let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
                     let snap = Double(6 / laneWidth) * gestureDuration
-                    let finalStart = project.snappedTimelineTime(
-                        (dragStartClipTimelineStart ?? clip.timelineStart) + deltaT,
+                    let snapResult = Self.moveSnapResult(
+                        project: project,
+                        proposedStart: (dragStartClipTimelineStart ?? clip.timelineStart) + deltaT,
+                        clipDuration: clip.duration,
                         threshold: snap,
-                        excludingClipID: clip.id
+                        clipID: clip.id,
+                        playheadTime: model.previewTime
                     )
                     let targetTrackID = Self.targetTrackID(
                         project: project,
@@ -629,7 +770,7 @@ struct ProjectTimelineView: View {
                     model.moveTimelineClip(
                         id: clip.id,
                         toTrackID: targetTrackID,
-                        toTimelineStart: finalStart
+                        toTimelineStart: snapResult.timelineStart
                     )
                 }
                 dragClipID = nil
@@ -638,7 +779,42 @@ struct ProjectTimelineView: View {
                 dragStartClipTimelineStart = nil
                 dragTimelineDuration = nil
                 dragVerticalOffset = 0
+                snapGuideTime = nil
+                snapGuideSource = nil
             }
+    }
+
+    @ViewBuilder
+    private func snapGuideLayer(duration: TimeInterval, laneWidth: CGFloat, contentHeight: CGFloat) -> some View {
+        if let snapGuideTime, let snapGuideSource, duration > 0 {
+            let x = CGFloat(min(duration, max(0, snapGuideTime)) / duration) * laneWidth
+            Rectangle()
+                .fill(Color.yellow.opacity(0.9))
+                .frame(width: 1, height: max(0, contentHeight - rulerHeight))
+                .offset(x: x, y: rulerHeight)
+                .shadow(color: Color.yellow.opacity(0.45), radius: 2)
+                .allowsHitTesting(false)
+
+            Text(localization.string(snapSourceLocalizationKey(snapGuideSource)))
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Color.black.opacity(0.76), in: Capsule())
+                .offset(x: min(max(2, x + 4), max(2, laneWidth - 88)), y: rulerHeight + 3)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private func snapSourceLocalizationKey(_ source: TimelineSnapSource) -> String {
+        switch source {
+        case .timelineStart:
+            return "timeline.snap.timelineStart"
+        case .playhead:
+            return "timeline.snap.playhead"
+        case .clipEdge:
+            return "timeline.snap.clipEdge"
+        }
     }
 
     // MARK: export range (in/out)
@@ -753,6 +929,14 @@ struct ProjectTimelineView: View {
         renamingTrackID = track.id
         trackNameDraft = track.name
         isShowingTrackRename = true
+    }
+
+    private static var isCommandKeyPressed: Bool {
+#if canImport(AppKit)
+        NSEvent.modifierFlags.contains(.command)
+#else
+        false
+#endif
     }
 
     private func tickTimes(duration: TimeInterval) -> [TimeInterval] {

@@ -950,6 +950,56 @@ final class StudioModelTests: XCTestCase {
         )
     }
 
+    func testProjectTimelineMoveSnapsBothClipEdgesAndReportsSource() {
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "v", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "moving", assetID: "a", timelineStart: 5, duration: 10),
+                    TimelineClip(id: "anchor", assetID: "b", timelineStart: 40, duration: 10)
+                ])
+            ]
+        )
+
+        let tailSnap = ProjectTimelineView.moveSnapResult(
+            project: project,
+            proposedStart: 29.8,
+            clipDuration: 10,
+            threshold: 0.25,
+            clipID: "moving",
+            playheadTime: 100
+        )
+        XCTAssertEqual(tailSnap.timelineStart, 30, accuracy: 0.000_1)
+        XCTAssertEqual(tailSnap.guideTime, 40)
+        XCTAssertEqual(tailSnap.source, .clipEdge)
+
+        let playheadSnap = ProjectTimelineView.moveSnapResult(
+            project: project,
+            proposedStart: 19.8,
+            clipDuration: 10,
+            threshold: 0.25,
+            clipID: "moving",
+            playheadTime: 20
+        )
+        XCTAssertEqual(playheadSnap.timelineStart, 20, accuracy: 0.000_1)
+        XCTAssertEqual(playheadSnap.guideTime, 20)
+        XCTAssertEqual(playheadSnap.source, .playhead)
+
+        let originSnap = ProjectTimelineView.moveSnapResult(
+            project: project,
+            proposedStart: 0.1,
+            clipDuration: 10,
+            threshold: 0.25,
+            clipID: "moving",
+            playheadTime: 100
+        )
+        XCTAssertEqual(originSnap.timelineStart, 0, accuracy: 0.000_1)
+        XCTAssertEqual(originSnap.source, .timelineStart)
+    }
+
     func testTimelineClipInspectorFormatsReadOnlyTimingForHumans() {
         XCTAssertEqual(TimelineClipInspectorView.formatTimecode(0), "00:00.000")
         XCTAssertEqual(TimelineClipInspectorView.formatTimecode(2), "00:02.000")

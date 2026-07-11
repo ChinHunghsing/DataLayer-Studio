@@ -1487,6 +1487,57 @@ final class MediaPoolTests: XCTestCase {
         )
     }
 
+    func testCommandStyleMultiSelectionSplitsAndDeletesSelectedClipsAsOneUndoStep() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let videoURL = URL(fileURLWithPath: "/tmp/multi-select.mov")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1_920, height: 1_080, duration: 120, fps: 30)
+        )
+        model.videoURL = videoURL
+        let fitURL = URL(fileURLWithPath: "/tmp/multi-select.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = fitURL
+
+        let videoClipID = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .video }?.clips.first?.id
+        )
+        let overlayClipID = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .overlay }?.clips.first?.id
+        )
+        model.selectTimelineClip(id: videoClipID)
+        model.selectTimelineClip(id: overlayClipID, extendingSelection: true)
+
+        XCTAssertEqual(model.selectedTimelineClipIDs, Set([videoClipID, overlayClipID]))
+        XCTAssertTrue(model.isTimelineClipSelected(id: videoClipID))
+        XCTAssertTrue(model.isTimelineClipSelected(id: overlayClipID))
+
+        model.previewTime = 30
+        model.splitTimelineClipsAtPlayhead()
+        XCTAssertEqual(model.currentTimelineProject.tracks.flatMap(\.clips).count, 4)
+        XCTAssertEqual(model.selectedTimelineClipIDs, Set([videoClipID, overlayClipID]))
+
+        model.deleteSelectedTimelineClip(ripple: false)
+        XCTAssertEqual(model.currentTimelineProject.tracks.flatMap(\.clips).count, 2)
+        XCTAssertTrue(model.selectedTimelineClipIDs.isEmpty)
+
+        undoManager.undo()
+        XCTAssertEqual(model.currentTimelineProject.tracks.flatMap(\.clips).count, 4)
+        XCTAssertEqual(model.selectedTimelineClipIDs, Set([videoClipID, overlayClipID]))
+
+        model.selectTimelineClip(id: videoClipID, extendingSelection: true)
+        XCTAssertEqual(model.selectedTimelineClipIDs, Set([overlayClipID]))
+        model.clearTimelineClipSelection()
+        XCTAssertTrue(model.selectedTimelineClipIDs.isEmpty)
+        XCTAssertNil(model.selectedTimelineClipID)
+    }
+
     func testSelectedTimelineClipOutsidePlayheadPreventsSplit() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/selected-away.mov")
