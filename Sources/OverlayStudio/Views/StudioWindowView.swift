@@ -10,8 +10,7 @@ struct StudioWindowView: View {
     var body: some View {
         ContentView(model: model)
             .frame(minWidth: 1100, minHeight: 700)
-            .background(WindowCenterTitle(
-                centerTitle: centerTitle,
+            .background(WindowTitleConfiguration(
                 windowTitle: windowTitle,
                 isDocumentEdited: model.hasUnsavedTimelineChanges,
                 representedURL: model.currentTimelineProjectURL
@@ -48,8 +47,7 @@ struct StudioWindowView: View {
     }
 }
 
-private struct WindowCenterTitle: NSViewRepresentable {
-    let centerTitle: String
+private struct WindowTitleConfiguration: NSViewRepresentable {
     let windowTitle: String
     let isDocumentEdited: Bool
     let representedURL: URL?
@@ -60,7 +58,6 @@ private struct WindowCenterTitle: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         guard !context.coordinator.update(
-            centerTitle: centerTitle,
             windowTitle: windowTitle,
             isDocumentEdited: isDocumentEdited,
             representedURL: representedURL,
@@ -68,7 +65,6 @@ private struct WindowCenterTitle: NSViewRepresentable {
         ) else { return }
         DispatchQueue.main.async {
             _ = context.coordinator.update(
-                centerTitle: centerTitle,
                 windowTitle: windowTitle,
                 isDocumentEdited: isDocumentEdited,
                 representedURL: representedURL,
@@ -83,14 +79,12 @@ private struct WindowCenterTitle: NSViewRepresentable {
 
     final class Coordinator {
         private weak var installedWindow: NSWindow?
-        private var lastCenterTitle: String?
         private var lastWindowTitle: String?
         private var lastIsDocumentEdited: Bool?
         private var lastRepresentedURL: URL?
 
         @discardableResult
         func update(
-            centerTitle: String,
             windowTitle: String,
             isDocumentEdited: Bool,
             representedURL: URL?,
@@ -98,7 +92,6 @@ private struct WindowCenterTitle: NSViewRepresentable {
         ) -> Bool {
             guard let window = view.window else { return false }
             if installedWindow === window,
-               lastCenterTitle == centerTitle,
                lastWindowTitle == windowTitle,
                lastIsDocumentEdited == isDocumentEdited,
                lastRepresentedURL == representedURL {
@@ -106,11 +99,10 @@ private struct WindowCenterTitle: NSViewRepresentable {
             }
 
             window.title = windowTitle
-            window.titleVisibility = centerTitle.isEmpty ? .visible : .hidden
+            window.titleVisibility = .visible
             window.isDocumentEdited = isDocumentEdited
             window.representedURL = representedURL
             installedWindow = window
-            lastCenterTitle = centerTitle
             lastWindowTitle = windowTitle
             lastIsDocumentEdited = isDocumentEdited
             lastRepresentedURL = representedURL

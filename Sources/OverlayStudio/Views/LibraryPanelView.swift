@@ -35,21 +35,18 @@ struct LibraryPanelView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(localization.string("library.title"))
-                .font(.headline)
-
-            Picker(localization.string("library.title"), selection: selectedTabBinding) {
-                ForEach(LibraryTab.allCases) { tab in
-                    Label(localization.string(tab.localizationKey), systemImage: tab.systemImage)
-                        .tag(tab)
-                }
+        Picker(localization.string("library.title"), selection: selectedTabBinding) {
+            ForEach(LibraryTab.allCases) { tab in
+                Label(localization.string(tab.localizationKey), systemImage: tab.systemImage)
+                    .tag(tab)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
         }
+        .pickerStyle(.segmented)
+        .controlSize(.small)
+        .labelsHidden()
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 12)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
     }
 
     @ViewBuilder

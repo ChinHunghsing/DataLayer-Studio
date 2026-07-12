@@ -195,14 +195,6 @@ struct ContentView: View {
             )
         }
 
-        ToolbarItem(placement: .principal) {
-            Text(toolbarTitle)
-                .font(.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: 320)
-        }
-
         ToolbarItem(placement: .primaryAction) {
             OutputToolbarButton(model: model)
         }
@@ -222,13 +214,6 @@ struct ContentView: View {
         .help(localization.string(titleKey))
         .accessibilityLabel(localization.string(titleKey))
         .accessibilityValue(localization.string(isPresented ? "workspace.visible" : "workspace.hidden"))
-    }
-
-    private var toolbarTitle: String {
-        model.currentTimelineProjectDisplayName
-            ?? model.videoURL?.lastPathComponent
-            ?? model.activityDisplayName
-            ?? localization.string("app.name")
     }
 
     private var bottomResizeHandle: some View {

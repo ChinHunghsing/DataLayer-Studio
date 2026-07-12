@@ -11,6 +11,8 @@ struct OutputToolbarButton: View {
             isPresented.toggle()
         } label: {
             Label(localization.string("toolbar.output"), systemImage: "square.and.arrow.up")
+                .labelStyle(.titleAndIcon)
+                .font(.subheadline.weight(.semibold))
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.regular)
