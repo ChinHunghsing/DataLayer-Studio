@@ -10,13 +10,14 @@ struct OutputToolbarButton: View {
         Button {
             isPresented.toggle()
         } label: {
-            Image(systemName: "arrow.up.forward.square")
-                .font(.body.weight(.medium))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
+            Label(localization.string("toolbar.output"), systemImage: "square.and.arrow.up")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 3)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.roundedRectangle)
+        .controlSize(.regular)
+        .tint(.accentColor)
         .disabled(model.isExporting)
         .help(localization.string("toolbar.output"))
         .accessibilityLabel(localization.string("toolbar.output"))
