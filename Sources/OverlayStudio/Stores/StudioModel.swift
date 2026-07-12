@@ -340,7 +340,7 @@ final class StudioModel: ObservableObject {
     private var isRestoringTimelineSourceMatchPoint = false
     private var activitySeriesByAssetID: [String: TelemetrySeries] = [:]
     /// Sport per activity asset (id = file path). File-level metadata, kept out of the hot
-    /// `TelemetrySeries` value type; stable per file, so it needs no undo snapshot.
+    /// `TelemetrySeries` value type and restored together with media-pool undo snapshots.
     private var activitySportByAssetID: [String: TelemetrySport] = [:]
     private var timelineSecurityScopedURLs: [URL] = []
     private var cleanTimelineSnapshot: TimelineProject?
@@ -1464,12 +1464,12 @@ final class StudioModel: ObservableObject {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
             do {
-                let parsed = try TelemetryFileParser().parse(url: url)
+                let parsed = try TelemetryFileParser().parseActivity(url: url)
                 await MainActor.run { [weak self] in
                     self?.applyLoadedTimelineActivityAsset(
                         id: asset.id,
                         url: url,
-                        series: parsed,
+                        activity: parsed,
                         reportsRelinkStatus: reportsRelinkStatus
                     )
                 }
@@ -1525,22 +1525,23 @@ final class StudioModel: ObservableObject {
     private func applyLoadedTimelineActivityAsset(
         id: String,
         url: URL,
-        series loaded: TelemetrySeries,
+        activity loaded: ParsedActivity,
         reportsRelinkStatus: Bool
     ) {
         guard let existing = currentTimelineProject.asset(id: id), existing.kind == .activity else { return }
-        activitySeriesByAssetID[id] = loaded
+        activitySeriesByAssetID[id] = loaded.series
+        activitySportByAssetID[id] = loaded.sport
         if reportsRelinkStatus {
-            replaceTimelineAssetLocation(id: id, url: url, duration: loaded.duration)
+            replaceTimelineAssetLocation(id: id, url: url, duration: loaded.series.duration)
         } else if let index = activityAssets.firstIndex(where: { $0.id == id }) {
             var updated = activityAssets[index]
-            updated.duration = loaded.duration
+            updated.duration = loaded.series.duration
             activityAssets[index] = updated
             offlineTimelineAssetReasons.removeValue(forKey: id)
         }
         if fitURL == existing.url || preferredActiveAssetID(kind: .activity) == id {
             fitURL = url
-            series = loaded
+            series = loaded.series
         }
         refreshOverlayOrPreview()
         if reportsRelinkStatus { setStatus("status.timelineMediaRelinked", url.lastPathComponent) }
@@ -2665,8 +2666,13 @@ final class StudioModel: ObservableObject {
               activitySeriesByAssetID[id] != nil,
               asset.duration > 0 else { return }
 
-        let previousUndoState = timelineUndoSnapshotNow
+        var previousUndoState = timelineUndoSnapshotNow
+        let previousTimelinePositionState = timelinePositionUndoStateNow
+        var autoAlignmentShiftedTimeline = false
         defer {
+            if autoAlignmentShiftedTimeline {
+                previousUndoState.timelinePositionState = previousTimelinePositionState
+            }
             registerTimelineUndoIfChanged(
                 previous: previousUndoState,
                 actionKey: "undo.timeline.addClip",
@@ -2688,6 +2694,7 @@ final class StudioModel: ObservableObject {
             explicitStart: timelineStart,
             assetWallClockStart: asset.wallClockStart
         )
+        autoAlignmentShiftedTimeline = placement.shiftedTimeline
 
         var clip = TimelineClip(
             id: "overlay.clip.\(UUID().uuidString)",
@@ -2739,26 +2746,26 @@ final class StudioModel: ObservableObject {
     private func resolveAutoAlignedTimelineStart(
         explicitStart: TimeInterval?,
         assetWallClockStart: Date?
-    ) -> (start: TimeInterval?, statusKey: String) {
+    ) -> (start: TimeInterval?, statusKey: String, shiftedTimeline: Bool) {
         if let explicitStart {
-            return (explicitStart, "status.timelineAddedActivity")
+            return (explicitStart, "status.timelineAddedActivity", false)
         }
         switch TimelineAutoAlignment.placement(forAssetWallClockStart: assetWallClockStart, in: timeline) {
         case let .aligned(start):
-            guard start < 0 else { return (start, "status.timelineAutoAligned") }
+            guard start < 0 else { return (start, "status.timelineAutoAligned", false) }
             // Shifting must move every track to keep relative alignment; a locked track
             // cannot move, so fall back instead of silently breaking its sync.
             guard !timeline.tracks.contains(where: { $0.isLocked && !$0.clips.isEmpty }) else {
-                return (nil, "status.timelineAutoAlignLocked")
+                return (nil, "status.timelineAutoAlignLocked", false)
             }
             shiftTimelineContent(by: -start)
-            return (0, "status.timelineAutoAligned")
+            return (0, "status.timelineAutoAligned", true)
         case .missingWallClock:
-            return (nil, "status.timelineAutoAlignUnavailable")
+            return (nil, "status.timelineAutoAlignUnavailable", false)
         case .unreasonable:
-            return (nil, "status.timelineAutoAlignGapTooLarge")
+            return (nil, "status.timelineAutoAlignGapTooLarge", false)
         case .noReference:
-            return (nil, "status.timelineAddedActivity")
+            return (nil, "status.timelineAddedActivity", false)
         }
     }
 
@@ -2792,8 +2799,13 @@ final class StudioModel: ObservableObject {
               let asset = videoAssets.first(where: { $0.id == id }),
               asset.duration > 0 else { return }
 
-        let previousUndoState = timelineUndoSnapshotNow
+        var previousUndoState = timelineUndoSnapshotNow
+        let previousTimelinePositionState = timelinePositionUndoStateNow
+        var autoAlignmentShiftedTimeline = false
         defer {
+            if autoAlignmentShiftedTimeline {
+                previousUndoState.timelinePositionState = previousTimelinePositionState
+            }
             registerTimelineUndoIfChanged(
                 previous: previousUndoState,
                 actionKey: "undo.timeline.addClip",
@@ -2815,6 +2827,7 @@ final class StudioModel: ObservableObject {
             explicitStart: timelineStart,
             assetWallClockStart: asset.wallClockStart
         )
+        autoAlignmentShiftedTimeline = placement.shiftedTimeline
 
         var clip = TimelineClip(
             id: "video.clip.\(UUID().uuidString)",
@@ -4613,6 +4626,7 @@ final class StudioModel: ObservableObject {
         var activityAssets: [MediaAsset]
         var offlineReasons: [String: TimelineAssetOfflineReason]
         var activitySeriesByAssetID: [String: TelemetrySeries]
+        var activitySportByAssetID: [String: TelemetrySport]
         var waveformPeaksByAssetID: [String: [Float]]
         var usesSingleSourceMigration: Bool
         var selectedClipID: String?
@@ -4639,6 +4653,7 @@ final class StudioModel: ObservableObject {
             activityAssets: activityAssets,
             offlineReasons: offlineTimelineAssetReasons,
             activitySeriesByAssetID: activitySeriesByAssetID,
+            activitySportByAssetID: activitySportByAssetID,
             waveformPeaksByAssetID: videoWaveformPeaksByAssetID,
             usesSingleSourceMigration: timelineUsesSingleSourceMigration,
             selectedClipID: selectedTimelineClipID,
@@ -4710,6 +4725,7 @@ final class StudioModel: ObservableObject {
         activityAssets = previous.activityAssets
         offlineTimelineAssetReasons = previous.offlineReasons
         activitySeriesByAssetID = previous.activitySeriesByAssetID
+        activitySportByAssetID = previous.activitySportByAssetID
         videoWaveformPeaksByAssetID = previous.waveformPeaksByAssetID
         videoURL = previous.videoURL
         fitURL = previous.fitURL
@@ -4741,11 +4757,28 @@ final class StudioModel: ObservableObject {
         refreshOverlayOrPreview()
     }
 
+    private struct TimelinePositionUndoState {
+        var exportTrimStartSeconds: TimeInterval
+        var exportTrimEndSeconds: TimeInterval
+        var exportTrimRangeWasManuallyEdited: Bool
+        var previewTime: TimeInterval
+    }
+
     private struct TimelineUndoSnapshot {
         var timeline: TimelineProject
         var usesSingleSourceMigration: Bool
         var selectedClipID: String?
         var selectedClipIDs: Set<String>
+        var timelinePositionState: TimelinePositionUndoState?
+    }
+
+    private var timelinePositionUndoStateNow: TimelinePositionUndoState {
+        TimelinePositionUndoState(
+            exportTrimStartSeconds: exportTrimStartSeconds,
+            exportTrimEndSeconds: exportTrimEndSeconds,
+            exportTrimRangeWasManuallyEdited: exportTrimRangeWasManuallyEdited,
+            previewTime: previewTime
+        )
     }
 
     private var timelineUndoSnapshotNow: TimelineUndoSnapshot {
@@ -4753,7 +4786,8 @@ final class StudioModel: ObservableObject {
             timeline: timeline,
             usesSingleSourceMigration: timelineUsesSingleSourceMigration,
             selectedClipID: selectedTimelineClipID,
-            selectedClipIDs: selectedTimelineClipIDs
+            selectedClipIDs: selectedTimelineClipIDs,
+            timelinePositionState: nil
         )
     }
 
@@ -4804,12 +4838,22 @@ final class StudioModel: ObservableObject {
     private func restoreTimelineForUndo(previous: TimelineUndoSnapshot, actionKey: String) {
         guard !isExporting else { return }
         if let undoManager {
-            registerTimelineUndo(previous: timelineUndoSnapshotNow, actionKey: actionKey, undoManager: undoManager)
+            var redoSnapshot = timelineUndoSnapshotNow
+            if previous.timelinePositionState != nil {
+                redoSnapshot.timelinePositionState = timelinePositionUndoStateNow
+            }
+            registerTimelineUndo(previous: redoSnapshot, actionKey: actionKey, undoManager: undoManager)
         }
         lastCoalescedTimelineUndo = nil
         pausePlayback()
         timeline = previous.timeline
         timelineUsesSingleSourceMigration = previous.usesSingleSourceMigration
+        if let positionState = previous.timelinePositionState {
+            exportTrimRangeWasManuallyEdited = positionState.exportTrimRangeWasManuallyEdited
+            exportTrimStartSeconds = positionState.exportTrimStartSeconds
+            exportTrimEndSeconds = positionState.exportTrimEndSeconds
+            previewTime = positionState.previewTime
+        }
         selectedTimelineClipIDs = previous.selectedClipIDs.filter { timelineClip(id: $0) != nil }
         if let selectedClipID = previous.selectedClipID, timelineClip(id: selectedClipID) != nil {
             selectedTimelineClipID = selectedClipID

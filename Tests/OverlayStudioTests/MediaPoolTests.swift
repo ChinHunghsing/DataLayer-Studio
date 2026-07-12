@@ -1374,7 +1374,7 @@ final class MediaPoolTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: replacementURL) }
         let gpx = """
         <gpx version="1.1" creator="DataLayer Studio" xmlns="http://www.topografix.com/GPX/1/1">
-          <trk><trkseg>
+          <trk><type>running</type><trkseg>
             <trkpt lat="35.0" lon="139.0"><time>2026-07-10T00:00:00Z</time></trkpt>
             <trkpt lat="35.0001" lon="139.0001"><time>2026-07-10T00:00:03Z</time></trkpt>
           </trkseg></trk>
@@ -1408,6 +1408,7 @@ final class MediaPoolTests: XCTestCase {
             ),
             loadAssets: true
         )
+        model.setResolvedLanguage(.english)
         let undoManager = UndoManager()
         undoManager.groupsByEvent = false
         model.undoManager = undoManager
@@ -1426,6 +1427,7 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(relinked.displayName, replacementURL.lastPathComponent)
         XCTAssertEqual(model.currentTimelineProject.tracks[0].clips[0], clip)
         XCTAssertNotNil(model.activitySeries(forAssetID: asset.id))
+        XCTAssertEqual(model.activityDisplayName, "2026-07-10 Running")
         XCTAssertTrue(model.canExport(as: .overlay))
 
         undoManager.undo()
@@ -1433,12 +1435,14 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(unlinked.url, missingURL)
         XCTAssertEqual(model.offlineTimelineAssetReasons[asset.id], .fileMissing)
         XCTAssertEqual(model.currentTimelineProject.tracks[0].clips[0], clip)
+        XCTAssertNil(model.activityDisplayName)
 
         undoManager.redo()
         let redone = try XCTUnwrap(model.currentTimelineProject.asset(id: asset.id))
         XCTAssertEqual(redone.url, replacementURL)
         XCTAssertFalse(model.isTimelineAssetOffline(id: asset.id))
         XCTAssertEqual(model.currentTimelineProject.tracks[0].clips[0], clip)
+        XCTAssertEqual(model.activityDisplayName, "2026-07-10 Running")
     }
 
     func testFailedActivityRelinkReportsInvalidFormatReason() async throws {
@@ -2425,6 +2429,56 @@ final class MediaPoolTests: XCTestCase {
         model.addVideoAssetToTimeline(id: "/tmp/early.mov")
 
         // The manually set range and the playhead keep pointing at the same content.
+        XCTAssertEqual(model.exportTrimStartSeconds, 510, accuracy: 0.001)
+        XCTAssertEqual(model.exportTrimEndSeconds, 600, accuracy: 0.001)
+        XCTAssertEqual(model.previewTime, 542, accuracy: 0.001)
+    }
+
+    func testUndoingAutoAlignShiftRestoresManualExportRangeAndPlayhead() {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/late.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 147,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base.addingTimeInterval(500)
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/late.mov")
+        model.setExportTrimStart(10)
+        model.setExportTrimEnd(100)
+        model.previewTime = 42
+
+        model.upsertVideoAsset(
+            url: URL(fileURLWithPath: "/tmp/early.mov"),
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 60,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base
+            )
+        )
+        model.addVideoAssetToTimeline(id: "/tmp/early.mov")
+        undoManager.undo()
+
+        XCTAssertEqual(model.exportTrimStartSeconds, 10, accuracy: 0.001)
+        XCTAssertEqual(model.exportTrimEndSeconds, 100, accuracy: 0.001)
+        XCTAssertEqual(model.previewTime, 42, accuracy: 0.001)
+        XCTAssertEqual(
+            model.timeline.tracks.first { $0.kind == .video }?.clips.first?.timelineStart ?? -1,
+            0,
+            accuracy: 0.001
+        )
+
+        undoManager.redo()
         XCTAssertEqual(model.exportTrimStartSeconds, 510, accuracy: 0.001)
         XCTAssertEqual(model.exportTrimEndSeconds, 600, accuracy: 0.001)
         XCTAssertEqual(model.previewTime, 542, accuracy: 0.001)
