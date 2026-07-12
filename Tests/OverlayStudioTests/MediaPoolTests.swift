@@ -816,6 +816,49 @@ final class MediaPoolTests: XCTestCase {
         )
     }
 
+    func testTimelineClipCanBeDisabledWithSelectionAndUndo() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let asset = MediaAsset(
+            id: "video",
+            kind: .video,
+            url: URL(fileURLWithPath: "/tmp/clip-toggle.mov"),
+            displayName: "clip-toggle.mov",
+            duration: 10,
+            width: 1920,
+            height: 1080,
+            framesPerSecond: 30
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1920,
+                outputHeight: 1080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [asset],
+                tracks: [
+                    TimelineTrack(id: "video-track", kind: .video, name: "V1", clips: [
+                        TimelineClip(id: "clip", assetID: asset.id, timelineStart: 0, duration: 10)
+                    ])
+                ]
+            ),
+            loadAssets: false
+        )
+        model.selectTimelineClip(id: "clip")
+
+        XCTAssertTrue(model.canToggleSelectedTimelineClipsEnabled)
+        model.toggleSelectedTimelineClipsEnabled()
+        XCTAssertFalse(try XCTUnwrap(model.selectedTimelineClip).isEnabled)
+        XCTAssertTrue(model.currentTimelineProject.activeClips(kind: .video, atTimelineTime: 1).isEmpty)
+
+        undoManager.undo()
+        XCTAssertTrue(try XCTUnwrap(model.selectedTimelineClip).isEnabled)
+        undoManager.redo()
+        XCTAssertFalse(try XCTUnwrap(model.selectedTimelineClip).isEnabled)
+    }
+
     func testTimelineAssetIDsInUseIncludesEveryReferencedVideoAndActivity() {
         let model = StudioModel()
         let firstVideoURL = URL(fileURLWithPath: "/tmp/in-use-video-a.mov")

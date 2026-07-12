@@ -35,13 +35,16 @@ extension TimelineProject {
     ) -> [TimelineClip] {
         tracks
             .filter { $0.kind == kind && $0.isEnabled }
-            .compactMap { $0.clip(atTimelineTime: timelineTime) }
+            .compactMap { track in
+                track.clips.last { $0.isEnabled && $0.contains(timelineTime: timelineTime) }
+            }
     }
 
     public func enabledClips(kind: TimelineTrack.Kind) -> [TimelineClip] {
         tracks
             .filter { $0.kind == kind && $0.isEnabled }
             .flatMap(\.clips)
+            .filter(\.isEnabled)
     }
 
     /// Time ranges for DaVinci-style "individual clips" rendering: one range per enabled clip of

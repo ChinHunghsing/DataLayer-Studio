@@ -658,13 +658,15 @@ final class StudioModel: ObservableObject {
         }
     }
 
+    var canToggleSelectedTimelineClipsEnabled: Bool {
+        !editableSelectedTimelineClipIDs.isEmpty
+    }
+
     var usesCustomTimelinePreview: Bool {
         guard timelineUsesSingleSourceMigration else { return true }
         guard videoURL != nil else { return false }
 
-        let videoClips = timeline.tracks
-            .filter { $0.kind == .video && $0.isEnabled }
-            .flatMap(\.clips)
+        let videoClips = timeline.enabledClips(kind: .video)
         if videoClips.isEmpty { return false }
         guard videoClips.count == 1, let videoClip = videoClips.first else { return true }
         let tolerance = 1e-6
@@ -3050,6 +3052,54 @@ final class StudioModel: ObservableObject {
         refreshOverlayOrPreview()
     }
 
+    func setTimelineClipEnabled(id: String, isEnabled: Bool) {
+        guard !isExporting else { return }
+        for trackIndex in timeline.tracks.indices {
+            guard !timeline.tracks[trackIndex].isLocked,
+                  let clipIndex = timeline.tracks[trackIndex].clips.firstIndex(where: { $0.id == id }),
+                  timeline.tracks[trackIndex].clips[clipIndex].isEnabled != isEnabled else {
+                continue
+            }
+
+            let previousUndoState = timelineUndoSnapshotNow
+            beginTimelineClipEditingIfNeeded()
+            timeline.tracks[trackIndex].clips[clipIndex].isEnabled = isEnabled
+            registerTimelineUndoIfChanged(
+                previous: previousUndoState,
+                actionKey: "undo.timeline.toggleClip",
+                coalescing: false
+            )
+            configureTimelinePlayer()
+            refreshOverlayOrPreview()
+            return
+        }
+    }
+
+    func toggleSelectedTimelineClipsEnabled() {
+        let selectedIDs = editableSelectedTimelineClipIDs
+        guard !selectedIDs.isEmpty else { return }
+        let shouldEnable = timeline.tracks
+            .flatMap(\.clips)
+            .filter { selectedIDs.contains($0.id) }
+            .contains { !$0.isEnabled }
+        let previousUndoState = timelineUndoSnapshotNow
+        beginTimelineClipEditingIfNeeded()
+
+        for trackIndex in timeline.tracks.indices where !timeline.tracks[trackIndex].isLocked {
+            for clipIndex in timeline.tracks[trackIndex].clips.indices
+            where selectedIDs.contains(timeline.tracks[trackIndex].clips[clipIndex].id) {
+                timeline.tracks[trackIndex].clips[clipIndex].isEnabled = shouldEnable
+            }
+        }
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.toggleClip",
+            coalescing: false
+        )
+        configureTimelinePlayer()
+        refreshOverlayOrPreview()
+    }
+
     func setTimelineTrackLocked(id: String, isLocked: Bool) {
         guard !isExporting,
               let trackIndex = timeline.tracks.firstIndex(where: { $0.id == id }),
@@ -3596,6 +3646,16 @@ final class StudioModel: ObservableObject {
             return selectedTimelineClipIDs
         }
         return selectedTimelineClipID.map { [$0] } ?? []
+    }
+
+    private var editableSelectedTimelineClipIDs: Set<String> {
+        guard !isExporting else { return [] }
+        let selectedIDs = effectiveSelectedTimelineClipIDs
+        return Set(timeline.tracks
+            .filter { !$0.isLocked }
+            .flatMap(\.clips)
+            .map(\.id)
+            .filter(selectedIDs.contains))
     }
 
     private var firstSelectedTimelineClipID: String? {

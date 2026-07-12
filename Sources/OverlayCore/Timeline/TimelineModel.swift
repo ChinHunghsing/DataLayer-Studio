@@ -106,6 +106,8 @@ public struct TimelineClip: Codable, Equatable, Identifiable {
     public var layout: OverlayLayout?
     /// Per-clip distance unit (overlay clips only; `nil` inherits the project setting).
     public var distanceUnit: OverlayDistanceUnit?
+    /// Disabled clips remain editable on the timeline but are omitted from preview and export.
+    public var isEnabled: Bool
 
     public init(
         id: String,
@@ -114,7 +116,8 @@ public struct TimelineClip: Codable, Equatable, Identifiable {
         duration: TimeInterval,
         sourceIn: TimeInterval = 0,
         layout: OverlayLayout? = nil,
-        distanceUnit: OverlayDistanceUnit? = nil
+        distanceUnit: OverlayDistanceUnit? = nil,
+        isEnabled: Bool = true
     ) {
         self.id = id
         self.assetID = assetID
@@ -123,6 +126,30 @@ public struct TimelineClip: Codable, Equatable, Identifiable {
         self.sourceIn = sourceIn
         self.layout = layout
         self.distanceUnit = distanceUnit
+        self.isEnabled = isEnabled
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case assetID
+        case timelineStart
+        case duration
+        case sourceIn
+        case layout
+        case distanceUnit
+        case isEnabled
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        assetID = try container.decode(String.self, forKey: .assetID)
+        timelineStart = try container.decode(TimeInterval.self, forKey: .timelineStart)
+        duration = try container.decode(TimeInterval.self, forKey: .duration)
+        sourceIn = try container.decodeIfPresent(TimeInterval.self, forKey: .sourceIn) ?? 0
+        layout = try container.decodeIfPresent(OverlayLayout.self, forKey: .layout)
+        distanceUnit = try container.decodeIfPresent(OverlayDistanceUnit.self, forKey: .distanceUnit)
+        isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
     }
 
     /// Timeline time of the clip's right edge.

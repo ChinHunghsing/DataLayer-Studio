@@ -640,6 +640,7 @@ struct ProjectTimelineView: View {
             .frame(width: width, height: trackHeight - 12)
             // 选中片段加一圈柔和的强调色辉光，进一步突出焦点。
             .shadow(color: isSelected && !isOffline ? Color.accentColor.opacity(0.65) : .clear, radius: 5)
+            .opacity(clip.isEnabled ? 1 : 0.38)
 
         let block = ZStack {
             clipBody
@@ -662,6 +663,13 @@ struct ProjectTimelineView: View {
             )
         }
         .contextMenu {
+            Button(localization.string(clip.isEnabled ? "menu.disableTimelineClip" : "menu.enableTimelineClip")) {
+                model.setTimelineClipEnabled(id: clip.id, isEnabled: !clip.isEnabled)
+            }
+            .disabled(isLocked)
+
+            Divider()
+
             Button(localization.string("menu.splitTimelineClips")) {
                 if !model.isTimelineClipSelected(id: clip.id) {
                     model.selectTimelineClip(id: clip.id)
@@ -691,7 +699,10 @@ struct ProjectTimelineView: View {
             .disabled(!model.canDeleteTimelineClip(id: clip.id))
         }
         .accessibilityLabel(name)
-        .accessibilityValue("\(localization.string("timelineClip.inspector.timelineStart")) \(timecode(clip.timelineStart))")
+        .accessibilityValue(
+            "\(localization.string(clip.isEnabled ? "timeline.clip.enabled" : "timeline.clip.disabled")), "
+                + "\(localization.string("timelineClip.inspector.timelineStart")) \(timecode(clip.timelineStart))"
+        )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
 
         block

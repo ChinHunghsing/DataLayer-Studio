@@ -10,6 +10,7 @@ struct StudioCommandActions {
     var canMoveSelectionForward: Bool
     var canMoveSelectionBackward: Bool
     var canSplitTimelineClips: Bool
+    var canToggleTimelineClips: Bool
     var canDeleteTimelineClip: Bool
     var canJumpToTimelineEditPoints: Bool
     var canUndo: Bool
@@ -29,6 +30,7 @@ struct StudioCommandActions {
     var moveSelectionForward: () -> Void
     var moveSelectionBackward: () -> Void
     var splitTimelineClips: () -> Void
+    var toggleTimelineClips: () -> Void
     var deleteTimelineClip: () -> Void
     var rippleDeleteTimelineClip: () -> Void
     var jumpToPreviousEditPoint: () -> Void

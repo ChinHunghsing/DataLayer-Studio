@@ -308,6 +308,12 @@ private struct TimelineCommands: Commands {
             .keyboardShortcut("b", modifiers: [.command])
             .disabled(actions?.canSplitTimelineClips != true)
 
+            Button(localization.string("menu.toggleTimelineClips")) {
+                actions?.toggleTimelineClips()
+            }
+            .keyboardShortcut("d", modifiers: [])
+            .disabled(actions?.canToggleTimelineClips != true)
+
             Divider()
 
             Button(localization.string("menu.deleteTimelineClip")) {

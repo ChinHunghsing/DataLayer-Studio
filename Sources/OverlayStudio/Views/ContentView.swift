@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var didPresentStartupSourcePrompt = false
     @State private var suppressStartupSourcePrompt = false
     @State private var sourceContinuationPrompt: SourceContinuationPrompt?
+    @State private var isEditingText = false
 
     var body: some View {
         Group {
@@ -137,6 +138,12 @@ struct ContentView: View {
         }
         .focusedSceneValue(\.studioCommandActions, studioCommandActions)
         .focusedSceneValue(\.previewCommandActions, previewCommandActions)
+        .onReceive(NotificationCenter.default.publisher(for: NSText.didBeginEditingNotification)) { _ in
+            isEditingText = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSText.didEndEditingNotification)) { _ in
+            isEditingText = false
+        }
         .onOpenURL(perform: openExternalFile)
     }
 
@@ -228,6 +235,7 @@ struct ContentView: View {
             canMoveSelectionForward: canMoveSelectedElementForward,
             canMoveSelectionBackward: canMoveSelectedElementBackward,
             canSplitTimelineClips: model.canSplitTimelineClipsAtPlayhead,
+            canToggleTimelineClips: model.canToggleSelectedTimelineClipsEnabled && !isEditingText,
             canDeleteTimelineClip: model.selectedTimelineClipIsEditable,
             canJumpToTimelineEditPoints: model.canJumpToTimelineEditPoints,
             canUndo: model.canPerformUndo,
@@ -247,6 +255,7 @@ struct ContentView: View {
             moveSelectionForward: model.moveSelectedElementForward,
             moveSelectionBackward: model.moveSelectedElementBackward,
             splitTimelineClips: model.splitTimelineClipsAtPlayhead,
+            toggleTimelineClips: model.toggleSelectedTimelineClipsEnabled,
             deleteTimelineClip: { model.deleteSelectedTimelineClip(ripple: false) },
             rippleDeleteTimelineClip: { model.deleteSelectedTimelineClip(ripple: true) },
             jumpToPreviousEditPoint: model.jumpToPreviousTimelineEditPoint,

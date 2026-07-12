@@ -49,7 +49,14 @@ final class TimelineModelTests: XCTestCase {
             tracks: [
                 TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
                     TimelineClip(id: "o1-a", assetID: "a", timelineStart: 0, duration: 10),
-                    TimelineClip(id: "o1-b", assetID: "b", timelineStart: 5, duration: 10)
+                    TimelineClip(id: "o1-b", assetID: "b", timelineStart: 5, duration: 10),
+                    TimelineClip(
+                        id: "o1-disabled-top",
+                        assetID: "ignored",
+                        timelineStart: 5,
+                        duration: 10,
+                        isEnabled: false
+                    )
                 ]),
                 TimelineTrack(id: "disabled", kind: .overlay, name: "O2", isEnabled: false, clips: [
                     TimelineClip(id: "disabled-clip", assetID: "c", timelineStart: 0, duration: 10)
@@ -64,6 +71,22 @@ final class TimelineModelTests: XCTestCase {
             project.activeClips(kind: .overlay, atTimelineTime: 7).map(\.id),
             ["o1-b", "o3-a"]
         )
+        XCTAssertEqual(project.enabledClips(kind: .overlay).map(\.id), ["o1-a", "o1-b", "o3-a"])
+    }
+
+    func testClipEnabledStateRoundTripsAndDefaultsToEnabledForOldProjects() throws {
+        let disabledClip = TimelineClip(
+            id: "disabled",
+            assetID: "asset",
+            timelineStart: 1,
+            duration: 2,
+            isEnabled: false
+        )
+        let encoded = try JSONEncoder().encode(disabledClip)
+        XCTAssertFalse(try JSONDecoder().decode(TimelineClip.self, from: encoded).isEnabled)
+
+        let oldClipJSON = Data(#"{"id":"old","assetID":"asset","timelineStart":0,"duration":3,"sourceIn":0}"#.utf8)
+        XCTAssertTrue(try JSONDecoder().decode(TimelineClip.self, from: oldClipJSON).isEnabled)
     }
 
     func testProjectDurationIsFurthestClipEnd() {
@@ -160,7 +183,7 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertTrue(project.individualClipExportRanges(kind: .video, timelineStart: 200, duration: 10).isEmpty)
     }
 
-    func testVideoExportPreflightAllowsSparseClipsAndEmptyVideoRanges() {
+    func testVideoExportPreflightAllowsSparseClipsAndEmptyVideoRanges() throws {
         let project = exportProject(
             videoClips: [
                 TimelineClip(id: "video-a", assetID: "video-a", timelineStart: 0, duration: 1),
@@ -185,6 +208,25 @@ final class TimelineModelTests: XCTestCase {
                 availableTelemetryAssetIDs: ["activity"]
             )
         )
+
+        let disabledMissingVideo = exportProject(videoClips: [
+            TimelineClip(
+                id: "disabled-missing",
+                assetID: "missing",
+                timelineStart: 0,
+                duration: 2,
+                isEnabled: false
+            )
+        ])
+        XCTAssertNil(
+            disabledMissingVideo.firstExportValidationIssue(
+                mode: .video,
+                timelineStart: 0,
+                duration: 3,
+                availableTelemetryAssetIDs: ["activity"]
+            )
+        )
+        XCTAssertTrue(try disabledMissingVideo.validatedVideoClipsForExport(timelineStart: 0, duration: 3).isEmpty)
     }
 
     func testVideoExportResolvesUpperTrackCoverageAndRestoresLowerSourceTime() throws {
