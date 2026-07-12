@@ -2421,6 +2421,46 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(overlayStart ?? -1, 622, accuracy: 0.001)
     }
 
+    func testOverlappingAutoAlignedVideosUseASecondLowerTrack() {
+        let model = StudioModel()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let firstURL = URL(fileURLWithPath: "/tmp/cam1-long.mp4")
+        let secondURL = URL(fileURLWithPath: "/tmp/cam2-overlap.mp4")
+
+        model.upsertVideoAsset(
+            url: firstURL,
+            metadata: VideoMetadata(
+                size: CGSize(width: 3840, height: 2160),
+                duration: 1644.7431,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base
+            )
+        )
+        model.addVideoAssetToTimeline(id: firstURL.path)
+        model.upsertVideoAsset(
+            url: secondURL,
+            metadata: VideoMetadata(
+                size: CGSize(width: 3840, height: 2160),
+                duration: 51.818433,
+                framesPerSecond: 30,
+                bitRateBitsPerSecond: 0,
+                creationDate: base.addingTimeInterval(1562)
+            )
+        )
+        model.addVideoAssetToTimeline(id: secondURL.path)
+
+        let videoTracks = model.timeline.tracks.enumerated().filter { $0.element.kind == .video }
+        let firstTrack = videoTracks.first { $0.element.clips.contains { $0.assetID == firstURL.path } }
+        let secondTrack = videoTracks.first { $0.element.clips.contains { $0.assetID == secondURL.path } }
+        let firstClip = firstTrack?.element.clips.first { $0.assetID == firstURL.path }
+        let secondClip = secondTrack?.element.clips.first { $0.assetID == secondURL.path }
+        XCTAssertEqual(videoTracks.count, 2)
+        XCTAssertEqual(firstClip?.timelineStart, 0)
+        XCTAssertEqual(secondClip?.timelineStart, 1562)
+        XCTAssertLessThan(secondTrack?.offset ?? .max, firstTrack?.offset ?? .min)
+    }
+
     func testImportWithoutRecordingTimeAppendsToLaneEnd() {
         let model = StudioModel()
         let base = Date(timeIntervalSince1970: 1_750_000_000)

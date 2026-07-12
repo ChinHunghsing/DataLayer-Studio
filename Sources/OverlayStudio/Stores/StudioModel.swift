@@ -3190,8 +3190,19 @@ final class StudioModel: ObservableObject {
                 $0.id == targetTrackID && $0.kind == .video && !$0.isLocked
             }
         }
+        let proposedStart = max(0, placement.start ?? 0)
+        let isAutoAligned = targetTrackIndex == nil && timelineStart == nil && placement.start != nil
+        let availableTrackIndex = timeline.tracks.firstIndex { track in
+            guard track.kind == .video, !track.isLocked else { return false }
+            guard isAutoAligned else { return true }
+            return abs(track.nonOverlappingStart(
+                forClipID: clip.id,
+                duration: clip.duration,
+                proposedStart: proposedStart
+            ) - proposedStart) < 1e-6
+        }
         if let trackIndex = targetTrackIndex
-            ?? timeline.tracks.firstIndex(where: { $0.kind == .video && !$0.isLocked }) {
+            ?? availableTrackIndex {
             // Default append lands after the lane's own last clip (0 on an empty lane) —
             // overlay-track content must not push a new video later.
             let laneEnd = timeline.tracks[trackIndex].clips.map(\.timelineEnd).max() ?? 0
