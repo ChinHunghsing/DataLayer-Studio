@@ -109,26 +109,6 @@ final class StudioShellTests: XCTestCase {
         XCTAssertEqual(StudioWorkspaceDefaults.migratedTimelineHeight(360), 360)
     }
 
-    func testTimelineInOutCommandsUsePlayheadAndKeepMinimumDuration() {
-        let model = StudioModel()
-        model.series = TelemetrySeries(samples: [
-            TelemetrySample(elapsed: 0, distanceMeters: 0),
-            TelemetrySample(elapsed: 20, distanceMeters: 100)
-        ])
-
-        model.previewTime = 8
-        model.setTimelineInAtPlayhead()
-        model.previewTime = 6
-        model.setTimelineOutAtPlayhead()
-
-        XCTAssertEqual(model.effectiveExportTrimStart, 8, accuracy: 0.000_1)
-        XCTAssertEqual(model.effectiveExportTrimEnd, 8.1, accuracy: 0.000_1)
-
-        model.clearTimelineInOut()
-        XCTAssertEqual(model.effectiveExportTrimStart, 0, accuracy: 0.000_1)
-        XCTAssertEqual(model.effectiveExportTrimEnd, 20, accuracy: 0.000_1)
-    }
-
     func testNewProjectWithUserTemplateUsesUnsavedConfirmation() throws {
         let model = StudioModel()
         let now = Date()

@@ -356,26 +356,6 @@ private struct TimelineCommands: Commands {
 
             Divider()
 
-            Button(localization.string("menu.setTimelineIn")) {
-                actions?.setTimelineIn()
-            }
-            .keyboardShortcut("i", modifiers: [])
-            .disabled(actions?.canSetTimelineInOut != true)
-
-            Button(localization.string("menu.setTimelineOut")) {
-                actions?.setTimelineOut()
-            }
-            .keyboardShortcut("o", modifiers: [])
-            .disabled(actions?.canSetTimelineInOut != true)
-
-            Button(localization.string("menu.clearTimelineInOut")) {
-                actions?.clearTimelineInOut()
-            }
-            .keyboardShortcut("x", modifiers: [.option])
-            .disabled(actions?.canSetTimelineInOut != true)
-
-            Divider()
-
             Button(localization.string("menu.splitTimelineClips")) {
                 actions?.splitTimelineClips()
             }

@@ -13,7 +13,6 @@ struct StudioCommandActions {
     var canToggleTimelineClips: Bool
     var canDeleteTimelineClip: Bool
     var canJumpToTimelineEditPoints: Bool
-    var canSetTimelineInOut: Bool
     var canUndo: Bool
     var canRedo: Bool
     var showsLibrary: Bool
@@ -39,9 +38,6 @@ struct StudioCommandActions {
     var rippleDeleteTimelineClip: () -> Void
     var jumpToPreviousEditPoint: () -> Void
     var jumpToNextEditPoint: () -> Void
-    var setTimelineIn: () -> Void
-    var setTimelineOut: () -> Void
-    var clearTimelineInOut: () -> Void
     var undo: () -> Void
     var redo: () -> Void
     var toggleLibrary: () -> Void

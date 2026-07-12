@@ -2631,25 +2631,6 @@ final class StudioModel: ObservableObject {
         resetExportTrimRangeToFullDuration()
     }
 
-    var canSetTimelineExportRange: Bool {
-        !isExporting && exportTrimEditingDuration >= Self.minimumExportTrimDuration
-    }
-
-    func setTimelineInAtPlayhead() {
-        guard canSetTimelineExportRange else { return }
-        setExportTrimStart(previewTime)
-    }
-
-    func setTimelineOutAtPlayhead() {
-        guard canSetTimelineExportRange else { return }
-        setExportTrimEnd(previewTime)
-    }
-
-    func clearTimelineInOut() {
-        guard canSetTimelineExportRange else { return }
-        resetExportTrimRange()
-    }
-
     private func seekPreview(to time: TimeInterval, coalesceOverlayRefresh: Bool, isScrubbing: Bool = false) {
         guard !isExporting else { return }
         let clamped = clampedPreviewTime(time)

@@ -40,8 +40,6 @@ struct ProjectTimelineView: View {
     @State private var clipTrimID: String?
     @State private var clipTrimIsStart: Bool?
     @State private var clipTrimBaseTime: TimeInterval?
-    @State private var trimDragStart: TimeInterval?
-    @State private var trimDragEnd: TimeInterval?
     @State private var magnificationStartZoom: Double?
     @State private var isShowingTrackRename = false
     @State private var renamingTrackID: String?
@@ -199,9 +197,6 @@ struct ProjectTimelineView: View {
                 Spacer(minLength: 0)
             }
             .allowsHitTesting(true)
-
-            // Export range (in/out band): dims excluded regions, drag edges to trim.
-            exportRangeLayer(duration: duration, laneWidth: laneWidth)
 
             snapGuideLayer(duration: duration, laneWidth: laneWidth, contentHeight: contentHeight)
 
@@ -875,81 +870,6 @@ struct ProjectTimelineView: View {
         case .clipEdge:
             return "timeline.snap.clipEdge"
         }
-    }
-
-    // MARK: export range (in/out)
-
-    /// Dims the excluded regions and provides draggable in/out handles that write back to the
-    /// existing export-trim range. Maps 1:1 onto the timeline time base (same source duration).
-    @ViewBuilder
-    private func exportRangeLayer(duration: TimeInterval, laneWidth: CGFloat) -> some View {
-        if model.exportTrimSourceDuration > 0 {
-            let start = min(duration, max(0, model.effectiveExportTrimStart))
-            let end = min(duration, max(start, model.effectiveExportTrimEnd))
-            let startX = CGFloat(start / duration) * laneWidth
-            let endX = CGFloat(end / duration) * laneWidth
-
-            ZStack(alignment: .topLeading) {
-                // Dim the region before the in-point.
-                Rectangle()
-                    .fill(Color.black.opacity(0.32))
-                    .frame(width: max(0, startX))
-                    .allowsHitTesting(false)
-                // Dim the region after the out-point.
-                Rectangle()
-                    .fill(Color.black.opacity(0.32))
-                    .frame(width: max(0, laneWidth - endX))
-                    .offset(x: endX)
-                    .allowsHitTesting(false)
-
-                trimHandle(atX: startX, isStart: true, laneWidth: laneWidth, duration: duration)
-                trimHandle(atX: endX, isStart: false, laneWidth: laneWidth, duration: duration)
-            }
-        }
-    }
-
-    private func trimHandle(atX x: CGFloat, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some View {
-        ZStack(alignment: .top) {
-            Rectangle()
-                .fill(Color.accentColor)
-                .frame(width: 2)
-            RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(Color.accentColor)
-                .frame(width: 9, height: 16)
-                .overlay(
-                    Image(systemName: isStart ? "chevron.compact.right" : "chevron.compact.left")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(.white)
-                )
-                .shadow(color: .black.opacity(0.35), radius: 1.5, y: 1)
-        }
-        .frame(width: 18)
-        .frame(maxHeight: .infinity)
-        .contentShape(Rectangle())
-        .offset(x: x - 9)
-        .gesture(
-            DragGesture(minimumDistance: 2, coordinateSpace: .global)
-                .onChanged { value in
-                    let base: TimeInterval
-                    if isStart {
-                        if trimDragStart == nil { trimDragStart = model.effectiveExportTrimStart }
-                        base = trimDragStart ?? model.effectiveExportTrimStart
-                    } else {
-                        if trimDragEnd == nil { trimDragEnd = model.effectiveExportTrimEnd }
-                        base = trimDragEnd ?? model.effectiveExportTrimEnd
-                    }
-                    let deltaT = Double(value.translation.width / laneWidth) * duration
-                    if isStart {
-                        model.setExportTrimStart(base + deltaT)
-                    } else {
-                        model.setExportTrimEnd(base + deltaT)
-                    }
-                }
-                .onEnded { _ in
-                    trimDragStart = nil
-                    trimDragEnd = nil
-                }
-        )
     }
 
     private func clipFill(_ kind: TimelineTrack.Kind) -> LinearGradient {
