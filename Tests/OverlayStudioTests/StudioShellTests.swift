@@ -42,6 +42,17 @@ final class StudioShellTests: XCTestCase {
         XCTAssertEqual(model.selectedElementID, element.id)
     }
 
+    func testAddingComponentCenteredPlacesItsBoundsAtCanvasCenter() throws {
+        let model = StudioModel()
+
+        model.addElementCentered(kind: .power)
+
+        let element = try XCTUnwrap(model.layout.elements.last)
+        let baseSize = ComponentBaseSize.size(for: .power)
+        XCTAssertEqual(element.frame.x + Double(baseSize.width) / Double(model.outputWidth) / 2, 0.5, accuracy: 0.000_1)
+        XCTAssertEqual(element.frame.y + Double(baseSize.height) / Double(model.outputHeight) / 2, 0.5, accuracy: 0.000_1)
+    }
+
     func testAddingComponentUpdatesActiveCustomTimelineOverlayLayout() throws {
         let model = StudioModel()
         let asset = MediaAsset(

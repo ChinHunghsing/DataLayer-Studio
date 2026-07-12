@@ -4839,6 +4839,17 @@ final class StudioModel: ObservableObject {
         addElement(kind: kind, atNormalizedPosition: nil)
     }
 
+    func addElementCentered(kind: OverlayComponentID) {
+        let baseSize = ComponentBaseSize.size(for: kind)
+        addElement(
+            kind: kind,
+            atNormalizedPosition: CGPoint(
+                x: 0.5 - baseSize.width / CGFloat(max(1, outputWidth)) / 2,
+                y: 0.5 - baseSize.height / CGFloat(max(1, outputHeight)) / 2
+            )
+        )
+    }
+
     func addElement(kind: OverlayComponentID, atNormalizedPosition position: CGPoint?) {
         guard !isExporting else { return }
         prepareActiveTimelineOverlayLayoutForEditing()
