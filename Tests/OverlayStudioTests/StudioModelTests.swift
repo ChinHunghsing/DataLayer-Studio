@@ -599,6 +599,41 @@ final class StudioModelTests: XCTestCase {
         model.pausePlayback()
     }
 
+    func testNewProjectWithOnlyActivityCanScrubAndAdvancePreview() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("activity-only-playback-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let activityURL = directory.appendingPathComponent("run.gpx")
+        let gpx = """
+        <gpx version="1.1" creator="DataLayer Studio" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><trkseg>
+            <trkpt lat="35.0" lon="139.0"><time>2026-07-13T00:00:00Z</time></trkpt>
+            <trkpt lat="35.001" lon="139.001"><time>2026-07-13T00:00:30Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>
+        """
+        try Data(gpx.utf8).write(to: activityURL)
+        let model = StudioModel()
+        XCTAssertEqual(model.requestNewTimelineProject(importing: [activityURL]), .accepted)
+        try await waitUntil { model.series != nil }
+
+        XCTAssertEqual(model.series?.duration, 30)
+        XCTAssertEqual(model.currentTimelineProject.duration, 30)
+        XCTAssertEqual(model.exportTrimEndSeconds, 30)
+        XCTAssertEqual(model.previewDuration, 30)
+        XCTAssertEqual(model.exportTrimSourceDuration, 30)
+        XCTAssertEqual(model.previewTimeRange, 0...30)
+        model.scrubPreview(to: 12)
+        XCTAssertEqual(model.previewTime, 12)
+
+        model.togglePlayback()
+        try await Task.sleep(nanoseconds: 400_000_000)
+        XCTAssertTrue(model.isPlaying)
+        XCTAssertGreaterThan(model.previewTime, 12)
+        model.pausePlayback()
+    }
+
     func testManualOutputURLDoesNotPreflightDestinationWritability() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [

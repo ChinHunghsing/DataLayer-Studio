@@ -2438,6 +2438,9 @@ final class StudioModel: ObservableObject {
                 return duration
             }
         }
+        if videoURL == nil, let series {
+            return series.duration
+        }
         if sourceDuration > 0 {
             return sourceDuration
         }
