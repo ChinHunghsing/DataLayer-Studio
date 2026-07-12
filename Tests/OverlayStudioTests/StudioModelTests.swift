@@ -1196,6 +1196,18 @@ final class StudioModelTests: XCTestCase {
         )
         XCTAssertEqual(originSnap.timelineStart, 0, accuracy: 0.000_1)
         XCTAssertEqual(originSnap.source, .timelineStart)
+
+        let groupSnap = ProjectTimelineView.moveSnapResult(
+            project: project,
+            proposedStart: 39.8,
+            clipDuration: 10,
+            threshold: 0.25,
+            clipID: "moving",
+            excludingClipIDs: ["moving", "anchor"],
+            playheadTime: 100
+        )
+        XCTAssertEqual(groupSnap.timelineStart, 39.8, accuracy: 0.000_1)
+        XCTAssertNil(groupSnap.guideTime)
     }
 
     func testTimelineClipInspectorFormatsTimingForHumans() {

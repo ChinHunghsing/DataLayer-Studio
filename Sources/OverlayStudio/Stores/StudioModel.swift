@@ -3707,6 +3707,16 @@ final class StudioModel: ObservableObject {
 
     /// Move a clip horizontally and, when requested, into another unlocked track of the same kind.
     func moveTimelineClip(id: String, toTrackID targetTrackID: String, toTimelineStart timelineStart: TimeInterval) {
+        let selectedIDs = effectiveSelectedTimelineClipIDs
+        if selectedIDs.count > 1, selectedIDs.contains(id) {
+            moveTimelineClipGroup(
+                anchorID: id,
+                selectedIDs: selectedIDs,
+                toTrackID: targetTrackID,
+                toTimelineStart: timelineStart
+            )
+            return
+        }
         guard !isExporting,
               let sourceTrackIndex = timeline.tracks.firstIndex(where: { track in
                   track.clips.contains { $0.id == id }
@@ -3740,6 +3750,108 @@ final class StudioModel: ObservableObject {
             timeline.tracks[sourceTrackIndex].clips.remove(at: sourceClipIndex)
             timeline.tracks[targetTrackIndex].clips.append(clip)
         }
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.moveClip",
+            coalescing: true
+        )
+        refreshOverlayOrPreview()
+    }
+
+    private func moveTimelineClipGroup(
+        anchorID: String,
+        selectedIDs: Set<String>,
+        toTrackID targetTrackID: String,
+        toTimelineStart timelineStart: TimeInterval
+    ) {
+        let movingClips = timeline.tracks.indices.flatMap { trackIndex in
+            timeline.tracks[trackIndex].clips.compactMap { clip in
+                selectedIDs.contains(clip.id) ? (trackIndex: trackIndex, clip: clip) : nil
+            }
+        }
+        guard !isExporting,
+              movingClips.count == selectedIDs.count,
+              let anchor = movingClips.first(where: { $0.clip.id == anchorID }),
+              let targetTrackIndex = timeline.tracks.firstIndex(where: { $0.id == targetTrackID }),
+              movingClips.allSatisfy({ !timeline.tracks[$0.trackIndex].isLocked }) else {
+            return
+        }
+
+        let sourceTrackIndices = Set(movingClips.map(\.trackIndex))
+        let singleSourceTrackIndex = sourceTrackIndices.count == 1 ? sourceTrackIndices.first : nil
+        let movesToTargetTrack = singleSourceTrackIndex != nil && singleSourceTrackIndex != targetTrackIndex
+        if let sourceTrackIndex = singleSourceTrackIndex, movesToTargetTrack {
+            guard !timeline.tracks[targetTrackIndex].isLocked,
+                  timeline.tracks[sourceTrackIndex].kind == timeline.tracks[targetTrackIndex].kind else {
+                return
+            }
+        }
+
+        let sanitizedStart = max(0, timelineStart.isFinite ? timelineStart : 0)
+        let desiredDelta = sanitizedStart - anchor.clip.timelineStart
+        let minimumDelta = -(movingClips.map { $0.clip.timelineStart }.min() ?? 0)
+        var candidates: Set<TimeInterval> = [max(minimumDelta, desiredDelta), minimumDelta, 0]
+
+        func plannedTrackIndex(for movingClip: (trackIndex: Int, clip: TimelineClip)) -> Int {
+            movesToTargetTrack ? targetTrackIndex : movingClip.trackIndex
+        }
+
+        for movingClip in movingClips {
+            let targetIndex = plannedTrackIndex(for: movingClip)
+            for obstacle in timeline.tracks[targetIndex].clips where !selectedIDs.contains(obstacle.id) {
+                candidates.insert(obstacle.timelineStart - movingClip.clip.timelineEnd)
+                candidates.insert(obstacle.timelineEnd - movingClip.clip.timelineStart)
+            }
+        }
+
+        let epsilon = 1e-9
+        func isValid(delta: TimeInterval) -> Bool {
+            guard delta.isFinite, delta >= minimumDelta - epsilon else { return false }
+            for movingClip in movingClips {
+                let movedStart = movingClip.clip.timelineStart + delta
+                let movedEnd = movingClip.clip.timelineEnd + delta
+                let targetIndex = plannedTrackIndex(for: movingClip)
+                for obstacle in timeline.tracks[targetIndex].clips where !selectedIDs.contains(obstacle.id) {
+                    if movedStart < obstacle.timelineEnd - epsilon,
+                       movedEnd > obstacle.timelineStart + epsilon {
+                        return false
+                    }
+                }
+            }
+            return true
+        }
+
+        guard let constrainedDelta = candidates.filter(isValid).min(by: { lhs, rhs in
+            let leftDistance = abs(lhs - desiredDelta)
+            let rightDistance = abs(rhs - desiredDelta)
+            return abs(leftDistance - rightDistance) > epsilon
+                ? leftDistance < rightDistance
+                : lhs < rhs
+        }), abs(constrainedDelta) > 1e-6 || movesToTargetTrack else {
+            return
+        }
+
+        let previousUndoState = timelineUndoSnapshotNow
+        var updated = timeline
+        if let sourceTrackIndex = singleSourceTrackIndex, movesToTargetTrack {
+            let moved = movingClips.map { movingClip -> TimelineClip in
+                var clip = movingClip.clip
+                clip.timelineStart += constrainedDelta
+                return clip
+            }
+            updated.tracks[sourceTrackIndex].clips.removeAll { selectedIDs.contains($0.id) }
+            updated.tracks[targetTrackIndex].clips.append(contentsOf: moved)
+        } else {
+            for trackIndex in updated.tracks.indices {
+                for clipIndex in updated.tracks[trackIndex].clips.indices
+                where selectedIDs.contains(updated.tracks[trackIndex].clips[clipIndex].id) {
+                    updated.tracks[trackIndex].clips[clipIndex].timelineStart += constrainedDelta
+                }
+            }
+        }
+
+        beginTimelineClipEditingIfNeeded()
+        timeline = updated
         registerTimelineUndoIfChanged(
             previous: previousUndoState,
             actionKey: "undo.timeline.moveClip",

@@ -1798,6 +1798,82 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertNil(model.selectedTimelineClipID)
     }
 
+    func testDraggingOneOfMultipleSelectedClipsMovesTheSelectionAsAGroup() {
+        let model = StudioModel()
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "video-a", assetID: "a.mov", timelineStart: 10, duration: 10),
+                    TimelineClip(id: "video-b", assetID: "b.mov", timelineStart: 20, duration: 10)
+                ]),
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "activity", assetID: "run.fit", timelineStart: 15, duration: 10)
+                ])
+            ]
+        )
+        model.applyTimelineProject(project, loadAssets: false)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        model.selectTimelineClip(id: "video-a")
+        model.selectTimelineClip(id: "video-b", extendingSelection: true)
+        model.selectTimelineClip(id: "activity", extendingSelection: true)
+
+        model.moveTimelineClip(id: "video-a", toTimelineStart: 30)
+
+        var starts = Dictionary(uniqueKeysWithValues: model.timeline.tracks
+            .flatMap(\.clips)
+            .map { ($0.id, $0.timelineStart) })
+        XCTAssertEqual(starts["video-a"], 30)
+        XCTAssertEqual(starts["video-b"], 40)
+        XCTAssertEqual(starts["activity"], 35)
+        XCTAssertEqual(model.selectedTimelineClipIDs, ["video-a", "video-b", "activity"])
+
+        undoManager.undo()
+        starts = Dictionary(uniqueKeysWithValues: model.timeline.tracks
+            .flatMap(\.clips)
+            .map { ($0.id, $0.timelineStart) })
+        XCTAssertEqual(starts["video-a"], 10)
+        XCTAssertEqual(starts["video-b"], 20)
+        XCTAssertEqual(starts["activity"], 15)
+    }
+
+    func testDraggingSelectedGroupAcrossTracksAvoidsObstaclesAsAUnit() {
+        let model = StudioModel()
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "video-a", assetID: "a.mov", timelineStart: 0, duration: 10),
+                    TimelineClip(id: "video-b", assetID: "b.mov", timelineStart: 10, duration: 10)
+                ]),
+                TimelineTrack(id: "v2", kind: .video, name: "V2", clips: [
+                    TimelineClip(id: "obstacle", assetID: "c.mov", timelineStart: 30, duration: 10)
+                ])
+            ]
+        )
+        model.applyTimelineProject(project, loadAssets: false)
+        model.selectTimelineClip(id: "video-a")
+        model.selectTimelineClip(id: "video-b", extendingSelection: true)
+
+        model.moveTimelineClip(id: "video-a", toTrackID: "v2", toTimelineStart: 25)
+
+        XCTAssertTrue(model.timeline.tracks[0].clips.isEmpty)
+        let starts = Dictionary(uniqueKeysWithValues: model.timeline.tracks[1].clips.map {
+            ($0.id, $0.timelineStart)
+        })
+        XCTAssertEqual(starts["video-a"], 10)
+        XCTAssertEqual(starts["video-b"], 20)
+        XCTAssertEqual(starts["obstacle"], 30)
+    }
+
     func testSelectedTimelineClipOutsidePlayheadPreventsSplit() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/selected-away.mov")
