@@ -98,6 +98,7 @@ struct RawFITSession {
     var totalTimerTimeSeconds: TimeInterval?
     var totalDistanceMeters: Double?
     var totalCalories: Int?
+    var sport: Int?
 }
 
 struct RawFITLap {
@@ -160,6 +161,14 @@ public final class FITParser {
     }
 
     public func parse(data: Data) throws -> TelemetrySeries {
+        try parseActivity(data: data).series
+    }
+
+    public func parseActivity(url: URL) throws -> ParsedActivity {
+        try parseActivity(data: Data(contentsOf: url))
+    }
+
+    public func parseActivity(data: Data) throws -> ParsedActivity {
         guard data.count >= 14 else { throw FITError.fileTooSmall }
 
         let headerSize = Int(data[0])
@@ -326,9 +335,10 @@ public final class FITParser {
             activityStartTimestamp: activityStartTimestamp,
             timerEvents: timerEvents
         ) {
-            return TelemetrySeries(samples: series.samples + [correctedFinalSample], pausedRanges: pausedRanges)
+            series = TelemetrySeries(samples: series.samples + [correctedFinalSample], pausedRanges: pausedRanges)
         }
-        return series
+        let sport = sessions.compactMap(\.sport).first.map { TelemetrySport(fitSportCode: $0) }
+        return ParsedActivity(series: series, sport: sport)
     }
 
     /// Wall-clock pause spans (timer stop → next timer start) relative to the activity start.
@@ -570,6 +580,8 @@ public final class FITParser {
                 switch field.number {
                 case 2:
                     session.startTime = UInt32(value)
+                case 5:
+                    session.sport = Int(value)
                 case 7:
                     session.totalElapsedTimeSeconds = value / 1000
                 case 8:

@@ -34,7 +34,21 @@ public final class GPXParser {
         }
     }
 
+    public func parseActivity(url: URL) throws -> ParsedActivity {
+        do {
+            return try parseActivity(data: Data(contentsOf: url))
+        } catch let error as GPXError {
+            throw error
+        } catch {
+            throw GPXError.unreadable(error.localizedDescription)
+        }
+    }
+
     public func parse(data: Data) throws -> TelemetrySeries {
+        try parseActivity(data: data).series
+    }
+
+    public func parseActivity(data: Data) throws -> ParsedActivity {
         let delegate = GPXParserDelegate()
         let parser = XMLParser(data: data)
         parser.shouldProcessNamespaces = false
@@ -55,7 +69,9 @@ public final class GPXParser {
             throw GPXError.noTrackPoints
         }
 
-        return TelemetrySeries(samples: samples(from: delegate.points))
+        let series = TelemetrySeries(samples: samples(from: delegate.points))
+        let sport = delegate.trackTypeText.flatMap { TelemetrySport(gpxTypeText: $0) }
+        return ParsedActivity(series: series, sport: sport)
     }
 
     private func samples(from points: [RawGPXTrackPoint]) -> [TelemetrySample] {
@@ -135,11 +151,13 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
     }()
 
     var points: [RawGPXTrackPoint] = []
+    var trackTypeText: String?
     var error: GPXError?
 
     private var currentPoint: RawGPXTrackPoint?
     private var currentElement: String?
     private var textBuffer = ""
+    private var isCapturingTrackType = false
 
     func parser(
         _ parser: XMLParser,
@@ -156,13 +174,19 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
             )
         }
 
+        if currentPoint == nil, name == "type", trackTypeText == nil {
+            isCapturingTrackType = true
+            textBuffer = ""
+            return
+        }
+
         guard currentPoint != nil else { return }
         currentElement = name
         textBuffer = ""
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
-        guard currentPoint != nil, currentElement != nil else { return }
+        guard isCapturingTrackType || (currentPoint != nil && currentElement != nil) else { return }
         textBuffer += string
     }
 
@@ -173,6 +197,13 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
         qualifiedName qName: String?
     ) {
         let name = normalizedElementName(elementName)
+        if isCapturingTrackType, name == "type" {
+            let text = textBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
+            trackTypeText = text.isEmpty ? nil : text
+            isCapturingTrackType = false
+            textBuffer = ""
+            return
+        }
         guard currentPoint != nil else { return }
 
         if name == "trkpt" {

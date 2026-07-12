@@ -339,6 +339,9 @@ final class StudioModel: ObservableObject {
     private var timelineUsesSingleSourceMigration = true
     private var isRestoringTimelineSourceMatchPoint = false
     private var activitySeriesByAssetID: [String: TelemetrySeries] = [:]
+    /// Sport per activity asset (id = file path). File-level metadata, kept out of the hot
+    /// `TelemetrySeries` value type; stable per file, so it needs no undo snapshot.
+    private var activitySportByAssetID: [String: TelemetrySport] = [:]
     private var timelineSecurityScopedURLs: [URL] = []
     private var cleanTimelineSnapshot: TimelineProject?
     private var allowsNextWindowClose = false
@@ -480,6 +483,30 @@ final class StudioModel: ObservableObject {
         guard resolvedLanguage != language else { return }
         resolvedLanguage = language
         refreshLocalizedStatus()
+    }
+
+    /// 窗口标题与状态用「活动日期 + 运动类型」（如「2026-07-05 跑步」）代替原始 FIT 文件名；
+    /// 文件名保留在素材池与调试日志。
+    var activityDisplayName: String? {
+        Self.makeActivityDisplayName(
+            startDate: series?.activityStartDate,
+            sport: activeActivityAssetID.flatMap { activitySportByAssetID[$0] },
+            language: resolvedLanguage
+        )
+    }
+
+    static func makeActivityDisplayName(
+        startDate: Date?,
+        sport: TelemetrySport?,
+        language: AppResolvedLanguage
+    ) -> String? {
+        guard startDate != nil || sport != nil else { return nil }
+        let sportName = AppLocalizer.string("sport.\((sport ?? .generic).rawValue)", language: language)
+        guard let startDate else { return sportName }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return "\(formatter.string(from: startDate)) \(sportName)"
     }
 
     var exportReadinessMessage: String? {
@@ -796,9 +823,9 @@ final class StudioModel: ObservableObject {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
             do {
-                let parsed = try TelemetryFileParser().parse(url: url)
+                let parsed = try TelemetryFileParser().parseActivity(url: url)
                 await MainActor.run { [weak self] in
-                    self?.upsertActivityAsset(url: url, series: parsed)
+                    self?.upsertActivityAsset(url: url, series: parsed.series, sport: parsed.sport)
                 }
             } catch {
                 await MainActor.run { [weak self] in
@@ -924,7 +951,7 @@ final class StudioModel: ObservableObject {
             addDebugLog(.weather, "Refresh skipped: missing FIT series")
             return
         }
-        setStatus("status.weatherRefreshing", fitURL.lastPathComponent)
+        setStatus("status.weatherRefreshing", activityDisplayName ?? fitURL.lastPathComponent)
         weatherRefreshMessage = status
         addDebugLog(.weather, "Refresh started: \(fitURL.lastPathComponent), samples=\(currentSeries.samples.count), key=\(redactedKeySummary(openWeatherAPIKey))")
         loadOpenWeatherIfPossible(
@@ -1167,6 +1194,7 @@ final class StudioModel: ObservableObject {
             })
             : [:]
         activitySeriesByAssetID.removeAll()
+        activitySportByAssetID.removeAll()
         pendingRelinkUndoSnapshots.removeAll()
 
         let activeVideo = sanitizedProject.sourceMatchPoint.flatMap { matchPoint in
@@ -2447,7 +2475,7 @@ final class StudioModel: ObservableObject {
     }
 
     /// Add or refresh an activity in the pool (called once its telemetry has parsed). Deduplicated by path.
-    func upsertActivityAsset(url: URL, series: TelemetrySeries) {
+    func upsertActivityAsset(url: URL, series: TelemetrySeries, sport: TelemetrySport? = nil) {
         let asset = MediaAsset(
             id: url.path,
             kind: .activity,
@@ -2457,6 +2485,7 @@ final class StudioModel: ObservableObject {
             wallClockStart: series.activityStartDate
         )
         activitySeriesByAssetID[asset.id] = series
+        activitySportByAssetID[asset.id] = sport
         if let index = activityAssets.firstIndex(where: { $0.id == asset.id }) {
             activityAssets[index] = asset
         } else {
@@ -2613,6 +2642,7 @@ final class StudioModel: ObservableObject {
         let previousUndoState = timelineMediaUndoSnapshotNow
         activityAssets.removeAll { $0.id == id }
         activitySeriesByAssetID.removeValue(forKey: id)
+        activitySportByAssetID.removeValue(forKey: id)
         removeTimelineAsset(id: id)
         registerTimelineMediaUndo(previous: previousUndoState, actionKey: "undo.timeline.removeAsset")
     }
@@ -3663,7 +3693,8 @@ final class StudioModel: ObservableObject {
                         url.stopAccessingSecurityScopedResource()
                     }
                 }
-                let parsedSeries = try TelemetryFileParser().parse(url: url)
+                let parsed = try TelemetryFileParser().parseActivity(url: url)
+                let parsedSeries = parsed.series
                 if Task.isCancelled {
                     await MainActor.run { [weak self] in
                         guard let self, self.fitLoadGeneration == loadGeneration else { return }
@@ -3677,12 +3708,12 @@ final class StudioModel: ObservableObject {
                           self.fitLoadGeneration == loadGeneration else { return }
                     self.fitURL = url
                     self.series = parsedSeries
-                    self.upsertActivityAsset(url: url, series: parsedSeries)
+                    self.upsertActivityAsset(url: url, series: parsedSeries, sport: parsed.sport)
                     if self.videoURL == nil {
                         self.resetExportTrimRangeToFullDuration()
                         self.applySuggestedOutputURLIfNeeded(for: url)
                     }
-                    self.setStatus("status.loadedFit", url.lastPathComponent)
+                    self.setStatus("status.loadedFit", self.activityDisplayName ?? url.lastPathComponent)
                     self.addDebugLog(.input, "Loaded activity file: \(url.lastPathComponent), samples=\(parsedSeries.samples.count), duration=\(Self.formatDebugSeconds(parsedSeries.duration))")
                     self.applyWallClockAutoSyncIfPossible()
                     self.refreshOverlayOrPreview()
@@ -3759,10 +3790,11 @@ final class StudioModel: ObservableObject {
                         self.activitySeriesByAssetID[activeActivityAssetID] = enrichedSeries
                     }
                     let weatherSampleCount = enrichedSeries.samples.filter { $0.weatherTemperatureCelsius != nil || $0.weatherHumidityPercent != nil || $0.weatherSummary != nil }.count
+                    let displayName = self.activityDisplayName ?? sourceName
                     if weatherSampleCount > 0 {
-                        self.setStatus("status.loadedFitWithWeather", sourceName)
+                        self.setStatus("status.loadedFitWithWeather", displayName)
                     } else {
-                        self.setStatus("status.weatherUnavailable", sourceName)
+                        self.setStatus("status.weatherUnavailable", displayName)
                     }
                     self.weatherRefreshMessage = self.status
                     self.addDebugLog(.weather, "Weather request finished: weatherSamples=\(weatherSampleCount)/\(enrichedSeries.samples.count)")

@@ -24,6 +24,24 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(options.offsetSeconds, 120)
     }
 
+    func testActivityDisplayNameCombinesDateAndSport() throws {
+        let date = try XCTUnwrap(Calendar.current.date(from: DateComponents(year: 2026, month: 7, day: 5, hour: 12)))
+
+        XCTAssertEqual(
+            StudioModel.makeActivityDisplayName(startDate: date, sport: .running, language: .simplifiedChinese),
+            "2026-07-05 跑步"
+        )
+        XCTAssertEqual(
+            StudioModel.makeActivityDisplayName(startDate: date, sport: nil, language: .english),
+            "2026-07-05 Workout"
+        )
+        XCTAssertEqual(
+            StudioModel.makeActivityDisplayName(startDate: nil, sport: .cycling, language: .japanese),
+            "サイクリング"
+        )
+        XCTAssertNil(StudioModel.makeActivityDisplayName(startDate: nil, sport: nil, language: .english))
+    }
+
     func testGaugeDragPreviewRenderSizeCapsLongestSide() {
         XCTAssertEqual(
             StudioModel.gaugeDragPreviewRenderSize(for: CGSize(width: 3_200, height: 1_800)),

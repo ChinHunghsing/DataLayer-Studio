@@ -549,6 +549,37 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 2).heartRate, 151)
     }
 
+    func testParsesSessionSport() throws {
+        var content = Data()
+        appendSessionSportDefinition(localMessageType: 2, to: &content)
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendSessionSport(timestamp: 1_000_030, startTime: 1_000_000, sport: 1, localMessageType: 2, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 150, cadence: 80),
+            localMessageType: 0,
+            to: &content
+        )
+        appendRecord(
+            TestRecord(timestamp: 1_000_010, latitude: 35.0, longitude: 139.0, distanceMeters: 30, speed: 3.0, heartRate: 151, cadence: 81),
+            localMessageType: 0,
+            to: &content
+        )
+
+        let parsed = try FITParser().parseActivity(data: makeFITFile(content: content))
+
+        XCTAssertEqual(parsed.sport, .running)
+    }
+
+    func testSportCodeMapping() {
+        XCTAssertEqual(TelemetrySport(fitSportCode: 1), .running)
+        XCTAssertEqual(TelemetrySport(fitSportCode: 2), .cycling)
+        XCTAssertEqual(TelemetrySport(fitSportCode: 5), .swimming)
+        XCTAssertEqual(TelemetrySport(fitSportCode: 11), .walking)
+        XCTAssertEqual(TelemetrySport(fitSportCode: 17), .hiking)
+        XCTAssertEqual(TelemetrySport(fitSportCode: 0), .generic)
+        XCTAssertEqual(TelemetrySport(fitSportCode: 99), .generic)
+    }
+
     func testRejectsCRCByDefault() throws {
         var fit = makeFITFile(records: [
             TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 150, cadence: 80)
@@ -809,6 +840,24 @@ private func appendSession(timestamp: UInt32, startTime: UInt32, localMessageTyp
     content.append(localMessageType)
     appendUInt32(timestamp, to: &content)
     appendUInt32(startTime, to: &content)
+}
+
+private func appendSessionSportDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(18, to: &content)
+    content.append(3)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [2, 4, 0x86])
+    content.append(contentsOf: [5, 1, 0x00])
+}
+
+private func appendSessionSport(timestamp: UInt32, startTime: UInt32, sport: UInt8, localMessageType: UInt8, to content: inout Data) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    appendUInt32(startTime, to: &content)
+    content.append(sport)
 }
 
 private func appendFractionalCadenceRecord(

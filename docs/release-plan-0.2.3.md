@@ -37,9 +37,9 @@
 | C1 | 「完成时间线」错字 | `renderScope.singleClip` 与 `help.renderScope` 的 zh-Hans/zh-Hant 应为「完整时间线／完整時間線」；随工作区未提交改动一并修正提交 |
 | C2 | 多浮层透明边缘 QA | ✅ 2026-07-12 完成，结论：通过。见 `docs/qa-0.2.3-transparent-and-longform.md` |
 | C3 | 4K 长片压力回归 | ✅ 2026-07-12 完成，结论：通过（121.5 分钟 4K/29.97 全程导出，内存零增长）。见 `docs/qa-0.2.3-transparent-and-longform.md` |
-| C4 | 窗口标题/状态显示原始 FIT 文件名 | 改为显示 FIT 内活动日期/名称（如「2026-07-05 跑步」），文件名保留在 tooltip 或素材池 |
-| C5 | 天气 Key 引导 | 缺 Key 提示（`edfbc15`）基础上补充申请入口：说明文案带 OpenWeather One Call key 申请指引链接 |
-| C6 | CLI 应用内入口提示 | 导出或设置区加一条可复制的等效 CLI 命令提示，让老手发现 CLI 的存在 |
+| C4 | 窗口标题/状态显示原始 FIT 文件名 | ✅ 2026-07-12 完成。窗口标题与加载状态改显示「活动日期 + 运动类型」（如「2026-06-23 跑步」）；FIT session sport（field 5）与 GPX `<type>` 解析为 `TelemetrySport`，经 `ParsedActivity` 与 series 并行返回（不塞进热值类型 `TelemetrySeries`）；文件名仍保留在素材池与调试日志。四语言 sport 文案齐 |
+| C5 | 天气 Key 引导 | ✅ 2026-07-12 完成。缺 Key 提示与检查器指引补充「无 Key 怎么办」：免费注册 → 订阅 One Call 4.0（含每日免费额度）→ My API keys 复制 → 新 Key 需等待生效；四语言同步 |
+| C6 | CLI 应用内入口提示 | ❌ 用户 2026-07-12 决定不做 |
 
 ### D. 顺延候选（余量充足才做）
 
@@ -55,6 +55,7 @@
 
 ## 遗留缺陷队列（本版不做，继续排队）
 
+- **移动端预览渲染并发隐患（做 C4 时发现，移动端排期修）**：`TouchStudioModel.refreshOverlayOnly` / `StudioModel` 把非 Sendable 的 COW 值类型（`OverlayLayout`、`TelemetrySeries`）捕获进 `Task.detached` 渲染任务，主 actor 同时就地改这些值（`updateElement`、`elements.append`），COW 唯一性检查存在数据竞争，会破坏堆内存。平时时序上不触发；但**任何改变 `TelemetrySeries` 内存布局的改动都会稳定复现**（在干净 main 上仅加一个占位字段即 6/6 崩溃，栈在 `OverlayRenderer` 渲染路径）。因此 C4 特意把 sport 放在 `ParsedActivity` 里、不加进 `TelemetrySeries`，规避而非修复。根治需要移动端把渲染任务改成读取真正隔离的快照（或串行化 + 隔离），且需真机验证，属移动端范围。试过实例级/进程级 render 锁与 `layout.sanitized` 均只让崩溃转移、不能根治，勿再走加锁老路。
 - 冷启动 Inspector 预选字段聚焦空值态（UX 评审 P3，需先复核时间线改造后是否仍存在）。
 - 「复制/清空调试日志」菜单无快捷键；Debug Console 类别选择器拥挤。
 - README 展示图与官网素材仍是旧同步 UI，需要一轮整体更新（可与 0.2.3 发布同步做营销素材，不占开发范围）。

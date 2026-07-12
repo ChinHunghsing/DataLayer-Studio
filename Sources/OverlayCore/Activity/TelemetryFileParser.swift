@@ -24,11 +24,15 @@ public struct TelemetryFileParser {
     }
 
     public func parse(url: URL) throws -> TelemetrySeries {
+        try parseActivity(url: url).series
+    }
+
+    public func parseActivity(url: URL) throws -> ParsedActivity {
         switch url.pathExtension.lowercased() {
         case "fit":
-            return try FITParser(validateCRC: validateFITCRC).parse(url: url)
+            return try FITParser(validateCRC: validateFITCRC).parseActivity(url: url)
         case "gpx":
-            return try GPXParser().parse(url: url)
+            return try GPXParser().parseActivity(url: url)
         default:
             throw TelemetryFileError.unsupportedExtension(url.pathExtension.lowercased())
         }

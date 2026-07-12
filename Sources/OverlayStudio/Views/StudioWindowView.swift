@@ -33,7 +33,10 @@ struct StudioWindowView: View {
     }
 
     private var centerTitle: String {
-        model.videoURL?.lastPathComponent ?? model.fitURL?.lastPathComponent ?? ""
+        model.videoURL?.lastPathComponent
+            ?? model.activityDisplayName
+            ?? model.fitURL?.lastPathComponent
+            ?? ""
     }
 
     private var windowTitle: String {

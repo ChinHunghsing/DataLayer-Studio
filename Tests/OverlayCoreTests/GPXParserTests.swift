@@ -29,6 +29,20 @@ final class GPXParserTests: XCTestCase {
         XCTAssertEqual(end.cadence, 200)
     }
 
+    func testParsesTrackTypeAsSport() throws {
+        let parsed = try GPXParser().parseActivity(data: Data(sampleGPX.utf8))
+
+        XCTAssertEqual(parsed.sport, .running)
+    }
+
+    func testSportTextMapping() {
+        XCTAssertEqual(TelemetrySport(gpxTypeText: "trail_running"), .running)
+        XCTAssertEqual(TelemetrySport(gpxTypeText: "Biking"), .cycling)
+        XCTAssertEqual(TelemetrySport(gpxTypeText: "hiking"), .hiking)
+        XCTAssertEqual(TelemetrySport(gpxTypeText: "9"), .generic)
+        XCTAssertNil(TelemetrySport(gpxTypeText: ""))
+    }
+
     func testTelemetryFileParserRoutesGPXFiles() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
@@ -59,6 +73,7 @@ private let sampleGPX = """
      xmlns:gpxdata="http://www.cluetrust.com/XML/GPXDATA/1/0"
      xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
   <trk>
+    <type>Running</type>
     <trkseg>
       <trkpt lat="34.6829573" lon="135.5322092">
         <ele>15</ele>
