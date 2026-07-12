@@ -42,6 +42,43 @@ final class StudioShellTests: XCTestCase {
         XCTAssertEqual(model.selectedElementID, element.id)
     }
 
+    func testAddingComponentUpdatesActiveCustomTimelineOverlayLayout() throws {
+        let model = StudioModel()
+        let asset = MediaAsset(
+            id: "activity",
+            kind: .activity,
+            url: URL(fileURLWithPath: "/tmp/activity.fit"),
+            displayName: "activity.fit",
+            duration: 30
+        )
+        let clip = TimelineClip(
+            id: "overlay",
+            assetID: asset.id,
+            timelineStart: 0,
+            duration: 30,
+            layout: OverlayLayout(elements: [.defaultElement(kind: .speed)])
+        )
+        model.applyTimelineProject(TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [asset],
+            tracks: [TimelineTrack(id: "O1", kind: .overlay, name: "O1", clips: [clip])]
+        ), loadAssets: false)
+
+        model.addElement(kind: .power, atNormalizedPosition: CGPoint(x: 0.42, y: 0.31))
+
+        let updatedClip = try XCTUnwrap(model.timeline.tracks[0].clips.first)
+        let added = try XCTUnwrap(updatedClip.layout?.elements.last)
+        XCTAssertEqual(added.kind, .power)
+        XCTAssertEqual(added.frame.x, 0.42, accuracy: 0.000_1)
+        XCTAssertEqual(added.frame.y, 0.31, accuracy: 0.000_1)
+
+        model.updateElement(added.id) { $0.frame.scale = 1.5 }
+        XCTAssertEqual(model.timeline.tracks[0].clips[0].layout?.elements.last?.frame.scale, 1.5)
+    }
+
     func testWorkspaceWidthsPreserveMinimumCanvasAtMinimumWindowSize() {
         let widths = StudioWorkspacePaneWidths.resolve(
             totalWidth: 1_100,

@@ -224,6 +224,7 @@ final class StudioModel: ObservableObject {
     @Published var layout: OverlayLayout {
         didSet { rebuildCurrentTimelineProject() }
     }
+    private var layoutEditingTimelineClipID: String?
     @Published var selectedElementID: String?
     @Published private(set) var selectedMediaAssetID: String?
     @Published private(set) var selectedTimelineClipIDs: Set<String> = []
@@ -1460,6 +1461,7 @@ final class StudioModel: ObservableObject {
         sanitizedProject.framesPerSecond = Self.sanitizedOutputFrameRate(project.framesPerSecond)
 
         timelineUsesSingleSourceMigration = false
+        layoutEditingTimelineClipID = nil
         outputWidth = sanitizedProject.outputWidth
         outputHeight = sanitizedProject.outputHeight
         outputFPS = sanitizedProject.framesPerSecond
@@ -3396,6 +3398,15 @@ final class StudioModel: ObservableObject {
     private func rebuildCurrentTimelineProject() {
         guard timelineUsesSingleSourceMigration else {
             updateTimelineOutputSettings()
+            guard let clipID = layoutEditingTimelineClipID else { return }
+            for trackIndex in timeline.tracks.indices where !timeline.tracks[trackIndex].isLocked {
+                guard let clipIndex = timeline.tracks[trackIndex].clips.firstIndex(where: { $0.id == clipID }) else {
+                    continue
+                }
+                timeline.tracks[trackIndex].clips[clipIndex].layout = layout.sanitized
+                return
+            }
+            layoutEditingTimelineClipID = nil
             return
         }
         let video = videoURL.flatMap { url in videoAssets.first { $0.url == url } }
@@ -4830,6 +4841,7 @@ final class StudioModel: ObservableObject {
 
     func addElement(kind: OverlayComponentID, atNormalizedPosition position: CGPoint?) {
         guard !isExporting else { return }
+        prepareActiveTimelineOverlayLayoutForEditing()
         performLayoutChange("undo.addElement") {
             let existingCount = layout.elements.filter { $0.kind == kind }.count
             var element = OverlayElement.defaultElement(kind: kind, id: "\(kind.rawValue)-\(UUID().uuidString)")
@@ -4852,6 +4864,23 @@ final class StudioModel: ObservableObject {
             addDebugLog(.weather, "Weather gauge added without an OpenWeather key")
         }
         refreshOverlayOrPreview()
+    }
+
+    private func prepareActiveTimelineOverlayLayoutForEditing() {
+        guard usesCustomTimelinePreview else { return }
+        for track in timeline.tracks.reversed()
+        where track.kind == .overlay && track.isEnabled && !track.isLocked {
+            guard let clip = track.clips.last(where: {
+                $0.isEnabled && $0.contains(timelineTime: previewTime)
+            }) else { continue }
+            layoutEditingTimelineClipID = clip.id
+            let clipLayout = (clip.layout ?? .default).sanitized
+            if layout != clipLayout {
+                layout = clipLayout
+            }
+            return
+        }
+        layoutEditingTimelineClipID = nil
     }
 
     func duplicateSelectedElement() {
