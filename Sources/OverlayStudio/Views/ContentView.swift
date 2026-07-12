@@ -463,13 +463,13 @@ private struct StartupSourcePromptView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "square.stack.3d.up")
-                    .font(.system(size: 30, weight: .semibold))
+                    .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.tint)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 32, height: 32)
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(localization.string("startupPrompt.title"))
                         .font(.title3.weight(.semibold))
 
@@ -478,36 +478,62 @@ private struct StartupSourcePromptView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Spacer(minLength: 12)
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .help(localization.string("startupPrompt.close"))
+                .accessibilityLabel(localization.string("startupPrompt.close"))
+                .keyboardShortcut(.cancelAction)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 10) {
-                    Button(action: chooseVideo) {
-                        Label(localization.string("startupPrompt.chooseVideo"), systemImage: "film")
-                    }
+            Button(action: openTimelineProject) {
+                Label(localization.string("startupPrompt.openTimelineProject"), systemImage: "folder")
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 32)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.roundedRectangle)
 
-                    Button(action: chooseActivity) {
-                        Label(localization.string("startupPrompt.chooseActivity"), systemImage: "figure.run")
-                    }
+            HStack(spacing: 12) {
+                Color.secondary.opacity(0.22)
+                    .frame(height: 1)
+                Text(localization.string("startupPrompt.orChooseSource"))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize()
+                Color.secondary.opacity(0.22)
+                    .frame(height: 1)
+            }
+            .frame(height: 12)
+
+            HStack(spacing: 12) {
+                Button(action: chooseVideo) {
+                    Label(localization.string("startupPrompt.chooseVideo"), systemImage: "film")
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 30)
                 }
 
-                HStack(spacing: 10) {
-                    Button(action: openTimelineProject) {
-                        Label(localization.string("startupPrompt.openTimelineProject"), systemImage: "folder")
-                    }
-
-                    Spacer()
-
-                    Button(localization.string("startupPrompt.close")) {
-                        dismiss()
-                    }
-                    .keyboardShortcut(.cancelAction)
+                Button(action: chooseActivity) {
+                    Label(localization.string("startupPrompt.chooseActivity"), systemImage: "figure.run")
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 30)
                 }
             }
-            .controlSize(.large)
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.roundedRectangle)
         }
         .padding(24)
-        .frame(width: 460, alignment: .leading)
+        .controlSize(.large)
+        .frame(width: 540, alignment: .leading)
     }
 }
 
