@@ -108,6 +108,22 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
         </dict>
         <dict>
             <key>CFBundleTypeName</key>
+            <string>DataLayer Studio Layout Preset</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>run.libo.datalayer-studio.layout-preset</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>dlspreset</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
             <string>FIT Activity File</string>
             <key>CFBundleTypeRole</key>
             <string>Viewer</string>
@@ -158,6 +174,25 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
                 </array>
                 <key>public.mime-type</key>
                 <string>application/vnd.datalayer-studio.project+json</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>run.libo.datalayer-studio.layout-preset</string>
+            <key>UTTypeDescription</key>
+            <string>DataLayer Studio Layout Preset</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.json</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>dlspreset</string>
+                </array>
+                <key>public.mime-type</key>
+                <string>application/vnd.datalayer-studio.layout-preset+json</string>
             </dict>
         </dict>
     </array>

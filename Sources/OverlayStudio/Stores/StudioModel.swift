@@ -1059,8 +1059,8 @@ final class StudioModel: ObservableObject {
         panel.title = localized("panel.exportLayoutPresets")
         panel.message = localized("panel.exportLayoutPresets.message")
         panel.prompt = localized("panel.export")
-        panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "datalayer-studio-layout-presets.json"
+        panel.allowedContentTypes = [LayoutPresetFileType.contentType]
+        panel.nameFieldStringValue = "datalayer-studio-layout-presets.\(LayoutPresetFileType.filenameExtension)"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
@@ -1082,9 +1082,20 @@ final class StudioModel: ObservableObject {
         panel.prompt = localized("panel.import")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.json]
+        panel.allowedContentTypes = LayoutPresetFileType.importContentTypes
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
+        importLayoutPresets(from: url)
+    }
+
+    @discardableResult
+    func importLayoutPresets(from url: URL) -> Int? {
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
         do {
             let data = try Data(contentsOf: url)
             let decoder = JSONDecoder()
@@ -1102,8 +1113,10 @@ final class StudioModel: ObservableObject {
             } else {
                 setStatus("status.importedPresets", importedCount)
             }
+            return importedCount
         } catch {
             setStatus("status.presetImportError", error.localizedDescription)
+            return nil
         }
     }
 

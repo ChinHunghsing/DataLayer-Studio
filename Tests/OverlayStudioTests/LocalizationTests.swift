@@ -213,7 +213,7 @@ final class LocalizationTests: XCTestCase {
         )
         XCTAssertEqual(
             AppLocalizer.string("panel.importLayoutPresets.message", language: .japanese),
-            "DataLayer Studio から書き出した配置プリセット JSON ファイルを選択します。"
+            "DataLayer Studio プリセットファイルまたは旧形式の JSON プリセットファイルを選択します。"
         )
     }
 }

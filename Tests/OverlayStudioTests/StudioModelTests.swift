@@ -2,7 +2,7 @@ import XCTest
 import AppKit
 import AVFoundation
 import CoreGraphics
-import OverlayCore
+@testable import OverlayCore
 @testable import OverlayStudio
 @testable import OverlayStudioKit
 
@@ -15,6 +15,47 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(TimelineProjectFileType.matches(URL(fileURLWithPath: "/tmp/example.DLSPROJ")))
         XCTAssertFalse(TimelineProjectFileType.matches(URL(fileURLWithPath: "/tmp/example.json")))
         XCTAssertEqual(TimelineProjectFileType.openContentTypes, [TimelineProjectFileType.contentType, .json])
+    }
+
+    func testLayoutPresetFileTypeExportsDedicatedExtensionAndImportsLegacyJSON() throws {
+        XCTAssertEqual(LayoutPresetFileType.identifier, "run.libo.datalayer-studio.layout-preset")
+        XCTAssertEqual(LayoutPresetFileType.filenameExtension, "dlspreset")
+        XCTAssertEqual(LayoutPresetFileType.contentType.identifier, LayoutPresetFileType.identifier)
+        XCTAssertTrue(LayoutPresetFileType.matches(URL(fileURLWithPath: "/tmp/layout.DLSPRESET")))
+        XCTAssertFalse(LayoutPresetFileType.matches(URL(fileURLWithPath: "/tmp/layout.json")))
+        XCTAssertEqual(LayoutPresetFileType.importContentTypes, [LayoutPresetFileType.contentType, .json])
+
+        let suiteName = "layout-preset-file-type-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("layout-preset-file-type-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let customURL = directory.appendingPathComponent("layouts.dlspreset")
+        let legacyURL = directory.appendingPathComponent("legacy.json")
+        let date = Date(timeIntervalSince1970: 1)
+        let customPreset = LayoutPreset(id: "custom", name: "Custom", layout: .default, createdAt: date, updatedAt: date)
+        let legacyPreset = LayoutPreset(id: "legacy", name: "Legacy", layout: .default, createdAt: date, updatedAt: date)
+        try JSONEncoder().encode(LayoutPresetState(presets: [customPreset], defaultPresetID: nil)).write(to: customURL)
+        try JSONEncoder().encode(legacyPreset).write(to: legacyURL)
+        let storageKey = "\(LayoutPresetStore.storageKey).\(UUID().uuidString)"
+        let sentinel = LayoutPreset(id: "sentinel", name: "Sentinel", layout: .default, createdAt: date, updatedAt: date)
+        defaults.set(
+            try JSONEncoder().encode(LayoutPresetState(presets: [sentinel], defaultPresetID: nil)),
+            forKey: storageKey
+        )
+        let model = StudioModel(layoutPresetStore: LayoutPresetStore(
+            defaults: defaults,
+            key: storageKey,
+            loadCloudData: nil,
+            saveCloudData: nil,
+            synchronizeCloudStore: nil
+        ))
+
+        XCTAssertEqual(model.importLayoutPresets(from: customURL), 1)
+        XCTAssertEqual(model.importLayoutPresets(from: legacyURL), 1)
+        XCTAssertEqual(Set(model.layoutPresets.map(\.name)), ["Sentinel", "Custom", "Legacy"])
     }
 
     func testLaunchOptionsParseVideoFITAndOffsetArguments() {

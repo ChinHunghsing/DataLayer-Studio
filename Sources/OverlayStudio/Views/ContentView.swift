@@ -352,6 +352,11 @@ struct ContentView: View {
     }
 
     private func openExternalFile(_ url: URL) {
+        if LayoutPresetFileType.matches(url) {
+            model.importLayoutPresets(from: url)
+            return
+        }
+
         suppressStartupSourcePrompt = true
         didPresentStartupSourcePrompt = true
         isStartupSourcePromptPresented = false
