@@ -1085,6 +1085,7 @@ final class StudioModel: ObservableObject {
     func applyLayoutPreset(id: String) {
         guard !isExporting else { return }
         guard let preset = layoutPresets.first(where: { $0.id == id }) else { return }
+        prepareActiveTimelineOverlayLayoutForEditing()
         performLayoutChange("undo.applyPreset") {
             layout = preset.layout.sanitized
             selectedElementID = Self.firstSelectableElementID(in: layout)
@@ -1402,7 +1403,7 @@ final class StudioModel: ObservableObject {
         )
         applyTimelineProject(project, loadAssets: false)
         timelineUsesSingleSourceMigration = true
-        layout = layoutPresetID
+        layout = (layoutPresetID ?? defaultLayoutPresetID)
             .flatMap { id in layoutPresets.first(where: { $0.id == id })?.layout.sanitized }
             ?? .default
         selectedElementID = Self.firstSelectableElementID(in: layout)

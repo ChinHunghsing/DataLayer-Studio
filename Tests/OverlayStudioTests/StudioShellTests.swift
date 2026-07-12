@@ -140,6 +140,25 @@ final class StudioShellTests: XCTestCase {
         XCTAssertFalse(model.hasUnsavedTimelineChanges)
     }
 
+    func testNewProjectWithoutExplicitTemplateUsesDefaultUserTemplate() {
+        let model = StudioModel()
+        let templateLayout = OverlayLayout(elements: [
+            OverlayElement.defaultElement(kind: .power, id: "default-template-power")
+        ])
+        model.layoutPresets = [LayoutPreset(
+            id: "default-training",
+            name: "Default Training",
+            layout: templateLayout,
+            createdAt: Date(),
+            updatedAt: Date()
+        )]
+        model.defaultLayoutPresetID = "default-training"
+
+        XCTAssertEqual(model.requestNewTimelineProject(), .accepted)
+
+        XCTAssertEqual(model.layout, templateLayout.sanitized)
+    }
+
     private func metadata() -> VideoMetadata {
         VideoMetadata(
             size: CGSize(width: 1920, height: 1080),

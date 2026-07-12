@@ -199,6 +199,52 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.layout, layoutBeforeApply)
     }
 
+    func testApplyLayoutPresetUpdatesActiveCustomTimelineOverlayClip() throws {
+        let model = StudioModel()
+        let activity = MediaAsset(
+            id: "activity",
+            kind: .activity,
+            url: URL(fileURLWithPath: "/tmp/activity.fit"),
+            displayName: "activity.fit",
+            duration: 60
+        )
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [activity],
+            tracks: [
+                TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "activity-clip",
+                        assetID: activity.id,
+                        timelineStart: 0,
+                        duration: 60,
+                        layout: .default
+                    )
+                ])
+            ]
+        )
+        let presetLayout = OverlayLayout(elements: [
+            OverlayElement.defaultElement(kind: .power, id: "preset-power")
+        ])
+        model.applyTimelineProject(project, loadAssets: false)
+        model.previewTime = 10
+        model.layoutPresets = [LayoutPreset(
+            id: "custom-timeline-preset",
+            name: "Custom Timeline",
+            layout: presetLayout,
+            createdAt: Date(),
+            updatedAt: Date()
+        )]
+
+        model.applyLayoutPreset(id: "custom-timeline-preset")
+
+        let clip = try XCTUnwrap(model.currentTimelineProject.tracks[0].clips.first)
+        XCTAssertEqual(clip.layout, presetLayout.sanitized)
+    }
+
     func testLayoutPresetsForDisplayPinsDefaultThenSortsByUpdatedAt() {
         let model = StudioModel()
         let old = Date(timeIntervalSince1970: 10)
