@@ -200,9 +200,22 @@ struct ContentView: View {
             )
         }
 
+        #if compiler(>=6.2)
+        if #available(macOS 26.0, *) {
+            ToolbarItem(placement: .primaryAction) {
+                OutputToolbarButton(model: model)
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .primaryAction) {
+                OutputToolbarButton(model: model)
+            }
+        }
+        #else
         ToolbarItem(placement: .primaryAction) {
             OutputToolbarButton(model: model)
         }
+        #endif
     }
 
     private func panelToggleButton(
