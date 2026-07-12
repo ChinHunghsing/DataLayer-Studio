@@ -1,12 +1,12 @@
 # DataLayer Studio 0.2.3 版本规划
 
 - 制定日期：2026-07-11
-- 版本主题：**自动对表 + 发布质量收口**
+- 版本主题：**自动对表 + 工程体验收口**
 - 基线：0.2.2（时间线里程碑阶段 4–9.7 已收口，见 `docs/timeline-handoff.md`）
 
 ## 背景
 
-0.2.2 完成了时间线改造的最终验收：多视频/多 FIT、多轨叠加、稀疏时间线、工程保存/恢复、素材 relink、撤销/重做全部落地。时间线交接文档的结论是基础时间线不再扩张范围，0.2.3 转入新里程碑：把「对表」这一最难的上手步骤自动化，并补齐发布质量缺口。
+0.2.2 完成了时间线改造的最终验收：多视频/多 FIT、多轨叠加、稀疏时间线、工程保存/恢复、素材 relink、撤销/重做全部落地。时间线交接文档的结论是基础时间线不再扩张范围，0.2.3 转入新里程碑：把「对表」这一最难的上手步骤自动化，并补齐工程保存体验和发布质量缺口。
 
 ## 范围
 
@@ -22,9 +22,16 @@
 - 触点：导入落位逻辑（`StudioModel` 时间线追加路径）、`TimelineProject` 片段几何；不改 writer、不改透明路径。
 - 测试：新增落位计算单元测试（含无 creation time、时区/UTC 换算、跨天异常回退）；`MediaPoolTests` 补导入落位断言。
 
-### B. 工程保存体验收口（本版取消）
+### B. 工程保存体验收口
 
-❌ 2026-07-12 用户决定取消 0.2.3 的工程保存体验增强，不再实现 ⌘S 覆盖保存、⌘⇧S 另存为、最近工程菜单与工程名窗口标题。保留现有「打开时间线工程」和「保存时间线工程」能力；保存仍通过面板选择 JSON 路径。本项不再属于 0.2.3 验收范围。
+✅ 2026-07-12 完成：
+
+- ⌘S 覆盖保存到当前工程路径；无路径时等同另存为。
+- ⌘⇧S 另存为。
+- 「文件 ▸ 最近打开的工程」菜单通过 security-scoped bookmark 恢复访问权限。
+- App Store 沙箱签名加入 app-scoped bookmark entitlement，并由打包脚本校验。
+- 窗口标题显示工程名，并保留 document-edited 未保存标记。
+- `MediaPoolTests`/`RecentTimelineProjectStoreTests` 覆盖路径记忆、覆盖保存、另存为、最近工程与 dirty state。
 
 ### C. 质量与缺陷修复（本版必做）
 
@@ -62,9 +69,10 @@
 ## 验收标准
 
 1. 自动对表：真实素材（`assets/resourses/multi/`）导入后自动落位与 2026-07-11 人工计算结果一致；无 creation time 素材回退顺延且有提示；自动摆放可撤销。
-2. C2/C3 两项 QA 有结论记录（通过或列出问题）。
-3. 全量 `swift test` 绿；`scripts/build_app_bundle.sh` + `scripts/verify_app_bundle.sh` 通过。
-4. 新文案四语言（en/zh-Hans/zh-Hant/ja）同步；Codable 向后兼容（旧 preset、schema 1/2 工程可加载）。
+2. 保存体验：⌘S/⌘⇧S/最近工程全链路验证；旧工程 JSON 加载不回退。
+3. C2/C3 两项 QA 有结论记录（通过或列出问题）。
+4. 全量 `swift test` 绿；`scripts/build_app_bundle.sh` + `scripts/verify_app_bundle.sh` 通过。
+5. 新文案四语言（en/zh-Hans/zh-Hant/ja）同步；Codable 向后兼容（旧 preset、schema 1/2 工程可加载）。
 
 ## 发布检查清单
 

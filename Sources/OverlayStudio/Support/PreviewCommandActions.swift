@@ -14,10 +14,13 @@ struct StudioCommandActions {
     var canJumpToTimelineEditPoints: Bool
     var canUndo: Bool
     var canRedo: Bool
+    var recentTimelineProjects: [RecentTimelineProject]
     var chooseVideo: () -> Void
     var chooseFIT: () -> Void
     var openTimelineProject: () -> Void
+    var openRecentTimelineProject: (RecentTimelineProject) -> Void
     var saveTimelineProject: () -> Void
+    var saveTimelineProjectAs: () -> Void
     var export: () -> Void
     var cancelExport: () -> Void
     var refreshPreview: () -> Void

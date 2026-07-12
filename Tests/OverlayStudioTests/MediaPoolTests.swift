@@ -1035,6 +1035,73 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertTrue(model.hasUnsavedTimelineChanges)
     }
 
+    func testTimelineProjectSaveOverwritesCurrentPathAndSaveAsSwitchesPath() throws {
+        let suiteName = "timeline-project-save-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("timeline-project-save-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let firstURL = directory.appendingPathComponent("morning-run.json")
+        let secondURL = directory.appendingPathComponent("morning-run-copy.json")
+        let model = StudioModel(
+            recentTimelineProjectStore: RecentTimelineProjectStore(defaults: defaults)
+        )
+
+        XCTAssertTrue(model.saveTimelineProject(to: firstURL))
+        XCTAssertEqual(model.currentTimelineProjectURL, firstURL.standardizedFileURL.resolvingSymlinksInPath())
+        XCTAssertEqual(model.currentTimelineProjectDisplayName, "morning-run")
+        XCTAssertFalse(model.hasUnsavedTimelineChanges)
+
+        model.setOutputWidth(1280)
+        XCTAssertTrue(model.hasUnsavedTimelineChanges)
+        model.saveTimelineProject()
+
+        let overwritten = try JSONDecoder().decode(TimelineProject.self, from: Data(contentsOf: firstURL))
+        XCTAssertEqual(overwritten.outputWidth, 1280)
+        XCTAssertEqual(model.currentTimelineProjectURL, firstURL.standardizedFileURL.resolvingSymlinksInPath())
+        XCTAssertFalse(model.hasUnsavedTimelineChanges)
+
+        XCTAssertTrue(model.saveTimelineProject(to: secondURL))
+        XCTAssertEqual(model.currentTimelineProjectURL, secondURL.standardizedFileURL.resolvingSymlinksInPath())
+        XCTAssertEqual(model.recentTimelineProjects.map(\.url), [
+            secondURL.standardizedFileURL.resolvingSymlinksInPath(),
+            firstURL.standardizedFileURL.resolvingSymlinksInPath()
+        ])
+    }
+
+    func testRecentTimelineProjectOpensAndDirtyProjectDefersReplacement() throws {
+        let suiteName = "recent-timeline-project-open-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("recent-timeline-project-open-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let projectURL = directory.appendingPathComponent("race-project.json")
+        let store = RecentTimelineProjectStore(defaults: defaults)
+        let writer = StudioModel(recentTimelineProjectStore: store)
+        writer.setOutputWidth(1280)
+        XCTAssertTrue(writer.saveTimelineProject(to: projectURL))
+
+        let model = StudioModel(recentTimelineProjectStore: store)
+        let recent = try XCTUnwrap(model.recentTimelineProjects.first)
+        model.openRecentTimelineProject(recent)
+
+        XCTAssertEqual(model.outputWidth, 1280)
+        XCTAssertEqual(model.currentTimelineProjectURL, projectURL.standardizedFileURL.resolvingSymlinksInPath())
+        XCTAssertEqual(model.currentTimelineProjectDisplayName, "race-project")
+        XCTAssertFalse(model.hasUnsavedTimelineChanges)
+
+        model.setOutputWidth(1920)
+        model.openRecentTimelineProject(recent)
+        XCTAssertEqual(
+            model.pendingTimelineAction,
+            .openRecentTimelineProject(projectURL.standardizedFileURL.resolvingSymlinksInPath())
+        )
+    }
+
     func testDirtyTimelineDefersOpenAndWindowCloseUntilConfirmed() {
         let model = StudioModel()
         let activityURL = URL(fileURLWithPath: "/tmp/activity.fit")

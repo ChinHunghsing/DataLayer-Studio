@@ -110,6 +110,7 @@ fi
 
 for entitlement in \
     com.apple.security.app-sandbox \
+    com.apple.security.files.bookmarks.app-scope \
     com.apple.security.files.user-selected.read-write \
     com.apple.security.network.client
 do

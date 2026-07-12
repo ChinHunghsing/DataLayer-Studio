@@ -13,7 +13,8 @@ struct StudioWindowView: View {
             .background(WindowCenterTitle(
                 centerTitle: centerTitle,
                 windowTitle: windowTitle,
-                isDocumentEdited: model.hasUnsavedTimelineChanges
+                isDocumentEdited: model.hasUnsavedTimelineChanges,
+                representedURL: model.currentTimelineProjectURL
             ))
             .background(WindowCloseGuard(
                 model: model,
@@ -33,7 +34,8 @@ struct StudioWindowView: View {
     }
 
     private var centerTitle: String {
-        model.videoURL?.lastPathComponent
+        model.currentTimelineProjectDisplayName
+            ?? model.videoURL?.lastPathComponent
             ?? model.activityDisplayName
             ?? model.fitURL?.lastPathComponent
             ?? ""
@@ -55,6 +57,7 @@ private struct WindowCenterTitle: NSViewRepresentable {
     let centerTitle: String
     let windowTitle: String
     let isDocumentEdited: Bool
+    let representedURL: URL?
 
     func makeNSView(context: Context) -> NSView {
         NSView(frame: .zero)
@@ -65,6 +68,7 @@ private struct WindowCenterTitle: NSViewRepresentable {
             centerTitle: centerTitle,
             windowTitle: windowTitle,
             isDocumentEdited: isDocumentEdited,
+            representedURL: representedURL,
             from: view
         ) else { return }
         DispatchQueue.main.async {
@@ -72,6 +76,7 @@ private struct WindowCenterTitle: NSViewRepresentable {
                 centerTitle: centerTitle,
                 windowTitle: windowTitle,
                 isDocumentEdited: isDocumentEdited,
+                representedURL: representedURL,
                 from: view
             )
         }
@@ -88,12 +93,14 @@ private struct WindowCenterTitle: NSViewRepresentable {
         private var lastCenterTitle: String?
         private var lastWindowTitle: String?
         private var lastIsDocumentEdited: Bool?
+        private var lastRepresentedURL: URL?
 
         @discardableResult
         func update(
             centerTitle: String,
             windowTitle: String,
             isDocumentEdited: Bool,
+            representedURL: URL?,
             from view: NSView
         ) -> Bool {
             guard let window = view.window else { return false }
@@ -101,6 +108,7 @@ private struct WindowCenterTitle: NSViewRepresentable {
                lastCenterTitle == centerTitle,
                lastWindowTitle == windowTitle,
                lastIsDocumentEdited == isDocumentEdited,
+               lastRepresentedURL == representedURL,
                label != nil || centerTitle.isEmpty {
                 return true
             }
@@ -108,10 +116,12 @@ private struct WindowCenterTitle: NSViewRepresentable {
             window.title = windowTitle
             window.titleVisibility = centerTitle.isEmpty ? .visible : .hidden
             window.isDocumentEdited = isDocumentEdited
+            window.representedURL = representedURL
             installedWindow = window
             lastCenterTitle = centerTitle
             lastWindowTitle = windowTitle
             lastIsDocumentEdited = isDocumentEdited
+            lastRepresentedURL = representedURL
 
             guard let titlebar = window.standardWindowButton(.closeButton)?.superview else { return true }
             let label = label(in: titlebar, closeButton: window.standardWindowButton(.closeButton))

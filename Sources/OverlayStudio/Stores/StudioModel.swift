@@ -67,6 +67,7 @@ enum TimelinePendingAction: Equatable {
     case removeVideoAsset(id: String)
     case removeActivityAsset(id: String)
     case openTimelineProject
+    case openRecentTimelineProject(URL)
     case closeWindow
 }
 
@@ -128,6 +129,8 @@ final class StudioModel: ObservableObject {
     @Published private(set) var hasUnsavedTimelineChanges = false
     @Published private(set) var pendingTimelineAction: TimelinePendingAction?
     @Published private(set) var confirmedWindowCloseGeneration = 0
+    @Published private(set) var currentTimelineProjectURL: URL?
+    @Published private(set) var recentTimelineProjects: [RecentTimelineProject] = []
 
     @Published var outputWidth = 1920 {
         didSet { rebuildCurrentTimelineProject() }
@@ -343,19 +346,24 @@ final class StudioModel: ObservableObject {
     /// `TelemetrySeries` value type and restored together with media-pool undo snapshots.
     private var activitySportByAssetID: [String: TelemetrySport] = [:]
     private var timelineSecurityScopedURLs: [URL] = []
+    private var currentTimelineProjectSecurityScopedURL: URL?
     private var cleanTimelineSnapshot: TimelineProject?
     private var allowsNextWindowClose = false
     private var isApplyingTimelineProject = false
     private var isUpdatingTimelineProjectExportSettings = false
+    private let recentTimelineProjectStore: RecentTimelineProjectStore
 
     init(
         layoutPresetStore: LayoutPresetStore = LayoutPresetStore(),
         preferenceStore: StudioPreferenceStore = StudioPreferenceStore(),
-        openWeatherService: OpenWeatherService = OpenWeatherService()
+        openWeatherService: OpenWeatherService = OpenWeatherService(),
+        recentTimelineProjectStore: RecentTimelineProjectStore = RecentTimelineProjectStore()
     ) {
         self.layoutPresetStore = layoutPresetStore
         self.preferenceStore = preferenceStore
         self.openWeatherService = openWeatherService
+        self.recentTimelineProjectStore = recentTimelineProjectStore
+        self.recentTimelineProjects = recentTimelineProjectStore.load()
         let presetState = layoutPresetStore.loadIncludingSharedAppDomains()
         let preferenceState = preferenceStore.load()
         let validDefaultPresetID = presetState.presets.contains { $0.id == presetState.defaultPresetID } ? presetState.defaultPresetID : nil
@@ -388,6 +396,7 @@ final class StudioModel: ObservableObject {
         scrubInteractionTask?.cancel()
         exportCancellationToken?.cancel()
         exportTask?.cancel()
+        currentTimelineProjectSecurityScopedURL?.stopAccessingSecurityScopedResource()
         videoFrameService.clearCache()
     }
 
@@ -1107,6 +1116,15 @@ final class StudioModel: ObservableObject {
         presentOpenTimelineProjectPanel()
     }
 
+    func openRecentTimelineProject(_ project: RecentTimelineProject) {
+        guard !isExporting else { return }
+        guard !hasUnsavedTimelineChanges else {
+            requestTimelineConfirmation(.openRecentTimelineProject(project.url))
+            return
+        }
+        openTimelineProject(at: project.url)
+    }
+
     private func presentOpenTimelineProjectPanel() {
         let panel = NSOpenPanel()
         panel.title = localized("panel.openTimelineProject")
@@ -1117,33 +1135,85 @@ final class StudioModel: ObservableObject {
         panel.allowedContentTypes = [.json]
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        do {
-            let data = try Data(contentsOf: url)
-            try loadTimelineProject(from: data, loadAssets: true, projectURL: url)
-            setStatus("status.timelineProjectLoaded", url.lastPathComponent)
-        } catch {
-            setStatus("status.timelineProjectLoadError", error.localizedDescription)
-        }
+        openTimelineProject(at: url)
     }
 
     func saveTimelineProject() {
+        guard !isExporting else { return }
+        guard let currentTimelineProjectURL else {
+            saveTimelineProjectAs()
+            return
+        }
+        saveTimelineProject(to: currentTimelineProjectURL)
+    }
+
+    func saveTimelineProjectAs() {
         guard !isExporting else { return }
         let panel = NSSavePanel()
         panel.title = localized("panel.saveTimelineProject")
         panel.message = localized("panel.saveTimelineProject.message")
         panel.prompt = localized("panel.save")
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "datalayer-studio-project.json"
+        panel.directoryURL = currentTimelineProjectURL?.deletingLastPathComponent()
+        panel.nameFieldStringValue = currentTimelineProjectURL?.lastPathComponent ?? "datalayer-studio-project.json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
+        saveTimelineProject(to: url)
+    }
+
+    @discardableResult
+    func saveTimelineProject(to url: URL) -> Bool {
+        guard !isExporting else { return false }
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
         do {
             let data = try timelineProjectJSONData(relativeTo: url)
             try data.write(to: url, options: .atomic)
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+            adoptTimelineProjectURL(url)
             markTimelineProjectClean()
             setStatus("status.timelineProjectSaved", url.lastPathComponent)
+            return true
         } catch {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
             setStatus("status.timelineProjectSaveError", error.localizedDescription)
+            return false
         }
+    }
+
+    var currentTimelineProjectDisplayName: String? {
+        currentTimelineProjectURL?.deletingPathExtension().lastPathComponent
+    }
+
+    private func openTimelineProject(at url: URL) {
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
+        do {
+            let data = try Data(contentsOf: url)
+            try loadTimelineProject(from: data, loadAssets: true, projectURL: url)
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+            adoptTimelineProjectURL(url)
+            setStatus("status.timelineProjectLoaded", url.lastPathComponent)
+        } catch {
+            if didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+            setStatus("status.timelineProjectLoadError", error.localizedDescription)
+        }
+    }
+
+    private func adoptTimelineProjectURL(_ url: URL) {
+        currentTimelineProjectSecurityScopedURL?.stopAccessingSecurityScopedResource()
+        let standardizedURL = url.standardizedFileURL.resolvingSymlinksInPath()
+        currentTimelineProjectSecurityScopedURL = standardizedURL.startAccessingSecurityScopedResource()
+            ? standardizedURL
+            : nil
+        currentTimelineProjectURL = standardizedURL
+        recentTimelineProjects = recentTimelineProjectStore.record(standardizedURL)
     }
 
     func timelineProjectJSONData(relativeTo projectURL: URL? = nil) throws -> Data {
@@ -1623,7 +1693,7 @@ final class StudioModel: ObservableObject {
             return localized("timeline.confirmReplace.title")
         case .removeVideoAsset, .removeActivityAsset:
             return localized("timeline.confirmRemove.title")
-        case .openTimelineProject, .closeWindow:
+        case .openTimelineProject, .openRecentTimelineProject, .closeWindow:
             return localized("timeline.unsaved.title")
         }
     }
@@ -1639,7 +1709,7 @@ final class StudioModel: ObservableObject {
             return localized("timeline.confirmRemove.video", timelineAssetDisplayName(id: id))
         case let .removeActivityAsset(id):
             return localized("timeline.confirmRemove.activity", timelineAssetDisplayName(id: id))
-        case .openTimelineProject:
+        case .openTimelineProject, .openRecentTimelineProject:
             return localized("timeline.unsaved.openProject")
         case .closeWindow:
             return localized("timeline.unsaved.closeWindow")
@@ -1653,7 +1723,7 @@ final class StudioModel: ObservableObject {
             return localized("timeline.confirmReplace.action")
         case .removeVideoAsset, .removeActivityAsset:
             return localized("timeline.confirmRemove.action")
-        case .openTimelineProject, .closeWindow:
+        case .openTimelineProject, .openRecentTimelineProject, .closeWindow:
             return localized("timeline.unsaved.discard")
         }
     }
@@ -1676,6 +1746,8 @@ final class StudioModel: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 self?.presentOpenTimelineProjectPanel()
             }
+        case let .openRecentTimelineProject(url):
+            openTimelineProject(at: url)
         case .closeWindow:
             allowsNextWindowClose = true
             confirmedWindowCloseGeneration &+= 1

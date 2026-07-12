@@ -240,10 +240,29 @@ private struct StudioFileCommands: Commands {
             .keyboardShortcut("o", modifiers: [.command, .shift])
             .disabled(actions == nil || actions?.isExporting == true)
 
+            Menu(localization.string("menu.openRecentTimelineProjects")) {
+                if let projects = actions?.recentTimelineProjects, !projects.isEmpty {
+                    ForEach(projects) { project in
+                        Button(project.displayName) {
+                            actions?.openRecentTimelineProject(project)
+                        }
+                    }
+                } else {
+                    Text(localization.string("menu.noRecentTimelineProjects"))
+                }
+            }
+            .disabled(actions == nil || actions?.isExporting == true)
+
             Button(localization.string("menu.saveTimelineProject")) {
                 actions?.saveTimelineProject()
             }
             .keyboardShortcut("s", modifiers: [.command])
+            .disabled(actions == nil || actions?.isExporting == true)
+
+            Button(localization.string("menu.saveTimelineProjectAs")) {
+                actions?.saveTimelineProjectAs()
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
             .disabled(actions == nil || actions?.isExporting == true)
 
             Divider()
