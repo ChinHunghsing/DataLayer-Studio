@@ -266,13 +266,13 @@ enum CLIError: Error, CustomStringConvertible {
     static let help = """
     Usage:
       overlay --fit activity.fit|activity.gpx --output overlay.mov [options]
-      overlay --timeline-project project.json --output output.mov [options]
+      overlay --timeline-project project.dlsproj --output output.mov [options]
 
     Required:
       --fit PATH         Standard .FIT or .GPX activity file.
                          Use either --fit or --timeline-project.
       --timeline-project PATH
-                         TimelineProject JSON exported by DataLayer Studio.
+                         DataLayer Studio .dlsproj project file.
       --output PATH      Output .mov file.
 
     Options:

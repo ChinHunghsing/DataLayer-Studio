@@ -1043,8 +1043,8 @@ final class MediaPoolTests: XCTestCase {
             .appendingPathComponent("timeline-project-save-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let firstURL = directory.appendingPathComponent("morning-run.json")
-        let secondURL = directory.appendingPathComponent("morning-run-copy.json")
+        let firstURL = directory.appendingPathComponent("morning-run.dlsproj")
+        let secondURL = directory.appendingPathComponent("morning-run-copy.dlsproj")
         let model = StudioModel(
             recentTimelineProjectStore: RecentTimelineProjectStore(defaults: defaults)
         )
@@ -1079,7 +1079,7 @@ final class MediaPoolTests: XCTestCase {
             .appendingPathComponent("recent-timeline-project-open-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let projectURL = directory.appendingPathComponent("race-project.json")
+        let projectURL = directory.appendingPathComponent("race-project.dlsproj")
         let store = RecentTimelineProjectStore(defaults: defaults)
         let writer = StudioModel(recentTimelineProjectStore: store)
         writer.setOutputWidth(1280)
@@ -1098,7 +1098,7 @@ final class MediaPoolTests: XCTestCase {
         model.openRecentTimelineProject(recent)
         XCTAssertEqual(
             model.pendingTimelineAction,
-            .openRecentTimelineProject(projectURL.standardizedFileURL.resolvingSymlinksInPath())
+            .openTimelineProjectFile(projectURL.standardizedFileURL.resolvingSymlinksInPath())
         )
     }
 

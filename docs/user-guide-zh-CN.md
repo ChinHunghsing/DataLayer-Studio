@@ -758,7 +758,7 @@ swift run overlay \
 
 ```bash
 swift run overlay \
-  --timeline-project /path/to/project.json \
+  --timeline-project /path/to/project.dlsproj \
   --output /path/to/output.mov \
   --export-mode video
 ```

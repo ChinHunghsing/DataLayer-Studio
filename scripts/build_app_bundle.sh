@@ -92,6 +92,22 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
     <array>
         <dict>
             <key>CFBundleTypeName</key>
+            <string>DataLayer Studio Project</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>run.libo.datalayer-studio.project</string>
+            </array>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>dlsproj</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
             <string>FIT Activity File</string>
             <key>CFBundleTypeRole</key>
             <string>Viewer</string>
@@ -121,6 +137,28 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
             <array>
                 <string>gpx</string>
             </array>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>run.libo.datalayer-studio.project</string>
+            <key>UTTypeDescription</key>
+            <string>DataLayer Studio Project</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.json</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>dlsproj</string>
+                </array>
+                <key>public.mime-type</key>
+                <string>application/vnd.datalayer-studio.project+json</string>
+            </dict>
         </dict>
     </array>
     <key>UTImportedTypeDeclarations</key>

@@ -47,6 +47,19 @@ if [[ -f "$CONTENTS_DIR/Info.plist" ]]; then
     if [[ "$exempt_encryption" != "false" ]]; then
         fail "Info.plist must declare ITSAppUsesNonExemptEncryption=false"
     fi
+    project_document_type="$(/usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes:0:LSItemContentTypes:0" "$CONTENTS_DIR/Info.plist" 2>/dev/null || true)"
+    project_document_extension="$(/usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes:0:CFBundleTypeExtensions:0" "$CONTENTS_DIR/Info.plist" 2>/dev/null || true)"
+    project_handler_rank="$(/usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes:0:LSHandlerRank" "$CONTENTS_DIR/Info.plist" 2>/dev/null || true)"
+    exported_project_type="$(/usr/libexec/PlistBuddy -c "Print :UTExportedTypeDeclarations:0:UTTypeIdentifier" "$CONTENTS_DIR/Info.plist" 2>/dev/null || true)"
+    if [[ "$project_document_type" != "run.libo.datalayer-studio.project" || "$exported_project_type" != "$project_document_type" ]]; then
+        fail "Info.plist must export and register the DataLayer Studio project type"
+    fi
+    if [[ "$project_document_extension" != "dlsproj" ]]; then
+        fail "Info.plist must register the .dlsproj extension"
+    fi
+    if [[ "$project_handler_rank" != "Owner" ]]; then
+        fail "Info.plist must declare DataLayer Studio as the .dlsproj owner"
+    fi
     declared_localizations="$(/usr/libexec/PlistBuddy -c "Print :CFBundleLocalizations" "$CONTENTS_DIR/Info.plist" 2>/dev/null || true)"
     for locale in en zh zh-Hans zh-Hans-CN zh-Hant zh-Hant-TW zh_CN zh_TW ja; do
         if ! printf '%s\n' "$declared_localizations" | grep -qx "    $locale"; then

@@ -144,12 +144,12 @@ final class CommandLineOptionsTests: XCTestCase {
     func testTimelineProjectArgumentDoesNotRequireFITOrVideo() throws {
         let options = try CommandLineOptions.parse(arguments: [
             "overlay",
-            "--timeline-project", "project.json",
+            "--timeline-project", "project.dlsproj",
             "--output", "timeline.mov",
             "--export-mode", "video"
         ])
 
-        XCTAssertEqual(options.timelineProjectURL?.lastPathComponent, "project.json")
+        XCTAssertEqual(options.timelineProjectURL?.lastPathComponent, "project.dlsproj")
         XCTAssertNil(options.fitURL)
         XCTAssertNil(options.videoURL)
         XCTAssertEqual(options.exportMode, .video)
@@ -159,7 +159,7 @@ final class CommandLineOptionsTests: XCTestCase {
     func testTimelineProjectCannotBeCombinedWithSingleSourceInputs() {
         XCTAssertThrowsError(try CommandLineOptions.parse(arguments: [
             "overlay",
-            "--timeline-project", "project.json",
+            "--timeline-project", "project.dlsproj",
             "--fit", "activity.fit",
             "--output", "timeline.mov"
         ])) { error in

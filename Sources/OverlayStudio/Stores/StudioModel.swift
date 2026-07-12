@@ -67,7 +67,7 @@ enum TimelinePendingAction: Equatable {
     case removeVideoAsset(id: String)
     case removeActivityAsset(id: String)
     case openTimelineProject
-    case openRecentTimelineProject(URL)
+    case openTimelineProjectFile(URL)
     case closeWindow
 }
 
@@ -1117,12 +1117,16 @@ final class StudioModel: ObservableObject {
     }
 
     func openRecentTimelineProject(_ project: RecentTimelineProject) {
+        openTimelineProjectFile(project.url)
+    }
+
+    func openTimelineProjectFile(_ url: URL) {
         guard !isExporting else { return }
         guard !hasUnsavedTimelineChanges else {
-            requestTimelineConfirmation(.openRecentTimelineProject(project.url))
+            requestTimelineConfirmation(.openTimelineProjectFile(url))
             return
         }
-        openTimelineProject(at: project.url)
+        openTimelineProject(at: url)
     }
 
     private func presentOpenTimelineProjectPanel() {
@@ -1132,7 +1136,7 @@ final class StudioModel: ObservableObject {
         panel.prompt = localized("panel.open")
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.json]
+        panel.allowedContentTypes = TimelineProjectFileType.openContentTypes
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         openTimelineProject(at: url)
@@ -1153,9 +1157,13 @@ final class StudioModel: ObservableObject {
         panel.title = localized("panel.saveTimelineProject")
         panel.message = localized("panel.saveTimelineProject.message")
         panel.prompt = localized("panel.save")
-        panel.allowedContentTypes = [.json]
+        panel.allowedContentTypes = [TimelineProjectFileType.contentType]
         panel.directoryURL = currentTimelineProjectURL?.deletingLastPathComponent()
-        panel.nameFieldStringValue = currentTimelineProjectURL?.lastPathComponent ?? "datalayer-studio-project.json"
+        panel.nameFieldStringValue = currentTimelineProjectURL?
+            .deletingPathExtension()
+            .appendingPathExtension(TimelineProjectFileType.filenameExtension)
+            .lastPathComponent
+            ?? "datalayer-studio-project.\(TimelineProjectFileType.filenameExtension)"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         saveTimelineProject(to: url)
@@ -1693,7 +1701,7 @@ final class StudioModel: ObservableObject {
             return localized("timeline.confirmReplace.title")
         case .removeVideoAsset, .removeActivityAsset:
             return localized("timeline.confirmRemove.title")
-        case .openTimelineProject, .openRecentTimelineProject, .closeWindow:
+        case .openTimelineProject, .openTimelineProjectFile, .closeWindow:
             return localized("timeline.unsaved.title")
         }
     }
@@ -1709,7 +1717,7 @@ final class StudioModel: ObservableObject {
             return localized("timeline.confirmRemove.video", timelineAssetDisplayName(id: id))
         case let .removeActivityAsset(id):
             return localized("timeline.confirmRemove.activity", timelineAssetDisplayName(id: id))
-        case .openTimelineProject, .openRecentTimelineProject:
+        case .openTimelineProject, .openTimelineProjectFile:
             return localized("timeline.unsaved.openProject")
         case .closeWindow:
             return localized("timeline.unsaved.closeWindow")
@@ -1723,7 +1731,7 @@ final class StudioModel: ObservableObject {
             return localized("timeline.confirmReplace.action")
         case .removeVideoAsset, .removeActivityAsset:
             return localized("timeline.confirmRemove.action")
-        case .openTimelineProject, .openRecentTimelineProject, .closeWindow:
+        case .openTimelineProject, .openTimelineProjectFile, .closeWindow:
             return localized("timeline.unsaved.discard")
         }
     }
@@ -1746,7 +1754,7 @@ final class StudioModel: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 self?.presentOpenTimelineProjectPanel()
             }
-        case let .openRecentTimelineProject(url):
+        case let .openTimelineProjectFile(url):
             openTimelineProject(at: url)
         case .closeWindow:
             allowsNextWindowClose = true

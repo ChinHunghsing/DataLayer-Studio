@@ -8,6 +8,15 @@ import OverlayCore
 
 @MainActor
 final class StudioModelTests: XCTestCase {
+    func testTimelineProjectFileTypeUsesDedicatedExtensionAndAcceptsCaseInsensitiveMatches() {
+        XCTAssertEqual(TimelineProjectFileType.identifier, "run.libo.datalayer-studio.project")
+        XCTAssertEqual(TimelineProjectFileType.filenameExtension, "dlsproj")
+        XCTAssertEqual(TimelineProjectFileType.contentType.identifier, TimelineProjectFileType.identifier)
+        XCTAssertTrue(TimelineProjectFileType.matches(URL(fileURLWithPath: "/tmp/example.DLSPROJ")))
+        XCTAssertFalse(TimelineProjectFileType.matches(URL(fileURLWithPath: "/tmp/example.json")))
+        XCTAssertEqual(TimelineProjectFileType.openContentTypes, [TimelineProjectFileType.contentType, .json])
+    }
+
     func testLaunchOptionsParseVideoFITAndOffsetArguments() {
         let options = StudioLaunchOptions(arguments: [
             "DataLayer Studio",

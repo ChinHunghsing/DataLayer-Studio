@@ -23,8 +23,8 @@ final class RecentTimelineProjectStoreTests: XCTestCase {
             .appendingPathComponent("recent-projects-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let firstURL = directory.appendingPathComponent("first.json")
-        let secondURL = directory.appendingPathComponent("second.json")
+        let firstURL = directory.appendingPathComponent("first.dlsproj")
+        let secondURL = directory.appendingPathComponent("second.dlsproj")
         try Data("{}".utf8).write(to: firstURL)
         try Data("{}".utf8).write(to: secondURL)
         let store = RecentTimelineProjectStore(defaults: defaults)
@@ -47,11 +47,11 @@ final class RecentTimelineProjectStoreTests: XCTestCase {
         let store = RecentTimelineProjectStore(defaults: defaults)
 
         for index in 0..<(RecentTimelineProjectStore.maximumCount + 3) {
-            _ = store.record(URL(fileURLWithPath: "/tmp/project-\(index).json"))
+            _ = store.record(URL(fileURLWithPath: "/tmp/project-\(index).dlsproj"))
         }
 
         let projects = store.load()
         XCTAssertEqual(projects.count, RecentTimelineProjectStore.maximumCount)
-        XCTAssertEqual(projects.first?.url.path, "/tmp/project-12.json")
+        XCTAssertEqual(projects.first?.url.path, "/tmp/project-12.dlsproj")
     }
 }

@@ -137,7 +137,7 @@ struct ContentView: View {
         }
         .focusedSceneValue(\.studioCommandActions, studioCommandActions)
         .focusedSceneValue(\.previewCommandActions, previewCommandActions)
-        .onOpenURL(perform: openActivityFile)
+        .onOpenURL(perform: openExternalFile)
     }
 
     private var editorLayout: some View {
@@ -351,12 +351,16 @@ struct ContentView: View {
         }
     }
 
-    private func openActivityFile(_ url: URL) {
+    private func openExternalFile(_ url: URL) {
         suppressStartupSourcePrompt = true
         didPresentStartupSourcePrompt = true
         isStartupSourcePromptPresented = false
         sourceContinuationPrompt = nil
-        model.openActivityFile(url)
+        if TimelineProjectFileType.matches(url) {
+            model.openTimelineProjectFile(url)
+        } else {
+            model.openActivityFile(url)
+        }
     }
 
     private var previewCommandActions: PreviewCommandActions {
