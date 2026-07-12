@@ -14,6 +14,19 @@ final class StudioShellTests: XCTestCase {
         XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/file.txt")), .unsupported)
     }
 
+    func testSourceContinuationPromptOffersTheMissingCounterpart() {
+        XCTAssertEqual(
+            SourceContinuationPrompt.forSources(hasVideo: true, hasActivity: false),
+            .activityAfterVideo
+        )
+        XCTAssertEqual(
+            SourceContinuationPrompt.forSources(hasVideo: false, hasActivity: true),
+            .videoAfterActivity
+        )
+        XCTAssertNil(SourceContinuationPrompt.forSources(hasVideo: true, hasActivity: true))
+        XCTAssertNil(SourceContinuationPrompt.forSources(hasVideo: false, hasActivity: false))
+    }
+
     func testSelectingLibraryAssetDoesNotChangeActiveVideo() {
         let model = StudioModel()
         let firstURL = URL(fileURLWithPath: "/tmp/first.mov")

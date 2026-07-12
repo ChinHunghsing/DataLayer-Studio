@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var isDebugConsolePresented = false
     @State private var isExportSheetPresented = false
     @State private var isCancelExportConfirmationPresented = false
+    @State private var sourceContinuationPrompt: SourceContinuationPrompt?
     @State private var isEditingText = false
 
     var body: some View {
@@ -32,6 +33,10 @@ struct ContentView: View {
         .onChange(of: previewInvalidationState) { _ in model.refreshOverlayOrPreview() }
         .onAppear {
             model.setResolvedLanguage(localization.resolvedLanguage)
+            sourceContinuationPrompt = .forSources(
+                hasVideo: model.videoURL != nil,
+                hasActivity: model.fitURL != nil
+            )
             if !didIncreaseDefaultTimelineHeight {
                 bottomWorkspaceHeight = StudioWorkspaceDefaults.migratedTimelineHeight(bottomWorkspaceHeight)
                 didIncreaseDefaultTimelineHeight = true
@@ -42,9 +47,13 @@ struct ContentView: View {
         }
         .onChange(of: model.videoURL) { url in
             if url != nil { focusPreviewForPlayback() }
+            guard url != nil else { return }
+            sourceContinuationPrompt = .forSources(hasVideo: true, hasActivity: model.fitURL != nil)
         }
         .onChange(of: model.fitURL) { url in
             if url != nil { focusPreviewForPlayback() }
+            guard url != nil else { return }
+            sourceContinuationPrompt = .forSources(hasVideo: model.videoURL != nil, hasActivity: true)
         }
         .onChange(of: model.isExporting) { isExporting in
             if isExporting {
@@ -68,6 +77,21 @@ struct ContentView: View {
             )
             .environmentObject(localization)
             .environment(\.locale, localization.locale)
+        }
+        .alert(
+            sourceContinuationPrompt.map { localization.string($0.titleKey) } ?? "",
+            isPresented: sourceContinuationPromptBinding
+        ) {
+            if let prompt = sourceContinuationPrompt {
+                Button(localization.string(prompt.primaryActionKey)) {
+                    continueSourceSelection(from: prompt)
+                }
+                Button(localization.string("sourceContinuation.later"), role: .cancel) { }
+            }
+        } message: {
+            if let prompt = sourceContinuationPrompt {
+                Text(localization.string(prompt.messageKey))
+            }
         }
         .alert(
             model.pendingTimelineActionTitle,
@@ -341,6 +365,29 @@ struct ContentView: View {
         isCancelExportConfirmationPresented = true
     }
 
+    private var sourceContinuationPromptBinding: Binding<Bool> {
+        Binding(
+            get: { sourceContinuationPrompt != nil },
+            set: { isPresented in
+                if !isPresented {
+                    sourceContinuationPrompt = nil
+                }
+            }
+        )
+    }
+
+    private func continueSourceSelection(from prompt: SourceContinuationPrompt) {
+        sourceContinuationPrompt = nil
+        DispatchQueue.main.async {
+            switch prompt {
+            case .activityAfterVideo:
+                model.chooseFIT()
+            case .videoAfterActivity:
+                model.chooseVideo()
+            }
+        }
+    }
+
     private var pendingTimelineActionBinding: Binding<Bool> {
         Binding(
             get: { model.pendingTimelineAction != nil },
@@ -419,6 +466,37 @@ struct ContentView: View {
     private var canMoveSelectedElementBackward: Bool {
         guard !model.isExporting, let selectedElementIndex else { return false }
         return selectedElementIndex > 0
+    }
+}
+
+enum SourceContinuationPrompt: Equatable {
+    case activityAfterVideo
+    case videoAfterActivity
+
+    static func forSources(hasVideo: Bool, hasActivity: Bool) -> Self? {
+        guard hasVideo != hasActivity else { return nil }
+        return hasVideo ? .activityAfterVideo : .videoAfterActivity
+    }
+
+    var titleKey: String {
+        switch self {
+        case .activityAfterVideo: "sourceContinuation.activityTitle"
+        case .videoAfterActivity: "sourceContinuation.videoTitle"
+        }
+    }
+
+    var messageKey: String {
+        switch self {
+        case .activityAfterVideo: "sourceContinuation.activityMessage"
+        case .videoAfterActivity: "sourceContinuation.videoMessage"
+        }
+    }
+
+    var primaryActionKey: String {
+        switch self {
+        case .activityAfterVideo: "startupPrompt.chooseActivity"
+        case .videoAfterActivity: "startupPrompt.chooseVideo"
+        }
     }
 }
 
