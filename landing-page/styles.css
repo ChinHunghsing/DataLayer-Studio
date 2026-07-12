@@ -711,6 +711,21 @@ svg {
   min-width: 0;
 }
 
+.workflow-preview {
+  width: min(100%, 900px);
+  margin: 0 auto 28px;
+  overflow: hidden;
+  border: 1px solid rgba(118, 215, 255, 0.2);
+  border-radius: var(--radius-lg);
+  background: #e9ecef;
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.32);
+}
+
+.workflow-preview img {
+  width: 100%;
+  height: auto;
+}
+
 .split-panel .section-heading {
   align-items: flex-start;
   text-align: left;
@@ -1339,6 +1354,11 @@ svg {
   .section-heading {
     gap: var(--space-md);
     margin-bottom: var(--space-lg);
+  }
+
+  .workflow-preview {
+    margin-bottom: 18px;
+    border-radius: var(--radius);
   }
 
   .section-heading h2 {
