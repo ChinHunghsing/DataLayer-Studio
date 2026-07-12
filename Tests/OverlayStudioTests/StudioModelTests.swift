@@ -1048,6 +1048,13 @@ final class StudioModelTests: XCTestCase {
         )
     }
 
+    func testProjectTimelineArrowKeysMapToSingleFrameSteps() {
+        XCTAssertEqual(ProjectTimelineView.frameStep(for: .left), -1)
+        XCTAssertEqual(ProjectTimelineView.frameStep(for: .right), 1)
+        XCTAssertNil(ProjectTimelineView.frameStep(for: .up))
+        XCTAssertNil(ProjectTimelineView.frameStep(for: .down))
+    }
+
     func testProjectTimelineVerticalDragTargetsOnlyUnlockedTracksOfTheSameKind() {
         let project = TimelineProject(
             outputWidth: 1_920,

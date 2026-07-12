@@ -47,6 +47,7 @@ struct ProjectTimelineView: View {
     @State private var renamingTrackID: String?
     @State private var trackNameDraft = ""
     @State private var hoveredTrackID: String?
+    @FocusState private var isTimelineFocused: Bool
 
     private static let playheadMarkerID = "timeline.playhead.marker"
 
@@ -114,6 +115,18 @@ struct ProjectTimelineView: View {
                 focusTimelineKeyboardCommands()
             }
         )
+        .focusable()
+        .focused($isTimelineFocused)
+        .timelineFocusEffectHidden()
+        .onMoveCommand { direction in
+            if let frameStep = Self.frameStep(for: direction) {
+                model.stepPreviewFrame(by: frameStep)
+            } else if direction == .up {
+                model.jumpToPreviousTimelineEditPoint()
+            } else if direction == .down {
+                model.jumpToNextTimelineEditPoint()
+            }
+        }
         .alert(localization.string("timeline.track.rename"), isPresented: $isShowingTrackRename) {
             TextField(localization.string("timeline.track.renamePlaceholder"), text: $trackNameDraft)
             Button(localization.string("common.cancel"), role: .cancel) {
@@ -259,6 +272,14 @@ struct ProjectTimelineView: View {
               duration > 0 else { return 0 }
         let progress = min(1, max(0, laneLocationX / laneWidth))
         return Double(progress) * duration
+    }
+
+    static func frameStep(for direction: MoveCommandDirection) -> Int? {
+        switch direction {
+        case .left: -1
+        case .right: 1
+        default: nil
+        }
     }
 
     static func trimSnapTime(
@@ -727,6 +748,7 @@ struct ProjectTimelineView: View {
         #if canImport(AppKit)
         (NSApp.keyWindow ?? NSApp.mainWindow)?.makeFirstResponder(nil)
         #endif
+        isTimelineFocused = true
     }
 
     private func clipTrimHandle(clip: TimelineClip, project: TimelineProject, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some View {
@@ -777,6 +799,7 @@ struct ProjectTimelineView: View {
         DragGesture(minimumDistance: 3, coordinateSpace: .global)
             .onChanged { value in
                 if dragClipID != clip.id {
+                    focusTimelineKeyboardCommands()
                     if !model.isTimelineClipSelected(id: clip.id) {
                         model.selectTimelineClip(id: clip.id)
                     }
@@ -988,6 +1011,17 @@ private struct TimelinePausedBands: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func timelineFocusEffectHidden() -> some View {
+        if #available(macOS 14.0, *) {
+            focusEffectDisabled()
+        } else {
+            self
+        }
     }
 }
 
