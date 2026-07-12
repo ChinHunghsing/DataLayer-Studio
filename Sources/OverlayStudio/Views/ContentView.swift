@@ -73,7 +73,8 @@ struct ContentView: View {
         .sheet(isPresented: $isStartupSourcePromptPresented) {
             StartupSourcePromptView(
                 chooseVideo: { dismissStartupSourcePromptAndRun(model.chooseVideo) },
-                chooseActivity: { dismissStartupSourcePromptAndRun(model.chooseFIT) }
+                chooseActivity: { dismissStartupSourcePromptAndRun(model.chooseFIT) },
+                openTimelineProject: { dismissStartupSourcePromptAndRun(model.openTimelineProject) }
             )
             .environmentObject(localization)
             .environment(\.locale, localization.locale)
@@ -437,6 +438,7 @@ private enum SourceContinuationPrompt {
 private struct StartupSourcePromptView: View {
     var chooseVideo: () -> Void
     var chooseActivity: () -> Void
+    var openTimelineProject: () -> Void
 
     @EnvironmentObject private var localization: LocalizationStore
     @Environment(\.dismiss) private var dismiss
@@ -460,21 +462,29 @@ private struct StartupSourcePromptView: View {
                 }
             }
 
-            HStack(spacing: 10) {
-                Button(action: chooseVideo) {
-                    Label(localization.string("startupPrompt.chooseVideo"), systemImage: "film")
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Button(action: chooseVideo) {
+                        Label(localization.string("startupPrompt.chooseVideo"), systemImage: "film")
+                    }
+
+                    Button(action: chooseActivity) {
+                        Label(localization.string("startupPrompt.chooseActivity"), systemImage: "figure.run")
+                    }
                 }
 
-                Button(action: chooseActivity) {
-                    Label(localization.string("startupPrompt.chooseActivity"), systemImage: "figure.run")
-                }
+                HStack(spacing: 10) {
+                    Button(action: openTimelineProject) {
+                        Label(localization.string("startupPrompt.openTimelineProject"), systemImage: "folder")
+                    }
 
-                Spacer()
+                    Spacer()
 
-                Button(localization.string("startupPrompt.close")) {
-                    dismiss()
+                    Button(localization.string("startupPrompt.close")) {
+                        dismiss()
+                    }
+                    .keyboardShortcut(.cancelAction)
                 }
-                .keyboardShortcut(.cancelAction)
             }
             .controlSize(.large)
         }

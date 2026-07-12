@@ -29,6 +29,7 @@
 - ⌘S 覆盖保存到当前工程路径；无路径时等同另存为。
 - ⌘⇧S 另存为。
 - 「文件 ▸ 最近打开的工程」菜单通过 security-scoped bookmark 恢复访问权限。
+- 启动时的「选择素材」提示可直接打开现有工程。
 - App Store 沙箱签名加入 app-scoped bookmark entitlement，并由打包脚本校验。
 - 窗口标题显示工程名，并保留 document-edited 未保存标记。
 - `MediaPoolTests`/`RecentTimelineProjectStoreTests` 覆盖路径记忆、覆盖保存、另存为、最近工程与 dirty state。
