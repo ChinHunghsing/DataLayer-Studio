@@ -56,7 +56,7 @@ struct PreviewControlsPanel: View {
             ) {
                 model.togglePlayback()
             }
-            .disabled(!(state.hasPlayer || state.hasSeries) || state.isExporting)
+            .disabled(!model.canPlayPreview)
 
             transportButton(
                 systemImage: "forward.frame.fill",

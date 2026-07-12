@@ -669,6 +669,12 @@ final class StudioModel: ObservableObject {
         !editableSelectedTimelineClipIDs.isEmpty
     }
 
+    var canPlayPreview: Bool {
+        guard !isExporting else { return false }
+        if player != nil || series != nil { return true }
+        return usesCustomTimelinePreview && timelinePreviewSnapshot(at: previewTime) != nil
+    }
+
     var usesCustomTimelinePreview: Bool {
         guard timelineUsesSingleSourceMigration else { return true }
         guard videoURL != nil else { return false }

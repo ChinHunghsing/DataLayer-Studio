@@ -534,6 +534,25 @@ final class StudioModelTests: XCTestCase {
         XCTAssertFalse(model.isPlaying)
     }
 
+    func testTimelineActivityClipAllowsPlaybackWithoutVideoAtPlayhead() {
+        let model = StudioModel()
+        let activityURL = URL(fileURLWithPath: "/tmp/timeline-only.fit")
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 30, distanceMeters: 100)
+        ]))
+        model.addActivityAssetToTimeline(id: activityURL.path)
+        model.previewTime = 10
+
+        XCTAssertNil(model.player)
+        XCTAssertNil(model.series)
+        XCTAssertTrue(model.canPlayPreview)
+
+        model.togglePlayback()
+        XCTAssertTrue(model.isPlaying)
+        model.pausePlayback()
+    }
+
     func testManualOutputURLDoesNotPreflightDestinationWritability() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [
