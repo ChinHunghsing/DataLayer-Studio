@@ -1,0 +1,118 @@
+import CoreGraphics
+import XCTest
+@testable import OverlayCore
+@testable import OverlayStudio
+
+@MainActor
+final class StudioShellTests: XCTestCase {
+    func testExternalFileClassifierDistinguishesSupportedTypes() {
+        XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/project.dlsproj")), .timelineProject)
+        XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/preset.dlspreset")), .layoutPreset)
+        XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/legacy.json")), .legacyJSON)
+        XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/movie.mov")), .video)
+        XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/activity.fit")), .activity)
+        XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/file.txt")), .unsupported)
+    }
+
+    func testSelectingLibraryAssetDoesNotChangeActiveVideo() {
+        let model = StudioModel()
+        let firstURL = URL(fileURLWithPath: "/tmp/first.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/second.mov")
+        model.upsertVideoAsset(url: firstURL, metadata: metadata())
+        model.upsertVideoAsset(url: secondURL, metadata: metadata())
+        model.videoURL = firstURL
+
+        model.selectMediaAsset(id: secondURL.path)
+
+        XCTAssertEqual(model.selectedMediaAssetID, secondURL.path)
+        XCTAssertEqual(model.activeVideoAssetID, firstURL.path)
+        XCTAssertEqual(model.videoURL, firstURL)
+        XCTAssertNil(model.selectedElementID)
+    }
+
+    func testAddingComponentAtNormalizedPositionUsesRequestedLocation() throws {
+        let model = StudioModel()
+
+        model.addElement(kind: .power, atNormalizedPosition: CGPoint(x: 0.42, y: 0.31))
+
+        let element = try XCTUnwrap(model.layout.elements.last)
+        XCTAssertEqual(element.kind, .power)
+        XCTAssertEqual(element.frame.x, 0.42, accuracy: 0.000_1)
+        XCTAssertEqual(element.frame.y, 0.31, accuracy: 0.000_1)
+        XCTAssertEqual(model.selectedElementID, element.id)
+    }
+
+    func testWorkspaceWidthsPreserveMinimumCanvasAtMinimumWindowSize() {
+        let widths = StudioWorkspacePaneWidths.resolve(
+            totalWidth: 1_100,
+            requestedLibrary: 420,
+            requestedInspector: 480,
+            showsLibrary: true,
+            showsInspector: true
+        )
+
+        XCTAssertGreaterThanOrEqual(widths.library, 260)
+        XCTAssertGreaterThanOrEqual(widths.inspector, 320)
+        XCTAssertLessThanOrEqual(widths.library + widths.inspector + 14 + 420, 1_100.001)
+    }
+
+    func testTimelineInOutCommandsUsePlayheadAndKeepMinimumDuration() {
+        let model = StudioModel()
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 20, distanceMeters: 100)
+        ])
+
+        model.previewTime = 8
+        model.setTimelineInAtPlayhead()
+        model.previewTime = 6
+        model.setTimelineOutAtPlayhead()
+
+        XCTAssertEqual(model.effectiveExportTrimStart, 8, accuracy: 0.000_1)
+        XCTAssertEqual(model.effectiveExportTrimEnd, 8.1, accuracy: 0.000_1)
+
+        model.clearTimelineInOut()
+        XCTAssertEqual(model.effectiveExportTrimStart, 0, accuracy: 0.000_1)
+        XCTAssertEqual(model.effectiveExportTrimEnd, 20, accuracy: 0.000_1)
+    }
+
+    func testNewProjectWithUserTemplateUsesUnsavedConfirmation() throws {
+        let model = StudioModel()
+        let now = Date()
+        let templateLayout = OverlayLayout(elements: [
+            OverlayElement.defaultElement(kind: .power, id: "template-power")
+        ])
+        model.layoutPresets = [LayoutPreset(
+            id: "training",
+            name: "Training",
+            layout: templateLayout,
+            createdAt: now,
+            updatedAt: now
+        )]
+        model.setOutputWidth(1280)
+        let initialRevision = model.studioSessionRevision
+
+        XCTAssertEqual(model.requestNewTimelineProject(layoutPresetID: "training"), .accepted)
+        XCTAssertEqual(
+            model.pendingTimelineAction,
+            .newTimelineProject(layoutPresetID: "training", mediaURLs: [])
+        )
+
+        model.confirmPendingTimelineAction()
+
+        XCTAssertEqual(model.outputWidth, 1920)
+        XCTAssertEqual(model.layout.elements.map(\.kind), [.power])
+        XCTAssertNil(model.currentTimelineProjectURL)
+        XCTAssertEqual(model.studioSessionRevision, initialRevision + 1)
+        XCTAssertFalse(model.hasUnsavedTimelineChanges)
+    }
+
+    private func metadata() -> VideoMetadata {
+        VideoMetadata(
+            size: CGSize(width: 1920, height: 1080),
+            duration: 30,
+            framesPerSecond: 30,
+            bitRateBitsPerSecond: 0
+        )
+    }
+}

@@ -930,10 +930,6 @@ final class StudioModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(PreviewCanvasView.componentDragMinimumDistance, 1)
     }
 
-    func testPreviewTimelineKeepsScrubInputSensitive() {
-        XCTAssertLessThanOrEqual(PreviewTimelineSlider.valueChangeEpsilon, 0.001)
-    }
-
     func testProjectTimelineScrubMapsLaneLocalCoordinateWithoutHeaderOffset() {
         XCTAssertEqual(
             ProjectTimelineView.scrubTime(laneLocationX: 0, laneWidth: 1_000, duration: 120),

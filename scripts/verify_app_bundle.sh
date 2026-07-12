@@ -28,6 +28,11 @@ require_file "$CONTENTS_DIR/Info.plist"
 require_file "$CONTENTS_DIR/MacOS/DataLayer Studio"
 require_file "$CONTENTS_DIR/Resources/DataLayerStudio.icns"
 require_file "$CONTENTS_DIR/Resources/fable5verified.png"
+COMPONENT_THUMBNAIL_COUNT="$(find "$CONTENTS_DIR/Resources/ComponentThumbnails" -type f -name 'component-*.png' | wc -l | tr -d ' ')"
+if [[ "$COMPONENT_THUMBNAIL_COUNT" != "23" ]]; then
+    echo "Expected 23 component thumbnails, found $COMPONENT_THUMBNAIL_COUNT" >&2
+    exit 1
+fi
 require_file "$LEGAL_DIR/LICENSE.md"
 require_file "$LEGAL_DIR/NOTICE.md"
 require_file "$LEGAL_DIR/README.md"

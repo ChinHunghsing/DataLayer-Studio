@@ -17,6 +17,7 @@ LEGAL_DIR="$RESOURCES_DIR/Legal"
 APP_ICON_NAME="DataLayerStudio"
 APP_ICON_SOURCE="$ROOT_DIR/Resources/AppIcon.png"
 ABOUT_BADGE_SOURCE="$ROOT_DIR/assets/readme/fable5verified.png"
+COMPONENT_THUMBNAILS_SOURCE="$ROOT_DIR/Resources/ComponentThumbnails"
 APP_LOCALIZATIONS=(en zh zh-Hans zh-Hans-CN zh-Hant zh-Hant-TW zh_CN zh_TW ja)
 
 cd "$ROOT_DIR"
@@ -29,6 +30,7 @@ cp "$ROOT_DIR/LICENSE.md" "$LEGAL_DIR/LICENSE.md"
 cp "$ROOT_DIR/NOTICE.md" "$LEGAL_DIR/NOTICE.md"
 cp "$ROOT_DIR/README.md" "$LEGAL_DIR/README.md"
 cp "$ABOUT_BADGE_SOURCE" "$RESOURCES_DIR/fable5verified.png"
+cp -R "$COMPONENT_THUMBNAILS_SOURCE" "$RESOURCES_DIR/ComponentThumbnails"
 
 if [[ ! -f "$APP_ICON_SOURCE" ]]; then
     echo "Missing app icon source: $APP_ICON_SOURCE" >&2

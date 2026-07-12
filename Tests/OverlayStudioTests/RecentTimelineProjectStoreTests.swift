@@ -54,4 +54,28 @@ final class RecentTimelineProjectStoreTests: XCTestCase {
         XCTAssertEqual(projects.count, RecentTimelineProjectStore.maximumCount)
         XCTAssertEqual(projects.first?.url.path, "/tmp/project-12.dlsproj")
     }
+
+    func testLoadsLegacyEntryWithoutLastOpenedDate() throws {
+        let path = "/tmp/legacy-project.dlsproj"
+        let data = try JSONSerialization.data(withJSONObject: [["path": path]])
+        defaults.set(data, forKey: RecentTimelineProjectStore.storageKey)
+
+        let projects = RecentTimelineProjectStore(defaults: defaults).load()
+
+        XCTAssertEqual(projects.count, 1)
+        XCTAssertEqual(projects[0].url.path, path)
+        XCTAssertNil(projects[0].lastOpenedAt)
+    }
+
+    func testRecordAddsLastOpenedDateAndAvailability() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("recent-project-\(UUID().uuidString).dlsproj")
+        try Data("{}".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let project = try XCTUnwrap(RecentTimelineProjectStore(defaults: defaults).record(url).first)
+
+        XCTAssertNotNil(project.lastOpenedAt)
+        XCTAssertTrue(project.isAvailable)
+    }
 }
