@@ -123,7 +123,7 @@ struct MediaPoolList: View {
     var placeholder: String
     var systemImage: String
     var assets: [MediaAsset]
-    var activeID: String?
+    var selectedID: String?
     var inUseIDs: Set<String>
     var offlineReasons: [String: TimelineAssetOfflineReason] = [:]
     var addTitle: String
@@ -150,7 +150,7 @@ struct MediaPoolList: View {
                         asset: asset,
                         systemImage: systemImage,
                         isInUse: inUseIDs.contains(asset.id),
-                        isActiveSource: asset.id == activeID,
+                        isSelected: asset.id == selectedID,
                         offlineReason: offlineReasons[asset.id],
                         select: { select(asset.id) },
                         remove: { remove(asset.id) },
@@ -176,7 +176,7 @@ struct MediaPoolRow: View {
     var asset: MediaAsset
     var systemImage: String
     var isInUse: Bool
-    var isActiveSource: Bool
+    var isSelected: Bool
     var offlineReason: TimelineAssetOfflineReason? = nil
     var select: () -> Void
     var remove: () -> Void
@@ -229,7 +229,7 @@ struct MediaPoolRow: View {
                 .help(localization.string("mediapool.addToTimeline"))
             }
 
-            if !isInUse && !isActiveSource {
+            if !isInUse {
                 Button(action: remove) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary.opacity(0.55))
@@ -238,6 +238,12 @@ struct MediaPoolRow: View {
                 .help(localization.string("mediapool.remove"))
             }
         }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            isSelected ? Color.accentColor.opacity(0.14) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+        )
         .padding(9)
         .shellGroupSurface(cornerRadius: 9)
         .overlay {

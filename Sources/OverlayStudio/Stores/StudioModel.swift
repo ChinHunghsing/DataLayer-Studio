@@ -68,6 +68,7 @@ enum TimelinePendingAction: Equatable {
     case removeActivityAsset(id: String)
     case openTimelineProject
     case openTimelineProjectFile(URL)
+    case newTimelineProject(layoutPresetID: String?, mediaURLs: [URL])
     case closeWindow
 }
 
@@ -131,6 +132,8 @@ final class StudioModel: ObservableObject {
     @Published private(set) var confirmedWindowCloseGeneration = 0
     @Published private(set) var currentTimelineProjectURL: URL?
     @Published private(set) var recentTimelineProjects: [RecentTimelineProject] = []
+    @Published private(set) var studioSessionRevision = 0
+    @Published private(set) var studioEntryErrorMessage: String?
 
     @Published var outputWidth = 1920 {
         didSet { rebuildCurrentTimelineProject() }
@@ -222,6 +225,7 @@ final class StudioModel: ObservableObject {
         didSet { rebuildCurrentTimelineProject() }
     }
     @Published var selectedElementID: String?
+    @Published private(set) var selectedMediaAssetID: String?
     @Published private(set) var selectedTimelineClipIDs: Set<String> = []
     @Published var selectedTimelineClipID: String? {
         didSet {
@@ -853,6 +857,52 @@ final class StudioModel: ObservableObject {
         setFIT(url)
     }
 
+    func openExternalFiles(_ urls: [URL]) -> StudioEntryRequestResult {
+        guard !urls.isEmpty else { return .cancelled }
+        studioEntryErrorMessage = nil
+        let kinds = urls.map(StudioExternalFileKind.classify)
+
+        if urls.count == 1, let url = urls.first, let kind = kinds.first {
+            switch kind {
+            case .timelineProject:
+                openTimelineProjectFile(url)
+                return studioEntryErrorMessage.map(StudioEntryRequestResult.failed) ?? .accepted
+            case .layoutPreset:
+                guard importLayoutPresets(from: url) != nil else {
+                    let message = localized("status.presetImportError", url.lastPathComponent)
+                    studioEntryErrorMessage = message
+                    return .failed(message)
+                }
+                return .accepted
+            case .legacyJSON:
+                if let data = try? Data(contentsOf: url),
+                   (try? JSONDecoder().decode(TimelineProject.self, from: data)) != nil {
+                    openTimelineProjectFile(url)
+                    return studioEntryErrorMessage.map(StudioEntryRequestResult.failed) ?? .accepted
+                }
+                guard importLayoutPresets(from: url) != nil else {
+                    let message = localized("welcome.error.unsupportedFile", url.lastPathComponent)
+                    studioEntryErrorMessage = message
+                    return .failed(message)
+                }
+                return .accepted
+            case .video, .activity:
+                return requestNewTimelineProject(importing: [url])
+            case .unsupported:
+                let message = localized("welcome.error.unsupportedFile", url.lastPathComponent)
+                studioEntryErrorMessage = message
+                return .failed(message)
+            }
+        }
+
+        guard kinds.allSatisfy({ $0 == .video || $0 == .activity }) else {
+            let message = localized("welcome.error.mixedDrop")
+            studioEntryErrorMessage = message
+            return .failed(message)
+        }
+        return requestNewTimelineProject(importing: urls)
+    }
+
     func chooseOutput() {
         guard !isExporting else { return }
         if exportRenderScope == .individualClips {
@@ -1031,6 +1081,7 @@ final class StudioModel: ObservableObject {
         performLayoutChange("undo.applyPreset") {
             layout = preset.layout.sanitized
             selectedElementID = Self.firstSelectableElementID(in: layout)
+            selectedMediaAssetID = nil
         }
         setStatus("status.appliedPreset", preset.name)
         refreshOverlayOrPreview()
@@ -1133,12 +1184,88 @@ final class StudioModel: ObservableObject {
         presentOpenTimelineProjectPanel()
     }
 
+    func requestOpenTimelineProject() -> StudioEntryRequestResult {
+        guard !isExporting else { return .cancelled }
+        studioEntryErrorMessage = nil
+        guard !hasUnsavedTimelineChanges else {
+            requestTimelineConfirmation(.openTimelineProject)
+            return .accepted
+        }
+        return presentOpenTimelineProjectPanel() ? .accepted : .cancelled
+    }
+
+    func requestNewTimelineProject(
+        layoutPresetID: String? = nil,
+        importing mediaURLs: [URL] = []
+    ) -> StudioEntryRequestResult {
+        guard !isExporting else { return .cancelled }
+        studioEntryErrorMessage = nil
+        let supportedMedia = mediaURLs.filter {
+            let kind = StudioExternalFileKind.classify($0)
+            return kind == .video || kind == .activity
+        }
+        guard supportedMedia.count == mediaURLs.count else {
+            let message = localized("welcome.error.unsupportedDrop")
+            studioEntryErrorMessage = message
+            return .failed(message)
+        }
+        let action = TimelinePendingAction.newTimelineProject(
+            layoutPresetID: layoutPresetID,
+            mediaURLs: supportedMedia
+        )
+        guard !hasUnsavedTimelineChanges else {
+            requestTimelineConfirmation(action)
+            return .accepted
+        }
+        performNewTimelineProject(layoutPresetID: layoutPresetID, mediaURLs: supportedMedia)
+        return .accepted
+    }
+
+    func chooseMediaForNewTimelineProject(kind: MediaAsset.Kind) -> StudioEntryRequestResult {
+        guard !isExporting else { return .cancelled }
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        switch kind {
+        case .video:
+            panel.title = localized("panel.chooseSourceVideo")
+            panel.message = localized("panel.chooseSourceVideo.message")
+            panel.allowedContentTypes = [.movie, .video, .mpeg4Movie, .quickTimeMovie]
+        case .activity:
+            panel.title = localized("panel.chooseFitActivity")
+            panel.message = localized("panel.chooseFitActivity.message")
+            panel.allowedContentTypes = ["fit", "gpx"].compactMap { UTType(filenameExtension: $0) }
+        }
+        panel.prompt = localized("panel.open")
+        guard panel.runModal() == .OK else { return .cancelled }
+        return requestNewTimelineProject(importing: panel.urls)
+    }
+
     func openRecentTimelineProject(_ project: RecentTimelineProject) {
         openTimelineProjectFile(project.url)
     }
 
+    func removeRecentTimelineProject(_ project: RecentTimelineProject) {
+        recentTimelineProjects = recentTimelineProjectStore.remove(project.url)
+    }
+
+    func locateRecentTimelineProject(_ project: RecentTimelineProject) -> StudioEntryRequestResult {
+        let panel = NSOpenPanel()
+        panel.title = localized("welcome.locateProject")
+        panel.message = localized("welcome.locateProject.message", project.displayName)
+        panel.prompt = localized("welcome.locate")
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = TimelineProjectFileType.openContentTypes
+        guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
+        recentTimelineProjects = recentTimelineProjectStore.replace(project, with: url)
+        openTimelineProjectFile(url)
+        return studioEntryErrorMessage == nil ? .accepted : .failed(studioEntryErrorMessage ?? "")
+    }
+
     func openTimelineProjectFile(_ url: URL) {
         guard !isExporting else { return }
+        studioEntryErrorMessage = nil
         guard !hasUnsavedTimelineChanges else {
             requestTimelineConfirmation(.openTimelineProjectFile(url))
             return
@@ -1146,7 +1273,8 @@ final class StudioModel: ObservableObject {
         openTimelineProject(at: url)
     }
 
-    private func presentOpenTimelineProjectPanel() {
+    @discardableResult
+    private func presentOpenTimelineProjectPanel() -> Bool {
         let panel = NSOpenPanel()
         panel.title = localized("panel.openTimelineProject")
         panel.message = localized("panel.openTimelineProject.message")
@@ -1154,9 +1282,9 @@ final class StudioModel: ObservableObject {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.allowedContentTypes = TimelineProjectFileType.openContentTypes
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
 
-        openTimelineProject(at: url)
+        return openTimelineProject(at: url)
     }
 
     func saveTimelineProject() {
@@ -1213,7 +1341,8 @@ final class StudioModel: ObservableObject {
         currentTimelineProjectURL?.deletingPathExtension().lastPathComponent
     }
 
-    private func openTimelineProject(at url: URL) {
+    @discardableResult
+    private func openTimelineProject(at url: URL) -> Bool {
         let didStartAccessing = url.startAccessingSecurityScopedResource()
         do {
             let data = try Data(contentsOf: url)
@@ -1223,11 +1352,16 @@ final class StudioModel: ObservableObject {
             }
             adoptTimelineProjectURL(url)
             setStatus("status.timelineProjectLoaded", url.lastPathComponent)
+            studioEntryErrorMessage = nil
+            studioSessionRevision &+= 1
+            return true
         } catch {
             if didStartAccessing {
                 url.stopAccessingSecurityScopedResource()
             }
             setStatus("status.timelineProjectLoadError", error.localizedDescription)
+            studioEntryErrorMessage = localized("status.timelineProjectLoadError", error.localizedDescription)
+            return false
         }
     }
 
@@ -1239,6 +1373,56 @@ final class StudioModel: ObservableObject {
             : nil
         currentTimelineProjectURL = standardizedURL
         recentTimelineProjects = recentTimelineProjectStore.record(standardizedURL)
+    }
+
+    private func performNewTimelineProject(layoutPresetID: String?, mediaURLs: [URL]) {
+        guard !isExporting else { return }
+        studioEntryErrorMessage = nil
+        currentTimelineProjectSecurityScopedURL?.stopAccessingSecurityScopedResource()
+        currentTimelineProjectSecurityScopedURL = nil
+        currentTimelineProjectURL = nil
+        outputSecurityScopedURL = nil
+        outputURL = nil
+        outputURLWasAutoGenerated = false
+        outputDirectoryWasExplicitlySelected = false
+        clearExportResult()
+
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: distanceUnit
+        )
+        applyTimelineProject(project, loadAssets: false)
+        timelineUsesSingleSourceMigration = true
+        layout = layoutPresetID
+            .flatMap { id in layoutPresets.first(where: { $0.id == id })?.layout.sanitized }
+            ?? .default
+        selectedElementID = Self.firstSelectableElementID(in: layout)
+        selectedMediaAssetID = nil
+        clearTimelineClipSelection()
+        rebuildCurrentTimelineProject()
+        markTimelineProjectClean()
+        studioSessionRevision &+= 1
+        setStatus("status.chooseVideoAndFit")
+
+        importMediaFilesIntoCurrentTimeline(mediaURLs)
+    }
+
+    private func importMediaFilesIntoCurrentTimeline(_ urls: [URL]) {
+        let videos = urls.filter { StudioExternalFileKind.classify($0) == .video }
+        let activities = urls.filter { StudioExternalFileKind.classify($0) == .activity }
+
+        if let firstVideo = videos.first {
+            queueImportedVideosForTimeline(videos)
+            setVideo(firstVideo)
+            for url in videos.dropFirst() { addVideoAssetToPool(url) }
+        }
+        if let firstActivity = activities.first {
+            queueImportedActivitiesForTimeline(activities)
+            setFIT(firstActivity)
+            for url in activities.dropFirst() { addActivityAssetToPool(url) }
+        }
     }
 
     func timelineProjectJSONData(relativeTo projectURL: URL? = nil) throws -> Data {
@@ -1315,6 +1499,7 @@ final class StudioModel: ObservableObject {
         videoLoadFailure = nil
         fitLoadFailure = nil
         clearTimelineClipSelection()
+        selectedMediaAssetID = nil
         previewTime = clampedPreviewTime(previewTime)
         if let sourceURL = activeVideo?.url ?? activeActivity?.url {
             applySuggestedOutputURLIfNeeded(for: sourceURL)
@@ -1718,7 +1903,7 @@ final class StudioModel: ObservableObject {
             return localized("timeline.confirmReplace.title")
         case .removeVideoAsset, .removeActivityAsset:
             return localized("timeline.confirmRemove.title")
-        case .openTimelineProject, .openTimelineProjectFile, .closeWindow:
+        case .openTimelineProject, .openTimelineProjectFile, .newTimelineProject, .closeWindow:
             return localized("timeline.unsaved.title")
         }
     }
@@ -1736,6 +1921,8 @@ final class StudioModel: ObservableObject {
             return localized("timeline.confirmRemove.activity", timelineAssetDisplayName(id: id))
         case .openTimelineProject, .openTimelineProjectFile:
             return localized("timeline.unsaved.openProject")
+        case .newTimelineProject:
+            return localized("timeline.unsaved.newProject")
         case .closeWindow:
             return localized("timeline.unsaved.closeWindow")
         }
@@ -1748,7 +1935,7 @@ final class StudioModel: ObservableObject {
             return localized("timeline.confirmReplace.action")
         case .removeVideoAsset, .removeActivityAsset:
             return localized("timeline.confirmRemove.action")
-        case .openTimelineProject, .openTimelineProjectFile, .closeWindow:
+        case .openTimelineProject, .openTimelineProjectFile, .newTimelineProject, .closeWindow:
             return localized("timeline.unsaved.discard")
         }
     }
@@ -1773,6 +1960,8 @@ final class StudioModel: ObservableObject {
             }
         case let .openTimelineProjectFile(url):
             openTimelineProject(at: url)
+        case let .newTimelineProject(layoutPresetID, mediaURLs):
+            performNewTimelineProject(layoutPresetID: layoutPresetID, mediaURLs: mediaURLs)
         case .closeWindow:
             allowsNextWindowClose = true
             confirmedWindowCloseGeneration &+= 1
@@ -2434,6 +2623,25 @@ final class StudioModel: ObservableObject {
         resetExportTrimRangeToFullDuration()
     }
 
+    var canSetTimelineExportRange: Bool {
+        !isExporting && exportTrimEditingDuration >= Self.minimumExportTrimDuration
+    }
+
+    func setTimelineInAtPlayhead() {
+        guard canSetTimelineExportRange else { return }
+        setExportTrimStart(previewTime)
+    }
+
+    func setTimelineOutAtPlayhead() {
+        guard canSetTimelineExportRange else { return }
+        setExportTrimEnd(previewTime)
+    }
+
+    func clearTimelineInOut() {
+        guard canSetTimelineExportRange else { return }
+        resetExportTrimRange()
+    }
+
     private func seekPreview(to time: TimeInterval, coalesceOverlayRefresh: Bool, isScrubbing: Bool = false) {
         guard !isExporting else { return }
         let clamped = clampedPreviewTime(time)
@@ -2555,6 +2763,24 @@ final class StudioModel: ObservableObject {
 
     var timelineAssetIDsInUse: Set<String> {
         Set(timeline.tracks.flatMap(\.clips).map(\.assetID))
+    }
+
+    var selectedMediaAsset: MediaAsset? {
+        guard let selectedMediaAssetID else { return nil }
+        return videoAssets.first { $0.id == selectedMediaAssetID }
+            ?? activityAssets.first { $0.id == selectedMediaAssetID }
+    }
+
+    func selectMediaAsset(id: String) {
+        guard videoAssets.contains(where: { $0.id == id })
+                || activityAssets.contains(where: { $0.id == id }) else { return }
+        selectedMediaAssetID = id
+        selectedElementID = nil
+        clearTimelineClipSelection()
+    }
+
+    func clearMediaAssetSelection() {
+        selectedMediaAssetID = nil
     }
 
     func loadVideoWaveformIfNeeded(assetID: String) {
@@ -2751,6 +2977,7 @@ final class StudioModel: ObservableObject {
         videoWaveformLoadTasks[id] = nil
         videoWaveformPeaksByAssetID[id] = nil
         videoAssets.removeAll { $0.id == id }
+        if selectedMediaAssetID == id { selectedMediaAssetID = nil }
         removeTimelineAsset(id: id)
         registerTimelineMediaUndo(previous: previousUndoState, actionKey: "undo.timeline.removeAsset")
     }
@@ -2769,6 +2996,7 @@ final class StudioModel: ObservableObject {
         guard id != activeActivityAssetID else { return }
         let previousUndoState = timelineMediaUndoSnapshotNow
         activityAssets.removeAll { $0.id == id }
+        if selectedMediaAssetID == id { selectedMediaAssetID = nil }
         activitySeriesByAssetID.removeValue(forKey: id)
         activitySportByAssetID.removeValue(forKey: id)
         removeTimelineAsset(id: id)
@@ -3667,6 +3895,7 @@ final class StudioModel: ObservableObject {
             selectedTimelineClipID = id
         }
         selectedElementID = nil
+        selectedMediaAssetID = nil
     }
 
     func isTimelineClipSelected(id: String) -> Bool {
@@ -3704,6 +3933,7 @@ final class StudioModel: ObservableObject {
 
     func selectElement(id: String) {
         clearTimelineClipSelection()
+        selectedMediaAssetID = nil
         if selectedElementID != id {
             selectedElementID = id
         }
@@ -4595,15 +4825,25 @@ final class StudioModel: ObservableObject {
     }
 
     func addElement(kind: OverlayComponentID) {
+        addElement(kind: kind, atNormalizedPosition: nil)
+    }
+
+    func addElement(kind: OverlayComponentID, atNormalizedPosition position: CGPoint?) {
         guard !isExporting else { return }
         performLayoutChange("undo.addElement") {
             let existingCount = layout.elements.filter { $0.kind == kind }.count
             var element = OverlayElement.defaultElement(kind: kind, id: "\(kind.rawValue)-\(UUID().uuidString)")
-            let offset = min(0.20, Double(existingCount) * 0.035)
-            element.frame.x = PreviewLayoutLimits.clampPosition(element.frame.x + offset)
-            element.frame.y = PreviewLayoutLimits.clampPosition(element.frame.y + offset)
+            if let position {
+                element.frame.x = PreviewLayoutLimits.clampPosition(Double(position.x))
+                element.frame.y = PreviewLayoutLimits.clampPosition(Double(position.y))
+            } else {
+                let offset = min(0.20, Double(existingCount) * 0.035)
+                element.frame.x = PreviewLayoutLimits.clampPosition(element.frame.x + offset)
+                element.frame.y = PreviewLayoutLimits.clampPosition(element.frame.y + offset)
+            }
             layout.elements.append(element)
             selectedElementID = element.id
+            selectedMediaAssetID = nil
             clearTimelineClipSelection()
         }
         if kind == .weather,

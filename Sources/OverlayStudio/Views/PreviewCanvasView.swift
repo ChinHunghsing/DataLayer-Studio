@@ -3,6 +3,7 @@ import AVFoundation
 import SwiftUI
 import OverlayCore
 import OverlayStudioKit
+import UniformTypeIdentifiers
 
 struct PreviewCanvasView: View {
     static let componentDragMinimumDistance: CGFloat = 1
@@ -183,6 +184,9 @@ struct PreviewCanvasView: View {
         .frame(width: contentSize.width, height: contentSize.height)
         .coordinateSpace(name: "previewCanvas")
         .contentShape(Rectangle())
+        .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
+            handleComponentDrop(providers, at: location, displayRect: displayRect)
+        }
         .highPriorityGesture(
             SpatialTapGesture(coordinateSpace: .named("previewCanvas"))
                 .onEnded { value in
@@ -263,6 +267,34 @@ struct PreviewCanvasView: View {
             .accessibilityAction {
                 selectElement(element.id)
             }
+    }
+
+    private func handleComponentDrop(
+        _ providers: [NSItemProvider],
+        at location: CGPoint,
+        displayRect: CGRect
+    ) -> Bool {
+        guard displayRect.contains(location),
+              let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else {
+            return false
+        }
+        let outputWidth = model.outputWidth
+        let outputHeight = model.outputHeight
+        provider.loadObject(ofClass: NSString.self) { value, _ in
+            guard let rawValue = value as? String,
+                  let component = ComponentDragPayload.component(from: rawValue) else { return }
+            let baseSize = ComponentBaseSize.size(for: component)
+            let position = CGPoint(
+                x: (location.x - displayRect.minX) / max(1, displayRect.width)
+                    - baseSize.width / CGFloat(max(1, outputWidth)) / 2,
+                y: (location.y - displayRect.minY) / max(1, displayRect.height)
+                    - baseSize.height / CGFloat(max(1, outputHeight)) / 2
+            )
+            Task { @MainActor in
+                model.addElement(kind: component, atNormalizedPosition: position)
+            }
+        }
+        return true
     }
 
     private func selectElement(_ id: String) {

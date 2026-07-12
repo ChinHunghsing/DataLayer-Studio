@@ -8,15 +8,16 @@ struct ContentView: View {
     @Environment(\.openURL) private var openURL
     @SceneStorage("previewZoom") private var previewZoom = 1.0
     @SceneStorage("bottomWorkspaceHeight") private var bottomWorkspaceHeight = 240.0
+    @SceneStorage("workspace.libraryWidth") private var libraryPanelWidth = 330.0
+    @SceneStorage("workspace.inspectorWidth") private var inspectorPanelWidth = 390.0
+    @SceneStorage("workspace.showsLibrary") private var showsLibrary = true
+    @SceneStorage("workspace.showsTimeline") private var showsTimeline = true
+    @SceneStorage("workspace.showsInspector") private var showsInspector = true
     @State private var resizeStartHeight: Double?
     @State private var isPreviewFullscreen = false
     @State private var isDebugConsolePresented = false
     @State private var isExportSheetPresented = false
     @State private var isCancelExportConfirmationPresented = false
-    @State private var isStartupSourcePromptPresented = false
-    @State private var didPresentStartupSourcePrompt = false
-    @State private var suppressStartupSourcePrompt = false
-    @State private var sourceContinuationPrompt: SourceContinuationPrompt?
     @State private var isEditingText = false
 
     var body: some View {
@@ -30,20 +31,15 @@ struct ContentView: View {
         .onChange(of: previewInvalidationState) { _ in model.refreshOverlayOrPreview() }
         .onAppear {
             model.setResolvedLanguage(localization.resolvedLanguage)
-            presentStartupSourcePromptIfNeeded()
         }
         .onChange(of: localization.selection) { _ in
             model.setResolvedLanguage(localization.resolvedLanguage)
         }
         .onChange(of: model.videoURL) { url in
             if url != nil { focusPreviewForPlayback() }
-            guard url != nil, model.fitURL == nil else { return }
-            sourceContinuationPrompt = .activityAfterVideo
         }
         .onChange(of: model.fitURL) { url in
             if url != nil { focusPreviewForPlayback() }
-            guard url != nil, model.videoURL == nil else { return }
-            sourceContinuationPrompt = .videoAfterActivity
         }
         .onChange(of: model.isExporting) { isExporting in
             if isExporting {
@@ -54,9 +50,6 @@ struct ContentView: View {
             if hasExportResult {
                 isExportSheetPresented = true
             }
-        }
-        .onDisappear {
-            model.shutdown()
         }
         .sheet(isPresented: $isDebugConsolePresented) {
             DebugConsoleView(model: model)
@@ -70,31 +63,6 @@ struct ContentView: View {
             )
             .environmentObject(localization)
             .environment(\.locale, localization.locale)
-        }
-        .sheet(isPresented: $isStartupSourcePromptPresented) {
-            StartupSourcePromptView(
-                chooseVideo: { dismissStartupSourcePromptAndRun(model.chooseVideo) },
-                chooseActivity: { dismissStartupSourcePromptAndRun(model.chooseFIT) },
-                openTimelineProject: { dismissStartupSourcePromptAndRun(model.openTimelineProject) }
-            )
-            .environmentObject(localization)
-            .environment(\.locale, localization.locale)
-        }
-        .alert(
-            sourceContinuationPrompt.map { localization.string($0.titleKey) } ?? "",
-            isPresented: sourceContinuationPromptBinding
-        ) {
-            if let prompt = sourceContinuationPrompt {
-                Button(localization.string(prompt.primaryActionKey)) {
-                    continueSourceSelection(from: prompt)
-                }
-
-                Button(localization.string("sourceContinuation.later"), role: .cancel) { }
-            }
-        } message: {
-            if let prompt = sourceContinuationPrompt {
-                Text(localization.string(prompt.messageKey))
-            }
         }
         .alert(
             model.pendingTimelineActionTitle,
@@ -138,6 +106,7 @@ struct ContentView: View {
         }
         .focusedSceneValue(\.studioCommandActions, studioCommandActions)
         .focusedSceneValue(\.previewCommandActions, previewCommandActions)
+        .toolbar { studioToolbar }
         .onReceive(NotificationCenter.default.publisher(for: NSText.didBeginEditingNotification)) { _ in
             isEditingText = true
         }
@@ -148,36 +117,118 @@ struct ContentView: View {
     }
 
     private var editorLayout: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                SidebarView(model: model)
-                    .frame(width: 330)
-                    .background(.bar)
+        GeometryReader { proxy in
+            let widths = StudioWorkspacePaneWidths.resolve(
+                totalWidth: proxy.size.width,
+                requestedLibrary: libraryPanelWidth,
+                requestedInspector: inspectorPanelWidth,
+                showsLibrary: showsLibrary,
+                showsInspector: showsInspector
+            )
 
-                Divider()
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    if showsLibrary {
+                        LibraryPanelView(model: model)
+                            .frame(width: widths.library)
+                            .background(.bar)
 
-                PreviewCanvasView(
-                    model: model,
-                    zoom: $previewZoom,
-                    isFullscreen: false,
-                    onToggleFullscreen: { isPreviewFullscreen = true }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        HorizontalPaneResizeHandle(
+                            edge: .trailing,
+                            width: $libraryPanelWidth,
+                            range: 260...420
+                        )
+                    }
 
-                Divider()
+                    PreviewCanvasView(
+                        model: model,
+                        zoom: $previewZoom,
+                        isFullscreen: false,
+                        onToggleFullscreen: { isPreviewFullscreen = true }
+                    )
+                    .frame(minWidth: 420, maxWidth: .infinity, maxHeight: .infinity)
 
-                InspectorView(model: model)
-                    .frame(width: 390)
-                    .background(.bar)
+                    if showsInspector {
+                        HorizontalPaneResizeHandle(
+                            edge: .leading,
+                            width: $inspectorPanelWidth,
+                            range: 320...480
+                        )
+
+                        InspectorView(model: model)
+                            .frame(width: widths.inspector)
+                            .background(.bar)
+                    }
+                }
+                .frame(maxHeight: .infinity)
+
+                if showsTimeline {
+                    bottomResizeHandle
+
+                    BottomWorkspaceView(model: model)
+                        .frame(height: bottomWorkspaceHeight)
+                }
             }
-            .frame(maxHeight: .infinity)
-
-            bottomResizeHandle
-
-            // 参考 DaVinci：下半部分贯穿左右，两侧面板不够高时各自滚动，高度可拖拽
-            BottomWorkspaceView(model: model)
-                .frame(height: bottomWorkspaceHeight)
         }
+    }
+
+    @ToolbarContentBuilder
+    private var studioToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .navigation) {
+            panelToggleButton(
+                isPresented: showsLibrary,
+                titleKey: "workspace.library",
+                systemImage: "sidebar.left",
+                action: { showsLibrary.toggle() }
+            )
+            panelToggleButton(
+                isPresented: showsTimeline,
+                titleKey: "workspace.timeline",
+                systemImage: "rectangle.bottomthird.inset.filled",
+                action: { showsTimeline.toggle() }
+            )
+            panelToggleButton(
+                isPresented: showsInspector,
+                titleKey: "workspace.inspector",
+                systemImage: "sidebar.right",
+                action: { showsInspector.toggle() }
+            )
+        }
+
+        ToolbarItem(placement: .principal) {
+            Text(toolbarTitle)
+                .font(.headline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 320)
+        }
+
+        ToolbarItem(placement: .primaryAction) {
+            OutputToolbarButton(model: model)
+        }
+    }
+
+    private func panelToggleButton(
+        isPresented: Bool,
+        titleKey: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(localization.string(titleKey), systemImage: systemImage)
+                .labelStyle(.iconOnly)
+                .foregroundStyle(isPresented ? Color.accentColor : Color.secondary)
+        }
+        .help(localization.string(titleKey))
+        .accessibilityLabel(localization.string(titleKey))
+        .accessibilityValue(localization.string(isPresented ? "workspace.visible" : "workspace.hidden"))
+    }
+
+    private var toolbarTitle: String {
+        model.currentTimelineProjectDisplayName
+            ?? model.videoURL?.lastPathComponent
+            ?? model.activityDisplayName
+            ?? localization.string("app.name")
     }
 
     private var bottomResizeHandle: some View {
@@ -238,8 +289,12 @@ struct ContentView: View {
             canToggleTimelineClips: model.canToggleSelectedTimelineClipsEnabled && !isEditingText,
             canDeleteTimelineClip: model.selectedTimelineClipIsEditable,
             canJumpToTimelineEditPoints: model.canJumpToTimelineEditPoints,
+            canSetTimelineInOut: model.canSetTimelineExportRange && !isEditingText,
             canUndo: model.canPerformUndo,
             canRedo: model.canPerformRedo,
+            showsLibrary: showsLibrary,
+            showsTimeline: showsTimeline,
+            showsInspector: showsInspector,
             recentTimelineProjects: model.recentTimelineProjects,
             chooseVideo: model.chooseVideo,
             chooseFIT: model.chooseFIT,
@@ -260,8 +315,14 @@ struct ContentView: View {
             rippleDeleteTimelineClip: { model.deleteSelectedTimelineClip(ripple: true) },
             jumpToPreviousEditPoint: model.jumpToPreviousTimelineEditPoint,
             jumpToNextEditPoint: model.jumpToNextTimelineEditPoint,
+            setTimelineIn: model.setTimelineInAtPlayhead,
+            setTimelineOut: model.setTimelineOutAtPlayhead,
+            clearTimelineInOut: model.clearTimelineInOut,
             undo: model.performUndo,
             redo: model.performRedo,
+            toggleLibrary: { showsLibrary.toggle() },
+            toggleTimeline: { showsTimeline.toggle() },
+            toggleInspector: { showsInspector.toggle() },
             showDebugConsole: { isDebugConsolePresented = true },
             copyDebugLog: model.copyDebugLog,
             clearDebugLog: model.clearDebugLog
@@ -279,40 +340,6 @@ struct ContentView: View {
         guard model.isExporting else { return }
         isExportSheetPresented = true
         isCancelExportConfirmationPresented = true
-    }
-
-    private func presentStartupSourcePromptIfNeeded() {
-        guard !didPresentStartupSourcePrompt,
-              !suppressStartupSourcePrompt,
-              model.videoURL == nil,
-              model.fitURL == nil
-        else { return }
-
-        didPresentStartupSourcePrompt = true
-        DispatchQueue.main.async {
-            guard !suppressStartupSourcePrompt,
-                  model.videoURL == nil,
-                  model.fitURL == nil else { return }
-            isStartupSourcePromptPresented = true
-        }
-    }
-
-    private func dismissStartupSourcePromptAndRun(_ action: @escaping () -> Void) {
-        isStartupSourcePromptPresented = false
-        DispatchQueue.main.async {
-            action()
-        }
-    }
-
-    private var sourceContinuationPromptBinding: Binding<Bool> {
-        Binding(
-            get: { sourceContinuationPrompt != nil },
-            set: { isPresented in
-                if !isPresented {
-                    sourceContinuationPrompt = nil
-                }
-            }
-        )
     }
 
     private var pendingTimelineActionBinding: Binding<Bool> {
@@ -348,33 +375,8 @@ struct ContentView: View {
         )
     }
 
-    private func continueSourceSelection(from prompt: SourceContinuationPrompt) {
-        sourceContinuationPrompt = nil
-        DispatchQueue.main.async {
-            switch prompt {
-            case .activityAfterVideo:
-                model.chooseFIT()
-            case .videoAfterActivity:
-                model.chooseVideo()
-            }
-        }
-    }
-
     private func openExternalFile(_ url: URL) {
-        if LayoutPresetFileType.matches(url) {
-            model.importLayoutPresets(from: url)
-            return
-        }
-
-        suppressStartupSourcePrompt = true
-        didPresentStartupSourcePrompt = true
-        isStartupSourcePromptPresented = false
-        sourceContinuationPrompt = nil
-        if TimelineProjectFileType.matches(url) {
-            model.openTimelineProjectFile(url)
-        } else {
-            model.openActivityFile(url)
-        }
+        _ = model.openExternalFiles([url])
     }
 
     private var previewCommandActions: PreviewCommandActions {
@@ -418,122 +420,6 @@ struct ContentView: View {
     private var canMoveSelectedElementBackward: Bool {
         guard !model.isExporting, let selectedElementIndex else { return false }
         return selectedElementIndex > 0
-    }
-}
-
-private enum SourceContinuationPrompt {
-    case activityAfterVideo
-    case videoAfterActivity
-
-    var titleKey: String {
-        switch self {
-        case .activityAfterVideo:
-            return "sourceContinuation.activityTitle"
-        case .videoAfterActivity:
-            return "sourceContinuation.videoTitle"
-        }
-    }
-
-    var messageKey: String {
-        switch self {
-        case .activityAfterVideo:
-            return "sourceContinuation.activityMessage"
-        case .videoAfterActivity:
-            return "sourceContinuation.videoMessage"
-        }
-    }
-
-    var primaryActionKey: String {
-        switch self {
-        case .activityAfterVideo:
-            return "startupPrompt.chooseActivity"
-        case .videoAfterActivity:
-            return "startupPrompt.chooseVideo"
-        }
-    }
-}
-
-private struct StartupSourcePromptView: View {
-    var chooseVideo: () -> Void
-    var chooseActivity: () -> Void
-    var openTimelineProject: () -> Void
-
-    @EnvironmentObject private var localization: LocalizationStore
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "square.stack.3d.up")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.tint)
-                    .frame(width: 32, height: 32)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(localization.string("startupPrompt.title"))
-                        .font(.title3.weight(.semibold))
-
-                    Text(localization.string("startupPrompt.message"))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 12)
-
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .help(localization.string("startupPrompt.close"))
-                .accessibilityLabel(localization.string("startupPrompt.close"))
-                .keyboardShortcut(.cancelAction)
-            }
-
-            Button(action: openTimelineProject) {
-                Label(localization.string("startupPrompt.openTimelineProject"), systemImage: "folder")
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 32)
-            }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.roundedRectangle)
-
-            HStack(spacing: 12) {
-                Color.secondary.opacity(0.22)
-                    .frame(height: 1)
-                Text(localization.string("startupPrompt.orChooseSource"))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .fixedSize()
-                Color.secondary.opacity(0.22)
-                    .frame(height: 1)
-            }
-            .frame(height: 12)
-
-            HStack(spacing: 12) {
-                Button(action: chooseVideo) {
-                    Label(localization.string("startupPrompt.chooseVideo"), systemImage: "film")
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 30)
-                }
-
-                Button(action: chooseActivity) {
-                    Label(localization.string("startupPrompt.chooseActivity"), systemImage: "figure.run")
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 30)
-                }
-            }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.roundedRectangle)
-        }
-        .padding(24)
-        .controlSize(.large)
-        .frame(width: 540, alignment: .leading)
     }
 }
 

@@ -6,6 +6,8 @@ import SwiftUI
 @main
 struct OverlayStudioApp: App {
     @StateObject private var localization: LocalizationStore
+    @StateObject private var model = StudioModel()
+    @StateObject private var purchaseAuthorization = PurchaseAuthorizationStore()
     @AppStorage(AppAppearanceSelection.defaultsKey) private var appearanceRawValue = AppAppearanceSelection.system.rawValue
 
     init() {
@@ -16,13 +18,23 @@ struct OverlayStudioApp: App {
     }
 
     var body: some Scene {
-        WindowGroup(localization.string("app.name"), id: "studio") {
-            PurchaseAuthorizationGate {
-                StudioWindowView()
+        Window(localization.string("welcome.title"), id: "welcome") {
+            PurchaseAuthorizationGate(authorization: purchaseAuthorization) {
+                WelcomeWindowView(model: model)
             }
-                .environmentObject(localization)
-                .environment(\.locale, localization.locale)
-                .preferredColorScheme(preferredColorScheme)
+            .environmentObject(localization)
+            .environment(\.locale, localization.locale)
+            .preferredColorScheme(preferredColorScheme)
+        }
+        .defaultSize(width: 860, height: 600)
+
+        Window(localization.string("app.name"), id: "studio") {
+            PurchaseAuthorizationGate(authorization: purchaseAuthorization) {
+                StudioWindowView(model: model)
+            }
+            .environmentObject(localization)
+            .environment(\.locale, localization.locale)
+            .preferredColorScheme(preferredColorScheme)
         }
 
         Settings {
@@ -39,12 +51,54 @@ struct OverlayStudioApp: App {
             PreviewCommands(localization: localization)
             TimelineCommands(localization: localization)
             ArrangeCommands(localization: localization)
+            WorkspaceCommands(localization: localization)
             DebugCommands(localization: localization)
+            WelcomeWindowCommands(localization: localization)
         }
     }
 
     private var preferredColorScheme: ColorScheme? {
         AppAppearanceSelection.selection(from: appearanceRawValue).colorScheme
+    }
+}
+
+private struct WorkspaceCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
+    @FocusedValue(\.studioCommandActions) private var actions
+
+    var body: some Commands {
+        CommandMenu(localization.string("menu.workspace")) {
+            Button(localization.string("workspace.library")) {
+                actions?.toggleLibrary()
+            }
+            .keyboardShortcut("1", modifiers: [.command, .option])
+            .disabled(actions == nil)
+
+            Button(localization.string("workspace.timeline")) {
+                actions?.toggleTimeline()
+            }
+            .keyboardShortcut("2", modifiers: [.command, .option])
+            .disabled(actions == nil)
+
+            Button(localization.string("workspace.inspector")) {
+                actions?.toggleInspector()
+            }
+            .keyboardShortcut("3", modifiers: [.command, .option])
+            .disabled(actions == nil)
+        }
+    }
+}
+
+private struct WelcomeWindowCommands: Commands {
+    @ObservedObject var localization: LocalizationStore
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandGroup(after: .windowArrangement) {
+            Button(localization.string("menu.showWelcomeWindow")) {
+                openWindow(id: "welcome")
+            }
+        }
     }
 }
 
@@ -302,6 +356,26 @@ private struct TimelineCommands: Commands {
 
             Divider()
 
+            Button(localization.string("menu.setTimelineIn")) {
+                actions?.setTimelineIn()
+            }
+            .keyboardShortcut("i", modifiers: [])
+            .disabled(actions?.canSetTimelineInOut != true)
+
+            Button(localization.string("menu.setTimelineOut")) {
+                actions?.setTimelineOut()
+            }
+            .keyboardShortcut("o", modifiers: [])
+            .disabled(actions?.canSetTimelineInOut != true)
+
+            Button(localization.string("menu.clearTimelineInOut")) {
+                actions?.clearTimelineInOut()
+            }
+            .keyboardShortcut("x", modifiers: [.option])
+            .disabled(actions?.canSetTimelineInOut != true)
+
+            Divider()
+
             Button(localization.string("menu.splitTimelineClips")) {
                 actions?.splitTimelineClips()
             }
@@ -374,7 +448,6 @@ private struct PreviewCommands: Commands {
             Button(localization.string("menu.setSportStart")) {
                 studioActions?.markSportStart()
             }
-            .keyboardShortcut("s", modifiers: [.command, .shift])
             .disabled(studioActions?.canMarkSportStart != true)
 
             Divider()

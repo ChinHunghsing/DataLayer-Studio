@@ -1,5 +1,24 @@
 import Foundation
 import SwiftUI
+
+private struct SidebarSummaryRow: View {
+    var title: String
+    var value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text(value)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .font(.caption)
+    }
+}
 import OverlayCore
 
 /// 居中弹出的输出 sheet：集中所有输出设置、导出摘要与导出动作。

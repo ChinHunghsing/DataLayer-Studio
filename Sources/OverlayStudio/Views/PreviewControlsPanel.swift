@@ -12,7 +12,6 @@ struct PreviewControlsPanel: View {
         VStack(spacing: 0) {
             VStack(spacing: 8) {
                 controlRow
-                statusRow
                 warningRow
             }
             .padding(.horizontal, 18)
@@ -23,15 +22,20 @@ struct PreviewControlsPanel: View {
     }
 
     private var controlRow: some View {
-        VStack(spacing: 8) {
-            timelineSlider
+        HStack(spacing: 10) {
+            transportControls
 
-            HStack(spacing: 10) {
-                transportControls
-                Spacer(minLength: 12)
-                zoomControls
-                    .layoutPriority(1)
-            }
+            Text(formatTimecode(state.previewTime))
+                .font(.system(.callout, design: .monospaced).weight(.semibold))
+                .foregroundStyle(.primary)
+                .fixedSize()
+                .layoutPriority(2)
+                .accessibilityLabel(localization.string("preview.time", formatTimecode(state.previewTime)))
+
+            Spacer(minLength: 12)
+
+            zoomControls
+                .layoutPriority(1)
         }
     }
 
@@ -87,20 +91,6 @@ struct PreviewControlsPanel: View {
         .help(help)
     }
 
-    private var timelineSlider: some View {
-        PreviewTimelineSlider(
-            value: Binding(
-                get: { state.previewTime },
-                set: { model.scrubPreview(to: $0) }
-            ),
-            range: state.previewTimeRange,
-            isEnabled: state.hasSeries && !state.isExporting,
-            accessibilityLabel: localization.string("preview.time", formatTimecode(state.previewTime)),
-            onFrameStep: { model.stepPreviewFrame(by: $0) }
-        )
-        .frame(maxWidth: .infinity)
-    }
-
     private var zoomControls: some View {
         HStack(spacing: 8) {
             Button {
@@ -151,23 +141,6 @@ struct PreviewControlsPanel: View {
             }
             .labelStyle(.iconOnly)
             .help(isFullscreen ? localization.string("preview.exitFullscreenHelp") : localization.string("preview.fullscreenHelp"))
-        }
-    }
-
-    private var statusRow: some View {
-        HStack(spacing: 10) {
-            Text(formatTimecode(state.previewTime))
-                .font(.system(.callout, design: .monospaced).weight(.semibold))
-                .foregroundStyle(.primary)
-
-            Spacer(minLength: 8)
-
-            Text(verbatim: "\(state.outputWidth)×\(state.outputHeight)")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(ShellStyle.tileFill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
     }
 

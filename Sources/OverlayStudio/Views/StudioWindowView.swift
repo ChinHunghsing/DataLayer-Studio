@@ -2,14 +2,14 @@ import SwiftUI
 import AppKit
 
 struct StudioWindowView: View {
-    @StateObject private var model = StudioModel()
+    @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
     @Environment(\.undoManager) private var windowUndoManager
     @State private var didApplyLaunchOptions = false
 
     var body: some View {
         ContentView(model: model)
-            .frame(minWidth: 1320, minHeight: 760)
+            .frame(minWidth: 1100, minHeight: 700)
             .background(WindowCenterTitle(
                 centerTitle: centerTitle,
                 windowTitle: windowTitle,
@@ -20,11 +20,6 @@ struct StudioWindowView: View {
                 model: model,
                 confirmedCloseGeneration: model.confirmedWindowCloseGeneration
             ))
-            .background(TitlebarTrailingAccessory(rootView: AnyView(
-                OutputToolbarButton(model: model)
-                    .environmentObject(localization)
-                    .environment(\.locale, localization.locale)
-            )))
             .background(WindowLiveResizeObserver { model.setPreviewLiveResizing($0) })
             .onAppear(perform: applyLaunchOptionsIfNeeded)
             .onAppear { model.undoManager = windowUndoManager }
@@ -87,8 +82,6 @@ private struct WindowCenterTitle: NSViewRepresentable {
     }
 
     final class Coordinator {
-        private weak var label: NSTextField?
-        private weak var installedSuperview: NSView?
         private weak var installedWindow: NSWindow?
         private var lastCenterTitle: String?
         private var lastWindowTitle: String?
@@ -108,8 +101,7 @@ private struct WindowCenterTitle: NSViewRepresentable {
                lastCenterTitle == centerTitle,
                lastWindowTitle == windowTitle,
                lastIsDocumentEdited == isDocumentEdited,
-               lastRepresentedURL == representedURL,
-               label != nil || centerTitle.isEmpty {
+               lastRepresentedURL == representedURL {
                 return true
             }
 
@@ -123,38 +115,7 @@ private struct WindowCenterTitle: NSViewRepresentable {
             lastIsDocumentEdited = isDocumentEdited
             lastRepresentedURL = representedURL
 
-            guard let titlebar = window.standardWindowButton(.closeButton)?.superview else { return true }
-            let label = label(in: titlebar, closeButton: window.standardWindowButton(.closeButton))
-            label.stringValue = centerTitle
-            label.isHidden = centerTitle.isEmpty
             return true
-        }
-
-        private func label(in titlebar: NSView, closeButton: NSView?) -> NSTextField {
-            if let label, installedSuperview === titlebar {
-                return label
-            }
-
-            label?.removeFromSuperview()
-            let label = NSTextField(labelWithString: "")
-            label.translatesAutoresizingMaskIntoConstraints = false
-            label.font = .systemFont(ofSize: 13, weight: .semibold)
-            label.textColor = .secondaryLabelColor
-            label.alignment = .center
-            label.lineBreakMode = .byTruncatingMiddle
-            label.maximumNumberOfLines = 1
-            titlebar.addSubview(label)
-
-            let centerYAnchor = closeButton?.centerYAnchor ?? titlebar.centerYAnchor
-            NSLayoutConstraint.activate([
-                label.centerXAnchor.constraint(equalTo: titlebar.centerXAnchor),
-                label.centerYAnchor.constraint(equalTo: centerYAnchor),
-                label.widthAnchor.constraint(lessThanOrEqualTo: titlebar.widthAnchor, multiplier: 0.42)
-            ])
-
-            self.label = label
-            installedSuperview = titlebar
-            return label
         }
     }
 }

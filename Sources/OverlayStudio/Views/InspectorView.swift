@@ -10,9 +10,25 @@ struct InspectorView: View {
     var body: some View {
         let selectedClip = model.selectedTimelineClip
         let selectedElement = model.selectedElement
+        let selectedMedia = model.selectedMediaAsset
 
         VStack(spacing: 0) {
-            if let selectedClip {
+            if let selectedMedia {
+                HStack(spacing: 9) {
+                    Image(systemName: selectedMedia.kind == .video ? "film" : "figure.run")
+                        .foregroundStyle(Color.accentColor)
+                    Text(selectedMedia.displayName)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+
+                Divider()
+                    .overlay(Color.secondary.opacity(0.16))
+            } else if let selectedClip {
                 TimelineClipInspectorHeader(model: model, clip: selectedClip)
                     .padding(.horizontal, 18)
                     .padding(.top, 14)
@@ -44,7 +60,9 @@ struct InspectorView: View {
                         .id(Self.topAnchorID)
 
                     Group {
-                        if let selectedClip {
+                        if let selectedMedia {
+                            MediaAssetInspectorView(model: model, asset: selectedMedia)
+                        } else if let selectedClip {
                             TimelineClipInspectorView(model: model, clip: selectedClip)
                         } else {
                             InspectorSettingsPanel(
@@ -56,7 +74,7 @@ struct InspectorView: View {
                         }
                     }
                     .padding(.horizontal, 18)
-                    .padding(.top, selectedClip == nil && selectedElement == nil ? 18 : 14)
+                    .padding(.top, selectedClip == nil && selectedElement == nil && selectedMedia == nil ? 18 : 14)
                     .padding(.bottom, 14)
                 }
                 .onChange(of: inspectorScrollIdentity) { _ in
@@ -91,6 +109,9 @@ struct InspectorView: View {
     }
 
     private var inspectorScrollIdentity: String {
+        if let mediaID = model.selectedMediaAssetID {
+            return "media:\(mediaID)"
+        }
         if let clipID = model.selectedTimelineClipID {
             return "timeline:\(clipID)"
         }

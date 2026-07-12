@@ -2,11 +2,15 @@ import SwiftUI
 
 struct PurchaseAuthorizationGate<Content: View>: View {
     @EnvironmentObject private var localization: LocalizationStore
-    @StateObject private var authorization = PurchaseAuthorizationStore()
+    @ObservedObject private var authorization: PurchaseAuthorizationStore
 
     private let content: () -> Content
 
-    init(@ViewBuilder content: @escaping () -> Content) {
+    init(
+        authorization: PurchaseAuthorizationStore,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.authorization = authorization
         self.content = content
     }
 
