@@ -282,6 +282,8 @@ final class StudioModel: ObservableObject {
     private var timelinePlayerRebuildTask: Task<Void, Never>?
     private var timelinePlayerBuildGeneration = 0
     private var timelinePlayerBuiltSignature: TimelinePlayerSignature?
+    private var timelinePlayerItemReplacementGeneration = 0
+    private var isReplacingTimelinePlayerItem = false
     private var previewRenderGeneration = 0
     private var videoLoadGeneration = 0
     private var fitLoadGeneration = 0
@@ -1897,6 +1899,8 @@ final class StudioModel: ObservableObject {
 
     func configurePlayer(url: URL) {
         pausePlayback()
+        timelinePlayerItemReplacementGeneration += 1
+        isReplacingTimelinePlayerItem = false
         playerTimeObserver?.remove()
         playerTimeObserver = nil
         timelinePlayerBuiltSignature = nil
@@ -1913,7 +1917,9 @@ final class StudioModel: ObservableObject {
         ) { [weak self] time in
             guard let self else { return }
             Task { @MainActor in
-                guard !self.isScrubbingPreview else { return }
+                guard self.isPlaying,
+                      !self.isScrubbingPreview,
+                      !self.isReplacingTimelinePlayerItem else { return }
                 let seconds = CMTimeGetSeconds(time)
                 guard seconds.isFinite else { return }
                 let clamped = self.clampedPreviewTime(seconds)
@@ -2045,7 +2051,19 @@ final class StudioModel: ObservableObject {
     ) {
         let item = AVPlayerItem(asset: composition)
         item.videoComposition = videoComposition
-        let wasPlaying = isPlaying
+        replaceTimelinePlayerItem(item, resumePlayback: isPlaying)
+        timelinePlayerBuiltSignature = signature
+        backgroundImage = nil
+        refreshOverlayOnly()
+    }
+
+    /// Replacing an AVPlayer item briefly resets its clock to zero. Ignore that transient clock
+    /// update and seek the new item back to the exact timeline position the user was viewing.
+    func replaceTimelinePlayerItem(_ item: AVPlayerItem, resumePlayback: Bool) {
+        let preservedPreviewTime = previewTime
+        timelinePlayerItemReplacementGeneration += 1
+        let replacementGeneration = timelinePlayerItemReplacementGeneration
+        isReplacingTimelinePlayerItem = true
         if let player {
             player.replaceCurrentItem(with: item)
         } else {
@@ -2055,21 +2073,35 @@ final class StudioModel: ObservableObject {
             self.player = player
             attachPlayerTimeObserver(to: player)
         }
-        timelinePlayerBuiltSignature = signature
-        backgroundImage = nil
-        player?.seek(
-            to: CMTime(seconds: previewTime, preferredTimescale: 600),
+        guard let player else {
+            isReplacingTimelinePlayerItem = false
+            return
+        }
+        player.seek(
+            to: CMTime(seconds: preservedPreviewTime, preferredTimescale: 600),
             toleranceBefore: .zero,
             toleranceAfter: .zero
-        )
-        if wasPlaying {
-            player?.play()
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self,
+                      replacementGeneration == self.timelinePlayerItemReplacementGeneration else { return }
+                guard abs(self.previewTime - preservedPreviewTime) < 0.000_5 else {
+                    self.isReplacingTimelinePlayerItem = false
+                    return
+                }
+                self.previewTime = preservedPreviewTime
+                self.isReplacingTimelinePlayerItem = false
+            }
         }
-        refreshOverlayOnly()
+        if resumePlayback {
+            player.play()
+        }
     }
 
     private func tearDownTimelinePlayer(signature: TimelinePlayerSignature?) {
         timelinePlayerBuiltSignature = signature
+        timelinePlayerItemReplacementGeneration += 1
+        isReplacingTimelinePlayerItem = false
         guard player != nil else { return }
         pausePlayback()
         playerTimeObserver?.remove()

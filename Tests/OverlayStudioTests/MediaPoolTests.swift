@@ -847,16 +847,38 @@ final class MediaPoolTests: XCTestCase {
             loadAssets: false
         )
         model.selectTimelineClip(id: "clip")
+        model.previewTime = 8
 
         XCTAssertTrue(model.canToggleSelectedTimelineClipsEnabled)
         model.toggleSelectedTimelineClipsEnabled()
         XCTAssertFalse(try XCTUnwrap(model.selectedTimelineClip).isEnabled)
         XCTAssertTrue(model.currentTimelineProject.activeClips(kind: .video, atTimelineTime: 1).isEmpty)
+        XCTAssertEqual(model.previewTime, 8, accuracy: 0.001)
 
         undoManager.undo()
         XCTAssertTrue(try XCTUnwrap(model.selectedTimelineClip).isEnabled)
         undoManager.redo()
         XCTAssertFalse(try XCTUnwrap(model.selectedTimelineClip).isEnabled)
+    }
+
+    func testReplacingTimelinePlayerItemPreservesPlayhead() async {
+        let model = StudioModel()
+        let initialComposition = AVMutableComposition()
+        initialComposition.insertEmptyTimeRange(
+            CMTimeRange(start: .zero, duration: CMTime(seconds: 10, preferredTimescale: 600))
+        )
+        model.previewTime = 7
+        model.replaceTimelinePlayerItem(AVPlayerItem(asset: initialComposition), resumePlayback: false)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        let replacementComposition = AVMutableComposition()
+        replacementComposition.insertEmptyTimeRange(
+            CMTimeRange(start: .zero, duration: CMTime(seconds: 10, preferredTimescale: 600))
+        )
+        model.replaceTimelinePlayerItem(AVPlayerItem(asset: replacementComposition), resumePlayback: false)
+        try? await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(model.previewTime, 7, accuracy: 0.001)
     }
 
     func testTimelineAssetIDsInUseIncludesEveryReferencedVideoAndActivity() {
