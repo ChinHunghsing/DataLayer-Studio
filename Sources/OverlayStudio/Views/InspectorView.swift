@@ -257,7 +257,7 @@ private struct InspectorSectionScopeBar: View {
 
     private func scopeStrip(showTitles: Bool) -> some View {
         scopeButtons(showTitles: showTitles)
-            .padding(2)
+            .padding(3)
             .background(InspectorStyle.actionGroupFill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -281,17 +281,17 @@ private struct InspectorSectionScopeBar: View {
         } label: {
             HStack(spacing: showTitle ? 5 : 0) {
                 Image(systemName: scope.systemImage)
-                    .font(.caption.weight(.semibold))
+                    .font(.body.weight(.semibold))
 
                 if showTitle {
                     Text(title)
-                        .font(.caption.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .lineLimit(1)
                 }
             }
             .frame(minWidth: showTitle ? 0 : 30)
-            .padding(.horizontal, showTitle ? 8 : 6)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
             .foregroundStyle(selectedScopeRawValue == scope.rawValue ? Color.accentColor : Color.secondary)
             .background(scopeFill(scope), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .overlay {

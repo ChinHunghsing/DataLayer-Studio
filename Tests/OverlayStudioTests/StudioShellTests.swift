@@ -104,6 +104,11 @@ final class StudioShellTests: XCTestCase {
         XCTAssertLessThanOrEqual(widths.library + widths.inspector + 14 + 420, 1_100.001)
     }
 
+    func testTimelineHeightMigratesOnlyThePreviousDefault() {
+        XCTAssertEqual(StudioWorkspaceDefaults.migratedTimelineHeight(240), 300)
+        XCTAssertEqual(StudioWorkspaceDefaults.migratedTimelineHeight(360), 360)
+    }
+
     func testTimelineInOutCommandsUsePlayheadAndKeepMinimumDuration() {
         let model = StudioModel()
         model.series = TelemetrySeries(samples: [

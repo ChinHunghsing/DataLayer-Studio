@@ -8,13 +8,6 @@ private enum LibraryTab: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
     var localizationKey: String { "library.tab.\(rawValue)" }
-    var systemImage: String {
-        switch self {
-        case .media: return "film.stack"
-        case .components: return "gauge.with.dots.needle.67percent"
-        case .templates: return "rectangle.3.group"
-        }
-    }
 }
 
 struct LibraryPanelView: View {
@@ -35,18 +28,35 @@ struct LibraryPanelView: View {
     }
 
     private var header: some View {
-        Picker(localization.string("library.title"), selection: selectedTabBinding) {
+        HStack(spacing: 2) {
             ForEach(LibraryTab.allCases) { tab in
-                Label(localization.string(tab.localizationKey), systemImage: tab.systemImage)
-                    .tag(tab)
+                Button {
+                    selectedTabRawValue = tab.rawValue
+                } label: {
+                    Text(localization.string(tab.localizationKey))
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(selectedTab == tab ? Color.white : Color.primary.opacity(0.76))
+                .background(
+                    selectedTab == tab ? Color.accentColor : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                )
+                .accessibilityLabel(localization.string(tab.localizationKey))
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
             }
         }
-        .pickerStyle(.segmented)
-        .controlSize(.small)
-        .labelsHidden()
-        .frame(maxWidth: .infinity)
+        .padding(3)
+        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.secondary.opacity(0.12))
+        }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
     }
 
     @ViewBuilder
@@ -436,12 +446,6 @@ struct LibraryPanelView: View {
         LibraryTab(rawValue: selectedTabRawValue) ?? .media
     }
 
-    private var selectedTabBinding: Binding<LibraryTab> {
-        Binding(
-            get: { selectedTab },
-            set: { selectedTabRawValue = $0.rawValue }
-        )
-    }
 }
 
 private struct ComponentCatalogDragModifier: ViewModifier {

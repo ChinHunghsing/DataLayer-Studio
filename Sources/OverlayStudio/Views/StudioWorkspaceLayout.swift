@@ -1,6 +1,14 @@
 import AppKit
 import SwiftUI
 
+enum StudioWorkspaceDefaults {
+    static let timelineHeight = 300.0
+
+    static func migratedTimelineHeight(_ currentHeight: Double) -> Double {
+        abs(currentHeight - 240) < 0.5 ? timelineHeight : currentHeight
+    }
+}
+
 struct StudioWorkspacePaneWidths: Equatable {
     var library: CGFloat
     var inspector: CGFloat

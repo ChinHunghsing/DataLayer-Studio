@@ -7,7 +7,8 @@ struct ContentView: View {
     @EnvironmentObject private var localization: LocalizationStore
     @Environment(\.openURL) private var openURL
     @SceneStorage("previewZoom") private var previewZoom = 1.0
-    @SceneStorage("bottomWorkspaceHeight") private var bottomWorkspaceHeight = 240.0
+    @SceneStorage("bottomWorkspaceHeight") private var bottomWorkspaceHeight = StudioWorkspaceDefaults.timelineHeight
+    @AppStorage("workspace.didIncreaseDefaultTimelineHeight") private var didIncreaseDefaultTimelineHeight = false
     @SceneStorage("workspace.libraryWidth") private var libraryPanelWidth = 330.0
     @SceneStorage("workspace.inspectorWidth") private var inspectorPanelWidth = 390.0
     @SceneStorage("workspace.showsLibrary") private var showsLibrary = true
@@ -31,6 +32,10 @@ struct ContentView: View {
         .onChange(of: previewInvalidationState) { _ in model.refreshOverlayOrPreview() }
         .onAppear {
             model.setResolvedLanguage(localization.resolvedLanguage)
+            if !didIncreaseDefaultTimelineHeight {
+                bottomWorkspaceHeight = StudioWorkspaceDefaults.migratedTimelineHeight(bottomWorkspaceHeight)
+                didIncreaseDefaultTimelineHeight = true
+            }
         }
         .onChange(of: localization.selection) { _ in
             model.setResolvedLanguage(localization.resolvedLanguage)
