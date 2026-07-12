@@ -4023,6 +4023,20 @@ final class StudioModel: ObservableObject {
         selectedMediaAssetID = nil
     }
 
+    func setTimelineClipSelection(_ ids: Set<String>) {
+        let validIDs = ids.filter { timelineClip(id: $0) != nil }
+        if validIDs != selectedTimelineClipIDs {
+            selectedTimelineClipIDs = validIDs
+            selectedTimelineClipID = firstSelectedTimelineClipID
+        }
+        if selectedElementID != nil {
+            selectedElementID = nil
+        }
+        if selectedMediaAssetID != nil {
+            selectedMediaAssetID = nil
+        }
+    }
+
     func isTimelineClipSelected(id: String) -> Bool {
         selectedTimelineClipIDs.contains(id) || selectedTimelineClipID == id
     }

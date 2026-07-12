@@ -47,6 +47,8 @@ struct ProjectTimelineView: View {
     @State private var renamingTrackID: String?
     @State private var trackNameDraft = ""
     @State private var hoveredTrackID: String?
+    @State private var marqueeSelectionRect: CGRect?
+    @State private var marqueeBaseClipIDs: Set<String> = []
     @FocusState private var isTimelineFocused: Bool
 
     private static let playheadMarkerID = "timeline.playhead.marker"
@@ -181,13 +183,40 @@ struct ProjectTimelineView: View {
         let playheadX = CGFloat(clampedProgress) * laneWidth
 
         return ZStack(alignment: .topLeading) {
-            // Scrub layer (bottom): empty lane areas and video clips pass through to here.
+            // Empty lane areas scrub from the ruler and marquee-select from track rows.
             Color.clear
                 .contentShape(Rectangle())
                 .frame(width: laneWidth, height: contentHeight)
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
+                            if value.startLocation.y < rulerHeight {
+                                model.scrubPreview(
+                                    to: Self.scrubTime(
+                                        laneLocationX: value.location.x,
+                                        laneWidth: laneWidth,
+                                        duration: duration
+                                    )
+                                )
+                            } else {
+                                updateMarqueeSelection(
+                                    value,
+                                    displayTracks: displayTracks,
+                                    duration: duration,
+                                    laneWidth: laneWidth,
+                                    contentHeight: contentHeight
+                                )
+                            }
+                        }
+                        .onEnded { value in
+                            defer { finishMarqueeSelection() }
+                            guard value.startLocation.y >= rulerHeight,
+                                  marqueeSelectionRect == nil else { return }
+
+                            focusTimelineKeyboardCommands()
+                            if !Self.isCommandKeyPressed {
+                                model.clearTimelineClipSelection()
+                            }
                             model.scrubPreview(
                                 to: Self.scrubTime(
                                     laneLocationX: value.location.x,
@@ -195,11 +224,6 @@ struct ProjectTimelineView: View {
                                     duration: duration
                                 )
                             )
-                        }
-                        .onEnded { value in
-                            if abs(value.translation.width) < 2, abs(value.translation.height) < 2 {
-                                model.clearTimelineClipSelection()
-                            }
                         }
                 )
 
@@ -212,6 +236,18 @@ struct ProjectTimelineView: View {
                 Spacer(minLength: 0)
             }
             .allowsHitTesting(true)
+
+            if let marqueeSelectionRect {
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.12))
+                    .overlay {
+                        Rectangle()
+                            .stroke(Color.accentColor.opacity(0.9), lineWidth: 1)
+                    }
+                    .frame(width: marqueeSelectionRect.width, height: marqueeSelectionRect.height)
+                    .offset(x: marqueeSelectionRect.minX, y: marqueeSelectionRect.minY)
+                    .allowsHitTesting(false)
+            }
 
             snapGuideLayer(duration: duration, laneWidth: laneWidth, contentHeight: contentHeight)
 
@@ -272,6 +308,55 @@ struct ProjectTimelineView: View {
               duration > 0 else { return 0 }
         let progress = min(1, max(0, laneLocationX / laneWidth))
         return Double(progress) * duration
+    }
+
+    static func marqueeRect(
+        from start: CGPoint,
+        to end: CGPoint,
+        constrainedTo bounds: CGRect
+    ) -> CGRect {
+        let clampedStart = CGPoint(
+            x: min(bounds.maxX, max(bounds.minX, start.x)),
+            y: min(bounds.maxY, max(bounds.minY, start.y))
+        )
+        let clampedEnd = CGPoint(
+            x: min(bounds.maxX, max(bounds.minX, end.x)),
+            y: min(bounds.maxY, max(bounds.minY, end.y))
+        )
+        return CGRect(
+            x: min(clampedStart.x, clampedEnd.x),
+            y: min(clampedStart.y, clampedEnd.y),
+            width: abs(clampedEnd.x - clampedStart.x),
+            height: abs(clampedEnd.y - clampedStart.y)
+        )
+    }
+
+    static func marqueeClipIDs(
+        in displayTracks: [TimelineTrack],
+        intersecting selectionRect: CGRect,
+        duration: TimeInterval,
+        laneWidth: CGFloat,
+        rulerHeight: CGFloat = 24,
+        trackHeight: CGFloat = 48
+    ) -> Set<String> {
+        guard duration.isFinite, duration > 0, laneWidth.isFinite, laneWidth > 0 else { return [] }
+
+        var clipIDs: Set<String> = []
+        for (trackIndex, track) in displayTracks.enumerated() {
+            let y = rulerHeight + CGFloat(trackIndex) * trackHeight + 6
+            for clip in track.clips {
+                let clipRect = CGRect(
+                    x: CGFloat(clip.timelineStart / duration) * laneWidth,
+                    y: y,
+                    width: max(6, CGFloat(clip.duration / duration) * laneWidth),
+                    height: trackHeight - 12
+                )
+                if selectionRect.intersects(clipRect) {
+                    clipIDs.insert(clip.id)
+                }
+            }
+        }
+        return clipIDs
     }
 
     static func frameStep(for direction: MoveCommandDirection) -> Int? {
@@ -749,6 +834,48 @@ struct ProjectTimelineView: View {
         (NSApp.keyWindow ?? NSApp.mainWindow)?.makeFirstResponder(nil)
         #endif
         isTimelineFocused = true
+    }
+
+    private func updateMarqueeSelection(
+        _ value: DragGesture.Value,
+        displayTracks: [TimelineTrack],
+        duration: TimeInterval,
+        laneWidth: CGFloat,
+        contentHeight: CGFloat
+    ) {
+        let dragDistance = hypot(value.translation.width, value.translation.height)
+        guard dragDistance >= 3 else { return }
+
+        if marqueeSelectionRect == nil {
+            focusTimelineKeyboardCommands()
+            marqueeBaseClipIDs = Self.isCommandKeyPressed ? model.selectedTimelineClipIDs : []
+        }
+
+        let selectionRect = Self.marqueeRect(
+            from: value.startLocation,
+            to: value.location,
+            constrainedTo: CGRect(
+                x: 0,
+                y: rulerHeight,
+                width: laneWidth,
+                height: max(0, contentHeight - rulerHeight)
+            )
+        )
+        marqueeSelectionRect = selectionRect
+        let intersectingClipIDs = Self.marqueeClipIDs(
+            in: displayTracks,
+            intersecting: selectionRect,
+            duration: duration,
+            laneWidth: laneWidth,
+            rulerHeight: rulerHeight,
+            trackHeight: trackHeight
+        )
+        model.setTimelineClipSelection(marqueeBaseClipIDs.union(intersectingClipIDs))
+    }
+
+    private func finishMarqueeSelection() {
+        marqueeSelectionRect = nil
+        marqueeBaseClipIDs = []
     }
 
     private func clipTrimHandle(clip: TimelineClip, project: TimelineProject, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some View {

@@ -1048,6 +1048,43 @@ final class StudioModelTests: XCTestCase {
         )
     }
 
+    func testProjectTimelineMarqueeNormalizesBoundsAndFindsIntersectingClips() {
+        let displayTracks = [
+            TimelineTrack(
+                id: "o1",
+                kind: .overlay,
+                name: "O1",
+                clips: [
+                    TimelineClip(id: "overlay", assetID: "fit", timelineStart: 10, duration: 20)
+                ]
+            ),
+            TimelineTrack(
+                id: "v1",
+                kind: .video,
+                name: "V1",
+                clips: [
+                    TimelineClip(id: "video", assetID: "mp4", timelineStart: 60, duration: 10)
+                ]
+            )
+        ]
+        let rect = ProjectTimelineView.marqueeRect(
+            from: CGPoint(x: 320, y: 70),
+            to: CGPoint(x: 90, y: 20),
+            constrainedTo: CGRect(x: 0, y: 24, width: 1_000, height: 96)
+        )
+
+        XCTAssertEqual(rect, CGRect(x: 90, y: 24, width: 230, height: 46))
+        XCTAssertEqual(
+            ProjectTimelineView.marqueeClipIDs(
+                in: displayTracks,
+                intersecting: rect,
+                duration: 100,
+                laneWidth: 1_000
+            ),
+            ["overlay"]
+        )
+    }
+
     func testProjectTimelineArrowKeysMapToSingleFrameSteps() {
         XCTAssertEqual(ProjectTimelineView.frameStep(for: .left), -1)
         XCTAssertEqual(ProjectTimelineView.frameStep(for: .right), 1)
