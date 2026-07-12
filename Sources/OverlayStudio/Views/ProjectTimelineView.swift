@@ -24,7 +24,7 @@ struct ProjectTimelineView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
 
-    private let headerWidth: CGFloat = 164
+    private let headerWidth: CGFloat = 188
     private let rulerHeight: CGFloat = 24
     private let trackHeight: CGFloat = 48
     private let playheadColor = Color(red: 1.0, green: 0.42, blue: 0.34)
@@ -46,6 +46,7 @@ struct ProjectTimelineView: View {
     @State private var isShowingTrackRename = false
     @State private var renamingTrackID: String?
     @State private var trackNameDraft = ""
+    @State private var hoveredTrackID: String?
 
     private static let playheadMarkerID = "timeline.playhead.marker"
 
@@ -125,8 +126,17 @@ struct ProjectTimelineView: View {
 
     private func headerColumn(displayTracks: [TimelineTrack], contentHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
-            Color.clear
+            HStack(spacing: 6) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 9, weight: .semibold))
+                    .accessibilityHidden(true)
+                Text(localization.string("timeline.tracks"))
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 10)
                 .frame(width: headerWidth, height: rulerHeight)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.bar)
                 .overlay(alignment: .bottom) { Divider() }
                 .overlay(alignment: .trailing) { Divider() }
@@ -399,27 +409,26 @@ struct ProjectTimelineView: View {
     // MARK: track row
 
     private func trackHeader(_ track: TimelineTrack) -> some View {
-        HStack(spacing: 7) {
-            Text(trackBadge(track))
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+        HStack(spacing: 8) {
+            Image(systemName: track.kind == .video ? "film" : "waveform.path.ecg")
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(track.kind == .video ? Color.secondary : Color.accentColor)
-                .frame(width: 22, height: 18)
-                .background(
-                    (track.kind == .video ? Color.secondary.opacity(0.16) : ShellStyle.accentSoft),
-                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-                )
+                .frame(width: 20, height: 24)
 
             Button {
                 beginRenaming(track)
             } label: {
                 HStack(spacing: 4) {
                     Text(track.name)
-                        .font(.caption.weight(.semibold))
+                        .font(.system(size: 11, weight: .semibold))
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Image(systemName: "pencil")
-                        .font(.system(size: 8, weight: .semibold))
-                        .fixedSize()
+                    if hoveredTrackID == track.id {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .fixedSize()
+                    }
                 }
                 .foregroundStyle(track.isEnabled ? Color.primary : Color.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -432,7 +441,7 @@ struct ProjectTimelineView: View {
                 model.setTimelineTrackEnabled(id: track.id, isEnabled: !track.isEnabled)
             } label: {
                 Image(systemName: track.isEnabled ? "eye" : "eye.slash")
-                    .frame(width: 16, height: 18)
+                    .frame(width: 24, height: 28)
             }
             .help(localization.string(track.isEnabled ? "timeline.track.disable" : "timeline.track.enable"))
             .accessibilityLabel(localization.string(track.isEnabled ? "timeline.track.disable" : "timeline.track.enable"))
@@ -441,7 +450,7 @@ struct ProjectTimelineView: View {
                 model.setTimelineTrackLocked(id: track.id, isLocked: !track.isLocked)
             } label: {
                 Image(systemName: track.isLocked ? "lock.fill" : "lock.open")
-                    .frame(width: 16, height: 18)
+                    .frame(width: 24, height: 28)
             }
             .help(localization.string(track.isLocked ? "timeline.track.unlock" : "timeline.track.lock"))
             .accessibilityLabel(localization.string(track.isLocked ? "timeline.track.unlock" : "timeline.track.lock"))
@@ -451,7 +460,7 @@ struct ProjectTimelineView: View {
                     model.removeEmptyTimelineTrack(id: track.id)
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .frame(width: 16, height: 18)
+                        .frame(width: 24, height: 28)
                 }
                 .help(localization.string("menu.deleteEmptyTimelineTrack"))
                 .accessibilityLabel(localization.string("menu.deleteEmptyTimelineTrack"))
@@ -465,6 +474,13 @@ struct ProjectTimelineView: View {
         .background(.bar)
         .overlay(alignment: .trailing) { Divider() }
         .overlay(alignment: .bottom) { Divider() }
+        .onHover { isHovering in
+            if isHovering {
+                hoveredTrackID = track.id
+            } else if hoveredTrackID == track.id {
+                hoveredTrackID = nil
+            }
+        }
     }
 
     private func trackLane(_ track: TimelineTrack, project: TimelineProject, duration: TimeInterval, laneWidth: CGFloat) -> some View {
@@ -933,10 +949,6 @@ struct ProjectTimelineView: View {
     }
 
     // MARK: helpers
-
-    private func trackBadge(_ track: TimelineTrack) -> String {
-        track.kind == .video ? "V" : "O"
-    }
 
     private func beginRenaming(_ track: TimelineTrack) {
         renamingTrackID = track.id
