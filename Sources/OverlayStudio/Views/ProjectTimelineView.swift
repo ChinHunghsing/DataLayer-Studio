@@ -139,7 +139,11 @@ struct ProjectTimelineView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(.bar)
                 .overlay(alignment: .bottom) { Divider() }
-                .overlay(alignment: .trailing) { Divider() }
+                .overlay(alignment: .trailing) {
+                    Rectangle()
+                        .fill(Color(nsColor: .separatorColor))
+                        .frame(width: 1)
+                }
             ForEach(displayTracks) { track in
                 trackHeader(track)
             }
@@ -472,7 +476,11 @@ struct ProjectTimelineView: View {
         .padding(.horizontal, 8)
         .frame(width: headerWidth, height: trackHeight)
         .background(.bar)
-        .overlay(alignment: .trailing) { Divider() }
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor))
+                .frame(width: 1)
+        }
         .overlay(alignment: .bottom) { Divider() }
         .onHover { isHovering in
             if isHovering {
