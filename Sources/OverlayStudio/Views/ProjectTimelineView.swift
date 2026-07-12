@@ -109,6 +109,11 @@ struct ProjectTimelineView: View {
                 }
             }
         }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                focusTimelineKeyboardCommands()
+            }
+        )
         .alert(localization.string("timeline.track.rename"), isPresented: $isShowingTrackRename) {
             TextField(localization.string("timeline.track.renamePlaceholder"), text: $trackNameDraft)
             Button(localization.string("common.cancel"), role: .cancel) {
@@ -657,6 +662,7 @@ struct ProjectTimelineView: View {
         .offset(x: x, y: 6 + activeDragVerticalOffset)
         .zIndex(dragClipID == clip.id ? 1 : 0)
         .onTapGesture {
+            focusTimelineKeyboardCommands()
             model.selectTimelineClip(
                 id: clip.id,
                 extendingSelection: Self.isCommandKeyPressed
@@ -714,6 +720,12 @@ struct ProjectTimelineView: View {
                 guard kind == .video, let assetID = asset?.id else { return }
                 model.loadVideoWaveformIfNeeded(assetID: assetID)
             }
+    }
+
+    private func focusTimelineKeyboardCommands() {
+        #if canImport(AppKit)
+        (NSApp.keyWindow ?? NSApp.mainWindow)?.makeFirstResponder(nil)
+        #endif
     }
 
     private func clipTrimHandle(clip: TimelineClip, project: TimelineProject, isStart: Bool, laneWidth: CGFloat, duration: TimeInterval) -> some View {
