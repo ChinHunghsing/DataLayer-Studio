@@ -22,6 +22,15 @@ assets/resourses/
 *.mkv
 *.MKV
 *.zip
+*.pkg
+*.dmg
+*.ipa
+*.app
+*.app/
+*.dSYM
+*.dSYM/
+*.xcresult
+*.xcresult/
 *.cer
 *.certSigningRequest
 *.crt
@@ -61,6 +70,7 @@ assets/resourses/
 # Private Docs
 DataLayer-Studio-handoff.md
 DataLayer-Studio-UX-Review.md
+docs/ios-handover.md
 
 # Local purchase notification webhook deployment.
 cloudflare/app-store-webhook/
