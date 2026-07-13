@@ -30,6 +30,10 @@ struct ContentView: View {
                 editorLayout
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            StudioToastOverlay(toasts: model.toasts, dismiss: model.dismissToast)
+                .padding(16)
+        }
         .onChange(of: previewInvalidationState) { _ in model.refreshOverlayOrPreview() }
         .onAppear {
             model.setResolvedLanguage(localization.resolvedLanguage)

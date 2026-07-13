@@ -45,6 +45,10 @@ struct OutputPanelView: View {
                 configurationContent
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            StudioToastOverlay(toasts: model.toasts, dismiss: model.dismissToast)
+                .padding(16)
+        }
         .frame(width: 860, height: 620)
         .interactiveDismissDisabled(model.isExporting)
         .alert(localization.string("exportDialog.cancelTitle"), isPresented: $isCancelExportConfirmationPresented) {
@@ -121,8 +125,16 @@ struct OutputPanelView: View {
             }
             .listStyle(.sidebar)
             .onChange(of: selectedPresetID) { id in
-                guard let id else { return }
+                guard let id,
+                      let preset = model.exportPresetsForDisplay.first(where: { $0.id == id }) else { return }
                 model.applyExportPreset(id: id)
+                let name = preset.isBuiltIn
+                    ? localization.string("exportPreset.\(preset.id)")
+                    : preset.name
+                model.showToast(
+                    localization.string("status.appliedExportPreset", name),
+                    kind: .success
+                )
             }
 
             Divider()

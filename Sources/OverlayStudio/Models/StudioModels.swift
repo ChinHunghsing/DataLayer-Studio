@@ -21,6 +21,18 @@ struct DebugLogEntry: Identifiable, Equatable {
     var message: String
 }
 
+struct StudioToast: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case success
+        case info
+        case warning
+    }
+
+    let id = UUID()
+    var message: String
+    var kind: Kind
+}
+
 enum SyncMode: String, CaseIterable, Identifiable {
     case offset
     case fitStart

@@ -1668,6 +1668,19 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.status, AppLocalizer.string("status.chooseVideoAndFit", language: .simplifiedChinese))
     }
 
+    func testToastQueueKeepsThreeNewestMessagesAndSupportsDismissal() {
+        let model = StudioModel()
+        model.showToast("one")
+        model.showToast("two")
+        model.showToast("three")
+        model.showToast("four")
+
+        XCTAssertEqual(model.toasts.map(\.message), ["two", "three", "four"])
+        let middleID = model.toasts[1].id
+        model.dismissToast(id: middleID)
+        XCTAssertEqual(model.toasts.map(\.message), ["two", "four"])
+    }
+
     func testFitLoadFailureSurfacesInlineErrorWithRetrySource() async throws {
         let model = StudioModel()
         let missingURL = URL(fileURLWithPath: "/nonexistent/datalayer-studio-tests/missing.fit")

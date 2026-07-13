@@ -282,6 +282,7 @@ final class StudioModel: ObservableObject {
     @Published var openWeatherAPIKey = OpenWeatherKeyStore.load()
     @Published var weatherRefreshMessage: String?
     @Published var debugLogEntries: [DebugLogEntry] = []
+    @Published private(set) var toasts: [StudioToast] = []
 
     private var resolvedLanguage = AppLocalizer.resolvedLanguage(for: AppLocalizer.storedSelection())
     private var statusMessage: (key: String, arguments: [CVarArg]) = ("status.chooseVideoAndFit", [])
@@ -1090,10 +1091,11 @@ final class StudioModel: ObservableObject {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return false }
 
-        let preset = ExportPreset(
-            id: userExportPresets.first {
+        let existingID = userExportPresets.first {
                 $0.name.caseInsensitiveCompare(name) == .orderedSame
-            }?.id ?? UUID().uuidString,
+            }?.id
+        let preset = ExportPreset(
+            id: existingID ?? UUID().uuidString,
             name: name,
             resolution: .fixed(width: outputWidth, height: outputHeight),
             frameRate: .fixed(outputFPS),
@@ -1105,13 +1107,20 @@ final class StudioModel: ObservableObject {
         userExportPresets.removeAll { $0.id == preset.id }
         userExportPresets.append(preset)
         persistStudioPreferences()
+        setStatusAndToast(
+            .success,
+            existingID == nil ? "status.savedExportPreset" : "status.updatedExportPreset",
+            name
+        )
         return true
     }
 
     func deleteUserExportPreset(id: String) {
         guard userExportPresets.contains(where: { $0.id == id }) else { return }
+        let name = userExportPresets.first { $0.id == id }?.name ?? ""
         userExportPresets.removeAll { $0.id == id }
         persistStudioPreferences()
+        setStatusAndToast(.success, "status.deletedExportPreset", name)
     }
 
     @discardableResult
@@ -1128,7 +1137,7 @@ final class StudioModel: ObservableObject {
             layoutPresets[index].layout = layout.sanitized
             layoutPresets[index].updatedAt = now
             persistLayoutPresets()
-            setStatus("status.updatedPreset", name)
+            setStatusAndToast(.success, "status.updatedPreset", name)
             return true
         }
 
@@ -1141,7 +1150,7 @@ final class StudioModel: ObservableObject {
         )
         layoutPresets.append(preset)
         persistLayoutPresets()
-        setStatus("status.savedPreset", name)
+        setStatusAndToast(.success, "status.savedPreset", name)
         return true
     }
 
@@ -1154,7 +1163,7 @@ final class StudioModel: ObservableObject {
             selectedElementID = Self.firstSelectableElementID(in: layout)
             selectedMediaAssetID = nil
         }
-        setStatus("status.appliedPreset", preset.name)
+        setStatusAndToast(.success, "status.appliedPreset", preset.name)
         refreshOverlayOrPreview()
     }
 
@@ -1162,7 +1171,7 @@ final class StudioModel: ObservableObject {
         guard let preset = layoutPresets.first(where: { $0.id == id }) else { return }
         defaultLayoutPresetID = id
         persistLayoutPresets()
-        setStatus("status.defaultPreset", preset.name)
+        setStatusAndToast(.success, "status.defaultPreset", preset.name)
     }
 
     func deleteLayoutPreset(id: String) {
@@ -1172,7 +1181,7 @@ final class StudioModel: ObservableObject {
             defaultLayoutPresetID = nil
         }
         persistLayoutPresets()
-        setStatus("status.deletedPreset", preset.name)
+        setStatusAndToast(.success, "status.deletedPreset", preset.name)
     }
 
     func exportLayoutPresets() {
@@ -1195,7 +1204,7 @@ final class StudioModel: ObservableObject {
             let state = LayoutPresetState(presets: layoutPresets, defaultPresetID: defaultLayoutPresetID)
             let data = try encoder.encode(state.sanitized)
             try data.write(to: url, options: .atomic)
-            setStatus("status.exportedPresets", layoutPresets.count)
+            setStatusAndToast(.success, "status.exportedPresets", layoutPresets.count)
         } catch {
             setStatus("status.presetExportError", error.localizedDescription)
         }
@@ -1237,7 +1246,7 @@ final class StudioModel: ObservableObject {
             if importedCount == 0 {
                 setStatus("status.noPresetsImported")
             } else {
-                setStatus("status.importedPresets", importedCount)
+                setStatusAndToast(.success, "status.importedPresets", importedCount)
             }
             return importedCount
         } catch {
@@ -1397,7 +1406,7 @@ final class StudioModel: ObservableObject {
             }
             adoptTimelineProjectURL(url)
             markTimelineProjectClean()
-            setStatus("status.timelineProjectSaved", url.lastPathComponent)
+            setStatusAndToast(.success, "status.timelineProjectSaved", url.lastPathComponent)
             return true
         } catch {
             if didStartAccessing {
@@ -5321,11 +5330,13 @@ final class StudioModel: ObservableObject {
     func copySelectedElementStyle() {
         guard let selectedElement else { return }
         copiedElementStyleSource = selectedElement
+        setStatusAndToast(.info, "status.copiedElementStyle")
     }
 
     func copyElementStyle(id: String) {
         guard let element = layout.elements.first(where: { $0.id == id }) else { return }
         copiedElementStyleSource = element
+        setStatusAndToast(.info, "status.copiedElementStyle")
     }
 
     func pasteCopiedElementStyle() {
@@ -5339,6 +5350,7 @@ final class StudioModel: ObservableObject {
                 }
             }
         }
+        setStatusAndToast(.success, "status.pastedElementStyle")
         refreshOverlayOrPreview()
     }
 
@@ -6184,6 +6196,28 @@ final class StudioModel: ObservableObject {
     private func setStatus(_ key: String, _ arguments: CVarArg...) {
         statusMessage = (key, arguments)
         status = AppLocalizer.string(key, language: resolvedLanguage, arguments: arguments)
+    }
+
+    private func setStatusAndToast(_ kind: StudioToast.Kind, _ key: String, _ arguments: CVarArg...) {
+        statusMessage = (key, arguments)
+        status = AppLocalizer.string(key, language: resolvedLanguage, arguments: arguments)
+        showToast(status, kind: kind)
+    }
+
+    func showToast(_ message: String, kind: StudioToast.Kind = .info) {
+        let toast = StudioToast(message: message, kind: kind)
+        toasts.append(toast)
+        if toasts.count > 3 {
+            toasts.removeFirst(toasts.count - 3)
+        }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            self?.dismissToast(id: toast.id)
+        }
+    }
+
+    func dismissToast(id: UUID) {
+        toasts.removeAll { $0.id == id }
     }
 
     private func formatStatusDuration(_ time: TimeInterval) -> String {
