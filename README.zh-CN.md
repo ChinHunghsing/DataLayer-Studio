@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/appstore/v0.2.0/zh-Hans/desktop@2x/01-preview-overlay.png" alt="DataLayer Studio 编辑器界面，展示配速、心率、步频与轨迹等数据浮层与跑步素材实时同步预览" width="100%">
+  <img src="assets/appstore/v0.3.0/zh-Hans/desktop@2x/01-multicamera-timeline.png" alt="DataLayer Studio 0.3 编辑器界面，展示多机位时间线与运动数据浮层同步预览" width="100%">
 </p>
 
 <p align="center">
@@ -98,11 +98,11 @@ DataLayer Studio 可以把跑步运动数据做成清爽的视频数据层，适
 
 ## App Store 截图
 
-从素材到可直接发布的数据浮层，只需三步：在时间线上对齐素材、排布数据组件、导出透明数据层。
+从多机位素材到可复用的数据浮层：对齐重叠片段、添加并排布数据组件，再把布局保存为模板。
 
-| 1 · 时间线对齐 | 2 · 排布组件 | 3 · 导出透明层 |
+| 1 · 对齐多机位 | 2 · 添加组件 | 3 · 复用模板 |
 | --- | --- | --- |
-| <img src="assets/appstore/v0.2.0/zh-Hans/desktop/01-preview-overlay.png" alt="DataLayer Studio 实时浮层预览" width="100%"> | <img src="assets/appstore/v0.2.0/zh-Hans/desktop/02-arrange-gauges.png" alt="DataLayer Studio 浮层排布界面" width="100%"> | <img src="assets/appstore/v0.2.0/zh-Hans/desktop/03-export-alpha.png" alt="DataLayer Studio 透明浮层导出界面" width="100%"> |
+| <img src="assets/appstore/v0.3.0/zh-Hans/desktop/01-multicamera-timeline.png" alt="DataLayer Studio 多机位时间线" width="100%"> | <img src="assets/appstore/v0.3.0/zh-Hans/desktop/02-components-preview.png" alt="DataLayer Studio 组件库与实时预览" width="100%"> | <img src="assets/appstore/v0.3.0/zh-Hans/desktop/03-reusable-templates.png" alt="DataLayer Studio 可复用布局模板" width="100%"> |
 
 ## 赞助
 

@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/app-showcase.png" alt="DataLayer Studio editor showing a live overlay preview with pace, heart rate, cadence, and route data synced to running footage" width="100%">
+  <img src="assets/appstore/v0.3.0/en-US/desktop@2x/01-multicamera-timeline.png" alt="DataLayer Studio 0.3 editor with a synchronized multi-camera timeline and telemetry overlay preview" width="100%">
 </p>
 
 <p align="center">
@@ -104,11 +104,11 @@ burned in.
 
 ## App Store screenshots
 
-From footage to a broadcast-ready overlay in three steps: align clips on the timeline, arrange the data widgets, export a transparent layer.
+Build a reusable overlay workflow in three views: align overlapping camera clips, add and arrange telemetry components, then save the layout as a template.
 
-| 1 · Align timeline | 2 · Arrange widgets | 3 · Export alpha |
+| 1 · Align multiple cameras | 2 · Add components | 3 · Reuse templates |
 | --- | --- | --- |
-| <img src="assets/appstore/v0.2.0/en-US/desktop/01-preview-overlay.png" alt="DataLayer Studio live overlay preview" width="100%"> | <img src="assets/appstore/v0.2.0/en-US/desktop/02-arrange-gauges.png" alt="DataLayer Studio gauge arrangement screen" width="100%"> | <img src="assets/appstore/v0.2.0/en-US/desktop/03-export-alpha.png" alt="DataLayer Studio alpha overlay export screen" width="100%"> |
+| <img src="assets/appstore/v0.3.0/en-US/desktop/01-multicamera-timeline.png" alt="DataLayer Studio multi-camera timeline" width="100%"> | <img src="assets/appstore/v0.3.0/en-US/desktop/02-components-preview.png" alt="DataLayer Studio component library and live preview" width="100%"> | <img src="assets/appstore/v0.3.0/en-US/desktop/03-reusable-templates.png" alt="DataLayer Studio reusable layout templates" width="100%"> |
 
 ## Support
 
