@@ -15,14 +15,8 @@ struct LayoutPresetThumbnailView: View {
                     componentGlyph(for: element)
                         .frame(width: size.width, height: size.height)
                         .offset(
-                            x: min(
-                                max(0, proxy.size.width - size.width),
-                                max(0, CGFloat(element.frame.x) * proxy.size.width)
-                            ),
-                            y: min(
-                                max(0, proxy.size.height - size.height),
-                                max(0, CGFloat(element.frame.y) * proxy.size.height)
-                            )
+                            x: CGFloat(element.frame.x) * proxy.size.width,
+                            y: CGFloat(element.frame.y) * proxy.size.height
                         )
                 }
             }
