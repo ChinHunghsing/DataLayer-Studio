@@ -5,17 +5,25 @@ struct StudioPreferenceState: Codable, Equatable {
     var showGrid: Bool
     var safeAreaInsetPercent: Double
     var distanceUnit: OverlayDistanceUnit
+    var userExportPresets: [ExportPreset]
 
     static let `default` = StudioPreferenceState(
         showGrid: false,
         safeAreaInsetPercent: 5,
-        distanceUnit: .kilometers
+        distanceUnit: .kilometers,
+        userExportPresets: []
     )
 
-    init(showGrid: Bool, safeAreaInsetPercent: Double, distanceUnit: OverlayDistanceUnit) {
+    init(
+        showGrid: Bool,
+        safeAreaInsetPercent: Double,
+        distanceUnit: OverlayDistanceUnit,
+        userExportPresets: [ExportPreset] = []
+    ) {
         self.showGrid = showGrid
         self.safeAreaInsetPercent = safeAreaInsetPercent
         self.distanceUnit = distanceUnit
+        self.userExportPresets = userExportPresets
     }
 
     // Decoded manually so preferences saved by older versions (which lack
@@ -27,13 +35,19 @@ struct StudioPreferenceState: Codable, Equatable {
             ?? Self.default.safeAreaInsetPercent
         distanceUnit = try container.decodeIfPresent(OverlayDistanceUnit.self, forKey: .distanceUnit)
             ?? Self.default.distanceUnit
+        userExportPresets = try container.decodeIfPresent([ExportPreset].self, forKey: .userExportPresets) ?? []
     }
 
     var sanitized: StudioPreferenceState {
         StudioPreferenceState(
             showGrid: showGrid,
             safeAreaInsetPercent: Self.sanitizedSafeAreaInsetPercent(safeAreaInsetPercent),
-            distanceUnit: distanceUnit
+            distanceUnit: distanceUnit,
+            userExportPresets: userExportPresets.filter {
+                !$0.isBuiltIn
+                    && !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    && $0.codec.exportMode == $0.exportMode
+            }
         )
     }
 

@@ -257,6 +257,7 @@ final class StudioModel: ObservableObject {
     @Published var layoutPresets: [LayoutPreset]
     @Published var defaultLayoutPresetID: String?
     @Published var layoutPresetSyncStatus: LayoutPresetSyncStatus = .localOnly
+    @Published private(set) var userExportPresets: [ExportPreset] = []
 
     @Published var showGrid = false {
         didSet { persistStudioPreferences() }
@@ -390,6 +391,7 @@ final class StudioModel: ObservableObject {
         self.distanceUnit = preferenceState.distanceUnit
         self.showGrid = preferenceState.showGrid
         self.canvasSafeAreaInsetPercent = preferenceState.safeAreaInsetPercent
+        self.userExportPresets = preferenceState.userExportPresets
         rebuildCurrentTimelineProject()
         markTimelineProjectClean()
         observeLayoutPresetCloudChanges()
@@ -1052,6 +1054,64 @@ final class StudioModel: ObservableObject {
 
         guard let preset = OutputFrameRatePreset.fixed.first(where: { $0.id == id }) else { return }
         setOutputFPS(preset.framesPerSecond)
+    }
+
+    var exportPresetsForDisplay: [ExportPreset] {
+        ExportPreset.builtIn + userExportPresets.sorted {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+    }
+
+    func applyExportPreset(id: String) {
+        guard !isExporting,
+              let preset = exportPresetsForDisplay.first(where: { $0.id == id }) else { return }
+
+        exportMode = preset.exportMode
+        codec = preset.codec.exportMode == preset.exportMode ? preset.codec : preset.exportMode.defaultCodec
+        switch preset.resolution {
+        case .source:
+            applyResolutionPreset(id: OutputResolutionPreset.sourceID)
+        case let .fixed(width, height):
+            setOutputWidth(width)
+            setOutputHeight(height)
+        }
+        switch preset.frameRate {
+        case .source:
+            applyFrameRatePreset(id: OutputFrameRatePreset.sourceID)
+        case let .fixed(framesPerSecond):
+            setOutputFPS(framesPerSecond)
+        }
+        setBitRateKbps(preset.bitRateKbps)
+        exportRenderScope = preset.renderScope
+    }
+
+    @discardableResult
+    func saveCurrentExportPreset(named rawName: String) -> Bool {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return false }
+
+        let preset = ExportPreset(
+            id: userExportPresets.first {
+                $0.name.caseInsensitiveCompare(name) == .orderedSame
+            }?.id ?? UUID().uuidString,
+            name: name,
+            resolution: .fixed(width: outputWidth, height: outputHeight),
+            frameRate: .fixed(outputFPS),
+            exportMode: exportMode,
+            codec: codec,
+            bitRateKbps: bitRateKbps,
+            renderScope: exportRenderScope
+        )
+        userExportPresets.removeAll { $0.id == preset.id }
+        userExportPresets.append(preset)
+        persistStudioPreferences()
+        return true
+    }
+
+    func deleteUserExportPreset(id: String) {
+        guard userExportPresets.contains(where: { $0.id == id }) else { return }
+        userExportPresets.removeAll { $0.id == id }
+        persistStudioPreferences()
     }
 
     @discardableResult
@@ -6194,7 +6254,8 @@ final class StudioModel: ObservableObject {
         preferenceStore.save(StudioPreferenceState(
             showGrid: showGrid,
             safeAreaInsetPercent: canvasSafeAreaInsetPercent,
-            distanceUnit: distanceUnit
+            distanceUnit: distanceUnit,
+            userExportPresets: userExportPresets
         ))
     }
 
@@ -6535,7 +6596,7 @@ final class StudioModel: ObservableObject {
 
 /// DaVinci-style render scope: render the export range as one file, or every clip in the range
 /// as its own file.
-enum ExportRenderScope: String, CaseIterable, Identifiable {
+enum ExportRenderScope: String, Codable, CaseIterable, Identifiable {
     case singleClip
     case individualClips
 

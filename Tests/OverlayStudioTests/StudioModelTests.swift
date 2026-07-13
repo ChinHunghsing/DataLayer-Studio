@@ -1057,6 +1057,63 @@ final class StudioModelTests: XCTestCase {
         let loaded = StudioPreferenceStore(defaults: defaults, appDomains: [legacyDomain]).load()
 
         XCTAssertEqual(loaded, legacyState)
+        XCTAssertTrue(loaded.userExportPresets.isEmpty)
+    }
+
+    func testExportPresetStoreRoundTripsUserPresetsAndRejectsBuiltIns() throws {
+        let suiteName = "run.libo.datalayer-studio.export-preset-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = StudioPreferenceStore(defaults: defaults, appDomains: [])
+        let userPreset = ExportPreset(
+            id: "custom",
+            name: "My Export",
+            resolution: .fixed(width: 2_560, height: 1_440),
+            frameRate: .fixed(59.94),
+            exportMode: .video,
+            codec: .hevc,
+            bitRateKbps: 24_000,
+            renderScope: .individualClips
+        )
+        let builtInPreset = ExportPreset.builtIn[0]
+
+        store.save(StudioPreferenceState(
+            showGrid: false,
+            safeAreaInsetPercent: 5,
+            distanceUnit: .kilometers,
+            userExportPresets: [userPreset, builtInPreset]
+        ))
+
+        XCTAssertEqual(store.load().userExportPresets, [userPreset])
+    }
+
+    func testSavingAndApplyingExportPresetUpdatesExistingName() {
+        let model = StudioModel()
+        model.exportMode = .video
+        model.codec = .h264
+        model.setOutputWidth(1_280)
+        model.setOutputHeight(720)
+        model.setOutputFPS(25)
+        model.setBitRateKbps(8_000)
+        XCTAssertTrue(model.saveCurrentExportPreset(named: "  Social  "))
+        let presetID = model.userExportPresets[0].id
+
+        model.setOutputWidth(1_920)
+        XCTAssertTrue(model.saveCurrentExportPreset(named: "social"))
+        XCTAssertEqual(model.userExportPresets.count, 1)
+        XCTAssertEqual(model.userExportPresets[0].id, presetID)
+
+        model.setOutputWidth(640)
+        model.applyExportPreset(id: presetID)
+        XCTAssertEqual(model.outputWidth, 1_920)
+        XCTAssertEqual(model.outputHeight, 720)
+        XCTAssertEqual(model.outputFPS, 25)
+        XCTAssertEqual(model.bitRateKbps, 8_000)
+        XCTAssertEqual(model.exportMode, .video)
+        XCTAssertEqual(model.codec, .h264)
+
+        model.deleteUserExportPreset(id: presetID)
+        XCTAssertTrue(model.userExportPresets.isEmpty)
     }
 
     func testPreviewTimingConstantsStayResponsive() {

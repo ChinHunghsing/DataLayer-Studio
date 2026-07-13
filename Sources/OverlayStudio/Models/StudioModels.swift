@@ -80,6 +80,84 @@ struct OutputFrameRatePreset: Identifiable, Hashable {
     ]
 }
 
+enum ExportPresetResolution: Codable, Equatable {
+    case source
+    case fixed(width: Int, height: Int)
+}
+
+enum ExportPresetFrameRate: Codable, Equatable {
+    case source
+    case fixed(Double)
+}
+
+struct ExportPreset: Codable, Equatable, Identifiable {
+    static let builtInPrefix = "builtin."
+
+    var id: String
+    var name: String
+    var resolution: ExportPresetResolution
+    var frameRate: ExportPresetFrameRate
+    var exportMode: OverlayExportMode
+    var codec: OverlayVideoCodec
+    var bitRateKbps: Int
+    var renderScope: ExportRenderScope
+
+    var isBuiltIn: Bool { id.hasPrefix(Self.builtInPrefix) }
+
+    static let builtIn: [ExportPreset] = [
+        ExportPreset(
+            id: "\(builtInPrefix)overlay-prores-4444",
+            name: "Transparent Overlay · ProRes 4444",
+            resolution: .source,
+            frameRate: .source,
+            exportMode: .overlay,
+            codec: .proRes4444,
+            bitRateKbps: 12_000,
+            renderScope: .singleClip
+        ),
+        ExportPreset(
+            id: "\(builtInPrefix)overlay-hevc-alpha",
+            name: "Transparent Overlay · HEVC",
+            resolution: .source,
+            frameRate: .source,
+            exportMode: .overlay,
+            codec: .hevcAlpha,
+            bitRateKbps: 12_000,
+            renderScope: .singleClip
+        ),
+        ExportPreset(
+            id: "\(builtInPrefix)video-4k-hevc",
+            name: "Composited Video · 4K HEVC",
+            resolution: .fixed(width: 3_840, height: 2_160),
+            frameRate: .source,
+            exportMode: .video,
+            codec: .hevc,
+            bitRateKbps: 40_000,
+            renderScope: .singleClip
+        ),
+        ExportPreset(
+            id: "\(builtInPrefix)video-1080p-h264",
+            name: "Composited Video · 1080p H.264",
+            resolution: .fixed(width: 1_920, height: 1_080),
+            frameRate: .source,
+            exportMode: .video,
+            codec: .h264,
+            bitRateKbps: 12_000,
+            renderScope: .singleClip
+        ),
+        ExportPreset(
+            id: "\(builtInPrefix)video-vertical-4k-hevc",
+            name: "Vertical Video · 4K HEVC",
+            resolution: .fixed(width: 2_160, height: 3_840),
+            frameRate: .source,
+            exportMode: .video,
+            codec: .hevc,
+            bitRateKbps: 35_000,
+            renderScope: .singleClip
+        )
+    ]
+}
+
 struct ComponentBaseSize {
     static func size(for id: OverlayComponentID) -> CGSize {
         switch id {
