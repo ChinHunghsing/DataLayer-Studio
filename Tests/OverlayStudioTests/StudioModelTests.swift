@@ -439,14 +439,12 @@ final class StudioModelTests: XCTestCase {
         XCTAssertFalse(model.canAddElement(kind: .heartRate))
     }
 
-    func testAddingWeatherElementWithoutAPIKeyRequestsPrompt() {
+    func testAddingWeatherElementWithoutAPIKeyDoesNotRequirePrompt() {
         let model = StudioModel()
         model.openWeatherAPIKey = "   "
 
         model.addElement(kind: .weather)
 
-        XCTAssertTrue(model.isWeatherAPIKeyPromptPresented)
-        model.dismissWeatherAPIKeyPrompt()
         XCTAssertFalse(model.isWeatherAPIKeyPromptPresented)
     }
 
@@ -799,6 +797,55 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(exportSeries[activityURL.path]?.samples.last?.weatherTemperatureCelsius, 22)
     }
 
+    func testClearingOneManualWeatherValueLoadsItsAPIFallbackAndKeepsOtherManualValue() async throws {
+        let cacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("StudioModelManualWeatherTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheDirectory) }
+        let service = OpenWeatherService(cacheDirectory: cacheDirectory) { _ in
+            Data(#"{"data":[{"dt":3600,"temp":22,"humidity":58,"weather":[{"main":"Clear"}]}]}"#.utf8)
+        }
+        let model = StudioModel(openWeatherService: service)
+        let activityURL = URL(fileURLWithPath: "/tmp/manual-weather-activity.fit")
+        model.fitURL = activityURL
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(
+                elapsed: 0,
+                date: Date(timeIntervalSince1970: 3_900),
+                latitude: 35.6812,
+                longitude: 139.7671
+            )
+        ])
+        model.addElement(kind: .weather)
+        let weatherID = try XCTUnwrap(model.selectedElementID)
+        model.updateElement(weatherID) { element in
+            element.customization.manualWeatherTemperatureCelsius = 31
+            element.customization.manualWeatherHumidityPercent = 72
+            element.customization.iconOverride = OverlayWeatherIcon.clear.rawValue
+        }
+        model.openWeatherAPIKey = "test-key"
+
+        model.updateElement(weatherID) { element in
+            element.customization.manualWeatherHumidityPercent = nil
+        }
+
+        try await waitUntil {
+            model.series?.samples.first?.weatherHumidityPercent == 58
+        }
+        let element = try XCTUnwrap(model.layout.elements.first { $0.id == weatherID })
+        let sample = try XCTUnwrap(model.series?.samples.first)
+        XCTAssertEqual(
+            element.customization.resolvedWeatherTemperatureCelsius(
+                apiValue: sample.weatherTemperatureCelsius,
+                activityValue: sample.temperatureCelsius
+            ),
+            31
+        )
+        XCTAssertEqual(
+            element.customization.resolvedWeatherHumidityPercent(apiValue: sample.weatherHumidityPercent),
+            58
+        )
+    }
+
     func testWeatherExportConfirmationIsRequiredOnlyForUnreadyVisibleWeatherGauge() {
         let activityURL = URL(fileURLWithPath: "/tmp/weather-export.fit")
         let asset = MediaAsset(
@@ -834,8 +881,8 @@ final class StudioModelTests: XCTestCase {
             TelemetrySample(elapsed: 20)
         ])
         let loadedSeries = TelemetrySeries(samples: [
-            TelemetrySample(elapsed: 0, weatherTemperatureCelsius: 22),
-            TelemetrySample(elapsed: 20, weatherTemperatureCelsius: 22)
+            TelemetrySample(elapsed: 0, weatherTemperatureCelsius: 22, weatherHumidityPercent: 58),
+            TelemetrySample(elapsed: 20, weatherTemperatureCelsius: 22, weatherHumidityPercent: 58)
         ])
         var hiddenWeatherProject = project
         hiddenWeatherProject.tracks[0].clips[0].layout?.elements[0].frame.isVisible = false
@@ -870,6 +917,38 @@ final class StudioModelTests: XCTestCase {
         ))
         XCTAssertFalse(StudioModel.requiresWeatherExportConfirmation(
             project: hiddenWeatherProject,
+            telemetrySeriesByAssetID: [asset.id: rawSeries],
+            timelineStart: 0,
+            duration: 20,
+            isWeatherLoading: false
+        ))
+
+        var manualWeatherProject = project
+        manualWeatherProject.tracks[0].clips[0].layout?.elements[0].customization.manualWeatherTemperatureCelsius = 30
+        manualWeatherProject.tracks[0].clips[0].layout?.elements[0].customization.manualWeatherHumidityPercent = 65
+        XCTAssertFalse(StudioModel.requiresWeatherExportConfirmation(
+            project: manualWeatherProject,
+            telemetrySeriesByAssetID: [asset.id: rawSeries],
+            timelineStart: 0,
+            duration: 20,
+            isWeatherLoading: false
+        ))
+
+        var hybridWeatherProject = project
+        hybridWeatherProject.tracks[0].clips[0].layout?.elements[0].customization.manualWeatherTemperatureCelsius = 30
+        XCTAssertFalse(StudioModel.requiresWeatherExportConfirmation(
+            project: hybridWeatherProject,
+            telemetrySeriesByAssetID: [asset.id: loadedSeries],
+            timelineStart: 0,
+            duration: 20,
+            isWeatherLoading: false
+        ))
+
+        var temperatureOnlyProject = project
+        temperatureOnlyProject.tracks[0].clips[0].layout?.elements[0].customization.manualWeatherTemperatureCelsius = 30
+        temperatureOnlyProject.tracks[0].clips[0].layout?.elements[0].customization.showsWeatherHumidity = false
+        XCTAssertFalse(StudioModel.requiresWeatherExportConfirmation(
+            project: temperatureOnlyProject,
             telemetrySeriesByAssetID: [asset.id: rawSeries],
             timelineStart: 0,
             duration: 20,

@@ -5108,11 +5108,6 @@ final class StudioModel: ObservableObject {
             selectedMediaAssetID = nil
             clearTimelineClipSelection()
         }
-        if kind == .weather,
-           openWeatherAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            isWeatherAPIKeyPromptPresented = true
-            addDebugLog(.weather, "Weather gauge added without an OpenWeather key")
-        }
         refreshOverlayOrPreview()
     }
 
@@ -5299,6 +5294,9 @@ final class StudioModel: ObservableObject {
         customization.valuePrecision = target.customization.valuePrecision
         customization.gaugeMinimum = target.customization.gaugeMinimum
         customization.gaugeMaximum = target.customization.gaugeMaximum
+        customization.manualWeatherTemperatureCelsius = target.customization.manualWeatherTemperatureCelsius
+        customization.manualWeatherHumidityPercent = target.customization.manualWeatherHumidityPercent
+        customization.showsWeatherHumidity = target.customization.showsWeatherHumidity
         target.customization = customization
     }
 
@@ -5322,15 +5320,54 @@ final class StudioModel: ObservableObject {
 
     func updateElement(_ id: String, refreshPreview shouldRefreshPreview: Bool = true, _ update: (inout OverlayElement) -> Void) {
         guard !isExporting else { return }
+        let previousWeatherRequirements = layout.elements
+            .first(where: { $0.id == id })
+            .flatMap(Self.weatherFallbackRequirements)
         performLayoutChange("undo.editElement", coalescing: true) {
             layout.updateElement(id: id, update)
         }
+        let updatedElement = layout.elements.first(where: { $0.id == id })
         if shouldRefreshPreview, !layout.elements.contains(where: { $0.id == selectedElementID }) {
             selectedElementID = layout.elements.first?.id
         }
         if shouldRefreshPreview {
             refreshOverlayOrPreview()
         }
+        if let updatedElement,
+           previousWeatherRequirements != Self.weatherFallbackRequirements(for: updatedElement) {
+            loadOpenWeatherForFallbackIfNeeded(for: updatedElement)
+        }
+    }
+
+    private struct WeatherFallbackRequirements: Equatable {
+        var temperature: Bool
+        var humidity: Bool
+        var summary: Bool
+
+        var isNeeded: Bool { temperature || humidity || summary }
+    }
+
+    private static func weatherFallbackRequirements(for element: OverlayElement) -> WeatherFallbackRequirements? {
+        guard element.kind == .weather else { return nil }
+        let icon = element.customization.iconOverride.flatMap(OverlayWeatherIcon.init(rawValue:)) ?? .auto
+        return WeatherFallbackRequirements(
+            temperature: element.customization.manualWeatherTemperatureCelsius == nil,
+            humidity: element.customization.weatherHumidityIsVisible
+                && element.customization.manualWeatherHumidityPercent == nil,
+            summary: element.customization.showsIcon && icon == .auto
+        )
+    }
+
+    private func loadOpenWeatherForFallbackIfNeeded(for element: OverlayElement) {
+        guard Self.weatherFallbackRequirements(for: element)?.isNeeded == true,
+              let currentSeries = series,
+              let fitURL,
+              !openWeatherAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        loadOpenWeatherIfPossible(
+            for: currentSeries,
+            sourceName: fitURL.lastPathComponent,
+            generation: fitLoadGeneration
+        )
     }
 
     func nudgeElement(_ id: String, deltaX: Double, deltaY: Double) {
@@ -5739,20 +5776,28 @@ final class StudioModel: ObservableObject {
               (timelineStart + duration).isFinite else { return false }
 
         let timelineEnd = timelineStart + duration
-        let weatherClips = project.enabledClips(kind: .overlay).filter { clip in
+        let weatherClips = project.enabledClips(kind: .overlay).compactMap { clip -> (TimelineClip, [OverlayElement])? in
             guard clip.timelineEnd > timelineStart,
-                  clip.timelineStart < timelineEnd else { return false }
-            return (clip.layout ?? .default).visibleElements.contains { $0.kind == .weather }
+                  clip.timelineStart < timelineEnd else { return nil }
+            let elements = (clip.layout ?? .default).visibleElements.filter { $0.kind == .weather }
+            return elements.isEmpty ? nil : (clip, elements)
         }
         guard !weatherClips.isEmpty else { return false }
-        if isWeatherLoading { return true }
 
-        return weatherClips.contains { clip in
+        return weatherClips.contains { clip, elements in
             guard let series = telemetrySeriesByAssetID[clip.assetID] else { return true }
-            return !series.samples.contains { sample in
-                sample.weatherTemperatureCelsius != nil
-                    || sample.weatherHumidityPercent != nil
-                    || sample.weatherSummary != nil
+            return elements.contains { element in
+                let needsTemperature = element.customization.manualWeatherTemperatureCelsius == nil
+                let needsHumidity = element.customization.weatherHumidityIsVisible
+                    && element.customization.manualWeatherHumidityPercent == nil
+                if isWeatherLoading && (needsTemperature || needsHumidity) { return true }
+                let hasTemperature = !needsTemperature || series.samples.contains {
+                    $0.weatherTemperatureCelsius != nil || $0.temperatureCelsius != nil
+                }
+                let hasHumidity = !needsHumidity || series.samples.contains {
+                    $0.weatherHumidityPercent != nil
+                }
+                return !hasTemperature || !hasHumidity
             }
         }
     }

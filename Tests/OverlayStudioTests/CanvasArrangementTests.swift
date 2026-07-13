@@ -209,11 +209,17 @@ final class CanvasSelectionTests: XCTestCase {
             element.customization.valueFont = .futuraCondensedExtraBold
             element.customization.labelOverride = "SOURCE"
             element.customization.valuePrecision = 2
+            element.customization.manualWeatherTemperatureCelsius = 35
+            element.customization.manualWeatherHumidityPercent = 80
+            element.customization.showsWeatherHumidity = false
         }
         model.updateElement(ids[1]) { element in
             element.frame.x = 0.62
             element.customization.labelOverride = "TARGET"
             element.customization.valuePrecision = 1
+            element.customization.manualWeatherTemperatureCelsius = 20
+            element.customization.manualWeatherHumidityPercent = 50
+            element.customization.showsWeatherHumidity = true
         }
 
         model.copyElementStyle(id: ids[0])
@@ -226,6 +232,9 @@ final class CanvasSelectionTests: XCTestCase {
         XCTAssertEqual(target?.customization.valueFont, .futuraCondensedExtraBold)
         XCTAssertEqual(target?.customization.labelOverride, "TARGET")
         XCTAssertEqual(target?.customization.valuePrecision, 1)
+        XCTAssertEqual(target?.customization.manualWeatherTemperatureCelsius, 20)
+        XCTAssertEqual(target?.customization.manualWeatherHumidityPercent, 50)
+        XCTAssertEqual(target?.customization.showsWeatherHumidity, true)
         XCTAssertEqual(target?.frame.x, 0.62)
     }
 

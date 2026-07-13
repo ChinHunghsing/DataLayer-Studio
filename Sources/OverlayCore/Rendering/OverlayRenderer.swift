@@ -370,7 +370,7 @@ public final class OverlayRenderer {
         case .legSpringStiffness:
             return ("LSS", formatDecimal(sample.legSpringStiffnessKilonewtonsPerMeter, precision: element.customization.valuePrecision ?? 1), "kN/m")
         case .weather:
-            return ("WEATHER", formatWeatherTemperature(sample), formatWeatherUnit(sample))
+            return ("WEATHER", formatWeatherTemperature(sample, element: element), formatWeatherUnit(sample, element: element))
         default:
             return nil
         }
@@ -1611,15 +1611,19 @@ public final class OverlayRenderer {
         return String(format: "%d:%02d", secondsPerKm / 60, secondsPerKm % 60)
     }
 
-    private func formatWeatherTemperature(_ sample: TelemetrySample) -> String {
-        guard let temperature = sample.weatherTemperatureCelsius ?? sample.temperatureCelsius else { return "--℃" }
+    private func formatWeatherTemperature(_ sample: TelemetrySample, element: OverlayElement) -> String {
+        guard let temperature = element.customization.resolvedWeatherTemperatureCelsius(
+            apiValue: sample.weatherTemperatureCelsius,
+            activityValue: sample.temperatureCelsius
+        ) else { return "--℃" }
         return "\(temperature)℃"
     }
 
-    private func formatWeatherUnit(_ sample: TelemetrySample) -> String {
-        let summary = sample.weatherSummary ?? "Weather"
-        guard let humidity = sample.weatherHumidityPercent else { return summary }
-        return "\(summary)\n\(humidity)%"
+    private func formatWeatherUnit(_ sample: TelemetrySample, element: OverlayElement) -> String {
+        element.customization.weatherUnitText(
+            summary: sample.weatherSummary,
+            apiHumidityPercent: sample.weatherHumidityPercent
+        )
     }
 
     private func formatElapsed(_ elapsed: TimeInterval) -> String {

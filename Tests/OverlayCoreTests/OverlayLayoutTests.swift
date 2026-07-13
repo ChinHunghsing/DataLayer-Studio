@@ -86,6 +86,29 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(OverlayWeatherIcon.icon(for: "Fog"), .fog)
     }
 
+    func testManualWeatherValuesOverrideAPIAndHiddenHumidityUsesSingleLine() {
+        var customization = OverlayElementCustomization(
+            manualWeatherTemperatureCelsius: 31,
+            manualWeatherHumidityPercent: 72
+        )
+
+        XCTAssertEqual(
+            customization.resolvedWeatherTemperatureCelsius(apiValue: 20, activityValue: 18),
+            31
+        )
+        XCTAssertEqual(customization.resolvedWeatherHumidityPercent(apiValue: 55), 72)
+        XCTAssertEqual(
+            customization.weatherUnitText(summary: "Clear", apiHumidityPercent: 55),
+            "Clear\n72%"
+        )
+
+        customization.manualWeatherHumidityPercent = nil
+        XCTAssertEqual(customization.resolvedWeatherHumidityPercent(apiValue: 55), 55)
+
+        customization.showsWeatherHumidity = false
+        XCTAssertEqual(customization.weatherUnitText(summary: "Clear", apiHumidityPercent: 55), "Clear")
+    }
+
     func testCanMoveElementLayerOrder() {
         var layout = OverlayLayout.default
 
@@ -184,6 +207,12 @@ final class OverlayLayoutTests: XCTestCase {
             element.customization.progressKnobScale = 1.7
             element.customization.progressValueMarginScale = 2.4
             element.customization.progressTickCount = 72
+        }
+        layout.elements.append(OverlayElement.defaultElement(kind: .weather, id: "weather-manual"))
+        layout.updateElement(id: "weather-manual") { element in
+            element.customization.manualWeatherTemperatureCelsius = 26
+            element.customization.manualWeatherHumidityPercent = 64
+            element.customization.showsWeatherHumidity = false
         }
 
         let data = try JSONEncoder().encode(layout)

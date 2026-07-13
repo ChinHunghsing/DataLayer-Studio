@@ -284,6 +284,9 @@ public struct OverlayElementCustomization: Codable, Equatable {
     public var progressValueMarginScale: Double?
     public var progressTickCount: Int?
     public var weatherIconSpacingScale: Double?
+    public var manualWeatherTemperatureCelsius: Int?
+    public var manualWeatherHumidityPercent: Int?
+    public var showsWeatherHumidity: Bool?
     public var labelScale: Double
     public var valueScale: Double
     public var unitScale: Double
@@ -328,6 +331,9 @@ public struct OverlayElementCustomization: Codable, Equatable {
         progressValueMarginScale: Double? = nil,
         progressTickCount: Int? = nil,
         weatherIconSpacingScale: Double? = nil,
+        manualWeatherTemperatureCelsius: Int? = nil,
+        manualWeatherHumidityPercent: Int? = nil,
+        showsWeatherHumidity: Bool? = nil,
         labelScale: Double = 1,
         valueScale: Double = 1,
         unitScale: Double = 1,
@@ -371,6 +377,9 @@ public struct OverlayElementCustomization: Codable, Equatable {
         self.progressValueMarginScale = progressValueMarginScale
         self.progressTickCount = progressTickCount
         self.weatherIconSpacingScale = weatherIconSpacingScale
+        self.manualWeatherTemperatureCelsius = manualWeatherTemperatureCelsius
+        self.manualWeatherHumidityPercent = manualWeatherHumidityPercent
+        self.showsWeatherHumidity = showsWeatherHumidity
         self.labelScale = labelScale
         self.valueScale = valueScale
         self.unitScale = unitScale
@@ -424,6 +433,8 @@ public struct OverlayElementCustomization: Codable, Equatable {
         copy.progressValueMarginScale = OverlayLayoutSanitizer.sanitize(progressValueMarginScale, range: 0...4)
         copy.progressTickCount = progressTickCount.map { min(160, max(0, $0)) }
         copy.weatherIconSpacingScale = OverlayLayoutSanitizer.sanitize(weatherIconSpacingScale, range: 0...3)
+        copy.manualWeatherTemperatureCelsius = manualWeatherTemperatureCelsius.map { min(100, max(-100, $0)) }
+        copy.manualWeatherHumidityPercent = manualWeatherHumidityPercent.map { min(100, max(0, $0)) }
         copy.labelScale = OverlayLayoutSanitizer.clamp(labelScale, fallback: 1, range: 0.05...20)
         copy.valueScale = OverlayLayoutSanitizer.clamp(valueScale, fallback: 1, range: 0.05...20)
         copy.unitScale = OverlayLayoutSanitizer.clamp(unitScale, fallback: 1, range: 0.05...20)
@@ -436,6 +447,30 @@ public struct OverlayElementCustomization: Codable, Equatable {
 
     public var panelBorderIsVisible: Bool {
         showsPanelBorder ?? true
+    }
+
+    public var weatherHumidityIsVisible: Bool {
+        showsWeatherHumidity ?? true
+    }
+
+    public func resolvedWeatherTemperatureCelsius(
+        apiValue: Int?,
+        activityValue: Int?
+    ) -> Int? {
+        manualWeatherTemperatureCelsius ?? apiValue ?? activityValue
+    }
+
+    public func resolvedWeatherHumidityPercent(apiValue: Int?) -> Int? {
+        manualWeatherHumidityPercent ?? apiValue
+    }
+
+    public func weatherUnitText(summary: String?, apiHumidityPercent: Int?) -> String {
+        let summary = summary ?? "Weather"
+        guard weatherHumidityIsVisible,
+              let humidity = resolvedWeatherHumidityPercent(apiValue: apiHumidityPercent) else {
+            return summary
+        }
+        return "\(summary)\n\(humidity)%"
     }
 }
 

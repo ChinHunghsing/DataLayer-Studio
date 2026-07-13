@@ -580,8 +580,8 @@ struct CanvasElementGeometry {
         case .weather:
             return (
                 element.customization.label(default: "WEATHER"),
-                formatWeatherTemperature(sample),
-                element.customization.unit(default: formatWeatherUnit(sample)),
+                formatWeatherTemperature(sample, element: element),
+                element.customization.unit(default: formatWeatherUnit(sample, element: element)),
                 element.customization.icon(default: OverlayWeatherIcon.clouds.symbol)
             )
         default:
@@ -662,15 +662,19 @@ struct CanvasElementGeometry {
         return String(format: "%d:%02d", secondsPerKm / 60, secondsPerKm % 60)
     }
 
-    private func formatWeatherTemperature(_ sample: TelemetrySample) -> String {
-        guard let temperature = sample.weatherTemperatureCelsius ?? sample.temperatureCelsius else { return "--℃" }
+    private func formatWeatherTemperature(_ sample: TelemetrySample, element: OverlayElement) -> String {
+        guard let temperature = element.customization.resolvedWeatherTemperatureCelsius(
+            apiValue: sample.weatherTemperatureCelsius,
+            activityValue: sample.temperatureCelsius
+        ) else { return "--℃" }
         return "\(temperature)℃"
     }
 
-    private func formatWeatherUnit(_ sample: TelemetrySample) -> String {
-        let summary = sample.weatherSummary ?? "Weather"
-        guard let humidity = sample.weatherHumidityPercent else { return summary }
-        return "\(summary)\n\(humidity)%"
+    private func formatWeatherUnit(_ sample: TelemetrySample, element: OverlayElement) -> String {
+        element.customization.weatherUnitText(
+            summary: sample.weatherSummary,
+            apiHumidityPercent: sample.weatherHumidityPercent
+        )
     }
 
     private func formatClockDuration(_ elapsed: TimeInterval) -> String {

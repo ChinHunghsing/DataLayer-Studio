@@ -524,6 +524,42 @@ struct InspectorSettingsPanel: View {
                 expandedSections: $expandedSections
             ) {
                 if kind == .weather {
+                    InspectorSubheading(localization.string("inspector.weatherManual"))
+
+                    InspectorOptionalIntegerRow(
+                        title: localization.string("inspector.weatherTemperature"),
+                        value: optionalIntBinding(
+                            id: id,
+                            get: { $0.customization.manualWeatherTemperatureCelsius },
+                            set: { $0.customization.manualWeatherTemperatureCelsius = $1 }
+                        ),
+                        in: -100...100
+                    )
+
+                    InspectorOptionalIntegerRow(
+                        title: localization.string("inspector.weatherHumidity"),
+                        value: optionalIntBinding(
+                            id: id,
+                            get: { $0.customization.manualWeatherHumidityPercent },
+                            set: { $0.customization.manualWeatherHumidityPercent = $1 }
+                        ),
+                        in: 0...100
+                    )
+
+                    InspectorToggleRow(
+                        title: localization.string("inspector.weatherShowHumidity"),
+                        isOn: boolBinding(
+                            id: id,
+                            get: { $0.customization.weatherHumidityIsVisible },
+                            set: { $0.customization.showsWeatherHumidity = $1 }
+                        )
+                    )
+
+                    Text(localization.string("inspector.weatherManualHint"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
                     InspectorMessageBlock(
                         systemImage: "cloud.sun",
                         title: localization.string("inspector.weatherRefresh.title"),
@@ -698,7 +734,9 @@ struct InspectorSettingsPanel: View {
             parts.append("\(minimum)-\(maximum)")
         }
         if current.kind == .weather {
-            parts.append("OpenWeather")
+            let hasManualValue = current.customization.manualWeatherTemperatureCelsius != nil
+                || current.customization.manualWeatherHumidityPercent != nil
+            parts.append(hasManualValue ? localization.string("inspector.weatherManual") : "OpenWeather")
         }
 
         return Array(parts.prefix(2))
@@ -890,6 +928,17 @@ struct InspectorSettingsPanel: View {
     ) -> Binding<Int> {
         Binding(
             get: { currentElement(id).map(get) ?? 0 },
+            set: { newValue in model.updateElement(id) { set(&$0, newValue) } }
+        )
+    }
+
+    private func optionalIntBinding(
+        id: String,
+        get: @escaping (OverlayElement) -> Int?,
+        set: @escaping (inout OverlayElement, Int?) -> Void
+    ) -> Binding<Int?> {
+        Binding(
+            get: { currentElement(id).flatMap(get) },
             set: { newValue in model.updateElement(id) { set(&$0, newValue) } }
         )
     }
@@ -1464,6 +1513,78 @@ private struct InspectorWeatherIconRow: View {
     private func label(for icon: OverlayWeatherIcon) -> String {
         let title = localization.string("inspector.weatherIcon.\(icon.rawValue)")
         return icon == .auto ? title : "\(icon.symbol)  \(title)"
+    }
+}
+
+private struct InspectorOptionalIntegerRow: View {
+    var title: String
+    @Binding var value: Int?
+    var range: ClosedRange<Int>
+    @State private var draft = ""
+    @FocusState private var isFocused: Bool
+
+    init(title: String, value: Binding<Int?>, in range: ClosedRange<Int>) {
+        self.title = title
+        self._value = value
+        self.range = range
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: InspectorFormMetrics.rowGap) {
+                Text(title)
+                    .inspectorControlLabel()
+
+                Spacer(minLength: 8)
+
+                textField
+                    .frame(width: InspectorFormMetrics.textFieldWidth)
+            }
+
+            VStack(alignment: .leading, spacing: InspectorFormMetrics.stackedRowGap) {
+                Text(title)
+                    .inspectorControlLabel(width: nil)
+
+                textField
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .inspectorControlRowSurface()
+        .onAppear(perform: syncDraft)
+        .onChange(of: value) { _ in
+            if !isFocused { syncDraft() }
+        }
+        .onChange(of: isFocused) { focused in
+            if !focused { commit() }
+        }
+    }
+
+    private var textField: some View {
+        TextField("--", text: $draft)
+            .textFieldStyle(.roundedBorder)
+            .font(.caption)
+            .focused($isFocused)
+            .onSubmit(commit)
+    }
+
+    private func syncDraft() {
+        draft = value.map(String.init) ?? ""
+    }
+
+    private func commit() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            value = nil
+            draft = ""
+            return
+        }
+        guard let parsed = Int(trimmed) else {
+            syncDraft()
+            return
+        }
+        let clamped = min(range.upperBound, max(range.lowerBound, parsed))
+        value = clamped
+        draft = String(clamped)
     }
 }
 
