@@ -3561,10 +3561,10 @@ final class StudioModel: ObservableObject {
 
     private var wallClockAlignmentForActiveSources: TimelineAutoAlignment.SingleSourceAlignment {
         let project = currentTimelineProject
-        let videoStart = activeVideoAssetID.flatMap { project.asset(id: $0)?.wallClockStart }
-            ?? metadata?.creationDate
-        let activityStart = activeActivityAssetID.flatMap { project.asset(id: $0)?.wallClockStart }
-            ?? series?.activityStartDate
+        let videoStart = metadata?.creationDate
+            ?? activeVideoAssetID.flatMap { project.asset(id: $0)?.wallClockStart }
+        let activityStart = series?.activityStartDate
+            ?? activeActivityAssetID.flatMap { project.asset(id: $0)?.wallClockStart }
         return TimelineAutoAlignment.singleSourceAlignment(
             videoWallClockStart: videoStart,
             activityWallClockStart: activityStart
