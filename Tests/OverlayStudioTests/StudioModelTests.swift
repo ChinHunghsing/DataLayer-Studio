@@ -1776,6 +1776,8 @@ final class StudioModelTests: XCTestCase {
         let overlayStart = model.timeline.tracks
             .first { $0.kind == .overlay }?.clips.first?.timelineStart
         XCTAssertEqual(overlayStart ?? -1, 622, accuracy: 0.001)
+        let activityClipID = model.timeline.tracks.first { $0.kind == .overlay }?.clips.first?.id
+        XCTAssertNil(activityClipID.flatMap(model.reapplyWallClockAutoSyncUnavailableReasonKey))
     }
 
     func testWallClockAutoSyncActivityBeforeVideoShiftsVideoRight() {
@@ -1820,6 +1822,11 @@ final class StudioModelTests: XCTestCase {
 
         XCTAssertEqual(model.syncVideoSeconds, 0, accuracy: 0.001)
         XCTAssertEqual(model.syncFITSeconds, 0, accuracy: 0.001)
+        let activityClipID = model.timeline.tracks.first { $0.kind == .overlay }?.clips.first?.id
+        XCTAssertEqual(
+            activityClipID.flatMap(model.reapplyWallClockAutoSyncUnavailableReasonKey),
+            "status.autoSyncMissingWallClock"
+        )
     }
 
     func testWallClockAutoSyncCanReplaceEarlierAutoAlignment() {

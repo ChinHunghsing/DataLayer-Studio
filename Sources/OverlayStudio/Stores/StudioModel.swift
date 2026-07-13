@@ -3527,6 +3527,26 @@ final class StudioModel: ObservableObject {
         return false
     }
 
+    func reapplyWallClockAutoSyncUnavailableReasonKey(for clipID: String) -> String? {
+        if isExporting {
+            return "timeline.alignment.unavailable.exporting"
+        }
+        guard canEditTimelineSync else {
+            return "timeline.alignment.unavailable.singlePair"
+        }
+        switch wallClockAlignmentForActiveSources {
+        case .missingWallClock:
+            return "status.autoSyncMissingWallClock"
+        case .gapTooLarge:
+            return "status.autoSyncGapTooLarge"
+        case .aligned:
+            guard timelineAlignmentOffsetMilliseconds(for: clipID) != nil else {
+                return "timeline.alignment.unavailable.matchedClip"
+            }
+            return nil
+        }
+    }
+
     func reapplyWallClockAutoSync() {
         applyWallClockAutoSync(force: true)
     }

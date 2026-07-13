@@ -48,6 +48,8 @@ struct TimelineClipInspectorView: View {
     }
 
     var body: some View {
+        let reapplyUnavailableReasonKey = model.reapplyWallClockAutoSyncUnavailableReasonKey(for: currentClip.id)
+
         VStack(alignment: .leading, spacing: ShellStyle.spacing3) {
             if !model.selectedTimelineClipIsEditable {
                 TimelineClipNotice(
@@ -106,11 +108,19 @@ struct TimelineClipInspectorView: View {
                             Label(localization.string("timeline.alignment.reapply"), systemImage: "arrow.triangle.2.circlepath")
                         }
                         .buttonStyle(.bordered)
-                        .disabled(
-                            !model.canReapplyWallClockAutoSync
-                                || model.timelineAlignmentOffsetMilliseconds(for: currentClip.id) == nil
+                        .disabled(reapplyUnavailableReasonKey != nil)
+                        .help(
+                            localization.string(
+                                reapplyUnavailableReasonKey ?? "timeline.alignment.reapplyHelp"
+                            )
                         )
-                        .help(localization.string("timeline.alignment.reapplyHelp"))
+
+                        if let reapplyUnavailableReasonKey {
+                            Label(localization.string(reapplyUnavailableReasonKey), systemImage: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     .padding(.top, ShellStyle.spacing2)
                 } label: {
