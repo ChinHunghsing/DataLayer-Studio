@@ -5,6 +5,13 @@ import XCTest
 
 @MainActor
 final class StudioShellTests: XCTestCase {
+    func testComponentThumbnailLoaderReusesLoadedImage() throws {
+        let first = try XCTUnwrap(ComponentThumbnailLoader.image(named: "component-speed"))
+        let second = try XCTUnwrap(ComponentThumbnailLoader.image(named: "component-speed"))
+
+        XCTAssertTrue(first === second)
+    }
+
     func testExternalFileClassifierDistinguishesSupportedTypes() {
         XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/project.dlsproj")), .timelineProject)
         XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/preset.dlspreset")), .layoutPreset)

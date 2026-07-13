@@ -15,7 +15,6 @@ struct LibraryPanelView: View {
     @EnvironmentObject private var localization: LocalizationStore
     @SceneStorage("library.selectedTab") private var selectedTabRawValue = LibraryTab.media.rawValue
     @State private var componentSearch = ""
-    @State private var hoveredComponentID: OverlayComponentID?
     @State private var layoutPresetName = ""
 
     var body: some View {
@@ -247,25 +246,12 @@ struct LibraryPanelView: View {
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .background(Color.secondary.opacity(isAvailable ? 0.08 : 0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .opacity(isAvailable ? 1 : 0.55)
-        .overlay(alignment: .topTrailing) {
-            if isAvailable, hoveredComponentID == item.component {
-                Button {
-                    addComponentCentered(item.component)
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 24, height: 24)
-                        .background(Color.accentColor, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .padding(12)
-                .help(localization.string("inspector.add"))
-            }
-        }
-        .onHover { isHovered in
-            hoveredComponentID = isHovered ? item.component : nil
-        }
+        .modifier(ComponentCatalogHoverModifier(
+            isAvailable: isAvailable,
+            addTitle: localization.string("inspector.add")
+        ) {
+            addComponentCentered(item.component)
+        })
         .onTapGesture(count: 2) {
             guard isAvailable else { return }
             addComponentCentered(item.component)
@@ -458,6 +444,33 @@ private struct ComponentCatalogDragModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+private struct ComponentCatalogHoverModifier: ViewModifier {
+    var isAvailable: Bool
+    var addTitle: String
+    var add: () -> Void
+
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .topTrailing) {
+                if isAvailable, isHovered {
+                    Button(action: add) {
+                        Image(systemName: "plus")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 24, height: 24)
+                            .background(Color.accentColor, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(12)
+                    .help(addTitle)
+                }
+            }
+            .onHover { isHovered = $0 }
     }
 }
 

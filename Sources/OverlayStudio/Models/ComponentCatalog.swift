@@ -53,18 +53,30 @@ enum ComponentDragPayload {
 }
 
 enum ComponentThumbnailLoader {
+    private static let cache = NSCache<NSString, NSImage>()
+
     static func image(named name: String) -> NSImage? {
+        let cacheKey = name as NSString
+        if let cached = cache.object(forKey: cacheKey) {
+            return cached
+        }
+
+        let image: NSImage?
         if let url = Bundle.main.url(
             forResource: name,
             withExtension: "png",
             subdirectory: "ComponentThumbnails"
         ) {
-            return NSImage(contentsOf: url)
+            image = NSImage(contentsOf: url)
+        } else {
+            let localURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("Resources/ComponentThumbnails/\(name).png")
+            image = NSImage(contentsOf: localURL)
         }
 
-        let localURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Resources/ComponentThumbnails/\(name).png")
-        return NSImage(contentsOf: localURL)
+        if let image {
+            cache.setObject(image, forKey: cacheKey)
+        }
+        return image
     }
 }
-
