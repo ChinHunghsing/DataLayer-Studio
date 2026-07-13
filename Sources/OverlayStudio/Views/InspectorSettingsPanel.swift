@@ -29,6 +29,7 @@ struct InspectorSettingsPanel: View {
                         }
                     }
                 }
+                quickControls(for: element)
                 settings(for: element)
             }
             .id(element.id)
@@ -38,61 +39,42 @@ struct InspectorSettingsPanel: View {
         }
     }
 
-    @ViewBuilder
-    private func settings(for element: OverlayElement) -> some View {
-        ForEach(InspectorSection.displayOrder) { section in
-            if shouldShow(section) {
-                sectionView(section, for: element)
-            }
-        }
-    }
-
-    private func shouldShow(_ section: InspectorSection) -> Bool {
-        focusedSection == nil || focusedSection == section
-    }
-
-    @ViewBuilder
-    private func sectionView(_ section: InspectorSection, for element: OverlayElement) -> some View {
-        switch section {
-        case .layout:
-            layoutSection(for: element)
-        case .content:
-            contentSection(for: element)
-        case .appearance:
-            appearanceSection(for: element)
-        case .typography:
-            typographySection(for: element)
-        case .data:
-            dataSection(for: element)
-        }
-    }
-
-    private func layoutSection(for element: OverlayElement) -> some View {
+    /// Always-visible frame controls: position in output pixels, size, and visibility.
+    /// This replaces the former collapsible "layout" section.
+    private func quickControls(for element: OverlayElement) -> some View {
         let id = element.id
         let kind = element.kind
+        let outputWidth = Double(max(1, model.outputWidth))
+        let outputHeight = Double(max(1, model.outputHeight))
 
-        return sectionContainer(
-            section: .layout,
-            summary: layoutSummary(for: element),
-            expandedSections: $expandedSections
-        ) {
+        return VStack(alignment: .leading, spacing: 8) {
             LabeledSlider(
                 title: "X",
-                value: doubleBinding(id: id, get: { $0.frame.x }, set: { $0.frame.x = $1 }),
-                range: PreviewLayoutLimits.positionRange,
-                label: layoutCoordinateLabel(currentElement(id)?.frame.x ?? 0),
+                value: doubleBinding(
+                    id: id,
+                    get: { $0.frame.x * outputWidth },
+                    set: { $0.frame.x = $1 / outputWidth }
+                ),
+                range: (PreviewLayoutLimits.positionRange.lowerBound * outputWidth)...(PreviewLayoutLimits.positionRange.upperBound * outputWidth),
+                label: "\(Int(((currentElement(id)?.frame.x ?? 0) * outputWidth).rounded())) px",
                 showsTextField: true,
-                displayScale: 1_000,
+                unitLabel: "px",
+                displayFractionDigits: 0,
                 keyboardStep: 1
             )
 
             LabeledSlider(
                 title: "Y",
-                value: doubleBinding(id: id, get: { $0.frame.y }, set: { $0.frame.y = $1 }),
-                range: PreviewLayoutLimits.positionRange,
-                label: layoutCoordinateLabel(currentElement(id)?.frame.y ?? 0),
+                value: doubleBinding(
+                    id: id,
+                    get: { $0.frame.y * outputHeight },
+                    set: { $0.frame.y = $1 / outputHeight }
+                ),
+                range: (PreviewLayoutLimits.positionRange.lowerBound * outputHeight)...(PreviewLayoutLimits.positionRange.upperBound * outputHeight),
+                label: "\(Int(((currentElement(id)?.frame.y ?? 0) * outputHeight).rounded())) px",
                 showsTextField: true,
-                displayScale: 1_000,
+                unitLabel: "px",
+                displayFractionDigits: 0,
                 keyboardStep: 1
             )
 
@@ -112,6 +94,43 @@ struct InspectorSettingsPanel: View {
                     showsTextField: true
                 )
             }
+
+            InspectorToggleRow(title: localization.string("inspector.visible"), isOn: boolBinding(
+                id: id,
+                get: { $0.frame.isVisible },
+                set: { $0.frame.isVisible = $1 }
+            ))
+        }
+        .padding(12)
+        .background(InspectorStyle.actionGroupFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(InspectorStyle.actionGroupStroke)
+        }
+    }
+
+    @ViewBuilder
+    private func settings(for element: OverlayElement) -> some View {
+        ForEach(InspectorSection.displayOrder) { section in
+            if shouldShow(section) {
+                sectionView(section, for: element)
+            }
+        }
+    }
+
+    private func shouldShow(_ section: InspectorSection) -> Bool {
+        focusedSection == nil || focusedSection == section
+    }
+
+    @ViewBuilder
+    private func sectionView(_ section: InspectorSection, for element: OverlayElement) -> some View {
+        switch section {
+        case .content:
+            contentSection(for: element)
+        case .style:
+            styleSection(for: element)
+        case .data:
+            dataSection(for: element)
         }
     }
 
@@ -204,13 +223,13 @@ struct InspectorSettingsPanel: View {
         }
     }
 
-    private func appearanceSection(for element: OverlayElement) -> some View {
+    private func styleSection(for element: OverlayElement) -> some View {
         let id = element.id
         let kind = element.kind
 
         return sectionContainer(
-            section: .appearance,
-            summary: appearanceSummary(for: element),
+            section: .style,
+            summary: styleSummary(for: element),
             expandedSections: $expandedSections
         ) {
             InspectorSubheading(localization.string("inspector.panelSection"))
@@ -351,125 +370,145 @@ struct InspectorSettingsPanel: View {
                     label: "\(Int(((currentElement(id)?.customization.weatherIconSpacingScale ?? 1) * 100).rounded()))%"
                 )
             }
+
+            if !OverlayElementPart.availableParts(for: element).isEmpty {
+                InspectorRule()
+                InspectorSubheading(localization.string("inspector.typography"))
+                partStyleControls(for: element)
+            }
         }
     }
 
-    private func typographySection(for element: OverlayElement) -> some View {
+    /// Font/color/size controls for one element part at a time. The part follows the canvas
+    /// sub-selection and can also be switched here; this replaces the former stacked
+    /// per-part typography rows.
+    @ViewBuilder
+    private func partStyleControls(for element: OverlayElement) -> some View {
+        let parts = OverlayElementPart.availableParts(for: element)
+        let activePart = currentStylePart(for: element)
+
+        if parts.count > 1 {
+            Picker(localization.string("inspector.stylePart"), selection: stylePartBinding(for: element)) {
+                ForEach(parts) { part in
+                    Text(localization.string(part.localizationKey(for: element.kind))).tag(part)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+
+        if let activePart {
+            partStyleRow(for: activePart, element: element)
+        }
+    }
+
+    private func currentStylePart(for element: OverlayElement) -> OverlayElementPart? {
+        let parts = OverlayElementPart.availableParts(for: element)
+        guard !parts.isEmpty else { return nil }
+        if let selected = model.selectedElementPart, parts.contains(selected) {
+            return selected
+        }
+        return parts.contains(.value) ? .value : parts[0]
+    }
+
+    private func stylePartBinding(for element: OverlayElement) -> Binding<OverlayElementPart> {
+        Binding(
+            get: { currentStylePart(for: element) ?? .value },
+            set: { model.selectElementPart($0) }
+        )
+    }
+
+    @ViewBuilder
+    private func partStyleRow(for part: OverlayElementPart, element: OverlayElement) -> some View {
         let id = element.id
         let kind = element.kind
+        let title = localization.string(part.localizationKey(for: kind))
 
-        return sectionContainer(
-            section: .typography,
-            summary: typographySummary(for: element),
-            expandedSections: $expandedSections
-        ) {
-            if kind == .topProgress {
-                topProgressTypographyRows(id: id, element: element)
-            } else {
-                if currentElement(id)?.customization.showsLabel == true {
-                    TextStyleRow(
-                        title: localization.string("inspector.label"),
-                        font: fontBinding(id: id, get: { $0.customization.labelFont }, set: { $0.customization.labelFont = $1 }),
-                        color: colorBinding(id: id, fallback: .label, get: { $0.customization.labelColor }, set: { $0.customization.labelColor = $1 }),
-                        size: fontSizeBinding(id: id, role: .label, kind: kind),
-                        sizeLabel: fontSizeLabel(id: id, role: .label, kind: kind)
-                    )
-                    InspectorRule()
-                }
-
+        if kind == .topProgress {
+            switch part {
+            case .label:
                 TextStyleRow(
-                    title: localization.string("inspector.value"),
+                    title: title,
+                    font: optionalFontBinding(
+                        id: id,
+                        fallback: { $0.customization.labelFont },
+                        get: { $0.customization.progressStartFont },
+                        set: { $0.customization.progressStartFont = $1 }
+                    ),
+                    color: colorBinding(id: id, fallback: .label, get: { $0.customization.progressStartColor }, set: { $0.customization.progressStartColor = $1 }),
+                    size: progressFontSizeBinding(id: id, role: .start),
+                    sizeLabel: progressFontSizeLabel(id: id, role: .start)
+                )
+            case .value:
+                TextStyleRow(
+                    title: title,
+                    font: optionalFontBinding(
+                        id: id,
+                        fallback: { $0.customization.valueFont },
+                        get: { $0.customization.progressCurrentFont },
+                        set: { $0.customization.progressCurrentFont = $1 }
+                    ),
+                    color: colorBinding(id: id, fallback: defaultValueColor(for: element), get: { $0.customization.progressCurrentColor }, set: { $0.customization.progressCurrentColor = $1 }),
+                    size: progressFontSizeBinding(id: id, role: .current),
+                    sizeLabel: progressFontSizeLabel(id: id, role: .current)
+                )
+            case .unit:
+                TextStyleRow(
+                    title: title,
+                    font: optionalFontBinding(
+                        id: id,
+                        fallback: { $0.customization.unitFont },
+                        get: { $0.customization.progressEndFont },
+                        set: { $0.customization.progressEndFont = $1 }
+                    ),
+                    color: colorBinding(id: id, fallback: .muted, get: { $0.customization.progressEndColor }, set: { $0.customization.progressEndColor = $1 }),
+                    size: progressFontSizeBinding(id: id, role: .end),
+                    sizeLabel: progressFontSizeLabel(id: id, role: .end)
+                )
+            case .icon:
+                TextStyleRow(
+                    title: title,
+                    font: fontBinding(id: id, get: { $0.customization.iconFont }, set: { $0.customization.iconFont = $1 }),
+                    color: colorBinding(id: id, fallback: .label, get: { $0.customization.iconColor }, set: { $0.customization.iconColor = $1 }),
+                    size: fontSizeBinding(id: id, role: .icon, kind: .topProgress),
+                    sizeLabel: fontSizeLabel(id: id, role: .icon, kind: .topProgress)
+                )
+            }
+        } else {
+            switch part {
+            case .label:
+                TextStyleRow(
+                    title: title,
+                    font: fontBinding(id: id, get: { $0.customization.labelFont }, set: { $0.customization.labelFont = $1 }),
+                    color: colorBinding(id: id, fallback: .label, get: { $0.customization.labelColor }, set: { $0.customization.labelColor = $1 }),
+                    size: fontSizeBinding(id: id, role: .label, kind: kind),
+                    sizeLabel: fontSizeLabel(id: id, role: .label, kind: kind)
+                )
+            case .value:
+                TextStyleRow(
+                    title: title,
                     font: fontBinding(id: id, get: { $0.customization.valueFont }, set: { $0.customization.valueFont = $1 }),
                     color: colorBinding(id: id, fallback: defaultValueColor(for: element), get: { $0.customization.valueColor }, set: { $0.customization.valueColor = $1 }),
                     size: fontSizeBinding(id: id, role: .value, kind: kind),
                     sizeLabel: fontSizeLabel(id: id, role: .value, kind: kind)
                 )
-
-                if currentElement(id)?.customization.showsUnit == true {
-                    InspectorRule()
-                    TextStyleRow(
-                        title: localization.string("inspector.unit"),
-                        font: fontBinding(id: id, get: { $0.customization.unitFont }, set: { $0.customization.unitFont = $1 }),
-                        color: colorBinding(id: id, fallback: .muted, get: { $0.customization.unitColor }, set: { $0.customization.unitColor = $1 }),
-                        size: fontSizeBinding(id: id, role: .unit, kind: kind),
-                        sizeLabel: fontSizeLabel(id: id, role: .unit, kind: kind)
-                    )
-                }
-
-                if currentElement(id)?.customization.showsIcon == true {
-                    InspectorRule()
-                    TextStyleRow(
-                        title: localization.string("inspector.icon"),
-                        font: fontBinding(id: id, get: { $0.customization.iconFont }, set: { $0.customization.iconFont = $1 }),
-                        color: colorBinding(id: id, fallback: .label, get: { $0.customization.iconColor }, set: { $0.customization.iconColor = $1 }),
-                        size: fontSizeBinding(id: id, role: .icon, kind: kind),
-                        sizeLabel: fontSizeLabel(id: id, role: .icon, kind: kind)
-                    )
-                }
+            case .unit:
+                TextStyleRow(
+                    title: title,
+                    font: fontBinding(id: id, get: { $0.customization.unitFont }, set: { $0.customization.unitFont = $1 }),
+                    color: colorBinding(id: id, fallback: .muted, get: { $0.customization.unitColor }, set: { $0.customization.unitColor = $1 }),
+                    size: fontSizeBinding(id: id, role: .unit, kind: kind),
+                    sizeLabel: fontSizeLabel(id: id, role: .unit, kind: kind)
+                )
+            case .icon:
+                TextStyleRow(
+                    title: title,
+                    font: fontBinding(id: id, get: { $0.customization.iconFont }, set: { $0.customization.iconFont = $1 }),
+                    color: colorBinding(id: id, fallback: .label, get: { $0.customization.iconColor }, set: { $0.customization.iconColor = $1 }),
+                    size: fontSizeBinding(id: id, role: .icon, kind: kind),
+                    sizeLabel: fontSizeLabel(id: id, role: .icon, kind: kind)
+                )
             }
-        }
-    }
-
-    @ViewBuilder
-    private func topProgressTypographyRows(id: String, element: OverlayElement) -> some View {
-        if currentElement(id)?.customization.showsLabel == true {
-            TextStyleRow(
-                title: localization.string("inspector.startDistance"),
-                font: optionalFontBinding(
-                    id: id,
-                    fallback: { $0.customization.labelFont },
-                    get: { $0.customization.progressStartFont },
-                    set: { $0.customization.progressStartFont = $1 }
-                ),
-                color: colorBinding(id: id, fallback: .label, get: { $0.customization.progressStartColor }, set: { $0.customization.progressStartColor = $1 }),
-                size: progressFontSizeBinding(id: id, role: .start),
-                sizeLabel: progressFontSizeLabel(id: id, role: .start)
-            )
-            InspectorRule()
-            TextStyleRow(
-                title: localization.string("inspector.currentDistance"),
-                font: optionalFontBinding(
-                    id: id,
-                    fallback: { $0.customization.valueFont },
-                    get: { $0.customization.progressCurrentFont },
-                    set: { $0.customization.progressCurrentFont = $1 }
-                ),
-                color: colorBinding(id: id, fallback: defaultValueColor(for: element), get: { $0.customization.progressCurrentColor }, set: { $0.customization.progressCurrentColor = $1 }),
-                size: progressFontSizeBinding(id: id, role: .current),
-                sizeLabel: progressFontSizeLabel(id: id, role: .current)
-            )
-        }
-
-        if currentElement(id)?.customization.showsUnit == true {
-            if currentElement(id)?.customization.showsLabel == true {
-                InspectorRule()
-            }
-            TextStyleRow(
-                title: localization.string("inspector.endDistance"),
-                font: optionalFontBinding(
-                    id: id,
-                    fallback: { $0.customization.unitFont },
-                    get: { $0.customization.progressEndFont },
-                    set: { $0.customization.progressEndFont = $1 }
-                ),
-                color: colorBinding(id: id, fallback: .muted, get: { $0.customization.progressEndColor }, set: { $0.customization.progressEndColor = $1 }),
-                size: progressFontSizeBinding(id: id, role: .end),
-                sizeLabel: progressFontSizeLabel(id: id, role: .end)
-            )
-        }
-
-        if currentElement(id)?.customization.showsIcon == true {
-            if currentElement(id)?.customization.showsLabel == true ||
-                currentElement(id)?.customization.showsUnit == true {
-                InspectorRule()
-            }
-            TextStyleRow(
-                title: localization.string("inspector.icon"),
-                font: fontBinding(id: id, get: { $0.customization.iconFont }, set: { $0.customization.iconFont = $1 }),
-                color: colorBinding(id: id, fallback: .label, get: { $0.customization.iconColor }, set: { $0.customization.iconColor = $1 }),
-                size: fontSizeBinding(id: id, role: .icon, kind: .topProgress),
-                sizeLabel: fontSizeLabel(id: id, role: .icon, kind: .topProgress)
-            )
         }
     }
 
@@ -600,14 +639,6 @@ struct InspectorSettingsPanel: View {
         }
     }
 
-    private func layoutSummary(for element: OverlayElement) -> [String] {
-        let frame = currentElement(element.id)?.frame ?? element.frame
-        return [
-            "X \(layoutCoordinateLabel(frame.x)) · Y \(layoutCoordinateLabel(frame.y))",
-            "\(Int((frame.scale * 100).rounded()))%"
-        ]
-    }
-
     private func contentSummary(for element: OverlayElement) -> [String] {
         let current = currentElement(element.id) ?? element
         var parts = [String]()
@@ -636,53 +667,20 @@ struct InspectorSettingsPanel: View {
         return Array(parts.prefix(2))
     }
 
-    private func appearanceSummary(for element: OverlayElement) -> [String] {
+    private func styleSummary(for element: OverlayElement) -> [String] {
         let current = currentElement(element.id) ?? element
         var parts = [String]()
 
         if current.customization.showsPanel {
             parts.append("\(localization.string("inspector.panel")) \((current.frame.style.panelOpacity ?? model.layout.style.panelOpacity).percentString)")
-            if current.customization.panelBorderIsVisible {
-                parts.append(localization.string("inspector.panelBorder"))
-            }
         }
         if current.kind.supportsLineWidth {
             parts.append("\(Int(current.customization.lineWidth.rounded())) px")
         }
-        if current.kind == .topProgress,
-           current.customization.showGaugeTicks == true {
-            parts.append(localization.string("inspector.tickMarks"))
+        if let part = currentStylePart(for: element) {
+            parts.append("\(localization.string(part.localizationKey(for: current.kind)))")
         }
 
-        return Array(parts.prefix(2))
-    }
-
-    private func typographySummary(for element: OverlayElement) -> [String] {
-        let current = currentElement(element.id) ?? element
-        var parts = [String]()
-        if current.kind == .topProgress {
-            if current.customization.showsLabel {
-                parts.append("\(localization.string("inspector.startDistance")) \(progressFontSizeLabel(id: element.id, role: .start))")
-                parts.append("\(localization.string("inspector.currentDistance")) \(progressFontSizeLabel(id: element.id, role: .current))")
-            }
-            if current.customization.showsUnit {
-                parts.append("\(localization.string("inspector.endDistance")) \(progressFontSizeLabel(id: element.id, role: .end))")
-            }
-            if current.customization.showsIcon {
-                parts.append("\(localization.string("inspector.icon")) \(fontSizeLabel(id: element.id, role: .icon, kind: element.kind))")
-            }
-            return Array(parts.prefix(2))
-        }
-        if current.customization.showsLabel {
-            parts.append("\(localization.string("inspector.label")) \(fontSizeLabel(id: element.id, role: .label, kind: element.kind))")
-        }
-        parts.append("\(localization.string("inspector.value")) \(fontSizeLabel(id: element.id, role: .value, kind: element.kind))")
-        if current.customization.showsUnit {
-            parts.append("\(localization.string("inspector.unit")) \(fontSizeLabel(id: element.id, role: .unit, kind: element.kind))")
-        }
-        if current.customization.showsIcon {
-            parts.append("\(localization.string("inspector.icon")) \(fontSizeLabel(id: element.id, role: .icon, kind: element.kind))")
-        }
         return Array(parts.prefix(2))
     }
 
@@ -712,10 +710,6 @@ struct InspectorSettingsPanel: View {
 
     private func progressFontSizeLabel(id: String, role: ProgressTypographyRole) -> String {
         "\(Int(progressFontSizeValue(id: id, role: role).rounded())) pt"
-    }
-
-    private func layoutCoordinateLabel(_ value: Double) -> String {
-        NumberTextFormatter.formatDouble(value * 1_000)
     }
 
     private func fontSizeValue(id: String, role: TypographyRole, kind: OverlayComponentID) -> Double {
@@ -1009,17 +1003,15 @@ private struct InspectorFocusedSection<Content: View>: View {
 }
 
 enum InspectorSection: String, CaseIterable, Identifiable {
-    case layout
     case content
-    case appearance
-    case typography
+    case style
     case data
 
     var id: String { rawValue }
 
-    static let displayOrder: [InspectorSection] = [.layout, .content, .appearance, .typography, .data]
+    static let displayOrder: [InspectorSection] = [.content, .style, .data]
     static let allSections = Set(displayOrder)
-    static let defaultExpandedSections: Set<InspectorSection> = [.layout, .content]
+    static let defaultExpandedSections: Set<InspectorSection> = [.content, .style]
     static let defaultExpandedSectionsRawValue = displayOrder
         .filter { defaultExpandedSections.contains($0) }
         .map(\.rawValue)
@@ -1027,14 +1019,10 @@ enum InspectorSection: String, CaseIterable, Identifiable {
 
     var localizationKey: String {
         switch self {
-        case .layout:
-            return "inspector.layout"
-        case .appearance:
-            return "inspector.appearance"
         case .content:
             return "inspector.content"
-        case .typography:
-            return "inspector.typography"
+        case .style:
+            return "inspector.style"
         case .data:
             return "inspector.data"
         }
@@ -1042,14 +1030,10 @@ enum InspectorSection: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .layout:
-            return "arrow.up.left.and.arrow.down.right"
-        case .appearance:
-            return "paintbrush"
         case .content:
             return "textformat"
-        case .typography:
-            return "character.cursor.ibeam"
+        case .style:
+            return "paintbrush"
         case .data:
             return "gauge.with.dots.needle.bottom.50percent"
         }

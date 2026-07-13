@@ -37,6 +37,156 @@ struct CanvasElementGeometry {
         )
     }
 
+    /// Part hit/highlight zones in unit-rect space (same normalized coordinates as
+    /// `unitRect`). Zones are row-accurate (real font metrics) with left/right splits for
+    /// label/icon and value/unit, which is precise enough for click targeting.
+    func partRects(element: OverlayElement, alignedMetricWidth: CGFloat?) -> [OverlayElementPart: CGRect] {
+        let availableParts = OverlayElementPart.availableParts(for: element)
+        guard !availableParts.isEmpty else { return [:] }
+        let container = unitRect(element: element, alignedMetricWidth: alignedMetricWidth)
+        let base = ComponentBaseSize.size(for: element.kind)
+        let outputSize = componentOutputSize(element: element, base: base, alignedMetricWidth: alignedMetricWidth)
+        guard outputSize.width > 0, outputSize.height > 0 else { return [:] }
+
+        let fractionRects: [OverlayElementPart: CGRect]
+        switch element.kind {
+        case .pace, .distance, .heartRate, .cadence, .calories, .ascent, .strideLength, .power,
+             .verticalOscillation, .groundContactTime, .groundContactTimePercent,
+             .groundContactTimeBalance, .verticalRatio, .respirationRate,
+             .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
+            fractionRects = metricPartFractions(element: element, outputSize: outputSize)
+        case .timeDate:
+            fractionRects = timeDatePartFractions(element: element, outputSize: outputSize)
+        case .topProgress:
+            fractionRects = progressPartFractions(element: element)
+        case .speed:
+            fractionRects = [.value: CGRect(x: 0, y: 0, width: 1, height: 1)]
+        case .route:
+            fractionRects = [:]
+        }
+
+        var rects: [OverlayElementPart: CGRect] = [:]
+        for part in availableParts {
+            guard let fraction = fractionRects[part] else { continue }
+            rects[part] = CGRect(
+                x: container.minX + container.width * fraction.minX,
+                y: container.minY + container.height * fraction.minY,
+                width: container.width * fraction.width,
+                height: container.height * fraction.height
+            )
+        }
+        return rects
+    }
+
+    /// Finds the part zone containing a normalized canvas point, preferring the smallest
+    /// matching zone so overlapping rows resolve to the more specific part.
+    func part(at point: CGPoint, element: OverlayElement, alignedMetricWidth: CGFloat?) -> OverlayElementPart? {
+        partRects(element: element, alignedMetricWidth: alignedMetricWidth)
+            .filter { $0.value.contains(point) }
+            .min { $0.value.width * $0.value.height < $1.value.width * $1.value.height }?
+            .key
+    }
+
+    private func metricPartFractions(element: OverlayElement, outputSize: CGSize) -> [OverlayElementPart: CGRect] {
+        let scale = rendererLayoutScale() * CGFloat(element.frame.scale)
+        let textScale = scale * CGFloat(element.frame.style.textScale)
+        let labelFontSize = labelSize(10, scale: textScale, element: element)
+        let valueFontSize = valueSize(23, scale: textScale, element: element)
+        let iconFontSize = metricIconFontSize(element: element, textScale: textScale)
+        let drawsTopRowIcon = element.customization.showsIcon && element.kind != .weather
+        let hasTopRow = element.customization.showsLabel || drawsTopRowIcon
+        let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
+        let topPadding = 9 * scale
+        let rowGap = hasTopRow ? max(6 * scale, valueFontSize * 0.18) : 0
+
+        let topBandEnd = min(1, (topPadding + topRowHeight + rowGap / 2) / outputSize.height)
+        var rects: [OverlayElementPart: CGRect] = [:]
+        if hasTopRow {
+            let topBand = CGRect(x: 0, y: 0, width: 1, height: topBandEnd)
+            if element.customization.showsLabel, drawsTopRowIcon {
+                rects[.label] = CGRect(x: 0, y: 0, width: 0.55, height: topBand.height)
+                rects[.icon] = CGRect(x: 0.55, y: 0, width: 0.45, height: topBand.height)
+            } else if element.customization.showsLabel {
+                rects[.label] = topBand
+            } else {
+                rects[.icon] = topBand
+            }
+        }
+        let valueBand = CGRect(x: 0, y: topBandEnd, width: 1, height: max(0, 1 - topBandEnd))
+        if element.customization.showsUnit {
+            rects[.value] = CGRect(x: 0, y: valueBand.minY, width: 0.6, height: valueBand.height)
+            rects[.unit] = CGRect(x: 0.6, y: valueBand.minY, width: 0.4, height: valueBand.height)
+        } else {
+            rects[.value] = valueBand
+        }
+        return rects
+    }
+
+    private func timeDatePartFractions(element: OverlayElement, outputSize: CGSize) -> [OverlayElementPart: CGRect] {
+        let scale = rendererLayoutScale() * CGFloat(element.frame.scale)
+        let textScale = scale * CGFloat(element.frame.style.textScale)
+        let labelFontSize = labelSize(11, scale: textScale, element: element)
+        let valueFontSize = valueSize(24, scale: textScale, element: element)
+        let iconFontSize = iconSize(12 * textScale, scale: 1, element: element)
+        let topPadding = 15 * scale
+        let hasTopRow = element.customization.showsLabel || element.customization.showsIcon
+        let topRowHeight = hasTopRow ? max(labelFontSize, iconFontSize) : 0
+        let topRowGap = topRowHeight > 0 ? max(6 * scale, topRowHeight * 0.25) : 0
+        let valueGap = max(8 * scale, valueFontSize * 0.28)
+
+        let topBandEnd = min(1, (topPadding + topRowHeight + topRowGap / 2) / outputSize.height)
+        let valueBandEnd = min(1, (topPadding + topRowHeight + topRowGap + valueFontSize + valueGap / 2) / outputSize.height)
+
+        var rects: [OverlayElementPart: CGRect] = [:]
+        if hasTopRow {
+            if element.customization.showsLabel, element.customization.showsIcon {
+                rects[.label] = CGRect(x: 0, y: 0, width: 0.55, height: topBandEnd)
+                rects[.icon] = CGRect(x: 0.55, y: 0, width: 0.45, height: topBandEnd)
+            } else if element.customization.showsLabel {
+                rects[.label] = CGRect(x: 0, y: 0, width: 1, height: topBandEnd)
+            } else {
+                rects[.icon] = CGRect(x: 0, y: 0, width: 1, height: topBandEnd)
+            }
+        }
+        if element.customization.showsUnit {
+            rects[.value] = CGRect(x: 0, y: topBandEnd, width: 1, height: max(0, valueBandEnd - topBandEnd))
+            rects[.unit] = CGRect(x: 0, y: valueBandEnd, width: 1, height: max(0, 1 - valueBandEnd))
+        } else {
+            rects[.value] = CGRect(x: 0, y: topBandEnd, width: 1, height: max(0, 1 - topBandEnd))
+        }
+        return rects
+    }
+
+    private func progressPartFractions(element: OverlayElement) -> [OverlayElementPart: CGRect] {
+        // Top row carries start (label), icon, and end (unit); the current readout (value)
+        // sits under the track. Half-height bands are a good enough click approximation.
+        var rects: [OverlayElementPart: CGRect] = [:]
+        let showsIcon = element.customization.showsIcon
+        if element.customization.showsLabel, element.customization.showsUnit {
+            rects[.label] = CGRect(x: 0, y: 0, width: showsIcon ? 0.35 : 0.5, height: 0.5)
+            rects[.unit] = CGRect(x: showsIcon ? 0.65 : 0.5, y: 0, width: showsIcon ? 0.35 : 0.5, height: 0.5)
+            if showsIcon {
+                rects[.icon] = CGRect(x: 0.35, y: 0, width: 0.3, height: 0.5)
+            }
+        } else if element.customization.showsLabel {
+            rects[.label] = CGRect(x: 0, y: 0, width: showsIcon ? 0.5 : 1, height: 0.5)
+            if showsIcon {
+                rects[.icon] = CGRect(x: 0.5, y: 0, width: 0.5, height: 0.5)
+            }
+        } else if element.customization.showsUnit {
+            rects[.unit] = CGRect(x: showsIcon ? 0.5 : 0, y: 0, width: showsIcon ? 0.5 : 1, height: 0.5)
+            if showsIcon {
+                rects[.icon] = CGRect(x: 0, y: 0, width: 0.5, height: 0.5)
+            }
+        } else if showsIcon {
+            rects[.icon] = CGRect(x: 0, y: 0, width: 1, height: 0.5)
+        }
+        if element.customization.showsLabel {
+            rects[.value] = CGRect(x: 0, y: 0.5, width: 1, height: 0.5)
+        }
+        return rects
+    }
+
     private func componentOutputSize(element: OverlayElement, base: CGSize, alignedMetricWidth: CGFloat?) -> CGSize {
         let scale = rendererLayoutScale() * CGFloat(element.frame.scale)
         let baseWidth = base.width * scale * CGFloat(max(0.1, element.customization.lengthScale))

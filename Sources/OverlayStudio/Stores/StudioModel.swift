@@ -226,8 +226,12 @@ final class StudioModel: ObservableObject {
     }
     private var layoutEditingTimelineClipID: String?
     @Published private(set) var selectedElementIDs: Set<String> = []
+    @Published private(set) var selectedElementPart: OverlayElementPart?
     @Published var selectedElementID: String? {
         didSet {
+            if oldValue != selectedElementID, selectedElementPart != nil {
+                selectedElementPart = nil
+            }
             if let selectedElementID {
                 if !selectedElementIDs.contains(selectedElementID) {
                     selectedElementIDs = [selectedElementID]
@@ -4099,6 +4103,9 @@ final class StudioModel: ObservableObject {
         } else if selectedElementID.map(ids.contains) != true {
             selectedElementID = layout.elements.first { ids.contains($0.id) }?.id
         }
+        if ids.count != 1, selectedElementPart != nil {
+            selectedElementPart = nil
+        }
     }
 
     /// Marquee semantics: replaces the selection with the given element ids.
@@ -4116,10 +4123,57 @@ final class StudioModel: ObservableObject {
         } else {
             selectedElementID = layout.elements.first { validIDs.contains($0.id) }?.id
         }
+        if validIDs.count != 1, selectedElementPart != nil {
+            selectedElementPart = nil
+        }
     }
 
     func isElementSelected(id: String) -> Bool {
         selectedElementIDs.contains(id) || selectedElementID == id
+    }
+
+    // MARK: - Element part sub-selection
+
+    /// Sets the styled part of the currently selected element; `nil` returns to
+    /// whole-element selection. Invalid parts (hidden rows, unsupported kinds) clear.
+    func selectElementPart(_ part: OverlayElementPart?) {
+        let validated = validatedElementPart(part, elementID: selectedElementID)
+        if selectedElementPart != validated {
+            selectedElementPart = validated
+        }
+    }
+
+    /// Canvas tap state machine: the first click selects the element; a second click on the
+    /// already (solely) selected element selects the part under the pointer, or clears the
+    /// part when the click lands outside every part zone.
+    func handleCanvasElementTap(id: String, part: OverlayElementPart?) {
+        let wasSoleSelection = selectedElementID == id && effectiveSelectedElementIDs == [id]
+        selectElement(id: id)
+        guard wasSoleSelection else { return }
+        selectElementPart(part)
+    }
+
+    /// Esc walks the selection back one level: part → element → nothing.
+    func escapeCanvasSelection() {
+        if selectedElementPart != nil {
+            selectedElementPart = nil
+            return
+        }
+        if selectedElementID != nil || !selectedElementIDs.isEmpty {
+            selectedElementIDs = []
+            selectedElementID = nil
+        }
+    }
+
+    private func validatedElementPart(_ part: OverlayElementPart?, elementID: String?) -> OverlayElementPart? {
+        guard let part,
+              let elementID,
+              effectiveSelectedElementIDs == [elementID],
+              let element = layout.elements.first(where: { $0.id == elementID }),
+              OverlayElementPart.availableParts(for: element).contains(part) else {
+            return nil
+        }
+        return part
     }
 
     private var effectiveSelectedElementIDs: Set<String> {

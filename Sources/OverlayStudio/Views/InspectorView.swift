@@ -3,7 +3,7 @@ import OverlayCore
 
 struct InspectorView: View {
     @ObservedObject var model: StudioModel
-    @SceneStorage("inspectorSectionScope") private var selectedScopeRawValue = InspectorSectionScope.layout.rawValue
+    @SceneStorage("inspectorSectionScope") private var selectedScopeRawValue = InspectorSectionScope.content.rawValue
     @SceneStorage("inspectorExpandedSections") private var expandedSectionsRawValue = InspectorSection.defaultExpandedSectionsRawValue
     private static let topAnchorID = "inspector-top"
 
@@ -91,12 +91,17 @@ struct InspectorView: View {
         .onChange(of: selectedElementKindRawValue) { _ in
             expandedSectionsRawValue = InspectorSection.defaultExpandedSectionsRawValue
         }
+        .onChange(of: model.selectedElementPart) { part in
+            if part != nil {
+                selectedScopeRawValue = InspectorSectionScope.style.rawValue
+            }
+        }
     }
 
     private var selectedScope: InspectorSectionScope {
-        let scope = InspectorSectionScope(rawValue: selectedScopeRawValue) ?? .layout
-        guard let element = model.selectedElement else { return .layout }
-        return scope.isAvailable(for: element) ? scope : .layout
+        let scope = InspectorSectionScope(rawValue: selectedScopeRawValue) ?? .content
+        guard let element = model.selectedElement else { return .content }
+        return scope.isAvailable(for: element) ? scope : .content
     }
 
     private var selectedElementScopeIdentity: String {
@@ -120,17 +125,17 @@ struct InspectorView: View {
 
     private func repairSelectedScopeIfNeeded() {
         guard let element = model.selectedElement else {
-            selectedScopeRawValue = InspectorSectionScope.layout.rawValue
+            selectedScopeRawValue = InspectorSectionScope.content.rawValue
             return
         }
 
         guard let scope = InspectorSectionScope(rawValue: selectedScopeRawValue) else {
-            selectedScopeRawValue = InspectorSectionScope.layout.rawValue
+            selectedScopeRawValue = InspectorSectionScope.content.rawValue
             return
         }
 
         if !scope.isAvailable(for: element) {
-            selectedScopeRawValue = InspectorSectionScope.layout.rawValue
+            selectedScopeRawValue = InspectorSectionScope.content.rawValue
         }
     }
 
@@ -176,24 +181,18 @@ struct InspectorView: View {
 }
 
 private enum InspectorSectionScope: String, CaseIterable, Identifiable {
-    case layout
     case content
-    case appearance
-    case typography
+    case style
     case data
 
     var id: String { rawValue }
 
     var section: InspectorSection {
         switch self {
-        case .layout:
-            return .layout
         case .content:
             return .content
-        case .appearance:
-            return .appearance
-        case .typography:
-            return .typography
+        case .style:
+            return .style
         case .data:
             return .data
         }
@@ -201,14 +200,10 @@ private enum InspectorSectionScope: String, CaseIterable, Identifiable {
 
     var localizationKey: String {
         switch self {
-        case .layout:
-            return "inspector.scope.layout"
         case .content:
             return "inspector.scope.content"
-        case .appearance:
-            return "inspector.scope.appearance"
-        case .typography:
-            return "inspector.scope.typography"
+        case .style:
+            return "inspector.scope.style"
         case .data:
             return "inspector.scope.data"
         }
@@ -216,14 +211,10 @@ private enum InspectorSectionScope: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .layout:
-            return InspectorSection.layout.systemImage
         case .content:
             return InspectorSection.content.systemImage
-        case .appearance:
-            return InspectorSection.appearance.systemImage
-        case .typography:
-            return InspectorSection.typography.systemImage
+        case .style:
+            return InspectorSection.style.systemImage
         case .data:
             return InspectorSection.data.systemImage
         }
@@ -231,7 +222,7 @@ private enum InspectorSectionScope: String, CaseIterable, Identifiable {
 
     func isAvailable(for element: OverlayElement) -> Bool {
         switch self {
-        case .layout, .content, .appearance, .typography:
+        case .content, .style:
             return true
         case .data:
             return element.kind.supportsValuePrecision || element.kind == .speed || element.kind == .weather
