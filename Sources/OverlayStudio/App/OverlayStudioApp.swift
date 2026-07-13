@@ -391,6 +391,11 @@ private struct ArrangeCommands: Commands {
 
     var body: some Commands {
         CommandMenu(localization.string("menu.arrange")) {
+            Button(localization.string("menu.bringToFront")) {
+                actions?.bringSelectionToFront()
+            }
+            .disabled(actions?.canMoveSelectionForward != true)
+
             Button(localization.string("menu.bringForward")) {
                 actions?.moveSelectionForward()
             }
@@ -402,6 +407,55 @@ private struct ArrangeCommands: Commands {
             }
             .keyboardShortcut(.downArrow, modifiers: [.command, .option])
             .disabled(actions?.canMoveSelectionBackward != true)
+
+            Button(localization.string("menu.sendToBack")) {
+                actions?.sendSelectionToBack()
+            }
+            .disabled(actions?.canMoveSelectionBackward != true)
+
+            Divider()
+
+            Button(localization.string("menu.alignLeft")) {
+                actions?.alignSelection(.left)
+            }
+            .disabled(actions?.canAlignSelection != true)
+
+            Button(localization.string("menu.alignHorizontalCenter")) {
+                actions?.alignSelection(.horizontalCenter)
+            }
+            .disabled(actions?.canAlignSelection != true)
+
+            Button(localization.string("menu.alignRight")) {
+                actions?.alignSelection(.right)
+            }
+            .disabled(actions?.canAlignSelection != true)
+
+            Button(localization.string("menu.alignTop")) {
+                actions?.alignSelection(.top)
+            }
+            .disabled(actions?.canAlignSelection != true)
+
+            Button(localization.string("menu.alignVerticalCenter")) {
+                actions?.alignSelection(.verticalCenter)
+            }
+            .disabled(actions?.canAlignSelection != true)
+
+            Button(localization.string("menu.alignBottom")) {
+                actions?.alignSelection(.bottom)
+            }
+            .disabled(actions?.canAlignSelection != true)
+
+            Divider()
+
+            Button(localization.string("menu.distributeHorizontally")) {
+                actions?.distributeSelection(.horizontal)
+            }
+            .disabled(actions?.canDistributeSelection != true)
+
+            Button(localization.string("menu.distributeVertically")) {
+                actions?.distributeSelection(.vertical)
+            }
+            .disabled(actions?.canDistributeSelection != true)
         }
     }
 }

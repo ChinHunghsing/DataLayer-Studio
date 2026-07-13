@@ -225,7 +225,18 @@ final class StudioModel: ObservableObject {
         didSet { rebuildCurrentTimelineProject() }
     }
     private var layoutEditingTimelineClipID: String?
-    @Published var selectedElementID: String?
+    @Published private(set) var selectedElementIDs: Set<String> = []
+    @Published var selectedElementID: String? {
+        didSet {
+            if let selectedElementID {
+                if !selectedElementIDs.contains(selectedElementID) {
+                    selectedElementIDs = [selectedElementID]
+                }
+            } else if !selectedElementIDs.isEmpty {
+                selectedElementIDs = []
+            }
+        }
+    }
     @Published private(set) var selectedMediaAssetID: String?
     @Published private(set) var selectedTimelineClipIDs: Set<String> = []
     @Published var selectedTimelineClipID: String? {
@@ -4061,9 +4072,67 @@ final class StudioModel: ObservableObject {
     func selectElement(id: String) {
         clearTimelineClipSelection()
         selectedMediaAssetID = nil
+        if selectedElementIDs != [id] {
+            selectedElementIDs = [id]
+        }
         if selectedElementID != id {
             selectedElementID = id
         }
+    }
+
+    /// Shift-click semantics: adds the element to the selection or removes it again.
+    func toggleElementInSelection(id: String) {
+        clearTimelineClipSelection()
+        selectedMediaAssetID = nil
+        var ids = selectedElementIDs
+        if ids.isEmpty, let selectedElementID {
+            ids = [selectedElementID]
+        }
+        if ids.contains(id) {
+            ids.remove(id)
+        } else {
+            ids.insert(id)
+        }
+        selectedElementIDs = ids
+        if ids.contains(id) {
+            selectedElementID = id
+        } else if selectedElementID.map(ids.contains) != true {
+            selectedElementID = layout.elements.first { ids.contains($0.id) }?.id
+        }
+    }
+
+    /// Marquee semantics: replaces the selection with the given element ids.
+    func setElementSelection(_ ids: Set<String>) {
+        let validIDs = Set(layout.elements.map(\.id)).intersection(ids)
+        if !validIDs.isEmpty {
+            clearTimelineClipSelection()
+            selectedMediaAssetID = nil
+        }
+        if selectedElementIDs != validIDs {
+            selectedElementIDs = validIDs
+        }
+        if let selectedElementID, validIDs.contains(selectedElementID) {
+            // keep the primary selection stable while the marquee grows
+        } else {
+            selectedElementID = layout.elements.first { validIDs.contains($0.id) }?.id
+        }
+    }
+
+    func isElementSelected(id: String) -> Bool {
+        selectedElementIDs.contains(id) || selectedElementID == id
+    }
+
+    private var effectiveSelectedElementIDs: Set<String> {
+        if !selectedElementIDs.isEmpty {
+            return selectedElementIDs
+        }
+        return selectedElementID.map { [$0] } ?? []
+    }
+
+    /// Selected elements in layout (z-)order.
+    private var selectedElements: [OverlayElement] {
+        let ids = effectiveSelectedElementIDs
+        return layout.elements.filter { ids.contains($0.id) }
     }
 
     func setTimelineClipDistanceUnit(id: String, _ unit: OverlayDistanceUnit?) {
@@ -5026,12 +5095,157 @@ final class StudioModel: ObservableObject {
 
     func deleteSelectedElement() {
         guard !isExporting else { return }
-        guard let selectedElementID else { return }
+        let ids = effectiveSelectedElementIDs
+        guard !ids.isEmpty else { return }
         performLayoutChange("undo.deleteElement") {
-            layout.removeElement(id: selectedElementID)
+            for id in ids {
+                layout.removeElement(id: id)
+            }
             self.selectedElementID = layout.elements.first?.id
         }
         refreshOverlayOrPreview()
+    }
+
+    // MARK: - Arrange commands
+
+    /// Selected elements that participate in align/distribute, in layout order.
+    private var arrangeableSelectedElements: [OverlayElement] {
+        let ids = effectiveSelectedElementIDs
+        return layout.visibleElements.filter { ids.contains($0.id) }
+    }
+
+    var canAlignSelectedElements: Bool {
+        !isExporting && arrangeableSelectedElements.count >= 2
+    }
+
+    var canDistributeSelectedElements: Bool {
+        !isExporting && arrangeableSelectedElements.count >= 3
+    }
+
+    func alignSelectedElements(_ alignment: CanvasElementAlignment) {
+        guard canAlignSelectedElements else { return }
+        let elements = arrangeableSelectedElements
+        let offsets = CanvasArrangement.alignmentOffsets(
+            rects: arrangeUnitRects(for: elements),
+            alignment: alignment
+        )
+        applyArrangeOffsets(offsets, to: elements, actionKey: "undo.alignElements")
+    }
+
+    func distributeSelectedElements(_ distribution: CanvasElementDistribution) {
+        guard canDistributeSelectedElements else { return }
+        let elements = arrangeableSelectedElements
+        let offsets = CanvasArrangement.distributionOffsets(
+            rects: arrangeUnitRects(for: elements),
+            distribution: distribution
+        )
+        applyArrangeOffsets(offsets, to: elements, actionKey: "undo.distributeElements")
+    }
+
+    private func arrangeUnitRects(for elements: [OverlayElement]) -> [CGRect] {
+        let geometry = CanvasElementGeometry(model: self)
+        let alignedMetricWidth = geometry.alignedMetricOutputWidth(for: layout.visibleElements)
+        return elements.map { geometry.unitRect(element: $0, alignedMetricWidth: alignedMetricWidth) }
+    }
+
+    private func applyArrangeOffsets(_ offsets: [CGVector], to elements: [OverlayElement], actionKey: String) {
+        guard offsets.contains(where: { $0 != .zero }) else { return }
+        performLayoutChange(actionKey) {
+            for (element, offset) in zip(elements, offsets) where offset != .zero {
+                layout.updateElement(id: element.id) { target in
+                    target.frame.x = PreviewLayoutLimits.clampPosition(target.frame.x + Double(offset.dx))
+                    target.frame.y = PreviewLayoutLimits.clampPosition(target.frame.y + Double(offset.dy))
+                }
+            }
+        }
+        refreshOverlayOrPreview()
+    }
+
+    /// Moves several elements at once (multi-selection drag) as one coalesced undoable change.
+    func setElementPositions(_ positions: [String: (x: Double, y: Double)], refreshPreview shouldRefreshPreview: Bool = true) {
+        guard !isExporting, !positions.isEmpty else { return }
+        performLayoutChange("undo.editElement", coalescing: true) {
+            for (id, position) in positions {
+                layout.updateElement(id: id) { element in
+                    element.frame.x = position.x
+                    element.frame.y = position.y
+                }
+            }
+        }
+        if shouldRefreshPreview {
+            refreshOverlayOrPreview()
+        }
+    }
+
+    func bringSelectedElementToFront() {
+        reorderSelectedElement(toFront: true)
+    }
+
+    func sendSelectedElementToBack() {
+        reorderSelectedElement(toFront: false)
+    }
+
+    private func reorderSelectedElement(toFront: Bool) {
+        guard !isExporting else { return }
+        let ids = effectiveSelectedElementIDs
+        guard !ids.isEmpty else { return }
+        performLayoutChange("undo.reorderElement") {
+            let moved = layout.elements.filter { ids.contains($0.id) }
+            let remaining = layout.elements.filter { !ids.contains($0.id) }
+            layout.elements = toFront ? remaining + moved : moved + remaining
+        }
+        refreshOverlayOrPreview()
+    }
+
+    // MARK: - Element style clipboard
+
+    private var copiedElementStyleSource: OverlayElement?
+
+    var canCopyElementStyle: Bool {
+        selectedElement != nil && effectiveSelectedElementIDs.count <= 1
+    }
+
+    var canPasteElementStyle: Bool {
+        !isExporting && copiedElementStyleSource != nil && !effectiveSelectedElementIDs.isEmpty
+    }
+
+    func copySelectedElementStyle() {
+        guard let selectedElement else { return }
+        copiedElementStyleSource = selectedElement
+    }
+
+    func copyElementStyle(id: String) {
+        guard let element = layout.elements.first(where: { $0.id == id }) else { return }
+        copiedElementStyleSource = element
+    }
+
+    func pasteCopiedElementStyle() {
+        guard canPasteElementStyle, let source = copiedElementStyleSource else { return }
+        let ids = effectiveSelectedElementIDs.subtracting([source.id])
+        guard !ids.isEmpty else { return }
+        performLayoutChange("undo.pasteElementStyle") {
+            for id in ids {
+                layout.updateElement(id: id) { target in
+                    Self.applyElementStyle(from: source, to: &target)
+                }
+            }
+        }
+        refreshOverlayOrPreview()
+    }
+
+    /// Copies visual styling only: content overrides (label/unit/icon text), data settings
+    /// (precision, gauge range), and position/visibility stay with the target.
+    private static func applyElementStyle(from source: OverlayElement, to target: inout OverlayElement) {
+        target.frame.scale = source.frame.scale
+        target.frame.style = source.frame.style
+        var customization = source.customization
+        customization.labelOverride = target.customization.labelOverride
+        customization.unitOverride = target.customization.unitOverride
+        customization.iconOverride = target.customization.iconOverride
+        customization.valuePrecision = target.customization.valuePrecision
+        customization.gaugeMinimum = target.customization.gaugeMinimum
+        customization.gaugeMaximum = target.customization.gaugeMaximum
+        target.customization = customization
     }
 
     func moveSelectedElementForward() {

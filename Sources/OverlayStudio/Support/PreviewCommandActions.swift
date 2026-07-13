@@ -9,6 +9,8 @@ struct StudioCommandActions {
     var canMarkSportStart: Bool
     var canMoveSelectionForward: Bool
     var canMoveSelectionBackward: Bool
+    var canAlignSelection: Bool
+    var canDistributeSelection: Bool
     var canSplitTimelineClips: Bool
     var canToggleTimelineClips: Bool
     var canDeleteTimelineClip: Bool
@@ -33,6 +35,10 @@ struct StudioCommandActions {
     var markSportStart: () -> Void
     var moveSelectionForward: () -> Void
     var moveSelectionBackward: () -> Void
+    var bringSelectionToFront: () -> Void
+    var sendSelectionToBack: () -> Void
+    var alignSelection: (CanvasElementAlignment) -> Void
+    var distributeSelection: (CanvasElementDistribution) -> Void
     var splitTimelineClips: () -> Void
     var toggleTimelineClips: () -> Void
     var deleteTimelineClip: () -> Void
