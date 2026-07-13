@@ -17,7 +17,7 @@ struct ContentView: View {
     @State private var resizeStartHeight: Double?
     @State private var isPreviewFullscreen = false
     @State private var isDebugConsolePresented = false
-    @State private var isExportSheetPresented = false
+    @State private var isExportCenterPresented = false
     @State private var isCancelExportConfirmationPresented = false
     @State private var sourceContinuationPrompt: SourceContinuationPrompt?
     @State private var isEditingText = false
@@ -57,12 +57,12 @@ struct ContentView: View {
         }
         .onChange(of: model.isExporting) { isExporting in
             if isExporting {
-                isExportSheetPresented = true
+                isExportCenterPresented = true
             }
         }
         .onChange(of: model.hasExportResult) { hasExportResult in
             if hasExportResult {
-                isExportSheetPresented = true
+                isExportCenterPresented = true
             }
         }
         .sheet(isPresented: $isDebugConsolePresented) {
@@ -70,8 +70,8 @@ struct ContentView: View {
                 .environmentObject(localization)
                 .environment(\.locale, localization.locale)
         }
-        .sheet(isPresented: $isExportSheetPresented) {
-            ExportStatusSheet(
+        .sheet(isPresented: $isExportCenterPresented) {
+            OutputPanelView(
                 model: model,
                 isCancelExportConfirmationPresented: $isCancelExportConfirmationPresented
             )
@@ -227,17 +227,17 @@ struct ContentView: View {
         #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             ToolbarItem(placement: .primaryAction) {
-                OutputToolbarButton(model: model)
+                OutputToolbarButton(model: model) { isExportCenterPresented = true }
             }
             .sharedBackgroundVisibility(.hidden)
         } else {
             ToolbarItem(placement: .primaryAction) {
-                OutputToolbarButton(model: model)
+                OutputToolbarButton(model: model) { isExportCenterPresented = true }
             }
         }
         #else
         ToolbarItem(placement: .primaryAction) {
-            OutputToolbarButton(model: model)
+            OutputToolbarButton(model: model) { isExportCenterPresented = true }
         }
         #endif
     }
@@ -305,7 +305,6 @@ struct ContentView: View {
     private var studioCommandActions: StudioCommandActions {
         StudioCommandActions(
             isExporting: model.isExporting,
-            canExport: model.canExport,
             canPlayPreview: model.canPlayPreview,
             isPlayingPreview: model.isPlaying,
             debugLogCount: model.debugLogEntries.count,
@@ -331,7 +330,7 @@ struct ContentView: View {
             openRecentTimelineProject: model.openRecentTimelineProject,
             saveTimelineProject: model.saveTimelineProject,
             saveTimelineProjectAs: model.saveTimelineProjectAs,
-            export: model.export,
+            showExportCenter: { isExportCenterPresented = true },
             cancelExport: requestExportCancellation,
             refreshPreview: model.refreshOverlayOrPreview,
             togglePlayback: model.togglePlayback,
@@ -369,7 +368,7 @@ struct ContentView: View {
 
     private func requestExportCancellation() {
         guard model.isExporting else { return }
-        isExportSheetPresented = true
+        isExportCenterPresented = true
         isCancelExportConfirmationPresented = true
     }
 
@@ -505,226 +504,6 @@ enum SourceContinuationPrompt: Equatable {
         case .activityAfterVideo: "startupPrompt.chooseActivity"
         case .videoAfterActivity: "startupPrompt.chooseVideo"
         }
-    }
-}
-
-private struct ExportStatusSheet: View {
-    @ObservedObject var model: StudioModel
-    @Binding var isCancelExportConfirmationPresented: Bool
-    @EnvironmentObject private var localization: LocalizationStore
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            if model.isExporting {
-                exportingContent
-            } else {
-                resultContent
-            }
-        }
-        .padding(24)
-        .frame(width: 480, alignment: .leading)
-        .interactiveDismissDisabled(model.isExporting)
-        .alert(localization.string("exportDialog.cancelTitle"), isPresented: $isCancelExportConfirmationPresented) {
-            Button(localization.string("exportDialog.confirmCancel"), role: .destructive) {
-                model.cancelExport()
-            }
-            Button(localization.string("common.cancel"), role: .cancel) { }
-        } message: {
-            Text(localization.string("exportDialog.cancelMessage"))
-        }
-    }
-
-    private var exportingContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 14) {
-                statusGlyph(systemImage: "paperplane.fill", color: .accentColor)
-
-                Text(localization.string(model.exportMode == .video ? "sidebar.exportingVideo" : "sidebar.exportingOverlay"))
-                    .font(.title3.weight(.semibold))
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                ProgressView(value: clampedExportProgress)
-
-                HStack {
-                    Text(clampedExportProgress.percentString)
-                        .monospacedDigit()
-                    Spacer()
-                    if let etaSeconds = model.exportETASeconds {
-                        Text(localization.string("sidebar.exportETA", formatDuration(etaSeconds)))
-                            .monospacedDigit()
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(localization.string("sidebar.exportProgress"))
-            .accessibilityValue(clampedExportProgress.percentString)
-
-            HStack {
-                Spacer()
-
-                Button(role: .destructive) {
-                    isCancelExportConfirmationPresented = true
-                } label: {
-                    Label(localization.string("toolbar.cancelExport"), systemImage: "xmark.circle.fill")
-                }
-                .buttonStyle(.bordered)
-            }
-            .controlSize(.large)
-        }
-    }
-
-    private var resultContent: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            resultHeader
-            resultDetail
-            Divider()
-            resultActions
-        }
-    }
-
-    private var resultHeader: some View {
-        HStack(alignment: .center, spacing: 14) {
-            statusGlyph(systemImage: resultSystemImage, color: resultColor)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(resultTitle)
-                    .font(.title3.weight(.semibold))
-
-                if let elapsed = model.lastExportElapsedSeconds {
-                    Label(localization.string("exportDialog.elapsed", formatDuration(elapsed)), systemImage: "timer")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    @ViewBuilder
-    private var resultDetail: some View {
-        if let lastExportedURL = model.lastExportedURL {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "film")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28)
-
-                Text(lastExportedURL.lastPathComponent)
-                    .font(.callout.weight(.semibold))
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-
-                Spacer(minLength: 0)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-        } else if let errorMessage = model.lastExportErrorMessage {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "info.circle")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
-
-                Text(errorMessage)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(5)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-        }
-    }
-
-    private var resultActions: some View {
-        HStack(spacing: 10) {
-            if model.lastExportedURL != nil {
-                Button {
-                    model.revealLastExportInFinder()
-                } label: {
-                    Label(localization.string("sidebar.revealInFinder"), systemImage: "folder")
-                }
-                .buttonStyle(.bordered)
-
-                Button {
-                    model.openLastExport()
-                } label: {
-                    Label(localization.string("exportDialog.openFile"), systemImage: "play.circle")
-                }
-                .buttonStyle(.bordered)
-            }
-
-            Spacer(minLength: 12)
-
-            Button {
-                dismiss()
-            } label: {
-                Label(localization.string("common.done"), systemImage: "checkmark")
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .controlSize(.large)
-    }
-
-    private func statusGlyph(systemImage: String, color: Color) -> some View {
-        ZStack {
-            Circle()
-                .fill(color.opacity(0.14))
-
-            Image(systemName: systemImage)
-                .font(.system(size: 21, weight: .semibold))
-                .foregroundStyle(color)
-        }
-        .frame(width: 48, height: 48)
-    }
-
-    private var resultTitle: String {
-        if model.lastExportedURL != nil {
-            return localization.string("sidebar.exportDone")
-        }
-        if model.lastExportWasCancelled {
-            return localization.string("exportDialog.cancelled")
-        }
-        return localization.string("exportDialog.failed")
-    }
-
-    private var resultSystemImage: String {
-        if model.lastExportedURL != nil {
-            return "checkmark"
-        }
-        if model.lastExportWasCancelled {
-            return "xmark"
-        }
-        return "exclamationmark"
-    }
-
-    private var resultColor: Color {
-        if model.lastExportedURL != nil {
-            return .green
-        }
-        if model.lastExportWasCancelled {
-            return .secondary
-        }
-        return .red
-    }
-
-    private var clampedExportProgress: Double {
-        guard model.exportProgress.isFinite else { return 0 }
-        return min(1, max(0, model.exportProgress))
-    }
-
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        let total = max(0, Int(seconds.rounded()))
-        if total >= 3600 {
-            return String(format: "%d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
-        }
-        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 

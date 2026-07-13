@@ -2,7 +2,6 @@ import SwiftUI
 
 struct StudioCommandActions {
     var isExporting: Bool
-    var canExport: Bool
     var canPlayPreview: Bool
     var isPlayingPreview: Bool
     var debugLogCount: Int
@@ -28,7 +27,7 @@ struct StudioCommandActions {
     var openRecentTimelineProject: (RecentTimelineProject) -> Void
     var saveTimelineProject: () -> Void
     var saveTimelineProjectAs: () -> Void
-    var export: () -> Void
+    var showExportCenter: () -> Void
     var cancelExport: () -> Void
     var refreshPreview: () -> Void
     var togglePlayback: () -> Void

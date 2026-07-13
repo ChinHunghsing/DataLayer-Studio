@@ -24,15 +24,45 @@ import OverlayCore
 /// 居中弹出的输出 sheet：集中所有输出设置、导出摘要与导出动作。
 struct OutputPanelView: View {
     @ObservedObject var model: StudioModel
+    @Binding var isCancelExportConfirmationPresented: Bool
     @EnvironmentObject private var localization: LocalizationStore
     @Environment(\.dismiss) private var dismiss
     @State private var forceCustomResolution = false
+    @State private var selectedPresetID: String?
+    @State private var presetName = ""
 
     private var isCustomResolution: Bool {
         forceCustomResolution || model.selectedResolutionPresetID == OutputResolutionPreset.customID
     }
 
     var body: some View {
+        Group {
+            if model.isExporting {
+                exportingContent
+            } else if model.hasExportResult {
+                resultContent
+            } else {
+                configurationContent
+            }
+        }
+        .frame(width: 860, height: 620)
+        .interactiveDismissDisabled(model.isExporting)
+        .alert(localization.string("exportDialog.cancelTitle"), isPresented: $isCancelExportConfirmationPresented) {
+            Button(localization.string("exportDialog.confirmCancel"), role: .destructive) {
+                model.cancelExport()
+            }
+            Button(localization.string("common.cancel"), role: .cancel) { }
+        } message: {
+            Text(localization.string("exportDialog.cancelMessage"))
+        }
+        .onDisappear {
+            if !model.isExporting {
+                model.clearExportResult()
+            }
+        }
+    }
+
+    private var configurationContent: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Label(localization.string("toolbar.output"), systemImage: "square.and.arrow.up")
@@ -46,24 +76,274 @@ struct OutputPanelView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 14) {
-                pictureCard
-                    .disabled(model.isExporting)
-                encodingCard
-                    .disabled(model.isExporting)
-                destinationRow
-                    .disabled(model.isExporting)
+            HStack(spacing: 0) {
+                presetSidebar
+                    .frame(width: 230)
 
-                ExportSummaryCard(model: model)
+                Divider()
 
-                exportActionFooter
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        pictureCard
+                        encodingCard
+                        destinationRow
+                        ExportSummaryCard(model: model)
+                        exportActionFooter
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .controlSize(.small)
-        .frame(width: 600)
-        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var presetSidebar: some View {
+        VStack(spacing: 0) {
+            List(selection: $selectedPresetID) {
+                Section(localization.string("output.presets.builtIn")) {
+                    ForEach(ExportPreset.builtIn) { preset in
+                        presetRow(preset).tag(Optional(preset.id))
+                    }
+                }
+
+                Section(localization.string("output.presets.user")) {
+                    if model.userExportPresets.isEmpty {
+                        Text(localization.string("output.presets.userEmpty"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(model.userExportPresets) { preset in
+                            presetRow(preset).tag(Optional(preset.id))
+                        }
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            .onChange(of: selectedPresetID) { id in
+                guard let id else { return }
+                model.applyExportPreset(id: id)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                TextField(localization.string("output.presets.namePlaceholder"), text: $presetName)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(saveCurrentPreset)
+
+                HStack(spacing: 8) {
+                    Button(action: saveCurrentPreset) {
+                        Label(localization.string("output.presets.save"), systemImage: "plus")
+                    }
+                    .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Spacer(minLength: 0)
+
+                    if let selectedPresetID,
+                       model.userExportPresets.contains(where: { $0.id == selectedPresetID }) {
+                        Button(role: .destructive) {
+                            model.deleteUserExportPreset(id: selectedPresetID)
+                            self.selectedPresetID = nil
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .help(localization.string("output.presets.delete"))
+                        .accessibilityLabel(localization.string("output.presets.delete"))
+                    }
+                }
+            }
+            .padding(12)
+        }
+        .background(.bar)
+    }
+
+    private func presetRow(_ preset: ExportPreset) -> some View {
+        Label(
+            preset.isBuiltIn ? localization.string("exportPreset.\(preset.id)") : preset.name,
+            systemImage: preset.exportMode == .overlay ? "square.on.square" : "film"
+        )
+        .lineLimit(1)
+    }
+
+    private func saveCurrentPreset() {
+        let name = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard model.saveCurrentExportPreset(named: name) else { return }
+        selectedPresetID = model.userExportPresets.first {
+            $0.name.caseInsensitiveCompare(name) == .orderedSame
+        }?.id
+        presetName = ""
+    }
+
+    private var exportingContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(spacing: 14) {
+                statusGlyph(systemImage: "paperplane.fill", color: .accentColor)
+                Text(localization.string(model.exportMode == .video ? "sidebar.exportingVideo" : "sidebar.exportingOverlay"))
+                    .font(.title3.weight(.semibold))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ProgressView(value: clampedExportProgress)
+                HStack {
+                    Text(clampedExportProgress.percentString)
+                        .monospacedDigit()
+                    Spacer()
+                    if let etaSeconds = model.exportETASeconds {
+                        Text(localization.string("sidebar.exportETA", formatDuration(etaSeconds)))
+                            .monospacedDigit()
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(localization.string("sidebar.exportProgress"))
+            .accessibilityValue(clampedExportProgress.percentString)
+
+            HStack {
+                Spacer()
+                Button(role: .destructive) {
+                    isCancelExportConfirmationPresented = true
+                } label: {
+                    Label(localization.string("toolbar.cancelExport"), systemImage: "xmark.circle.fill")
+                }
+                .buttonStyle(.bordered)
+            }
+            .controlSize(.large)
+        }
+        .padding(28)
+        .frame(width: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var resultContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .center, spacing: 14) {
+                statusGlyph(systemImage: resultSystemImage, color: resultColor)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(resultTitle)
+                        .font(.title3.weight(.semibold))
+                    if let elapsed = model.lastExportElapsedSeconds {
+                        Label(localization.string("exportDialog.elapsed", formatDuration(elapsed)), systemImage: "timer")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+            }
+            .accessibilityElement(children: .combine)
+
+            resultDetail
+            Divider()
+
+            HStack(spacing: 10) {
+                if model.lastExportedURL != nil {
+                    Button {
+                        model.revealLastExportInFinder()
+                    } label: {
+                        Label(localization.string("sidebar.revealInFinder"), systemImage: "folder")
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        model.openLastExport()
+                    } label: {
+                        Label(localization.string("exportDialog.openFile"), systemImage: "play.circle")
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Spacer(minLength: 12)
+
+                Button {
+                    model.clearExportResult()
+                    dismiss()
+                } label: {
+                    Label(localization.string("common.done"), systemImage: "checkmark")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .controlSize(.large)
+        }
+        .padding(28)
+        .frame(width: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var resultDetail: some View {
+        if let lastExportedURL = model.lastExportedURL {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: "film")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28)
+                Text(lastExportedURL.lastPathComponent)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        } else if let errorMessage = model.lastExportErrorMessage {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+                Text(errorMessage)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(5)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func statusGlyph(systemImage: String, color: Color) -> some View {
+        ZStack {
+            Circle().fill(color.opacity(0.14))
+            Image(systemName: systemImage)
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(color)
+        }
+        .frame(width: 48, height: 48)
+    }
+
+    private var resultTitle: String {
+        if model.lastExportedURL != nil { return localization.string("sidebar.exportDone") }
+        if model.lastExportWasCancelled { return localization.string("exportDialog.cancelled") }
+        return localization.string("exportDialog.failed")
+    }
+
+    private var resultSystemImage: String {
+        if model.lastExportedURL != nil { return "checkmark" }
+        if model.lastExportWasCancelled { return "xmark" }
+        return "exclamationmark"
+    }
+
+    private var resultColor: Color {
+        if model.lastExportedURL != nil { return .green }
+        if model.lastExportWasCancelled { return .secondary }
+        return .red
+    }
+
+    private var clampedExportProgress: Double {
+        guard model.exportProgress.isFinite else { return 0 }
+        return min(1, max(0, model.exportProgress))
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds.rounded()))
+        if total >= 3_600 {
+            return String(format: "%d:%02d:%02d", total / 3_600, (total / 60) % 60, total % 60)
+        }
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     // MARK: 画面

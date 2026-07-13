@@ -322,10 +322,10 @@ private struct StudioFileCommands: Commands {
             Divider()
 
             Button(localization.string("menu.exportOverlay")) {
-                actions?.export()
+                actions?.showExportCenter()
             }
             .keyboardShortcut("e", modifiers: [.command])
-            .disabled(actions == nil || actions?.canExport != true || actions?.isExporting == true)
+            .disabled(actions == nil)
 
             Button(localization.string("menu.cancelExport")) {
                 actions?.cancelExport()
