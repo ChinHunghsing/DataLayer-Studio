@@ -370,6 +370,20 @@ private struct TimelineCommands: Commands {
 
             Divider()
 
+            Button(localization.string("menu.nudgeClipLeft")) {
+                actions?.nudgeTimelineClips(-1)
+            }
+            .keyboardShortcut(",", modifiers: [])
+            .disabled(actions?.canNudgeTimelineClips != true)
+
+            Button(localization.string("menu.nudgeClipRight")) {
+                actions?.nudgeTimelineClips(1)
+            }
+            .keyboardShortcut(".", modifiers: [])
+            .disabled(actions?.canNudgeTimelineClips != true)
+
+            Divider()
+
             Button(localization.string("menu.deleteTimelineClip")) {
                 actions?.deleteTimelineClip()
             }

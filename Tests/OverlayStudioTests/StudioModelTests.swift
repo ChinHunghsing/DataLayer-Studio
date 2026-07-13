@@ -1396,6 +1396,53 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNil(groupSnap.guideTime)
     }
 
+    func testProjectTimelinePlayheadScrubSnapsToClipEdgesAndTimelineStart() {
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "v", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "clip", assetID: "video", timelineStart: 10, duration: 20)
+                ])
+            ]
+        )
+
+        let headSnap = ProjectTimelineView.playheadSnapResult(
+            project: project,
+            proposedTime: 9.8,
+            threshold: 0.25
+        )
+        XCTAssertEqual(headSnap.timelineStart, 10, accuracy: 0.000_1)
+        XCTAssertEqual(headSnap.guideTime, 10)
+        XCTAssertEqual(headSnap.source, .clipEdge)
+
+        let tailSnap = ProjectTimelineView.playheadSnapResult(
+            project: project,
+            proposedTime: 30.2,
+            threshold: 0.25
+        )
+        XCTAssertEqual(tailSnap.timelineStart, 30, accuracy: 0.000_1)
+        XCTAssertEqual(tailSnap.source, .clipEdge)
+
+        let originSnap = ProjectTimelineView.playheadSnapResult(
+            project: project,
+            proposedTime: 0.2,
+            threshold: 0.25
+        )
+        XCTAssertEqual(originSnap.timelineStart, 0, accuracy: 0.000_1)
+        XCTAssertEqual(originSnap.source, .timelineStart)
+
+        let freeScrub = ProjectTimelineView.playheadSnapResult(
+            project: project,
+            proposedTime: 5,
+            threshold: 0.25
+        )
+        XCTAssertEqual(freeScrub.timelineStart, 5, accuracy: 0.000_1)
+        XCTAssertNil(freeScrub.guideTime)
+    }
+
     func testTimelineClipInspectorFormatsTimingForHumans() {
         XCTAssertEqual(TimelineClipInspectorView.formatTimecode(0), "00:00.000")
         XCTAssertEqual(TimelineClipInspectorView.formatTimecode(2), "00:02.000")

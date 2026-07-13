@@ -438,25 +438,7 @@ struct OutputPanelView: View {
                     Text(verbatim: "kbps").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            rowDivider
-            settingRow(localization.string("sidebar.distanceUnit")) {
-                Picker(localization.string("sidebar.distanceUnit"), selection: distanceUnitSelection) {
-                    ForEach(OverlayDistanceUnit.allCases) { unit in
-                        Text(localization.string(unit.localizationKey)).tag(unit)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .fixedSize()
-            }
         }
-    }
-
-    private var distanceUnitSelection: Binding<OverlayDistanceUnit> {
-        Binding(
-            get: { model.distanceUnitForCurrentSelection },
-            set: { model.setDistanceUnitForCurrentSelection($0) }
-        )
     }
 
     private var destinationRow: some View {

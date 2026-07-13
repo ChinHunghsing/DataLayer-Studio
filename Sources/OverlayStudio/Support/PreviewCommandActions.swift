@@ -12,6 +12,7 @@ struct StudioCommandActions {
     var canDistributeSelection: Bool
     var canSplitTimelineClips: Bool
     var canToggleTimelineClips: Bool
+    var canNudgeTimelineClips: Bool
     var canDeleteTimelineClip: Bool
     var canJumpToTimelineEditPoints: Bool
     var canUndo: Bool
@@ -40,6 +41,7 @@ struct StudioCommandActions {
     var distributeSelection: (CanvasElementDistribution) -> Void
     var splitTimelineClips: () -> Void
     var toggleTimelineClips: () -> Void
+    var nudgeTimelineClips: (Int) -> Void
     var deleteTimelineClip: () -> Void
     var rippleDeleteTimelineClip: () -> Void
     var jumpToPreviousEditPoint: () -> Void

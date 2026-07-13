@@ -193,12 +193,12 @@ struct ProjectTimelineView: View {
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             if value.startLocation.y < rulerHeight {
-                                model.scrubPreview(
-                                    to: Self.scrubTime(
-                                        laneLocationX: value.location.x,
-                                        laneWidth: laneWidth,
-                                        duration: duration
-                                    )
+                                scrubPlayheadWithSnap(
+                                    toLaneLocationX: value.location.x,
+                                    project: project,
+                                    laneWidth: laneWidth,
+                                    duration: duration,
+                                    showsGuide: true
                                 )
                             } else {
                                 updateMarqueeSelection(
@@ -212,6 +212,8 @@ struct ProjectTimelineView: View {
                         }
                         .onEnded { value in
                             defer { finishMarqueeSelection() }
+                            snapGuideTime = nil
+                            snapGuideSource = nil
                             guard value.startLocation.y >= rulerHeight,
                                   marqueeSelectionRect == nil else { return }
 
@@ -219,12 +221,12 @@ struct ProjectTimelineView: View {
                             if !Self.isCommandKeyPressed {
                                 model.clearTimelineClipSelection()
                             }
-                            model.scrubPreview(
-                                to: Self.scrubTime(
-                                    laneLocationX: value.location.x,
-                                    laneWidth: laneWidth,
-                                    duration: duration
-                                )
+                            scrubPlayheadWithSnap(
+                                toLaneLocationX: value.location.x,
+                                project: project,
+                                laneWidth: laneWidth,
+                                duration: duration,
+                                showsGuide: false
                             )
                         }
                 )
@@ -311,6 +313,50 @@ struct ProjectTimelineView: View {
               duration > 0 else { return 0 }
         let progress = min(1, max(0, laneLocationX / laneWidth))
         return Double(progress) * duration
+    }
+
+    /// Playhead scrubbing snaps to the same clip-edge / timeline-start candidates that clip
+    /// dragging uses, so click-to-seek and ruler drags land exactly on edit points.
+    static func playheadSnapResult(
+        project: TimelineProject,
+        proposedTime: TimeInterval,
+        threshold: TimeInterval
+    ) -> TimelineSnapResult {
+        snapResult(
+            project: project,
+            proposedEdges: [(timelineStart: proposedTime, offset: 0)],
+            threshold: threshold,
+            excludingClipIDs: [],
+            playheadTime: -1
+        )
+    }
+
+    private func scrubPlayheadWithSnap(
+        toLaneLocationX laneLocationX: CGFloat,
+        project: TimelineProject,
+        laneWidth: CGFloat,
+        duration: TimeInterval,
+        showsGuide: Bool
+    ) {
+        let rawTime = Self.scrubTime(
+            laneLocationX: laneLocationX,
+            laneWidth: laneWidth,
+            duration: duration
+        )
+        var snappedTime = rawTime
+        if laneWidth > 0, duration > 0 {
+            let snap = Self.playheadSnapResult(
+                project: project,
+                proposedTime: rawTime,
+                threshold: Double(6 / laneWidth) * duration
+            )
+            snappedTime = min(duration, snap.timelineStart)
+            if showsGuide {
+                snapGuideTime = snap.guideTime
+                snapGuideSource = snap.source
+            }
+        }
+        model.scrubPreview(to: snappedTime)
     }
 
     static func marqueeRect(
@@ -623,7 +669,7 @@ struct ProjectTimelineView: View {
                 ? Color.accentColor.opacity(0.10)
                 : Color.clear
         )
-        .onDrop(of: [.plainText], isTargeted: nil) { providers, location in
+        .onDrop(of: [.plainText, .fileURL], isTargeted: nil) { providers, location in
             handleMediaDrop(
                 providers,
                 onTrack: track,
@@ -645,12 +691,23 @@ struct ProjectTimelineView: View {
         duration: TimeInterval
     ) -> Bool {
         guard !track.isLocked else { return false }
+        guard laneWidth > 0, duration > 0 else { return false }
+        let timelineStart = min(duration, max(0, Double(locationX / laneWidth) * duration))
+
+        // Finder file drops import into the pool and land at the drop position.
+        if MediaFileDrop.hasFileURLs(providers) {
+            return MediaFileDrop.loadURLs(from: providers) { urls in
+                model.importDroppedMediaFiles(
+                    urls,
+                    targetTrackID: track.id,
+                    timelineStart: timelineStart
+                )
+            }
+        }
+
         guard let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else {
             return false
         }
-
-        guard laneWidth > 0, duration > 0 else { return false }
-        let timelineStart = min(duration, max(0, Double(locationX / laneWidth) * duration))
         provider.loadObject(ofClass: NSString.self) { object, _ in
             guard let payload = object as? NSString else { return }
             let value = String(payload)
@@ -980,21 +1037,28 @@ struct ProjectTimelineView: View {
                         : dragStartTrackID
                 }
                 let base = dragStartClipTimelineStart ?? clip.timelineStart
-                let gestureDuration = dragTimelineDuration ?? duration
-                let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
-                let snap = Double(6 / laneWidth) * gestureDuration
-                let snapResult = Self.moveSnapResult(
-                    project: project,
-                    proposedStart: base + deltaT,
-                    clipDuration: clip.duration,
-                    threshold: snap,
-                    clipID: clip.id,
-                    excludingClipIDs: model.selectedTimelineClipIDs,
-                    playheadTime: model.previewTime
-                )
-                snapGuideTime = snapResult.guideTime
-                snapGuideSource = snapResult.source
-                model.moveTimelineClip(id: clip.id, toTimelineStart: snapResult.timelineStart)
+                if Self.isShiftKeyPressed {
+                    // Shift 约束拖动：跨轨道移动时锁定水平位置，与达芬奇一致。
+                    snapGuideTime = nil
+                    snapGuideSource = nil
+                    model.moveTimelineClip(id: clip.id, toTimelineStart: base)
+                } else {
+                    let gestureDuration = dragTimelineDuration ?? duration
+                    let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
+                    let snap = Double(6 / laneWidth) * gestureDuration
+                    let snapResult = Self.moveSnapResult(
+                        project: project,
+                        proposedStart: base + deltaT,
+                        clipDuration: clip.duration,
+                        threshold: snap,
+                        clipID: clip.id,
+                        excludingClipIDs: model.selectedTimelineClipIDs,
+                        playheadTime: model.previewTime
+                    )
+                    snapGuideTime = snapResult.guideTime
+                    snapGuideSource = snapResult.source
+                    model.moveTimelineClip(id: clip.id, toTimelineStart: snapResult.timelineStart)
+                }
                 optionFineTuneClipID = Self.isOptionKeyPressed
                     && model.timelineAlignmentOffsetMilliseconds(for: clip.id) != nil
                     ? clip.id
@@ -1004,18 +1068,24 @@ struct ProjectTimelineView: View {
                 let shouldShowFineTune = Self.isOptionKeyPressed
                     && model.timelineAlignmentOffsetMilliseconds(for: clip.id) != nil
                 if let dragStartTrackID {
-                    let gestureDuration = dragTimelineDuration ?? duration
-                    let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
-                    let snap = Double(6 / laneWidth) * gestureDuration
-                    let snapResult = Self.moveSnapResult(
-                        project: project,
-                        proposedStart: (dragStartClipTimelineStart ?? clip.timelineStart) + deltaT,
-                        clipDuration: clip.duration,
-                        threshold: snap,
-                        clipID: clip.id,
-                        excludingClipIDs: model.selectedTimelineClipIDs,
-                        playheadTime: model.previewTime
-                    )
+                    let base = dragStartClipTimelineStart ?? clip.timelineStart
+                    let finalStart: TimeInterval
+                    if Self.isShiftKeyPressed {
+                        finalStart = base
+                    } else {
+                        let gestureDuration = dragTimelineDuration ?? duration
+                        let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
+                        let snap = Double(6 / laneWidth) * gestureDuration
+                        finalStart = Self.moveSnapResult(
+                            project: project,
+                            proposedStart: base + deltaT,
+                            clipDuration: clip.duration,
+                            threshold: snap,
+                            clipID: clip.id,
+                            excludingClipIDs: model.selectedTimelineClipIDs,
+                            playheadTime: model.previewTime
+                        ).timelineStart
+                    }
                     let targetTrackID = dragMovesSelectionVertically
                         ? Self.targetTrackID(
                             project: project,
@@ -1027,7 +1097,7 @@ struct ProjectTimelineView: View {
                     model.moveTimelineClip(
                         id: clip.id,
                         toTrackID: targetTrackID,
-                        toTimelineStart: snapResult.timelineStart
+                        toTimelineStart: finalStart
                     )
                 }
                 dragClipID = nil
@@ -1127,6 +1197,12 @@ struct ProjectTimelineView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers, _ in
+            MediaFileDrop.loadURLs(from: providers) { urls in
+                model.importDroppedMediaFiles(urls)
+            }
+        }
     }
 
     // MARK: helpers
@@ -1148,6 +1224,14 @@ struct ProjectTimelineView: View {
     private static var isOptionKeyPressed: Bool {
 #if canImport(AppKit)
         NSEvent.modifierFlags.contains(.option)
+#else
+        false
+#endif
+    }
+
+    private static var isShiftKeyPressed: Bool {
+#if canImport(AppKit)
+        NSEvent.modifierFlags.contains(.shift)
 #else
         false
 #endif

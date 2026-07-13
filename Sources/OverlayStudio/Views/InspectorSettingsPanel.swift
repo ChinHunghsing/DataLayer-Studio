@@ -134,6 +134,16 @@ struct InspectorSettingsPanel: View {
         }
     }
 
+    /// Components whose displayed values convert through the project distance unit.
+    static func usesDistanceUnit(_ kind: OverlayComponentID) -> Bool {
+        switch kind {
+        case .distance, .route, .topProgress:
+            return true
+        default:
+            return false
+        }
+    }
+
     private func contentSection(for element: OverlayElement) -> some View {
         let id = element.id
         let kind = element.kind
@@ -190,6 +200,16 @@ struct InspectorSettingsPanel: View {
                             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
                             element.customization.unitOverride = trimmed.isEmpty ? nil : trimmed
                         }
+                    )
+                )
+            }
+
+            if Self.usesDistanceUnit(kind) {
+                InspectorDistanceUnitRow(
+                    title: localization.string("sidebar.distanceUnit"),
+                    selection: Binding(
+                        get: { model.distanceUnitForCurrentSelection },
+                        set: { model.setDistanceUnitForCurrentSelection($0) }
                     )
                 )
             }
@@ -1434,6 +1454,46 @@ private struct InspectorToggleRow: View {
             .labelsHidden()
             .controlSize(.small)
             .accessibilityLabel(title)
+    }
+}
+
+private struct InspectorDistanceUnitRow: View {
+    var title: String
+    @Binding var selection: OverlayDistanceUnit
+    @EnvironmentObject private var localization: LocalizationStore
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: InspectorFormMetrics.rowGap) {
+                Text(title)
+                    .inspectorControlLabel()
+
+                Spacer(minLength: 8)
+
+                picker
+            }
+
+            VStack(alignment: .leading, spacing: InspectorFormMetrics.stackedRowGap) {
+                Text(title)
+                    .inspectorControlLabel(width: nil)
+
+                picker
+            }
+        }
+        .inspectorControlRowSurface()
+    }
+
+    private var picker: some View {
+        Picker(title, selection: $selection) {
+            ForEach(OverlayDistanceUnit.allCases) { unit in
+                Text(localization.string(unit.localizationKey)).tag(unit)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .fixedSize()
+        .accessibilityLabel(title)
     }
 }
 

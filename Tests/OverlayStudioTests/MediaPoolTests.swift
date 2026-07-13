@@ -284,6 +284,88 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 125, accuracy: 1e-9)
     }
 
+    func testDroppedMediaFileLandsOnTargetTrackAtDropPosition() throws {
+        let model = StudioModel()
+        let activeURL = URL(fileURLWithPath: "/tmp/drop-active.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+        model.addActivityAssetToTimeline(id: activeURL.path)
+
+        let targetTrack = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .overlay }
+        )
+
+        // A pooled file dropped from Finder lands on the target lane at the drop time.
+        let pooledURL = URL(fileURLWithPath: "/tmp/drop-pooled.fit")
+        model.upsertActivityAsset(url: pooledURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 30, distanceMeters: 120)
+        ]))
+        XCTAssertTrue(
+            model.importDroppedMediaFiles([pooledURL], targetTrackID: targetTrack.id, timelineStart: 200)
+        )
+        let updatedTrack = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.id == targetTrack.id }
+        )
+        XCTAssertEqual(updatedTrack.clips.last?.assetID, pooledURL.path)
+        XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 200, accuracy: 1e-9)
+
+        // Files that do not match the lane kind, and unsupported files, are rejected.
+        XCTAssertFalse(
+            model.importDroppedMediaFiles(
+                [URL(fileURLWithPath: "/tmp/drop.mov")],
+                targetTrackID: targetTrack.id,
+                timelineStart: 0
+            )
+        )
+        XCTAssertFalse(model.importDroppedMediaFiles([URL(fileURLWithPath: "/tmp/notes.txt")]))
+    }
+
+    func testNudgeSelectedTimelineClipsMovesByWholeFrames() throws {
+        let model = StudioModel()
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: [
+                TimelineTrack(id: "v", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "a", assetID: "asset.a", timelineStart: 10, duration: 5),
+                    TimelineClip(id: "b", assetID: "asset.b", timelineStart: 20, duration: 5)
+                ])
+            ]
+        )
+        model.applyTimelineProject(project, loadAssets: false)
+        model.setOutputFPS(50)
+
+        func clipStart(_ id: String) -> TimeInterval {
+            model.currentTimelineProject.tracks
+                .flatMap(\.clips)
+                .first { $0.id == id }?
+                .timelineStart ?? -1
+        }
+
+        XCTAssertFalse(model.canNudgeSelectedTimelineClips)
+        model.nudgeSelectedTimelineClips(byFrames: 1)
+        XCTAssertEqual(clipStart("a"), 10, accuracy: 1e-9)
+
+        model.selectTimelineClip(id: "a")
+        XCTAssertTrue(model.canNudgeSelectedTimelineClips)
+        model.nudgeSelectedTimelineClips(byFrames: 1)
+        XCTAssertEqual(clipStart("a"), 10.02, accuracy: 1e-9)
+        model.nudgeSelectedTimelineClips(byFrames: -1)
+        XCTAssertEqual(clipStart("a"), 10, accuracy: 1e-9)
+
+        // Multi-selection moves together, like dragging a selected group.
+        model.selectTimelineClip(id: "b", extendingSelection: true)
+        model.nudgeSelectedTimelineClips(byFrames: -2)
+        XCTAssertEqual(clipStart("a"), 9.96, accuracy: 1e-9)
+        XCTAssertEqual(clipStart("b"), 19.96, accuracy: 1e-9)
+    }
+
     func testMatchPointHelperWritesCanonicalSync() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov")

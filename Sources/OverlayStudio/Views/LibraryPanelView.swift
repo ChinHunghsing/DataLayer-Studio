@@ -16,6 +16,7 @@ struct LibraryPanelView: View {
     @SceneStorage("library.selectedTab") private var selectedTabRawValue = LibraryTab.media.rawValue
     @State private var componentSearch = ""
     @State private var layoutPresetName = ""
+    @State private var isMediaDropTargeted = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,6 +84,7 @@ struct LibraryPanelView: View {
                     inUseIDs: model.timelineAssetIDsInUse,
                     offlineReasons: model.offlineTimelineAssetReasons,
                     addTitle: localization.string("mediapool.addVideo"),
+                    dropHint: localization.string("mediapool.dropHint"),
                     select: model.selectMediaAsset,
                     remove: model.removeVideoAsset,
                     relink: model.chooseReplacementForTimelineAsset,
@@ -109,6 +111,7 @@ struct LibraryPanelView: View {
                     inUseIDs: model.timelineAssetIDsInUse,
                     offlineReasons: model.offlineTimelineAssetReasons,
                     addTitle: localization.string("mediapool.addActivity"),
+                    dropHint: localization.string("mediapool.dropHint"),
                     select: model.selectMediaAsset,
                     remove: model.removeActivityAsset,
                     relink: model.chooseReplacementForTimelineAsset,
@@ -128,6 +131,23 @@ struct LibraryPanelView: View {
                 counterpartPrompt
             }
             .padding(12)
+        }
+        .onDrop(of: [.fileURL], isTargeted: $isMediaDropTargeted) { providers, _ in
+            MediaFileDrop.loadURLs(from: providers) { urls in
+                model.importDroppedMediaFiles(urls)
+            }
+        }
+        .overlay {
+            if isMediaDropTargeted {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.08))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.accentColor, lineWidth: 2)
+                    }
+                    .padding(5)
+                    .allowsHitTesting(false)
+            }
         }
     }
 

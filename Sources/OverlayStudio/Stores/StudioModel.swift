@@ -318,6 +318,12 @@ final class StudioModel: ObservableObject {
     private var videoWaveformLoadTasks: [String: Task<Void, Never>] = [:]
     private var pendingVideoTimelineImportIDs: [String] = []
     private var pendingActivityTimelineImportIDs: [String] = []
+    /// Timeline-lane Finder drops waiting for their asset to finish importing; keyed by asset id.
+    private struct PositionedTimelineImport {
+        var trackID: String
+        var timelineStart: TimeInterval?
+    }
+    private var pendingPositionedTimelineImports: [String: PositionedTimelineImport] = [:]
     private var pendingOverlayRefreshAfterCurrentRender = false
     private var pendingOverlayRefreshDisplaysIntermediateResult = false
     private var isScrubbingPreview = false
@@ -1503,6 +1509,61 @@ final class StudioModel: ObservableObject {
             setFIT(firstActivity)
             for url in activities.dropFirst() { addActivityAssetToPool(url) }
         }
+    }
+
+    /// Finder drops onto the media library behave like the import buttons: supported files join
+    /// the pool and queue for the timeline in drop order.
+    @discardableResult
+    func importDroppedMediaFiles(_ urls: [URL]) -> Bool {
+        guard !isExporting else { return false }
+        let supported = urls.filter {
+            let kind = StudioExternalFileKind.classify($0)
+            return kind == .video || kind == .activity
+        }
+        guard !supported.isEmpty else { return false }
+        importMediaFilesIntoCurrentTimeline(supported)
+        return true
+    }
+
+    /// Finder drops onto a timeline lane: files matching the lane's kind import into the pool
+    /// (when needed) and the first one lands at the drop position; the rest append after the
+    /// lane's own last clip like button-based insertion.
+    @discardableResult
+    func importDroppedMediaFiles(_ urls: [URL], targetTrackID: String, timelineStart: TimeInterval) -> Bool {
+        guard !isExporting,
+              let track = timeline.tracks.first(where: { $0.id == targetTrackID }),
+              !track.isLocked else { return false }
+        let wantedKind: StudioExternalFileKind = track.kind == .video ? .video : .activity
+        let matching = urls.filter { StudioExternalFileKind.classify($0) == wantedKind }
+        guard !matching.isEmpty else { return false }
+
+        for (index, url) in matching.enumerated() {
+            let start: TimeInterval? = index == 0 ? max(0, timelineStart) : nil
+            let assetID = url.path
+            switch track.kind {
+            case .video:
+                if videoAssets.contains(where: { $0.id == assetID }) {
+                    addVideoAssetToTimeline(id: assetID, targetTrackID: targetTrackID, timelineStart: start)
+                } else {
+                    pendingPositionedTimelineImports[assetID] = PositionedTimelineImport(
+                        trackID: targetTrackID,
+                        timelineStart: start
+                    )
+                    addVideoAssetToPool(url)
+                }
+            case .overlay:
+                if activityAssets.contains(where: { $0.id == assetID }), activitySeriesByAssetID[assetID] != nil {
+                    addActivityAssetToTimeline(id: assetID, targetTrackID: targetTrackID, timelineStart: start)
+                } else {
+                    pendingPositionedTimelineImports[assetID] = PositionedTimelineImport(
+                        trackID: targetTrackID,
+                        timelineStart: start
+                    )
+                    addActivityAssetToPool(url)
+                }
+            }
+        }
+        return true
     }
 
     func timelineProjectJSONData(relativeTo projectURL: URL? = nil) throws -> Data {
@@ -2891,6 +2952,13 @@ final class StudioModel: ObservableObject {
             videoAssets.append(asset)
         }
         drainPendingVideoTimelineImports()
+        if let positioned = pendingPositionedTimelineImports.removeValue(forKey: asset.id) {
+            addVideoAssetToTimeline(
+                id: asset.id,
+                targetTrackID: positioned.trackID,
+                timelineStart: positioned.timelineStart
+            )
+        }
     }
 
     /// Add or refresh an activity in the pool (called once its telemetry has parsed). Deduplicated by path.
@@ -2911,6 +2979,13 @@ final class StudioModel: ObservableObject {
             activityAssets.append(asset)
         }
         drainPendingActivityTimelineImports()
+        if let positioned = pendingPositionedTimelineImports.removeValue(forKey: asset.id) {
+            addActivityAssetToTimeline(
+                id: asset.id,
+                targetTrackID: positioned.trackID,
+                timelineStart: positioned.timelineStart
+            )
+        }
     }
 
     /// Keep the Finder selection order even though metadata loading can finish out of order.
@@ -2963,11 +3038,13 @@ final class StudioModel: ObservableObject {
 
     private func discardPendingVideoTimelineImport(id: String) {
         pendingVideoTimelineImportIDs.removeAll { $0 == id }
+        pendingPositionedTimelineImports.removeValue(forKey: id)
         drainPendingVideoTimelineImports()
     }
 
     private func discardPendingActivityTimelineImport(id: String) {
         pendingActivityTimelineImportIDs.removeAll { $0 == id }
+        pendingPositionedTimelineImports.removeValue(forKey: id)
         drainPendingActivityTimelineImports()
     }
 
@@ -4024,6 +4101,23 @@ final class StudioModel: ObservableObject {
             coalescing: true
         )
         refreshOverlayOrPreview()
+    }
+
+    var canNudgeSelectedTimelineClips: Bool {
+        !editableSelectedTimelineClipIDs.isEmpty
+    }
+
+    /// `,` / `.` shortcuts: move the selected clips left/right by whole preview frames.
+    func nudgeSelectedTimelineClips(byFrames frameOffset: Int) {
+        guard frameOffset != 0, !isExporting else { return }
+        let selectedIDs = effectiveSelectedTimelineClipIDs
+        guard let anchor = timeline.tracks
+            .flatMap(\.clips)
+            .first(where: { selectedIDs.contains($0.id) }) else { return }
+        moveTimelineClip(
+            id: anchor.id,
+            toTimelineStart: anchor.timelineStart + Double(frameOffset) * previewFrameDuration
+        )
     }
 
     /// Clip boundaries (edit points) across enabled tracks, sorted ascending and including 0.

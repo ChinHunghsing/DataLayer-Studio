@@ -115,9 +115,9 @@ struct FilePickRow: View {
     }
 }
 
-/// A pooled list of imported media of one kind (videos or activities). Empty shows an import row;
-/// otherwise it lists each asset (timeline references highlighted, unused sources removable) with
-/// an "add more" button.
+/// A pooled list of imported media of one kind (videos or activities). Empty shows a prominent
+/// import drop zone; otherwise it lists each asset (timeline references highlighted, unused
+/// sources removable) with an equally visible "add more" entry.
 struct MediaPoolList: View {
     var kindTitle: String
     var placeholder: String
@@ -127,6 +127,7 @@ struct MediaPoolList: View {
     var inUseIDs: Set<String>
     var offlineReasons: [String: TimelineAssetOfflineReason] = [:]
     var addTitle: String
+    var dropHint: String? = nil
     var select: (String) -> Void
     var remove: (String) -> Void
     var relink: ((String) -> Void)? = nil
@@ -137,11 +138,11 @@ struct MediaPoolList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if assets.isEmpty {
-                FilePickRow(
-                    title: kindTitle,
+                MediaPoolImportZone(
+                    title: addTitle,
                     subtitle: placeholder,
+                    dropHint: dropHint,
                     systemImage: systemImage,
-                    isLoaded: false,
                     action: add
                 )
             } else {
@@ -160,15 +161,73 @@ struct MediaPoolList: View {
                     )
                 }
 
-                Button(action: add) {
-                    Label(addTitle, systemImage: "plus.circle")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-                .padding(.leading, 2)
+                MediaPoolImportZone(
+                    title: addTitle,
+                    subtitle: nil,
+                    dropHint: nil,
+                    systemImage: nil,
+                    action: add
+                )
             }
         }
+    }
+}
+
+/// 媒体池导入入口：虚线强调色拖放区。空池时展示大图标、说明与拖放提示；有素材时收缩为
+/// 一条同宽的"添加更多"按钮，保持入口始终醒目。
+struct MediaPoolImportZone: View {
+    var title: String
+    var subtitle: String?
+    var dropHint: String?
+    var systemImage: String?
+    var action: () -> Void
+
+    private var isExpanded: Bool { subtitle != nil || dropHint != nil }
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if isExpanded {
+                    VStack(spacing: 5) {
+                        Image(systemName: systemImage ?? "square.and.arrow.down")
+                            .font(.system(size: 19, weight: .semibold))
+                        Text(title)
+                            .font(.subheadline.weight(.semibold))
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let dropHint {
+                            Text(dropHint)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .multilineTextAlignment(.center)
+                    .padding(.vertical, 16)
+                    .padding(.horizontal, 10)
+                } else {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(title)
+                            .font(.caption.weight(.semibold))
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            .foregroundStyle(Color.accentColor)
+            .frame(maxWidth: .infinity)
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .background(ShellStyle.accentSoft, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(ShellStyle.accentStroke, style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+        }
+        .accessibilityLabel(title)
     }
 }
 
