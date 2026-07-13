@@ -37,6 +37,7 @@ struct TimelineClipInspectorView: View {
     @ObservedObject var model: StudioModel
     let clip: TimelineClip
     @EnvironmentObject private var localization: LocalizationStore
+    @SceneStorage("inspector.timelineSyncExpanded") private var isAdvancedAlignmentExpanded = false
 
     private var currentClip: TimelineClip {
         model.selectedTimelineClip ?? clip
@@ -85,6 +86,43 @@ struct TimelineClipInspectorView: View {
                     }
                 }
                 .disabled(!model.selectedTimelineClipIsEditable)
+
+                DisclosureGroup(isExpanded: $isAdvancedAlignmentExpanded) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if model.wallClockAlignmentMarkerTime != nil {
+                            Label(localization.string("timeline.alignment.wallClock"), systemImage: "clock.badge.checkmark")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if model.timelineAlignmentOffsetMilliseconds(for: currentClip.id) != nil {
+                            TimelineAlignmentOffsetField(model: model, clipID: currentClip.id)
+                                .disabled(!model.selectedTimelineClipIsEditable)
+                        }
+
+                        Button {
+                            model.reapplyWallClockAutoSync()
+                        } label: {
+                            Label(localization.string("timeline.alignment.reapply"), systemImage: "arrow.triangle.2.circlepath")
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(
+                            !model.canReapplyWallClockAutoSync
+                                || model.timelineAlignmentOffsetMilliseconds(for: currentClip.id) == nil
+                        )
+                        .help(localization.string("timeline.alignment.reapplyHelp"))
+                    }
+                    .padding(.top, 10)
+                } label: {
+                    Label(localization.string("timelineClip.inspector.advancedAlignment"), systemImage: "slider.horizontal.3")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .padding(14)
+                .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                )
             }
         }
     }

@@ -1843,4 +1843,67 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.syncVideoSeconds, 900, accuracy: 0.001)
         XCTAssertEqual(model.syncFITSeconds, 0, accuracy: 0.001)
     }
+
+    func testWallClockAlignmentMarkerAndMillisecondOffsetFollowMatchPoint() {
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let video = MediaAsset(
+            id: "video",
+            kind: .video,
+            url: URL(fileURLWithPath: "/tmp/video.mov"),
+            displayName: "video.mov",
+            duration: 100,
+            wallClockStart: base
+        )
+        let activity = MediaAsset(
+            id: "activity",
+            kind: .activity,
+            url: URL(fileURLWithPath: "/tmp/activity.fit"),
+            displayName: "activity.fit",
+            duration: 100,
+            wallClockStart: base.addingTimeInterval(10)
+        )
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [video, activity],
+            tracks: [
+                TimelineTrack(
+                    id: "video-track",
+                    kind: .video,
+                    name: "Video",
+                    clips: [TimelineClip(id: "video-clip", assetID: video.id, timelineStart: 0, duration: 100)]
+                ),
+                TimelineTrack(
+                    id: "activity-track",
+                    kind: .overlay,
+                    name: "Activity",
+                    clips: [TimelineClip(id: "activity-clip", assetID: activity.id, timelineStart: 10.25, duration: 100)]
+                )
+            ],
+            sourceMatchPoint: TimelineSourceMatchPoint(
+                videoAssetID: video.id,
+                activityAssetID: activity.id,
+                videoSourceTime: 10,
+                activitySourceTime: 0
+            )
+        )
+        let model = StudioModel()
+        model.applyTimelineProject(project, loadAssets: false)
+
+        XCTAssertEqual(model.wallClockAlignmentMarkerTime ?? -1, 10, accuracy: 0.001)
+        XCTAssertEqual(model.timelineAlignmentOffsetMilliseconds(for: "activity-clip"), 250)
+
+        model.setTimelineAlignmentOffsetMilliseconds(clipID: "activity-clip", milliseconds: 125)
+
+        XCTAssertEqual(model.timelineAlignmentOffsetMilliseconds(for: "activity-clip"), 125)
+        let activityStart = model.currentTimelineProject.tracks
+            .first { $0.kind == .overlay }?.clips.first?.timelineStart
+        XCTAssertEqual(activityStart ?? -1, 10.125, accuracy: 0.001)
+
+        XCTAssertTrue(model.canReapplyWallClockAutoSync)
+        model.reapplyWallClockAutoSync()
+        XCTAssertEqual(model.timelineAlignmentOffsetMilliseconds(for: "activity-clip"), 0)
+    }
 }

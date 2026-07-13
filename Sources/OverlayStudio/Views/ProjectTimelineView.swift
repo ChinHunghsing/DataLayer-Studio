@@ -39,6 +39,8 @@ struct ProjectTimelineView: View {
     @State private var dragVerticalOffset: CGFloat = 0
     @State private var snapGuideTime: TimeInterval?
     @State private var snapGuideSource: TimelineSnapSource?
+    @State private var optionFineTuneClipID: String?
+    @State private var fineTunePopoverClipID: String?
     @State private var clipTrimID: String?
     @State private var clipTrimIsStart: Bool?
     @State private var clipTrimBaseTime: TimeInterval?
@@ -249,6 +251,7 @@ struct ProjectTimelineView: View {
                     .allowsHitTesting(false)
             }
 
+            alignmentGuideLayer(duration: duration, laneWidth: laneWidth, contentHeight: contentHeight)
             snapGuideLayer(duration: duration, laneWidth: laneWidth, contentHeight: contentHeight)
 
             // Playhead
@@ -756,6 +759,16 @@ struct ProjectTimelineView: View {
 
         let block = ZStack {
             clipBody
+            if optionFineTuneClipID == clip.id,
+               let milliseconds = model.timelineAlignmentOffsetMilliseconds(for: clip.id) {
+                Text(Self.signedMilliseconds(milliseconds))
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.black.opacity(0.78), in: Capsule())
+                    .allowsHitTesting(false)
+            }
             if width > 22, !isLocked {
                 HStack {
                     clipTrimHandle(clip: clip, project: project, isStart: true, laneWidth: laneWidth, duration: duration)
@@ -823,6 +836,20 @@ struct ProjectTimelineView: View {
                 clipMoveGesture(clip: clip, project: project, laneWidth: laneWidth, duration: duration),
                 including: isLocked ? .none : .all
             )
+            .popover(
+                isPresented: Binding(
+                    get: { fineTunePopoverClipID == clip.id },
+                    set: { if !$0 { fineTunePopoverClipID = nil } }
+                ),
+                arrowEdge: .bottom
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(localization.string("timeline.alignment.fineTune"))
+                        .font(.headline)
+                    TimelineAlignmentOffsetField(model: model, clipID: clip.id, showsLabel: false)
+                }
+                .padding(14)
+            }
             .task(id: kind == .video ? asset?.id : nil) {
                 guard kind == .video, let assetID = asset?.id else { return }
                 model.loadVideoWaveformIfNeeded(assetID: assetID)
@@ -968,8 +995,14 @@ struct ProjectTimelineView: View {
                 snapGuideTime = snapResult.guideTime
                 snapGuideSource = snapResult.source
                 model.moveTimelineClip(id: clip.id, toTimelineStart: snapResult.timelineStart)
+                optionFineTuneClipID = Self.isOptionKeyPressed
+                    && model.timelineAlignmentOffsetMilliseconds(for: clip.id) != nil
+                    ? clip.id
+                    : nil
             }
             .onEnded { value in
+                let shouldShowFineTune = Self.isOptionKeyPressed
+                    && model.timelineAlignmentOffsetMilliseconds(for: clip.id) != nil
                 if let dragStartTrackID {
                     let gestureDuration = dragTimelineDuration ?? duration
                     let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
@@ -1007,7 +1040,33 @@ struct ProjectTimelineView: View {
                 dragVerticalOffset = 0
                 snapGuideTime = nil
                 snapGuideSource = nil
+                optionFineTuneClipID = nil
+                if shouldShowFineTune {
+                    fineTunePopoverClipID = clip.id
+                }
             }
+    }
+
+    @ViewBuilder
+    private func alignmentGuideLayer(duration: TimeInterval, laneWidth: CGFloat, contentHeight: CGFloat) -> some View {
+        if let markerTime = model.wallClockAlignmentMarkerTime, duration > 0 {
+            let x = CGFloat(min(duration, max(0, markerTime)) / duration) * laneWidth
+            Rectangle()
+                .fill(Color.mint.opacity(0.9))
+                .frame(width: 1, height: max(0, contentHeight - rulerHeight))
+                .offset(x: x, y: rulerHeight)
+                .shadow(color: Color.mint.opacity(0.45), radius: 2)
+                .allowsHitTesting(false)
+
+            Label(localization.string("timeline.alignment.wallClock"), systemImage: "clock.badge.checkmark")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.mint.opacity(0.86), in: Capsule())
+                .offset(x: min(max(2, x + 4), max(2, laneWidth - 150)), y: rulerHeight + 3)
+                .allowsHitTesting(false)
+        }
     }
 
     @ViewBuilder
@@ -1084,6 +1143,18 @@ struct ProjectTimelineView: View {
 #else
         false
 #endif
+    }
+
+    private static var isOptionKeyPressed: Bool {
+#if canImport(AppKit)
+        NSEvent.modifierFlags.contains(.option)
+#else
+        false
+#endif
+    }
+
+    private static func signedMilliseconds(_ value: Int) -> String {
+        String(format: "%+d ms", value)
     }
 
     private func tickTimes(duration: TimeInterval) -> [TimeInterval] {

@@ -3516,29 +3516,103 @@ final class StudioModel: ObservableObject {
     /// times and the user has not set a match point, derive the sync from the wall clocks so
     /// the migrated timeline places both clips at their real relative positions.
     func applyWallClockAutoSyncIfPossible() {
-        guard timelineUsesSingleSourceMigration, videoURL != nil, let fitURL else { return }
+        applyWallClockAutoSync(force: false)
+    }
+
+    var canReapplyWallClockAutoSync: Bool {
+        guard !isExporting, canEditTimelineSync else { return false }
+        if case .aligned = wallClockAlignmentForActiveSources {
+            return true
+        }
+        return false
+    }
+
+    func reapplyWallClockAutoSync() {
+        applyWallClockAutoSync(force: true)
+    }
+
+    private func applyWallClockAutoSync(force: Bool) {
+        guard videoURL != nil, let fitURL else { return }
+        if force {
+            guard canEditTimelineSync else { return }
+        } else {
+            guard timelineUsesSingleSourceMigration else { return }
+        }
         let syncIsUntouched = syncMode == .syncPoint && syncVideoSeconds == 0 && syncFITSeconds == 0
-        guard syncIsUntouched || syncWasAutoAlignedByWallClock else { return }
-        switch TimelineAutoAlignment.singleSourceAlignment(
-            videoWallClockStart: metadata?.creationDate,
-            activityWallClockStart: series?.activityStartDate
-        ) {
+        guard force || syncIsUntouched || syncWasAutoAlignedByWallClock else { return }
+        switch wallClockAlignmentForActiveSources {
         case let .aligned(videoSourceTime, activitySourceTime):
-            guard syncVideoSeconds != videoSourceTime || syncFITSeconds != activitySourceTime else { return }
+            guard force || syncVideoSeconds != videoSourceTime || syncFITSeconds != activitySourceTime else { return }
             isApplyingWallClockAutoSync = true
             syncMode = .syncPoint
             syncVideoSeconds = videoSourceTime
             syncFITSeconds = activitySourceTime
             isApplyingWallClockAutoSync = false
             syncWasAutoAlignedByWallClock = true
-            setStatus("status.timelineAutoAligned", fitURL.lastPathComponent)
+            setStatusAndToast(.success, "status.timelineAutoAligned", fitURL.lastPathComponent)
         case .gapTooLarge:
-            setStatus("status.autoSyncGapTooLarge")
+            setStatusAndToast(.warning, "status.autoSyncGapTooLarge")
         case .missingWallClock:
-            // Old behavior (both sources start together) — common enough that a notice on
-            // every load would be noise.
-            break
+            if force {
+                setStatusAndToast(.warning, "status.autoSyncMissingWallClock")
+            }
         }
+    }
+
+    private var wallClockAlignmentForActiveSources: TimelineAutoAlignment.SingleSourceAlignment {
+        let project = currentTimelineProject
+        let videoStart = activeVideoAssetID.flatMap { project.asset(id: $0)?.wallClockStart }
+            ?? metadata?.creationDate
+        let activityStart = activeActivityAssetID.flatMap { project.asset(id: $0)?.wallClockStart }
+            ?? series?.activityStartDate
+        return TimelineAutoAlignment.singleSourceAlignment(
+            videoWallClockStart: videoStart,
+            activityWallClockStart: activityStart
+        )
+    }
+
+    var wallClockAlignmentMarkerTime: TimeInterval? {
+        Self.wallClockAlignmentMarkerTime(in: currentTimelineProject)
+    }
+
+    static func wallClockAlignmentMarkerTime(in project: TimelineProject) -> TimeInterval? {
+        guard let matchPoint = project.sourceMatchPoint,
+              let videoAsset = project.asset(id: matchPoint.videoAssetID),
+              let activityAsset = project.asset(id: matchPoint.activityAssetID),
+              case let .aligned(expectedVideoTime, expectedActivityTime) = TimelineAutoAlignment.singleSourceAlignment(
+                  videoWallClockStart: videoAsset.wallClockStart,
+                  activityWallClockStart: activityAsset.wallClockStart
+              ),
+              abs(matchPoint.videoSourceTime - expectedVideoTime) < 0.001,
+              abs(matchPoint.activitySourceTime - expectedActivityTime) < 0.001,
+              let videoClip = project.tracks
+                  .filter({ $0.kind == .video })
+                  .flatMap(\.clips)
+                  .first(where: { $0.assetID == matchPoint.videoAssetID }) else {
+            return nil
+        }
+        return videoClip.timelineTime(forSourceTime: matchPoint.videoSourceTime)
+    }
+
+    func timelineAlignmentOffsetMilliseconds(for clipID: String) -> Int? {
+        let project = currentTimelineProject
+        guard let markerTime = Self.wallClockAlignmentMarkerTime(in: project),
+              let matchPoint = project.sourceMatchPoint,
+              let clip = project.tracks
+                  .filter({ $0.kind == .overlay })
+                  .flatMap(\.clips)
+                  .first(where: { $0.id == clipID && $0.assetID == matchPoint.activityAssetID }) else {
+            return nil
+        }
+        let activityMatchTime = clip.timelineTime(forSourceTime: matchPoint.activitySourceTime)
+        return Int(((activityMatchTime - markerTime) * 1_000).rounded())
+    }
+
+    func setTimelineAlignmentOffsetMilliseconds(clipID: String, milliseconds: Int) {
+        guard let current = timelineAlignmentOffsetMilliseconds(for: clipID),
+              let clip = timelineClip(id: clipID) else { return }
+        let timelineStart = clip.timelineStart + Double(milliseconds - current) / 1_000
+        moveTimelineClip(id: clipID, toTimelineStart: timelineStart)
     }
 
     private func updateTimelineForSyncChange() {
