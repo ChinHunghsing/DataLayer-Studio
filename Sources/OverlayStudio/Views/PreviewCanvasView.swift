@@ -7,6 +7,8 @@ import UniformTypeIdentifiers
 
 struct PreviewCanvasView: View {
     static let componentDragMinimumDistance: CGFloat = 1
+    /// Pixel radius inside which smart guides magnetically capture a dragged element.
+    static let alignmentSnapRadius: CGFloat = 6
 
     let model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
@@ -14,6 +16,7 @@ struct PreviewCanvasView: View {
     let isFullscreen: Bool
     let onToggleFullscreen: () -> Void
     @State private var activeDrag: ComponentDragState?
+    @State private var activeAlignmentGuides: [CanvasAlignmentGuide] = []
     @State private var magnificationStartZoom: Double?
     @FocusState private var focusedElementID: String?
 
@@ -164,11 +167,15 @@ struct PreviewCanvasView: View {
             }
 
             if state.showGrid {
-                PreviewGridOverlay(columns: state.gridColumns, rows: state.gridRows)
+                PreviewGridOverlay(columns: PreviewGridOverlay.defaultColumns, rows: PreviewGridOverlay.defaultRows)
                     .stroke(Color.white.opacity(0.34), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
                     .frame(width: displayRect.width, height: displayRect.height)
                     .position(x: displayRect.midX, y: displayRect.midY)
                     .allowsHitTesting(false)
+            }
+
+            ForEach(activeAlignmentGuides, id: \.self) { guide in
+                alignmentGuideLine(guide, displayRect: displayRect)
             }
 
             ForEach(visibleElements) { element in
@@ -209,6 +216,7 @@ struct PreviewCanvasView: View {
         }
         .onDisappear {
             activeDrag = nil
+            activeAlignmentGuides = []
             model.endGaugeDragInteraction()
         }
     }
@@ -250,11 +258,13 @@ struct PreviewCanvasView: View {
                             targetID,
                             displayRect: displayRect,
                             translation: value.translation,
+                            visibleElements: visibleElements,
                             alignedMetricWidth: alignedMetricWidth
                         )
                     }
                     .onEnded { _ in
                         activeDrag = nil
+                        activeAlignmentGuides = []
                         model.endGaugeDragInteraction()
                     }
             )
@@ -345,6 +355,7 @@ struct PreviewCanvasView: View {
         _ id: String,
         displayRect: CGRect,
         translation: CGSize,
+        visibleElements: [OverlayElement],
         alignedMetricWidth: CGFloat?
     ) {
         guard !model.isExporting else { return }
@@ -369,9 +380,18 @@ struct PreviewCanvasView: View {
         let deltaY = Double(translation.height / max(1, displayRect.height))
         var nextX = activeDrag.startX + deltaX
         var nextY = activeDrag.startY + deltaY
-        if model.snapGaugeToGrid {
-            nextX = snapped(nextX, divisions: model.gridColumns)
-            nextY = snapped(nextY, divisions: model.gridRows)
+        let alignment = alignmentSolution(
+            forElementID: id,
+            proposedX: nextX,
+            proposedY: nextY,
+            displayRect: displayRect,
+            visibleElements: visibleElements,
+            alignedMetricWidth: alignedMetricWidth
+        )
+        nextX += Double(alignment.offset.dx)
+        nextY += Double(alignment.offset.dy)
+        if activeAlignmentGuides != alignment.guides {
+            activeAlignmentGuides = alignment.guides
         }
         nextX = PreviewLayoutLimits.clampPosition(nextX)
         nextY = PreviewLayoutLimits.clampPosition(nextY)
@@ -405,9 +425,61 @@ struct PreviewCanvasView: View {
         }
     }
 
-    private func snapped(_ value: Double, divisions: Int) -> Double {
-        let divisions = max(1, divisions)
-        return (value * Double(divisions)).rounded() / Double(divisions)
+    private func alignmentSolution(
+        forElementID id: String,
+        proposedX: Double,
+        proposedY: Double,
+        displayRect: CGRect,
+        visibleElements: [OverlayElement],
+        alignedMetricWidth: CGFloat?
+    ) -> CanvasAlignmentSolution {
+        guard let element = model.layout.elements.first(where: { $0.id == id }) else {
+            return CanvasAlignmentSolution()
+        }
+        let currentRect = componentUnitRect(element: element, alignedMetricWidth: alignedMetricWidth)
+        let movingRect = currentRect.offsetBy(
+            dx: CGFloat(proposedX - element.frame.x),
+            dy: CGFloat(proposedY - element.frame.y)
+        )
+        let neighborRects = visibleElements
+            .filter { $0.id != id }
+            .map { componentUnitRect(element: $0, alignedMetricWidth: alignedMetricWidth) }
+        return CanvasAlignmentSolver.solve(
+            movingRect: movingRect,
+            neighborRects: neighborRects,
+            configuration: CanvasAlignmentSolver.Configuration(
+                tolerance: CGSize(
+                    width: Self.alignmentSnapRadius / max(1, displayRect.width),
+                    height: Self.alignmentSnapRadius / max(1, displayRect.height)
+                ),
+                safeAreaInset: CGFloat(model.canvasSafeAreaInsetPercent) / 100
+            )
+        )
+    }
+
+    private func alignmentGuideLine(_ guide: CanvasAlignmentGuide, displayRect: CGRect) -> some View {
+        let lineColor = Color.yellow.opacity(0.9)
+        return Group {
+            switch guide.axis {
+            case .vertical:
+                Rectangle()
+                    .fill(lineColor)
+                    .frame(width: 1, height: displayRect.height)
+                    .position(
+                        x: displayRect.minX + displayRect.width * guide.position,
+                        y: displayRect.midY
+                    )
+            case .horizontal:
+                Rectangle()
+                    .fill(lineColor)
+                    .frame(width: displayRect.width, height: 1)
+                    .position(
+                        x: displayRect.midX,
+                        y: displayRect.minY + displayRect.height * guide.position
+                    )
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     private func componentHitRect(element: OverlayElement, displayRect: CGRect, alignedMetricWidth: CGFloat?) -> CGRect {
@@ -1054,8 +1126,6 @@ struct PreviewCanvasState: Equatable {
     var layout: OverlayLayout
     var selectedElementID: String?
     var showGrid: Bool
-    var gridColumns: Int
-    var gridRows: Int
     var hasSeries: Bool
     var outputWidth: Int
     var outputHeight: Int
@@ -1068,8 +1138,6 @@ struct PreviewCanvasState: Equatable {
         layout = model.layout
         selectedElementID = model.selectedElementID
         showGrid = model.showGrid
-        gridColumns = model.gridColumns
-        gridRows = model.gridRows
         hasSeries = model.series != nil || model.usesCustomTimelinePreview
         outputWidth = model.outputWidth
         outputHeight = model.outputHeight
@@ -1082,8 +1150,6 @@ struct PreviewCanvasState: Equatable {
             && lhs.layout == rhs.layout
             && lhs.selectedElementID == rhs.selectedElementID
             && lhs.showGrid == rhs.showGrid
-            && lhs.gridColumns == rhs.gridColumns
-            && lhs.gridRows == rhs.gridRows
             && lhs.hasSeries == rhs.hasSeries
             && lhs.outputWidth == rhs.outputWidth
             && lhs.outputHeight == rhs.outputHeight
@@ -1126,6 +1192,10 @@ private extension View {
 }
 
 private struct PreviewGridOverlay: Shape {
+    // The grid is a fixed visual aid now that snapping goes through smart guides.
+    static let defaultColumns = 12
+    static let defaultRows = 8
+
     var columns: Int
     var rows: Int
 

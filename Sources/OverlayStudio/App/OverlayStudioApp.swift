@@ -38,7 +38,7 @@ struct OverlayStudioApp: App {
         }
 
         Settings {
-            SettingsView()
+            SettingsView(model: model)
                 .environmentObject(localization)
                 .environment(\.locale, localization.locale)
                 .preferredColorScheme(preferredColorScheme)
@@ -449,6 +449,17 @@ private struct PreviewCommands: Commands {
             }
             .keyboardShortcut("0", modifiers: [.command])
             .disabled(previewActions == nil)
+
+            Divider()
+
+            Toggle(
+                localization.string("menu.showGrid"),
+                isOn: Binding(
+                    get: { studioActions?.showsGrid ?? false },
+                    set: { _ in studioActions?.toggleGrid() }
+                )
+            )
+            .disabled(studioActions == nil)
 
             Divider()
 

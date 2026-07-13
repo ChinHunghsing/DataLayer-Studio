@@ -935,16 +935,19 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.sourceFrameRatePresetTitle, "源视频 29.970 fps")
     }
 
-    func testGridDivisionSettersClampToPreviewBounds() {
-        XCTAssertEqual(StudioModel.sanitizedGridDivision(1), 2)
-        XCTAssertEqual(StudioModel.sanitizedGridDivision(65), 64)
+    func testCanvasSafeAreaInsetSetterClampsToSupportedRange() {
+        XCTAssertEqual(StudioPreferenceState.sanitizedSafeAreaInsetPercent(-3), 0)
+        XCTAssertEqual(StudioPreferenceState.sanitizedSafeAreaInsetPercent(28), 20)
+        XCTAssertEqual(
+            StudioPreferenceState.sanitizedSafeAreaInsetPercent(.nan),
+            StudioPreferenceState.default.safeAreaInsetPercent
+        )
 
         let model = StudioModel()
-        model.setGridColumns(1)
-        model.setGridRows(65)
-
-        XCTAssertEqual(model.gridColumns, 2)
-        XCTAssertEqual(model.gridRows, 64)
+        model.setCanvasSafeAreaInsetPercent(-3)
+        XCTAssertEqual(model.canvasSafeAreaInsetPercent, 0)
+        model.setCanvasSafeAreaInsetPercent(28)
+        XCTAssertEqual(model.canvasSafeAreaInsetPercent, 20)
     }
 
     func testPreferenceStoreFallsBackToLegacyAppDomain() throws {
@@ -953,14 +956,17 @@ final class StudioModelTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let legacyDomain = "\(suiteName).legacy"
 
+        // Payload written by pre-0.3.1 builds: carries retired grid-snapping fields
+        // and predates `safeAreaInsetPercent`.
+        let legacyJSON = """
+        {"showGrid":true,"gridColumns":20,"gridRows":18,"snapGaugeToGrid":true,"distanceUnit":"m"}
+        """
+        let data = Data(legacyJSON.utf8)
         let legacyState = StudioPreferenceState(
             showGrid: true,
-            gridColumns: 20,
-            gridRows: 18,
-            snapGaugeToGrid: true,
+            safeAreaInsetPercent: StudioPreferenceState.default.safeAreaInsetPercent,
             distanceUnit: .meters
         )
-        let data = try JSONEncoder().encode(legacyState)
         defaults.setPersistentDomain(
             [StudioPreferenceStore.storageKey: data],
             forName: legacyDomain

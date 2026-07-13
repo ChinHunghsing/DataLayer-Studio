@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
     @AppStorage(AppAppearanceSelection.defaultsKey) private var appearanceRawValue = AppAppearanceSelection.system.rawValue
 
@@ -34,6 +35,24 @@ struct SettingsView: View {
                 } header: {
                     Text(localization.string("settings.appearance.title"))
                 }
+
+                Section {
+                    Stepper(value: safeAreaInsetSelection, in: 0...20, step: 1) {
+                        HStack {
+                            Text(localization.string("settings.canvas.safeAreaInset"))
+                            Spacer()
+                            Text("\(Int(model.canvasSafeAreaInsetPercent.rounded()))%")
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text(localization.string("settings.canvas.safeAreaInset.description"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text(localization.string("settings.canvas.title"))
+                }
             }
             .formStyle(.grouped)
             .tabItem {
@@ -49,6 +68,14 @@ struct SettingsView: View {
             AppAppearanceSelection.selection(from: appearanceRawValue)
         } set: { selection in
             appearanceRawValue = selection.rawValue
+        }
+    }
+
+    private var safeAreaInsetSelection: Binding<Double> {
+        Binding {
+            model.canvasSafeAreaInsetPercent
+        } set: { value in
+            model.setCanvasSafeAreaInsetPercent(value)
         }
     }
 }

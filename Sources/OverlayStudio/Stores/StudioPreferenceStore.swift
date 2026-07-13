@@ -3,27 +3,43 @@ import OverlayCore
 
 struct StudioPreferenceState: Codable, Equatable {
     var showGrid: Bool
-    var gridColumns: Int
-    var gridRows: Int
-    var snapGaugeToGrid: Bool
+    var safeAreaInsetPercent: Double
     var distanceUnit: OverlayDistanceUnit
 
     static let `default` = StudioPreferenceState(
         showGrid: false,
-        gridColumns: 12,
-        gridRows: 8,
-        snapGaugeToGrid: false,
+        safeAreaInsetPercent: 5,
         distanceUnit: .kilometers
     )
+
+    init(showGrid: Bool, safeAreaInsetPercent: Double, distanceUnit: OverlayDistanceUnit) {
+        self.showGrid = showGrid
+        self.safeAreaInsetPercent = safeAreaInsetPercent
+        self.distanceUnit = distanceUnit
+    }
+
+    // Decoded manually so preferences saved by older versions (which lack
+    // `safeAreaInsetPercent` and carry retired grid-snapping fields) still load.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        showGrid = try container.decodeIfPresent(Bool.self, forKey: .showGrid) ?? Self.default.showGrid
+        safeAreaInsetPercent = try container.decodeIfPresent(Double.self, forKey: .safeAreaInsetPercent)
+            ?? Self.default.safeAreaInsetPercent
+        distanceUnit = try container.decodeIfPresent(OverlayDistanceUnit.self, forKey: .distanceUnit)
+            ?? Self.default.distanceUnit
+    }
 
     var sanitized: StudioPreferenceState {
         StudioPreferenceState(
             showGrid: showGrid,
-            gridColumns: min(64, max(2, gridColumns)),
-            gridRows: min(64, max(2, gridRows)),
-            snapGaugeToGrid: snapGaugeToGrid,
+            safeAreaInsetPercent: Self.sanitizedSafeAreaInsetPercent(safeAreaInsetPercent),
             distanceUnit: distanceUnit
         )
+    }
+
+    static func sanitizedSafeAreaInsetPercent(_ value: Double) -> Double {
+        guard value.isFinite else { return Self.default.safeAreaInsetPercent }
+        return min(20, max(0, value))
     }
 }
 

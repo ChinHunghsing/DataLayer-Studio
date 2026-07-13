@@ -246,13 +246,7 @@ final class StudioModel: ObservableObject {
     @Published var showGrid = false {
         didSet { persistStudioPreferences() }
     }
-    @Published var gridColumns = 12 {
-        didSet { persistStudioPreferences() }
-    }
-    @Published var gridRows = 8 {
-        didSet { persistStudioPreferences() }
-    }
-    @Published var snapGaugeToGrid = false {
+    @Published var canvasSafeAreaInsetPercent = StudioPreferenceState.default.safeAreaInsetPercent {
         didSet { persistStudioPreferences() }
     }
 
@@ -380,9 +374,7 @@ final class StudioModel: ObservableObject {
         self.selectedElementID = Self.firstSelectableElementID(in: layout)
         self.distanceUnit = preferenceState.distanceUnit
         self.showGrid = preferenceState.showGrid
-        self.gridColumns = preferenceState.gridColumns
-        self.gridRows = preferenceState.gridRows
-        self.snapGaugeToGrid = preferenceState.snapGaugeToGrid
+        self.canvasSafeAreaInsetPercent = preferenceState.safeAreaInsetPercent
         rebuildCurrentTimelineProject()
         markTimelineProjectClean()
         observeLayoutPresetCloudChanges()
@@ -1032,12 +1024,8 @@ final class StudioModel: ObservableObject {
         )
     }
 
-    func setGridColumns(_ value: Int) {
-        gridColumns = Self.sanitizedGridDivision(value)
-    }
-
-    func setGridRows(_ value: Int) {
-        gridRows = Self.sanitizedGridDivision(value)
+    func setCanvasSafeAreaInsetPercent(_ value: Double) {
+        canvasSafeAreaInsetPercent = StudioPreferenceState.sanitizedSafeAreaInsetPercent(value)
     }
 
     func applyFrameRatePreset(id: String) {
@@ -5892,9 +5880,7 @@ final class StudioModel: ObservableObject {
     private func persistStudioPreferences() {
         preferenceStore.save(StudioPreferenceState(
             showGrid: showGrid,
-            gridColumns: gridColumns,
-            gridRows: gridRows,
-            snapGaugeToGrid: snapGaugeToGrid,
+            safeAreaInsetPercent: canvasSafeAreaInsetPercent,
             distanceUnit: distanceUnit
         ))
     }
@@ -6116,10 +6102,6 @@ final class StudioModel: ObservableObject {
               bitRate.isFinite,
               bitRate > 0 else { return nil }
         return sanitizedBitRateKbps(Int((bitRate / 1000).rounded()))
-    }
-
-    static func sanitizedGridDivision(_ value: Int) -> Int {
-        min(64, max(2, value))
     }
 
     private static func firstSelectableElementID(in layout: OverlayLayout) -> String? {

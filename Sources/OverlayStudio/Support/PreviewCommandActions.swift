@@ -18,6 +18,7 @@ struct StudioCommandActions {
     var showsLibrary: Bool
     var showsTimeline: Bool
     var showsInspector: Bool
+    var showsGrid: Bool
     var recentTimelineProjects: [RecentTimelineProject]
     var chooseVideo: () -> Void
     var chooseFIT: () -> Void
@@ -43,6 +44,7 @@ struct StudioCommandActions {
     var toggleLibrary: () -> Void
     var toggleTimeline: () -> Void
     var toggleInspector: () -> Void
+    var toggleGrid: () -> Void
     var showDebugConsole: () -> Void
     var copyDebugLog: () -> Void
     var clearDebugLog: () -> Void

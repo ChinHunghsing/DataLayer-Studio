@@ -321,6 +321,7 @@ struct ContentView: View {
             showsLibrary: showsLibrary,
             showsTimeline: showsTimeline,
             showsInspector: showsInspector,
+            showsGrid: model.showGrid,
             recentTimelineProjects: model.recentTimelineProjects,
             chooseVideo: model.chooseVideo,
             chooseFIT: model.chooseFIT,
@@ -346,6 +347,7 @@ struct ContentView: View {
             toggleLibrary: { showsLibrary.toggle() },
             toggleTimeline: { showsTimeline.toggle() },
             toggleInspector: { showsInspector.toggle() },
+            toggleGrid: { model.showGrid.toggle() },
             showDebugConsole: { isDebugConsolePresented = true },
             copyDebugLog: model.copyDebugLog,
             clearDebugLog: model.clearDebugLog
