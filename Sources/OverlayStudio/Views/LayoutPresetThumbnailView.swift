@@ -6,20 +6,26 @@ struct LayoutPresetThumbnailView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            ZStack {
+            ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(Color.black.opacity(0.82))
 
                 ForEach(layout.visibleElements) { element in
+                    let baseSize = tileSize(for: element.kind)
+                    let width = baseSize.width * CGFloat(element.frame.scale)
+                    let height = baseSize.height * CGFloat(element.frame.scale)
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(color(for: element.kind).opacity(0.9))
-                        .frame(
-                            width: tileSize(for: element.kind).width,
-                            height: tileSize(for: element.kind).height
-                        )
-                        .position(
-                            x: min(proxy.size.width - 5, max(5, CGFloat(element.frame.x) * proxy.size.width)),
-                            y: min(proxy.size.height - 4, max(4, CGFloat(element.frame.y) * proxy.size.height))
+                        .frame(width: width, height: height)
+                        .offset(
+                            x: min(
+                                max(0, proxy.size.width - width),
+                                max(0, CGFloat(element.frame.x) * proxy.size.width)
+                            ),
+                            y: min(
+                                max(0, proxy.size.height - height),
+                                max(0, CGFloat(element.frame.y) * proxy.size.height)
+                            )
                         )
                 }
             }
@@ -57,4 +63,3 @@ struct LayoutPresetThumbnailView: View {
         }
     }
 }
-
