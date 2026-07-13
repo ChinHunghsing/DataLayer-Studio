@@ -47,7 +47,7 @@ struct OutputPanelView: View {
         }
         .overlay(alignment: .bottomTrailing) {
             StudioToastOverlay(toasts: model.toasts, dismiss: model.dismissToast)
-                .padding(16)
+                .padding(ShellStyle.spacing4)
         }
         .frame(width: 860, height: 620)
         .interactiveDismissDisabled(model.isExporting)
@@ -87,14 +87,14 @@ struct OutputPanelView: View {
                 Divider()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: ShellStyle.spacing3) {
                         pictureCard
                         encodingCard
                         destinationRow
                         ExportSummaryCard(model: model)
                         exportActionFooter
                     }
-                    .padding(20)
+                    .padding(ShellStyle.spacing6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -608,45 +608,14 @@ private struct InlineIntField: View {
     var range: ClosedRange<Int>
     var set: (Int) -> Void
 
-    @State private var draft = ""
-    @FocusState private var focused: Bool
-
     var body: some View {
-        TextField("", text: $draft)
-            .textFieldStyle(.roundedBorder)
-            .multilineTextAlignment(.trailing)
-            .frame(width: 74)
-            .focused($focused)
-            .onSubmit(commit)
-            .onAppear { draft = String(value) }
-            .onChange(of: draft) { _ in publishValidDraft() }
-            .onChange(of: value) { newValue in
-                if !focused { draft = String(newValue) }
-            }
-            .onChange(of: focused) { isFocused in
-                if isFocused {
-                    draft = String(value)
-                } else {
-                    commit()
-                }
-            }
-    }
-
-    private func publishValidDraft() {
-        guard focused,
-              let parsed = Int(draft),
-              range.contains(parsed) else { return }
-        set(parsed)
-    }
-
-    private func commit() {
-        guard let parsed = Int(draft.filter(\.isNumber)), draft.contains(where: \.isNumber) else {
-            draft = String(value)
-            return
-        }
-        let clamped = min(range.upperBound, max(range.lowerBound, parsed))
-        set(clamped)
-        draft = String(clamped)
+        IntegerTextField(
+            value: value,
+            range: range,
+            width: 74,
+            publishesValidDraft: true,
+            set: set
+        )
     }
 }
 

@@ -6,9 +6,9 @@ struct StudioToastOverlay: View {
     @EnvironmentObject private var localization: LocalizationStore
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 8) {
+        VStack(alignment: .trailing, spacing: ShellStyle.spacing2) {
             ForEach(toasts) { toast in
-                HStack(spacing: 10) {
+                HStack(spacing: ShellStyle.spacing3) {
                     Image(systemName: systemImage(for: toast.kind))
                         .foregroundStyle(color(for: toast.kind))
                     Text(toast.message)
@@ -23,12 +23,12 @@ struct StudioToastOverlay: View {
                     .foregroundStyle(.secondary)
                     .accessibilityLabel(localization.string("toast.dismiss"))
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, ShellStyle.spacing3)
                 .padding(.vertical, 10)
                 .frame(maxWidth: 360, alignment: .leading)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: ShellStyle.largeRadius, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: ShellStyle.largeRadius, style: .continuous)
                         .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
                 }
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 3)

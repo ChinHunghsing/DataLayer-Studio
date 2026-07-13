@@ -48,7 +48,7 @@ struct TimelineClipInspectorView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: ShellStyle.spacing3) {
             if !model.selectedTimelineClipIsEditable {
                 TimelineClipNotice(
                     title: localization.string("timelineClip.inspector.readOnlyTitle"),
@@ -88,7 +88,7 @@ struct TimelineClipInspectorView: View {
                 .disabled(!model.selectedTimelineClipIsEditable)
 
                 DisclosureGroup(isExpanded: $isAdvancedAlignmentExpanded) {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: ShellStyle.spacing3) {
                         if model.wallClockAlignmentMarkerTime != nil {
                             Label(localization.string("timeline.alignment.wallClock"), systemImage: "clock.badge.checkmark")
                                 .font(.caption.weight(.semibold))
@@ -112,17 +112,18 @@ struct TimelineClipInspectorView: View {
                         )
                         .help(localization.string("timeline.alignment.reapplyHelp"))
                     }
-                    .padding(.top, 10)
+                    .padding(.top, ShellStyle.spacing2)
                 } label: {
                     Label(localization.string("timelineClip.inspector.advancedAlignment"), systemImage: "slider.horizontal.3")
                         .font(.subheadline.weight(.semibold))
                 }
-                .padding(14)
-                .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(ShellStyle.spacing3)
+                .background(ShellStyle.controlFill, in: RoundedRectangle(cornerRadius: ShellStyle.largeRadius, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: ShellStyle.largeRadius, style: .continuous)
+                        .strokeBorder(ShellStyle.cardStroke, lineWidth: 1)
                 )
+                .controlSize(.small)
             }
         }
     }
@@ -132,7 +133,7 @@ struct TimelineClipInspectorView: View {
         systemImage: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: ShellStyle.spacing3) {
             HStack(spacing: 8) {
                 Image(systemName: systemImage)
                     .font(.system(size: 13, weight: .semibold))
@@ -145,11 +146,11 @@ struct TimelineClipInspectorView: View {
 
             content()
         }
-        .padding(14)
-        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(ShellStyle.spacing3)
+        .background(ShellStyle.controlFill, in: RoundedRectangle(cornerRadius: ShellStyle.largeRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+            RoundedRectangle(cornerRadius: ShellStyle.largeRadius, style: .continuous)
+                .strokeBorder(ShellStyle.cardStroke, lineWidth: 1)
         )
     }
 

@@ -23,4 +23,10 @@ final class NumberTextFormatterTests: XCTestCase {
         XCTAssertEqual(NumberTextFormatter.formatInt(12000), "12000")
         XCTAssertEqual(NumberTextFormatter.formatDouble(12345.67, maximumFractionDigits: 2), "12345.67")
     }
+
+    func testIntegerFieldDragAdjustsAndClampsValue() {
+        XCTAssertEqual(IntegerTextField.draggedValue(base: 10, horizontalTranslation: 20, range: 0...100), 15)
+        XCTAssertEqual(IntegerTextField.draggedValue(base: 98, horizontalTranslation: 20, range: 0...100), 100)
+        XCTAssertEqual(IntegerTextField.draggedValue(base: 2, horizontalTranslation: -20, range: 0...100), 0)
+    }
 }

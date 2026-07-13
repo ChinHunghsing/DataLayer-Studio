@@ -4,6 +4,22 @@ import SwiftUI
 /// 全局控制外壳（侧栏 · 控制条 · 工作区 · 检查器）共享的视觉令牌与基础组件。
 /// 目标是一套清晰、有层次的卡片语言：可见的抬升表面 + 描边 + 柔和阴影，读起来高级。
 enum ShellStyle {
+    // 4pt 间距序列
+    static let spacing1: CGFloat = 4
+    static let spacing2: CGFloat = 8
+    static let spacing3: CGFloat = 12
+    static let spacing4: CGFloat = 16
+    static let spacing6: CGFloat = 24
+    static let spacing8: CGFloat = 32
+
+    // 四级字号
+    static let fontXS: CGFloat = 11
+    static let fontSmall: CGFloat = 12
+    static let fontBody: CGFloat = 13
+    static let fontTitle: CGFloat = 15
+
+    // 三级表面
+    static let panelFill = Color(nsColor: .windowBackgroundColor)
     /// 抬升卡片填充：浅色下近白、深色下比面板明显亮一档，跨主题都能从 `.bar` 面板上浮起来。
     static let cardFill = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
@@ -28,15 +44,19 @@ enum ShellStyle {
     static let rowSeparator = Color.secondary.opacity(0.14)
     // 图标块 / 中性填充
     static let tileFill = Color.secondary.opacity(0.20)
+    static let controlFill = Color.secondary.opacity(0.12)
     static let hoverFill = Color.secondary.opacity(0.09)
     // 强调
     static let accentSoft = Color.accentColor.opacity(0.20)
     static let accentStroke = Color.accentColor.opacity(0.42)
 
     // 圆角
-    static let groupRadius: CGFloat = 10
-    static let controlRadius: CGFloat = 7
-    static let tileRadius: CGFloat = 8
+    static let smallRadius: CGFloat = 6
+    static let mediumRadius: CGFloat = 8
+    static let largeRadius: CGFloat = 10
+    static let groupRadius = largeRadius
+    static let controlRadius = smallRadius
+    static let tileRadius = mediumRadius
     static let pillRadius: CGFloat = 20
 
     static let tileSize: CGFloat = 28
