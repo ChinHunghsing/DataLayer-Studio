@@ -51,7 +51,11 @@ jobs:
         run: scripts/verify_app_bundle.sh
 
       - name: Install asc
-        run: command -v asc >/dev/null || brew install asc
+        run: |
+          if brew tap | grep -qx aws/tap; then
+            brew untap aws/tap
+          fi
+          command -v asc >/dev/null || brew install asc
 
       - name: Import Developer ID certificate
         env:
