@@ -3,21 +3,21 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>DataLayer Studio 使用说明 | 简体中文</title>
+    <title>DataLayer Studio 最新版使用说明</title>
     <meta
       name="description"
-      content="DataLayer Studio 简体中文使用说明：导入视频和 FIT/GPX，校准时间，排布数据层，导出透明 Alpha 浮层或合成视频。"
+      content="DataLayer Studio 最新版使用说明：创建工程、导入视频和 FIT/GPX、调整组件与时间线，以及导出透明浮层或合成视频。"
     >
     <meta name="theme-color" content="#061018">
     <link rel="icon" href="../assets/app-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&amp;family=Noto+Serif+SC:wght@700&amp;display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="../styles.css?v=20260706-ui-images">
-    <link rel="stylesheet" href="styles.css?v=20260706-guide">
+    <link rel="stylesheet" href="../styles.css?v=20260714-ui-images">
+    <link rel="stylesheet" href="styles.css?v=20260714-guide">
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true">
@@ -32,15 +32,13 @@
         <span>DataLayer Studio</span>
       </a>
       <nav class="site-nav guide-header-nav" aria-label="使用说明导航">
-        <a href="#start">快速开始</a>
-        <a href="#sync">时间同步</a>
+        <a href="#create">创建项目</a>
+        <a href="#components">组件</a>
+        <a href="#timeline">时间线</a>
         <a href="#export">导出</a>
-        <a href="#faq">常见问题</a>
       </nav>
       <div class="header-actions">
-        <a class="button secondary header-cta" href="../">
-          <span>官网首页</span>
-        </a>
+        <a class="button secondary header-cta" href="../"><span>官网首页</span></a>
         <a class="button primary header-cta" href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770" target="_blank" rel="noreferrer">
           <span>App Store 下载</span>
         </a>
@@ -50,151 +48,170 @@
     <main id="top">
       <section class="guide-hero section-shell" aria-labelledby="guide-title">
         <div class="guide-hero-copy">
-          <p class="section-eyebrow">使用说明</p>
-          <h1 id="guide-title">用 DataLayer Studio 做一条跑步数据层视频</h1>
-          <p>
-            准备一段运动视频和对应的 FIT/GPX 文件，完成时间同步、数据层排布和导出。
-            这页只保留最常用流程，适合第一次上手。
-          </p>
+          <p class="section-eyebrow">最新版使用说明</p>
+          <h1 id="guide-title">从素材导入到完成导出</h1>
+          <p>将 FIT 或 GPX 运动数据叠加到视频上，完成时间对齐、组件调整、模板复用和最终输出。</p>
           <div class="guide-actions">
-            <a class="button primary" href="#start">从导入开始</a>
-            <a class="button secondary" href="#faq">先看常见问题</a>
+            <a class="button primary" href="#create">开始制作</a>
+            <a class="button secondary" href="#workflow-summary">查看最简流程</a>
           </div>
         </div>
         <figure class="guide-hero-media">
-          <img
-            src="../assets/guide-preview.webp"
-            alt="DataLayer Studio 工作台实时预览跑步视频数据层"
-            width="1200"
-            height="750"
-            fetchpriority="high"
-          >
+          <img src="../assets/app-editor-714.webp" alt="DataLayer Studio 最新版编辑界面" width="1800" height="1203" fetchpriority="high">
         </figure>
       </section>
 
-      <section class="guide-section section-shell" id="start" aria-labelledby="start-title">
-        <div class="guide-section-head">
-          <p class="section-eyebrow">快速开始</p>
-          <h2 id="start-title">先准备两个文件</h2>
-          <p>视频提供画面、分辨率和时长；FIT/GPX 提供路线、配速、心率、步频、距离和时间等运动数据。</p>
-        </div>
-        <div class="prep-grid">
-          <article>
-            <strong>1. 视频文件</strong>
-            <p>使用你的跑步素材。建议先用原始横屏或竖屏视频，避免先裁切到奇怪比例。</p>
-          </article>
-          <article>
-            <strong>2. FIT/GPX 文件</strong>
-            <p>从运动手表或运动平台导出。FIT 数据通常更完整，GPX 适合路线和基础时间数据。</p>
-          </article>
-          <article>
-            <strong>3. 对齐参考点</strong>
-            <p>找一个能判断“开始跑”的画面，例如起跑、手表开始、经过明显路标。</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="guide-step section-shell" id="sync" aria-labelledby="sync-title">
+      <section class="guide-step section-shell" id="create" aria-labelledby="create-title">
         <div class="guide-copy">
           <span class="guide-step-index">01</span>
-          <h2 id="sync-title">导入素材并校准时间</h2>
-          <ol class="guide-list">
-            <li>在左侧素材区选择视频和 FIT/GPX 文件。</li>
-            <li>播放或拖动时间线，找到视频里的运动开始画面。</li>
-            <li>点击“当前画面就是运动开始”，让视频时间对齐 FIT elapsed 0。</li>
-            <li>播放几秒确认配速、距离和路线变化是否跟画面一致。</li>
-          </ol>
-          <p class="guide-note">如果视频不是从起跑开始，可以用同步点或偏移继续微调。</p>
+          <h2 id="create-title">创建项目</h2>
+          <p class="guide-intro">启动 DataLayer Studio 后，在欢迎页选择一种开始方式：</p>
+          <ul class="guide-list">
+            <li>点击“新建工程”，创建一个空白项目。</li>
+            <li>点击“打开工程…”，继续编辑已有工程。</li>
+            <li>直接选择或拖入工程、视频、FIT、GPX 文件。</li>
+            <li>从“最近工程”快速打开历史项目，或从“我的模板”开始制作。</li>
+          </ul>
         </div>
         <figure class="guide-media">
-          <img src="../assets/guide-preview.webp" alt="导入素材并在预览中校准运动开始时间" width="1200" height="750" loading="lazy">
+          <img src="../assets/app-welcome-714.webp" alt="DataLayer Studio 欢迎页" width="1200" height="832" loading="lazy">
+          <figcaption>欢迎页支持新建、打开、拖入文件及恢复最近工程。</figcaption>
         </figure>
       </section>
 
-      <section class="guide-step section-shell" id="layout" aria-labelledby="layout-title">
+      <section class="guide-step guide-step-reverse section-shell" id="import-video" aria-labelledby="import-video-title">
         <div class="guide-copy">
           <span class="guide-step-index">02</span>
-          <h2 id="layout-title">排布你需要的数据层</h2>
+          <h2 id="import-video-title">导入视频</h2>
           <ol class="guide-list">
-            <li>在画布中选中配速、心率、距离、路线、天气等组件。</li>
-            <li>直接拖动组件到合适位置，必要时开启网格和吸附。</li>
-            <li>在右侧检查器调整颜色、字号、透明度、线宽和显示内容。</li>
-            <li>满意后保存为预设，下次可以直接复用。</li>
+            <li>在左侧“素材”面板点击“导入视频…”。</li>
+            <li>选择需要添加数据浮层的原始视频。</li>
+            <li>导入后，视频会出现在素材列表、预览窗口和 V1 轨道中。</li>
+            <li>出现“继续选择运动文件？”时，点击“选择运动文件”；暂时只检查视频时点击“稍后”。</li>
           </ol>
         </div>
         <figure class="guide-media">
-          <img src="../assets/guide-layout.webp" alt="在 DataLayer Studio 中自由排布数据组件" width="1200" height="750" loading="lazy">
+          <img src="../assets/guide-import-714.webp" alt="导入视频后继续选择运动文件" width="1800" height="1210" loading="lazy">
+          <figcaption>视频导入后可直接继续选择对应的 FIT 或 GPX 文件。</figcaption>
         </figure>
       </section>
 
-      <section class="guide-section section-shell" aria-labelledby="result-title">
-        <div class="guide-section-head">
-          <p class="section-eyebrow">效果确认</p>
-          <h2 id="result-title">确认观众能读懂运动</h2>
-          <p>导出前切回预览，看数据层是否避开主体人物、字幕和重要画面。需要时只保留最有用的数据。</p>
+      <section class="guide-step section-shell" id="import-data" aria-labelledby="import-data-title">
+        <div class="guide-copy">
+          <span class="guide-step-index">03</span>
+          <h2 id="import-data-title">导入运动数据</h2>
+          <ol class="guide-list">
+            <li>在“运动文件”区域点击“导入运动文件…”，选择对应的 FIT 或 GPX 文件。</li>
+            <li>运动数据会进入素材列表和 O1 轨道，预览画面开始显示路线、距离、配速、心率、步频、热量、天气和时间。</li>
+            <li>如果视频与运动记录不是同时开始，在时间线上拖动视频片段，或在右侧“时间线片段”中输入开始时间。</li>
+            <li>拖动播放头检查不同位置，确认画面动作与配速、距离和路线进度一致。</li>
+          </ol>
         </div>
-        <figure class="wide-media">
-          <img src="../assets/data-layer-comparison.webp" alt="跑步视频添加数据层前后的对比" width="1440" height="900" loading="lazy">
+        <figure class="guide-media">
+          <img src="../assets/app-editor-714.webp" alt="视频与运动数据导入后的编辑界面" width="1800" height="1203" loading="lazy">
+          <figcaption>O1 为运动数据轨道，V1 为视频轨道。</figcaption>
+        </figure>
+      </section>
+
+      <section class="guide-step guide-step-reverse section-shell" id="components" aria-labelledby="components-title">
+        <div class="guide-copy">
+          <span class="guide-step-index">04</span>
+          <h2 id="components-title">添加和调整数据组件</h2>
+          <p class="guide-intro">切换到左侧“组件”面板，搜索并添加速度、配速、心率、步频、热量、累计爬升、距离、步幅或功率等组件。</p>
+          <ul class="guide-list">
+            <li>“格式”：修改 X、Y 位置、大小、长度和显示状态。</li>
+            <li>“内容”：设置标签、终点标签、单位和图标。</li>
+            <li>“样式”：调整组件的视觉外观。</li>
+            <li>“数据”：选择组件使用的数据字段。</li>
+            <li>使用图层栏管理显示、复制、顺序和删除；“+”用于添加图层。</li>
+          </ul>
+          <p class="guide-note">使用播放、逐帧和缩放控件检查整段视频中的位置与可读性。</p>
+        </div>
+        <figure class="guide-media">
+          <img src="../assets/app-components-714.webp" alt="DataLayer Studio 组件面板和图层检查器" width="1800" height="1206" loading="lazy">
+          <figcaption>组件库、预览画布和检查器可以同时操作。</figcaption>
+        </figure>
+      </section>
+
+      <section class="guide-step section-shell" id="templates" aria-labelledby="templates-title">
+        <div class="guide-copy">
+          <span class="guide-step-index">05</span>
+          <h2 id="templates-title">使用和保存模板</h2>
+          <ul class="guide-list">
+            <li>切换到左侧“模板”面板，一键应用已有模板。</li>
+            <li>在“预设名称”中输入名称并点击“保存”，复用当前布局。</li>
+            <li>星标模板可以设为默认模板。</li>
+            <li>使用“导入”和“导出”在不同设备或项目之间迁移模板。</li>
+            <li>开启 iCloud 同步后，可以同步个人模板。</li>
+          </ul>
+          <p class="guide-note">应用模板后，仍可继续调整组件的位置、大小、内容、样式和数据来源。</p>
+        </div>
+        <figure class="guide-media">
+          <img src="../assets/guide-templates-714.webp" alt="DataLayer Studio 模板面板" width="1800" height="1206" loading="lazy">
+          <figcaption>保存当前布局后，可在其他项目中直接复用。</figcaption>
+        </figure>
+      </section>
+
+      <section class="guide-step guide-step-reverse section-shell" id="timeline" aria-labelledby="timeline-title">
+        <div class="guide-copy">
+          <span class="guide-step-index">06</span>
+          <h2 id="timeline-title">调整时间线</h2>
+          <p class="guide-intro">拖动播放头预览任意时间点；选中视频片段后，可在右侧设置片段开始时间并查看片段时长。</p>
+          <p class="guide-check-title">导出前重点检查：</p>
+          <ol class="guide-list">
+            <li>视频片段与运动数据的开始位置是否同步。</li>
+            <li>视频首尾是否显示正确的数据。</li>
+            <li>路线进度、距离、配速和时间是否连续变化。</li>
+            <li>各浮层是否避开主体、字幕和画面边缘。</li>
+          </ol>
+        </div>
+        <figure class="guide-media">
+          <img src="../assets/guide-timeline-714.webp" alt="时间线片段开始时间设置" width="1800" height="1205" loading="lazy">
+          <figcaption>通过拖动片段或输入开始时间完成精确对齐。</figcaption>
         </figure>
       </section>
 
       <section class="guide-step section-shell" id="export" aria-labelledby="export-title">
         <div class="guide-copy">
-          <span class="guide-step-index">03</span>
-          <h2 id="export-title">选择导出方式</h2>
+          <span class="guide-step-index">07</span>
+          <h2 id="export-title">导出成片或透明浮层</h2>
+          <p class="guide-intro">点击右上角“输出”，选择内置预设并确认分辨率、帧率、渲染范围、编码、码率、文件名和保存位置。</p>
           <div class="choice-list">
-            <article>
-              <strong>透明 Alpha 浮层</strong>
-              <p>适合 Final Cut Pro、DaVinci Resolve、Premiere。把导出的 MOV 放到原视频上层轨道。</p>
-            </article>
-            <article>
-              <strong>合成视频</strong>
-              <p>适合快速分享。DataLayer Studio 会把原视频、音频和数据层一起输出。</p>
-            </article>
+            <article><strong>透明浮层</strong><p>支持 ProRes 4444 或 HEVC。点击“导出浮层”，生成适合剪辑软件继续合成的透明数据层。</p></article>
+            <article><strong>合成视频</strong><p>支持 4K HEVC、1080p H.264 和竖屏 4K HEVC。点击“导出视频”，直接得到完成影片。</p></article>
           </div>
+          <p class="guide-note">渲染范围可选“完整时间线”或“多个单独片段”。导出前检查摘要中的分辨率、帧率、编码、时长、预计大小和目标文件。</p>
         </div>
         <figure class="guide-media">
-          <img src="../assets/guide-export.webp" alt="DataLayer Studio 导出透明 Alpha 视频层" width="1200" height="750" loading="lazy">
+          <img src="../assets/app-export-714.webp" alt="DataLayer Studio 输出设置和导出摘要" width="1800" height="1208" loading="lazy">
+          <figcaption>常用输出设置可以保存为个人预设。</figcaption>
         </figure>
       </section>
 
-      <section class="guide-section section-shell" aria-labelledby="cli-title">
-        <div class="guide-section-head">
-          <p class="section-eyebrow">批量制作</p>
-          <h2 id="cli-title">用 CLI 复用同一套布局</h2>
-          <p>已经在图形界面保存过布局预设后，可以用命令行给多段视频生成一致的数据层。</p>
+      <section class="guide-step guide-step-reverse section-shell" id="check" aria-labelledby="check-title">
+        <div class="guide-copy">
+          <span class="guide-step-index">08</span>
+          <h2 id="check-title">检查导出结果</h2>
+          <ol class="guide-list">
+            <li>打开导出文件，抽查开头、中段和结尾。</li>
+            <li>确认原视频画面完整，路线、距离进度、配速、心率、步频、热量、天气、运动时间、时钟和日期显示正确。</li>
+            <li>如果浮层过大、遮挡主体或单位不合适，返回项目调整组件后重新导出。</li>
+          </ol>
         </div>
-        <pre class="guide-code"><code>swift run overlay \
-  --video /path/to/run-video.mov \
-  --fit /path/to/activity.fit \
-  --output /path/to/overlay.mov \
-  --layout-preset "Race Layout" \
-  --export-mode overlay</code></pre>
+        <figure class="guide-media">
+          <img src="../assets/data-layer-comparison.webp" alt="原始视频与添加数据层后的完整画面对比" width="1600" height="1000" loading="lazy">
+          <figcaption>对比原始视频与最终成片，确认数据层清晰且不遮挡主体。</figcaption>
+        </figure>
       </section>
 
-      <section class="guide-section section-shell" id="faq" aria-labelledby="faq-title">
+      <section class="guide-section section-shell" id="workflow-summary" aria-labelledby="workflow-summary-title">
         <div class="guide-section-head">
-          <p class="section-eyebrow">常见问题</p>
-          <h2 id="faq-title">先检查这几项</h2>
+          <p class="section-eyebrow">推荐流程</p>
+          <h2 id="workflow-summary-title">最简工作流程</h2>
         </div>
-        <div class="faq-grid">
-          <article>
-            <h3>数据和画面对不上</h3>
-            <p>重新找一个清楚的同步点。视频如果提前录制，通常需要把运动开始点往后对齐。</p>
-          </article>
-          <article>
-            <h3>导出的透明视频看起来是黑底</h3>
-            <p>多数播放器不会正确显示 Alpha。把 MOV 放进剪辑软件的上层轨道检查。</p>
-          </article>
-          <article>
-            <h3>画面里数据太多</h3>
-            <p>优先保留路线、配速、心率、距离进度。训练复盘可以多一些，短视频建议少一些。</p>
-          </article>
-          <article>
-            <h3>想给很多视频套同样样式</h3>
-            <p>先在 GUI 保存预设，再用 CLI 的 <code>--layout-preset</code> 批量导出。</p>
-          </article>
-        </div>
+        <ol class="workflow-summary" aria-label="DataLayer Studio 最简工作流程">
+          <li>新建工程</li><li>导入视频</li><li>导入 FIT/GPX</li><li>对齐时间线</li><li>应用模板</li><li>调整组件</li><li>全片预览</li><li>选择导出预设</li><li>导出并检查结果</li>
+        </ol>
       </section>
     </main>
 
