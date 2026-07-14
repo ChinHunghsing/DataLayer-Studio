@@ -272,7 +272,6 @@ final class StudioModel: ObservableObject {
     @Published var previewWarning: String?
     @Published var isExporting = false
     @Published private(set) var isWeatherExportConfirmationPresented = false
-    @Published private(set) var isPendingAlignmentExportConfirmationPresented = false
     @Published private(set) var isWeatherAPIKeyPromptPresented = false
     @Published var exportProgress = 0.0
     @Published private(set) var exportETASeconds: TimeInterval?
@@ -339,7 +338,6 @@ final class StudioModel: ObservableObject {
     private var isScrubbingPreview = false
     private var isGaugeDragActive = false
     private var exportProgressSamples: [(date: Date, progress: Double)] = []
-    private var pendingAlignmentExportAllowsUnreadyWeather = false
     private var singleSourceAlignmentIsPending = false
     private static let exportETASampleWindow: TimeInterval = 10
     private static let minimumExportTrimDuration: TimeInterval = 0.1
@@ -6411,49 +6409,15 @@ final class StudioModel: ObservableObject {
         }
     }
 
-    nonisolated static func requiresPendingAlignmentExportConfirmation(
-        project: TimelineProject,
-        mode: OverlayExportMode,
-        renderScope: ExportRenderScope,
-        timelineStart: TimeInterval,
-        duration: TimeInterval
-    ) -> Bool {
-        guard timelineStart.isFinite,
-              timelineStart >= 0,
-              duration.isFinite,
-              duration > 0,
-              (timelineStart + duration).isFinite else { return false }
-
-        let renderedRanges: [(start: TimeInterval, duration: TimeInterval)]
-        if renderScope == .individualClips {
-            renderedRanges = project.individualClipExportRanges(
-                kind: mode == .video ? .video : .overlay,
-                timelineStart: timelineStart,
-                duration: duration
-            )
-        } else {
-            renderedRanges = [(timelineStart, duration)]
-        }
-        guard !renderedRanges.isEmpty else { return false }
-
-        let pendingClips = project.enabledClips(kind: .overlay).filter(\.isAlignmentPending)
-            + (mode == .video ? project.enabledClips(kind: .video).filter(\.isAlignmentPending) : [])
-        return pendingClips.contains { clip in
-            renderedRanges.contains { range in
-                clip.timelineEnd > range.start && clip.timelineStart < range.start + range.duration
-            }
-        }
-    }
-
     func export() {
-        export(allowingUnreadyWeather: false, allowingPendingAlignment: false)
+        export(allowingUnreadyWeather: false)
     }
 
     func confirmWeatherExport() {
         guard isWeatherExportConfirmationPresented else { return }
         isWeatherExportConfirmationPresented = false
         addDebugLog(.export, "Continuing export without ready weather data")
-        export(allowingUnreadyWeather: true, allowingPendingAlignment: false)
+        export(allowingUnreadyWeather: true)
     }
 
     func cancelWeatherExportConfirmation() {
@@ -6462,26 +6426,9 @@ final class StudioModel: ObservableObject {
         addDebugLog(.export, "Export cancelled before rendering: weather data not ready")
     }
 
-    func confirmPendingAlignmentExport() {
-        guard isPendingAlignmentExportConfirmationPresented else { return }
-        let allowingUnreadyWeather = pendingAlignmentExportAllowsUnreadyWeather
-        isPendingAlignmentExportConfirmationPresented = false
-        pendingAlignmentExportAllowsUnreadyWeather = false
-        addDebugLog(.export, "Continuing export with clips awaiting alignment")
-        export(allowingUnreadyWeather: allowingUnreadyWeather, allowingPendingAlignment: true)
-    }
-
-    func cancelPendingAlignmentExportConfirmation() {
-        guard isPendingAlignmentExportConfirmationPresented else { return }
-        isPendingAlignmentExportConfirmationPresented = false
-        pendingAlignmentExportAllowsUnreadyWeather = false
-        addDebugLog(.export, "Export cancelled before rendering: clips awaiting alignment")
-    }
-
-    private func export(allowingUnreadyWeather: Bool, allowingPendingAlignment: Bool) {
+    private func export(allowingUnreadyWeather: Bool) {
         guard !isExporting else { return }
         guard allowingUnreadyWeather || !isWeatherExportConfirmationPresented else { return }
-        guard allowingPendingAlignment || !isPendingAlignmentExportConfirmationPresented else { return }
         let offlineNames = offlineAssetNamesForExport(mode: exportMode)
         if !offlineNames.isEmpty {
             setStatus("status.timelineOfflineAssets", offlineNames.joined(separator: ", "))
@@ -6511,19 +6458,6 @@ final class StudioModel: ObservableObject {
            ) {
             isWeatherExportConfirmationPresented = true
             addDebugLog(.export, "Export confirmation requested: weather data not ready")
-            return
-        }
-        if !allowingPendingAlignment,
-           Self.requiresPendingAlignmentExportConfirmation(
-               project: timelineProject,
-               mode: exportMode,
-               renderScope: exportRenderScope,
-               timelineStart: exportSettings.startTime,
-               duration: exportSettings.duration
-           ) {
-            pendingAlignmentExportAllowsUnreadyWeather = allowingUnreadyWeather
-            isPendingAlignmentExportConfirmationPresented = true
-            addDebugLog(.export, "Export confirmation requested: clips awaiting alignment")
             return
         }
         if needsOutputSelectionBeforeExport {
