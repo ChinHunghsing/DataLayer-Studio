@@ -12,7 +12,7 @@
 
 ## 这份文档的用途
 
-这份文档是下一轮时间线工作的当前事实基线。`docs/timeline-phase4-plan.md` 记录了阶段 4 的原始拆分，但其中“工程保存/打开仍未完成”等状态已经过期；判断真实能力和下一步优先级时，以本文和当前代码为准。
+这份文档是下一轮时间线工作的当前事实基线。原 `docs/timeline-phase4-plan.md`（阶段 4 的原始拆分）因各阶段均已落地、状态全面过期，已于 2026-07-14 删除；判断真实能力和下一步优先级时，以本文和当前代码为准。
 
 目标仍然是把 DataLayer Studio 从“单视频 + 单运动文件”改造成轻量时间线：
 
@@ -404,7 +404,6 @@ swift test --filter OverlayRendererTests
 ## 接手时先看的文件
 
 - `docs/timeline-handoff.md`
-- `docs/timeline-phase4-plan.md`（状态有过期内容，只作阶段拆分参考）
 - `Sources/OverlayCore/Timeline/TimelineModel.swift`
 - `Sources/OverlayCore/Video/TimelineVideoWriter.swift`
 - `Sources/OverlayCore/Video/CompositedVideoWriter.swift`
