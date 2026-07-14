@@ -135,11 +135,11 @@ Telemetry is normalized to activity-relative distance and resampled to one-secon
 
 - Videos, activity files, GPS traces, presets, and exports stay local unless you choose to share them.
 - The app has no third-party analytics SDK or custom event tracking. Aggregate usage and crash information comes from Apple's opt-in App Store analytics.
-- DataLayer Studio is independent from Telemetry Overlay. It does not read or modify `/Applications/Telemetry Overlay.app` and includes none of its proprietary code or assets.
+- DataLayer Studio is an independent project. It is not affiliated with, endorsed by, or sponsored by Telemetry Overlay or its developers. It does not read or modify `/Applications/Telemetry Overlay.app`, and it does not include proprietary code or assets from Telemetry Overlay.
 
 See [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), and [SUPPORT.md](SUPPORT.md).
 
-## Build and contribute
+## Contributing
 
 ```bash
 swift build
@@ -148,6 +148,17 @@ scripts/verify_source_available_readiness.sh
 ```
 
 Focused, testable pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening one, and never attach private activity data to a public issue.
+
+## Release
+
+When a `v*` tag is pushed, `.github/workflows/release.yml` will:
+
+- run `scripts/verify_source_available_readiness.sh` and `swift test`
+- build the release products for `overlay` and `datalayer-studio`
+- build and verify `DataLayer Studio.app`, including its required legal files
+- create or update the GitHub Release with the zip and SHA-256 checksum
+
+The app bundle includes `LICENSE.md`, `NOTICE.md`, and `README.md` under `Contents/Resources/Legal`.
 
 ## Support the project
 
