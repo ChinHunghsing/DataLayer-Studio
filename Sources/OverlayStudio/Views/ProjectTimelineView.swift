@@ -5,6 +5,12 @@ import OverlayCore
 import AppKit
 #endif
 
+/// The magnet toggle in the timeline header; snapping applies to clip moves, trims and
+/// playhead scrubbing alike, and defaults to on.
+enum TimelineSnappingPreference {
+    static let defaultsKey = "timeline.snappingEnabled"
+}
+
 enum TimelineSnapSource: Equatable {
     case timelineStart
     case playhead
@@ -23,6 +29,7 @@ struct TimelineSnapResult: Equatable {
 struct ProjectTimelineView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
+    @AppStorage(TimelineSnappingPreference.defaultsKey) private var isSnappingEnabled = true
 
     private let headerWidth: CGFloat = 188
     private let rulerHeight: CGFloat = 24
@@ -344,7 +351,7 @@ struct ProjectTimelineView: View {
             duration: duration
         )
         var snappedTime = rawTime
-        if laneWidth > 0, duration > 0 {
+        if isSnappingEnabled, laneWidth > 0, duration > 0 {
             let snap = Self.playheadSnapResult(
                 project: project,
                 proposedTime: rawTime,
@@ -981,7 +988,7 @@ struct ProjectTimelineView: View {
                 }
                 let base = clipTrimBaseTime ?? (isStart ? clip.timelineStart : clip.timelineEnd)
                 let deltaT = Double(value.translation.width / laneWidth) * duration
-                let threshold = Double(6 / laneWidth) * duration
+                let threshold = isSnappingEnabled ? Double(6 / laneWidth) * duration : 0
                 let snapResult = Self.trimSnapResult(
                     project: project,
                     proposedTime: base + deltaT,
@@ -1045,7 +1052,7 @@ struct ProjectTimelineView: View {
                 } else {
                     let gestureDuration = dragTimelineDuration ?? duration
                     let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
-                    let snap = Double(6 / laneWidth) * gestureDuration
+                    let snap = isSnappingEnabled ? Double(6 / laneWidth) * gestureDuration : 0
                     let snapResult = Self.moveSnapResult(
                         project: project,
                         proposedStart: base + deltaT,
@@ -1075,7 +1082,7 @@ struct ProjectTimelineView: View {
                     } else {
                         let gestureDuration = dragTimelineDuration ?? duration
                         let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
-                        let snap = Double(6 / laneWidth) * gestureDuration
+                        let snap = isSnappingEnabled ? Double(6 / laneWidth) * gestureDuration : 0
                         finalStart = Self.moveSnapResult(
                             project: project,
                             proposedStart: base + deltaT,

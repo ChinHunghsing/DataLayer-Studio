@@ -4,6 +4,7 @@ struct BottomWorkspaceView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
     @State private var isTimelineHelpPresented = false
+    @AppStorage(TimelineSnappingPreference.defaultsKey) private var isSnappingEnabled = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,6 +61,20 @@ struct BottomWorkspaceView: View {
                 .help(localization.string("timeline.zoom.help"))
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(localization.string("timeline.zoom"))
+
+                Divider()
+                    .frame(height: 18)
+
+                Button {
+                    isSnappingEnabled.toggle()
+                } label: {
+                    Image(systemName: "arrow.right.and.line.vertical.and.arrow.left")
+                        .foregroundStyle(isSnappingEnabled ? Color.accentColor : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(localization.string(isSnappingEnabled ? "timeline.snapping.disable" : "timeline.snapping.enable"))
+                .accessibilityLabel(localization.string("timeline.snapping"))
+                .accessibilityValue(localization.string(isSnappingEnabled ? "timeline.snapping.on" : "timeline.snapping.off"))
 
                 Divider()
                     .frame(height: 18)

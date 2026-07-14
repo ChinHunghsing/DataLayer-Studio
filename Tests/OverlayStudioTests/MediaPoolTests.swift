@@ -313,15 +313,55 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(updatedTrack.clips.last?.assetID, pooledURL.path)
         XCTAssertEqual(updatedTrack.clips.last?.timelineStart ?? -1, 200, accuracy: 1e-9)
 
-        // Files that do not match the lane kind, and unsupported files, are rejected.
+        // A pooled file of the other kind still reaches the timeline, on its default track kind.
+        let pooledVideoURL = URL(fileURLWithPath: "/tmp/drop-pooled.mov")
+        model.upsertVideoAsset(
+            url: pooledVideoURL,
+            metadata: videoMetadata(width: 1920, height: 1080, duration: 60, fps: 30)
+        )
+        XCTAssertTrue(
+            model.importDroppedMediaFiles([pooledVideoURL], targetTrackID: targetTrack.id, timelineStart: 10)
+        )
+        let videoClips = model.currentTimelineProject.tracks
+            .filter { $0.kind == .video }
+            .flatMap(\.clips)
+        XCTAssertTrue(videoClips.contains { $0.assetID == pooledVideoURL.path })
+
+        // Unsupported files are rejected outright.
         XCTAssertFalse(
             model.importDroppedMediaFiles(
-                [URL(fileURLWithPath: "/tmp/drop.mov")],
+                [URL(fileURLWithPath: "/tmp/notes.txt")],
                 targetTrackID: targetTrack.id,
                 timelineStart: 0
             )
         )
         XCTAssertFalse(model.importDroppedMediaFiles([URL(fileURLWithPath: "/tmp/notes.txt")]))
+    }
+
+    func testDroppedMediaFileIntoPoolNeverTouchesTimelineOrActiveSources() throws {
+        let model = StudioModel()
+        let activeURL = URL(fileURLWithPath: "/tmp/pool-active.fit")
+        model.upsertActivityAsset(url: activeURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 80, distanceMeters: 300)
+        ]))
+        model.fitURL = activeURL
+        model.addActivityAssetToTimeline(id: activeURL.path)
+        let clipCountBefore = model.currentTimelineProject.tracks.flatMap(\.clips).count
+
+        // Even the first video dropped into the pool stays pool-only: no timeline clip and no
+        // active-source replacement.
+        XCTAssertTrue(
+            model.importDroppedMediaFilesIntoPool([URL(fileURLWithPath: "/tmp/pool-first.mov")])
+        )
+        XCTAssertEqual(
+            model.currentTimelineProject.tracks.flatMap(\.clips).count,
+            clipCountBefore
+        )
+        XCTAssertNil(model.videoURL)
+        XCTAssertEqual(model.fitURL, activeURL)
+
+        XCTAssertFalse(model.importDroppedMediaFilesIntoPool([URL(fileURLWithPath: "/tmp/notes.txt")]))
     }
 
     func testNudgeSelectedTimelineClipsMovesByWholeFrames() throws {

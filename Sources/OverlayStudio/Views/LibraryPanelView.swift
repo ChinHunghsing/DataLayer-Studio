@@ -134,7 +134,7 @@ struct LibraryPanelView: View {
         }
         .onDrop(of: [.fileURL], isTargeted: $isMediaDropTargeted) { providers, _ in
             MediaFileDrop.loadURLs(from: providers) { urls in
-                model.importDroppedMediaFiles(urls)
+                model.importDroppedMediaFilesIntoPool(urls)
             }
         }
         .overlay {

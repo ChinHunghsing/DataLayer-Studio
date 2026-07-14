@@ -318,9 +318,10 @@ final class StudioModel: ObservableObject {
     private var videoWaveformLoadTasks: [String: Task<Void, Never>] = [:]
     private var pendingVideoTimelineImportIDs: [String] = []
     private var pendingActivityTimelineImportIDs: [String] = []
-    /// Timeline-lane Finder drops waiting for their asset to finish importing; keyed by asset id.
+    /// Timeline Finder drops waiting for their asset to finish importing; keyed by asset id.
+    /// A nil track means the default append target for the asset's kind.
     private struct PositionedTimelineImport {
-        var trackID: String
+        var trackID: String?
         var timelineStart: TimeInterval?
     }
     private var pendingPositionedTimelineImports: [String: PositionedTimelineImport] = [:]
@@ -1511,59 +1512,88 @@ final class StudioModel: ObservableObject {
         }
     }
 
-    /// Finder drops onto the media library behave like the import buttons: supported files join
-    /// the pool and queue for the timeline in drop order.
+    /// Finder drops onto the media library only join the pool — like DaVinci's media pool, they
+    /// never touch the timeline or replace the active sources, even for the first video/activity.
     @discardableResult
-    func importDroppedMediaFiles(_ urls: [URL]) -> Bool {
+    func importDroppedMediaFilesIntoPool(_ urls: [URL]) -> Bool {
         guard !isExporting else { return false }
-        let supported = urls.filter {
-            let kind = StudioExternalFileKind.classify($0)
-            return kind == .video || kind == .activity
+        var imported = false
+        for url in urls {
+            switch StudioExternalFileKind.classify(url) {
+            case .video:
+                addVideoAssetToPool(url)
+                imported = true
+            case .activity:
+                addActivityAssetToPool(url)
+                imported = true
+            default:
+                continue
+            }
         }
-        guard !supported.isEmpty else { return false }
-        importMediaFilesIntoCurrentTimeline(supported)
-        return true
+        return imported
     }
 
-    /// Finder drops onto a timeline lane: files matching the lane's kind import into the pool
-    /// (when needed) and the first one lands at the drop position; the rest append after the
-    /// lane's own last clip like button-based insertion.
+    /// Finder drops onto the timeline join the pool and land on the timeline. Files matching the
+    /// target lane's kind land there — the first one at the drop position, the rest appended after
+    /// the lane's own last clip. Other supported files append to their default track kind. The
+    /// active sources are never replaced.
     @discardableResult
-    func importDroppedMediaFiles(_ urls: [URL], targetTrackID: String, timelineStart: TimeInterval) -> Bool {
-        guard !isExporting,
-              let track = timeline.tracks.first(where: { $0.id == targetTrackID }),
-              !track.isLocked else { return false }
-        let wantedKind: StudioExternalFileKind = track.kind == .video ? .video : .activity
-        let matching = urls.filter { StudioExternalFileKind.classify($0) == wantedKind }
-        guard !matching.isEmpty else { return false }
+    func importDroppedMediaFiles(
+        _ urls: [URL],
+        targetTrackID: String? = nil,
+        timelineStart: TimeInterval? = nil
+    ) -> Bool {
+        guard !isExporting else { return false }
+        var targetTrack: TimelineTrack?
+        if let targetTrackID {
+            guard let track = timeline.tracks.first(where: { $0.id == targetTrackID }),
+                  !track.isLocked else { return false }
+            targetTrack = track
+        }
 
-        for (index, url) in matching.enumerated() {
-            let start: TimeInterval? = index == 0 ? max(0, timelineStart) : nil
+        var imported = false
+        var usedDropPosition = false
+        for url in urls {
+            let kind = StudioExternalFileKind.classify(url)
+            guard kind == .video || kind == .activity else { continue }
+            let matchesTargetTrack = targetTrack.map {
+                ($0.kind == .video) == (kind == .video)
+            } ?? false
+            let clipTrackID = matchesTargetTrack ? targetTrack?.id : nil
+            var clipStart: TimeInterval?
+            if matchesTargetTrack, !usedDropPosition, let timelineStart {
+                clipStart = max(0, timelineStart)
+                usedDropPosition = true
+            }
+
             let assetID = url.path
-            switch track.kind {
+            switch kind {
             case .video:
                 if videoAssets.contains(where: { $0.id == assetID }) {
-                    addVideoAssetToTimeline(id: assetID, targetTrackID: targetTrackID, timelineStart: start)
+                    addVideoAssetToTimeline(id: assetID, targetTrackID: clipTrackID, timelineStart: clipStart)
                 } else {
                     pendingPositionedTimelineImports[assetID] = PositionedTimelineImport(
-                        trackID: targetTrackID,
-                        timelineStart: start
+                        trackID: clipTrackID,
+                        timelineStart: clipStart
                     )
                     addVideoAssetToPool(url)
                 }
-            case .overlay:
+            case .activity:
                 if activityAssets.contains(where: { $0.id == assetID }), activitySeriesByAssetID[assetID] != nil {
-                    addActivityAssetToTimeline(id: assetID, targetTrackID: targetTrackID, timelineStart: start)
+                    addActivityAssetToTimeline(id: assetID, targetTrackID: clipTrackID, timelineStart: clipStart)
                 } else {
                     pendingPositionedTimelineImports[assetID] = PositionedTimelineImport(
-                        trackID: targetTrackID,
-                        timelineStart: start
+                        trackID: clipTrackID,
+                        timelineStart: clipStart
                     )
                     addActivityAssetToPool(url)
                 }
+            default:
+                continue
             }
+            imported = true
         }
-        return true
+        return imported
     }
 
     func timelineProjectJSONData(relativeTo projectURL: URL? = nil) throws -> Data {
