@@ -1135,6 +1135,25 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(model.userExportPresets.isEmpty)
     }
 
+    func testCustomOutputDimensionsCanPreserveAspectRatio() {
+        let model = StudioModel()
+        let widescreenRatio = 16.0 / 9.0
+
+        model.setOutputWidth(2, lockedAspectRatio: widescreenRatio)
+        model.setOutputWidth(12, lockedAspectRatio: widescreenRatio)
+        model.setOutputWidth(1_280, lockedAspectRatio: widescreenRatio)
+        XCTAssertEqual(model.outputWidth, 1_280)
+        XCTAssertEqual(model.outputHeight, 720)
+
+        model.setOutputHeight(1_080, lockedAspectRatio: widescreenRatio)
+        XCTAssertEqual(model.outputWidth, 1_920)
+        XCTAssertEqual(model.outputHeight, 1_080)
+
+        model.setOutputWidth(1_000, lockedAspectRatio: nil)
+        XCTAssertEqual(model.outputWidth, 1_000)
+        XCTAssertEqual(model.outputHeight, 1_080)
+    }
+
     func testPreviewTimingConstantsStayResponsive() {
         XCTAssertGreaterThan(StudioModel.playbackOverlayRefreshInterval, StudioModel.playerTimeObserverInterval)
         XCTAssertLessThanOrEqual(StudioModel.playerTimeObserverInterval, 0.10)

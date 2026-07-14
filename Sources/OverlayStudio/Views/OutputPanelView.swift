@@ -28,6 +28,8 @@ struct OutputPanelView: View {
     @EnvironmentObject private var localization: LocalizationStore
     @Environment(\.dismiss) private var dismiss
     @State private var forceCustomResolution = false
+    @State private var isAspectRatioLocked = true
+    @State private var lockedAspectRatio: Double?
     @State private var selectedPresetID: String?
     @State private var presetName = ""
 
@@ -129,6 +131,7 @@ struct OutputPanelView: View {
                       let preset = model.exportPresetsForDisplay.first(where: { $0.id == id }) else { return }
                 forceCustomResolution = false
                 model.applyExportPreset(id: id)
+                lockCurrentAspectRatio()
                 let name = preset.isBuiltIn
                     ? localization.string("exportPreset.\(preset.id)")
                     : preset.name
@@ -382,10 +385,17 @@ struct OutputPanelView: View {
                 rowDivider
                 settingRow(localization.string("output.dimensions")) {
                     HStack(spacing: 6) {
-                        InlineIntField(value: model.outputWidth, range: 2...16_384) { model.setOutputWidth($0) }
+                        InlineIntField(value: model.outputWidth, range: 2...16_384) {
+                            setOutputWidth($0)
+                        }
                         Text(verbatim: "×").foregroundStyle(.secondary)
-                        InlineIntField(value: model.outputHeight, range: 2...16_384) { model.setOutputHeight($0) }
+                        InlineIntField(value: model.outputHeight, range: 2...16_384) {
+                            setOutputHeight($0)
+                        }
                         Text(verbatim: "px").font(.caption).foregroundStyle(.secondary)
+                        Toggle(localization.string("output.lockAspectRatio"), isOn: aspectRatioLockBinding)
+                            .toggleStyle(.switch)
+                            .fixedSize()
                     }
                 }
             }
@@ -569,6 +579,7 @@ struct OutputPanelView: View {
             set: { newID in
                 if newID == OutputResolutionPreset.customID {
                     forceCustomResolution = true
+                    lockCurrentAspectRatio()
                 } else {
                     forceCustomResolution = false
                     model.applyResolutionPreset(id: newID)
@@ -582,6 +593,37 @@ struct OutputPanelView: View {
             get: { model.selectedFrameRatePresetID },
             set: { model.applyFrameRatePreset(id: $0) }
         )
+    }
+
+    private var aspectRatioLockBinding: Binding<Bool> {
+        Binding(
+            get: { isAspectRatioLocked },
+            set: { locked in
+                isAspectRatioLocked = locked
+                lockedAspectRatio = locked ? currentAspectRatio : nil
+            }
+        )
+    }
+
+    private var currentAspectRatio: Double {
+        Double(model.outputWidth) / Double(model.outputHeight)
+    }
+
+    private func lockCurrentAspectRatio() {
+        isAspectRatioLocked = true
+        lockedAspectRatio = currentAspectRatio
+    }
+
+    private func setOutputWidth(_ width: Int) {
+        let aspectRatio = isAspectRatioLocked ? lockedAspectRatio ?? currentAspectRatio : nil
+        lockedAspectRatio = aspectRatio
+        model.setOutputWidth(width, lockedAspectRatio: aspectRatio)
+    }
+
+    private func setOutputHeight(_ height: Int) {
+        let aspectRatio = isAspectRatioLocked ? lockedAspectRatio ?? currentAspectRatio : nil
+        lockedAspectRatio = aspectRatio
+        model.setOutputHeight(height, lockedAspectRatio: aspectRatio)
     }
 }
 

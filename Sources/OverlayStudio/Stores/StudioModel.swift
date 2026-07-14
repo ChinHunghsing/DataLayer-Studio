@@ -1025,8 +1025,22 @@ final class StudioModel: ObservableObject {
         outputWidth = Self.sanitizedOutputDimension(value)
     }
 
+    func setOutputWidth(_ value: Int, lockedAspectRatio: Double?) {
+        setOutputWidth(value)
+        if let aspectRatio = lockedAspectRatio, aspectRatio.isFinite, aspectRatio > 0 {
+            setOutputHeight(Int((Double(outputWidth) / aspectRatio).rounded()))
+        }
+    }
+
     func setOutputHeight(_ value: Int) {
         outputHeight = Self.sanitizedOutputDimension(value)
+    }
+
+    func setOutputHeight(_ value: Int, lockedAspectRatio: Double?) {
+        setOutputHeight(value)
+        if let aspectRatio = lockedAspectRatio, aspectRatio.isFinite, aspectRatio > 0 {
+            setOutputWidth(Int((Double(outputHeight) * aspectRatio).rounded()))
+        }
     }
 
     func setOutputFPS(_ value: Double) {
