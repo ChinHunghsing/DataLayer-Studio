@@ -2775,6 +2775,52 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.distanceUnit, .meters)
     }
 
+    func testDistanceUnitSettingUpdatesClipWhileEditingItsGaugeLayout() throws {
+        let model = StudioModel()
+
+        let asset = MediaAsset(
+            id: "layout-unit-activity",
+            kind: .activity,
+            url: URL(fileURLWithPath: "/tmp/layout-unit.fit"),
+            displayName: "layout-unit.fit",
+            duration: 60
+        )
+        let layout = OverlayLayout.default
+        let distanceElementID = try XCTUnwrap(layout.elements.first { $0.kind == .distance }?.id)
+        let clip = TimelineClip(
+            id: "layout-unit-clip",
+            assetID: asset.id,
+            timelineStart: 0,
+            duration: 60,
+            sourceIn: 0,
+            layout: layout,
+            distanceUnit: .kilometers
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .meters,
+                assets: [asset],
+                tracks: [TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [clip])]
+            ),
+            loadAssets: false
+        )
+        model.previewTime = 10
+        model.selectElement(id: distanceElementID)
+        XCTAssertEqual(model.distanceUnitForCurrentSelection, .kilometers)
+
+        model.setDistanceUnitForCurrentSelection(.meters)
+
+        let editedClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks.flatMap(\.clips).first { $0.id == clip.id }
+        )
+        XCTAssertEqual(editedClip.distanceUnit, .meters)
+        XCTAssertEqual(model.distanceUnit, .meters)
+        XCTAssertEqual(model.distanceUnitForCurrentSelection, .meters)
+    }
+
     func testMatchPointHelperIsIgnoredWithoutBothSources() {
         let model = StudioModel()
         model.videoURL = URL(fileURLWithPath: "/tmp/a.mov") // no activity

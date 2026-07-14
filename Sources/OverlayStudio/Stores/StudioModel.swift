@@ -673,21 +673,23 @@ final class StudioModel: ObservableObject {
         selectedTimelineClip.flatMap { timeline.asset(id: $0.assetID) }
     }
 
+    private var distanceUnitTimelineClip: TimelineClip? {
+        let clip = selectedTimelineClip
+            ?? layoutEditingTimelineClipID.flatMap { timelineClip(id: $0) }
+        guard let clip, timeline.asset(id: clip.assetID)?.kind == .activity else { return nil }
+        return clip
+    }
+
     var distanceUnitForCurrentSelection: OverlayDistanceUnit {
-        guard selectedTimelineClipAsset?.kind == .activity,
-              let selectedTimelineClip else {
-            return distanceUnit
-        }
-        return selectedTimelineClip.distanceUnit ?? distanceUnit
+        distanceUnitTimelineClip?.distanceUnit ?? distanceUnit
     }
 
     func setDistanceUnitForCurrentSelection(_ unit: OverlayDistanceUnit) {
-        guard selectedTimelineClipAsset?.kind == .activity,
-              let selectedTimelineClip else {
+        guard let clip = distanceUnitTimelineClip else {
             distanceUnit = unit
             return
         }
-        setTimelineClipDistanceUnit(id: selectedTimelineClip.id, unit)
+        setTimelineClipDistanceUnit(id: clip.id, unit)
     }
 
     var selectedTimelineClipIsEditable: Bool {
@@ -4784,6 +4786,7 @@ final class StudioModel: ObservableObject {
     }
 
     func selectElement(id: String) {
+        prepareActiveTimelineOverlayLayoutForEditing()
         clearTimelineClipSelection()
         selectedMediaAssetID = nil
         if selectedElementIDs != [id] {
@@ -5830,21 +5833,28 @@ final class StudioModel: ObservableObject {
         refreshOverlayOrPreview()
     }
 
-    private func prepareActiveTimelineOverlayLayoutForEditing() {
-        guard usesCustomTimelinePreview else { return }
+    private var activeTimelineOverlayClipForLayoutEditing: TimelineClip? {
+        guard usesCustomTimelinePreview else { return nil }
         for track in timeline.tracks.reversed()
         where track.kind == .overlay && track.isEnabled && !track.isLocked {
             guard let clip = track.clips.last(where: {
                 $0.isEnabled && $0.contains(timelineTime: previewTime)
             }) else { continue }
-            layoutEditingTimelineClipID = clip.id
-            let clipLayout = (clip.layout ?? .default).sanitized
-            if layout != clipLayout {
-                layout = clipLayout
-            }
+            return clip
+        }
+        return nil
+    }
+
+    private func prepareActiveTimelineOverlayLayoutForEditing() {
+        guard let clip = activeTimelineOverlayClipForLayoutEditing else {
+            layoutEditingTimelineClipID = nil
             return
         }
-        layoutEditingTimelineClipID = nil
+        layoutEditingTimelineClipID = clip.id
+        let clipLayout = (clip.layout ?? .default).sanitized
+        if layout != clipLayout {
+            layout = clipLayout
+        }
     }
 
     func duplicateSelectedElement() {
