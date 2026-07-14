@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Timeline clip editing (split / delete / ripple delete)
+// MARK: - Timeline clip editing (split / delete / paste)
 //
 // Simplified DaVinci-style editing semantics for the timeline tab:
 // - Splitting cuts every unlocked clip under a timeline time, or only an explicitly selected clip,
@@ -106,6 +106,49 @@ extension TimelineTrack {
             .min()
         return next.map { max(0, $0 - start) }
     }
+
+    /// Place a clip on this track using an overwrite edit: covered content is removed, while
+    /// partial overlaps keep their head and/or tail with source time continuity intact.
+    public mutating func overwrite(
+        with incoming: TimelineClip,
+        makeClipID: () -> String = { UUID().uuidString }
+    ) {
+        guard incoming.timelineStart.isFinite,
+              incoming.timelineStart >= 0,
+              incoming.duration.isFinite,
+              incoming.duration > 0,
+              incoming.timelineEnd.isFinite else { return }
+
+        var updated: [TimelineClip] = []
+        updated.reserveCapacity(clips.count + 2)
+        for clip in clips {
+            guard clip.timelineStart < incoming.timelineEnd,
+                  clip.timelineEnd > incoming.timelineStart else {
+                updated.append(clip)
+                continue
+            }
+
+            if clip.timelineStart < incoming.timelineStart {
+                var head = clip
+                head.duration = incoming.timelineStart - clip.timelineStart
+                updated.append(head)
+            }
+            if clip.timelineEnd > incoming.timelineEnd {
+                var tail = clip
+                tail.id = makeClipID()
+                tail.timelineStart = incoming.timelineEnd
+                tail.sourceIn += incoming.timelineEnd - clip.timelineStart
+                tail.duration = clip.timelineEnd - incoming.timelineEnd
+                updated.append(tail)
+            }
+        }
+        updated.append(incoming)
+        clips = updated.sorted { lhs, rhs in
+            lhs.timelineStart == rhs.timelineStart
+                ? lhs.id < rhs.id
+                : lhs.timelineStart < rhs.timelineStart
+        }
+    }
 }
 
 extension TimelineProject {
@@ -192,6 +235,44 @@ extension TimelineProject {
         guard let clip, removeClip(id: id) else { return false }
         removeTimeRange(from: clip.timelineStart, to: clip.timelineEnd, makeClipID: makeClipID)
         return true
+    }
+
+    /// Open an empty range on every unlocked track. A clip crossing the insertion point is split;
+    /// its tail and every later clip move right by `duration`. Locked tracks remain unchanged.
+    public mutating func insertEmptyTimeRange(
+        at start: TimeInterval,
+        duration: TimeInterval,
+        makeClipID: () -> String = { UUID().uuidString }
+    ) {
+        guard start.isFinite,
+              start >= 0,
+              duration.isFinite,
+              duration > 0,
+              (start + duration).isFinite else { return }
+
+        for trackIndex in tracks.indices where !tracks[trackIndex].isLocked {
+            var clips: [TimelineClip] = []
+            clips.reserveCapacity(tracks[trackIndex].clips.count + 1)
+            for var clip in tracks[trackIndex].clips {
+                if clip.timelineEnd <= start {
+                    clips.append(clip)
+                } else if clip.timelineStart >= start {
+                    clip.timelineStart += duration
+                    clips.append(clip)
+                } else {
+                    var head = clip
+                    head.duration = start - clip.timelineStart
+                    var tail = clip
+                    tail.id = makeClipID()
+                    tail.timelineStart = start + duration
+                    tail.sourceIn += start - clip.timelineStart
+                    tail.duration = clip.timelineEnd - start
+                    clips.append(head)
+                    clips.append(tail)
+                }
+            }
+            tracks[trackIndex].clips = clips
+        }
     }
 
     /// Close `[start, end)` on every unlocked track: later clips shift left, clips spanning the

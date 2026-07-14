@@ -342,6 +342,32 @@ private struct TimelineCommands: Commands {
 
     var body: some Commands {
         CommandMenu(localization.string("menu.timeline")) {
+            Button(localization.string("menu.copyTimelineClips")) {
+                actions?.copyTimelineClips()
+            }
+            .keyboardShortcut("c", modifiers: [.command])
+            .disabled(actions?.canCopyTimelineClips != true)
+
+            Button(localization.string("menu.cutTimelineClips")) {
+                actions?.cutTimelineClips()
+            }
+            .keyboardShortcut("x", modifiers: [.command])
+            .disabled(actions?.canCutTimelineClips != true)
+
+            Button(localization.string("menu.pasteTimelineClips")) {
+                actions?.pasteTimelineClips()
+            }
+            .keyboardShortcut("v", modifiers: [.command])
+            .disabled(actions?.canPasteTimelineClips != true)
+
+            Button(localization.string("menu.pasteInsertTimelineClips")) {
+                actions?.pasteInsertTimelineClips()
+            }
+            .keyboardShortcut("v", modifiers: [.command, .shift])
+            .disabled(actions?.canPasteTimelineClips != true)
+
+            Divider()
+
             Button(localization.string("menu.previousEditPoint")) {
                 actions?.jumpToPreviousEditPoint()
             }

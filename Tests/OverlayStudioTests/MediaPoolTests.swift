@@ -2092,6 +2092,113 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertNil(model.selectedTimelineClipID)
     }
 
+    func testTimelineClipboardCopyAndPasteOverwritesAtPlayhead() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let asset = MediaAsset(
+            id: "video",
+            kind: .video,
+            url: URL(fileURLWithPath: "/tmp/clipboard.mov"),
+            displayName: "clipboard.mov",
+            duration: 60
+        )
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [asset],
+            tracks: [
+                TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "source", assetID: asset.id, timelineStart: 0, duration: 4),
+                    TimelineClip(id: "obstacle", assetID: asset.id, timelineStart: 10, duration: 10, sourceIn: 20)
+                ])
+            ]
+        )
+        model.applyTimelineProject(project, loadAssets: false)
+        let appliedProject = model.currentTimelineProject
+        model.selectTimelineClip(id: "source")
+
+        model.copySelectedTimelineClips()
+        XCTAssertTrue(model.canPasteTimelineClips)
+        model.previewTime = 12
+        model.pasteTimelineClips()
+
+        let clips = model.currentTimelineProject.tracks[0].clips
+        XCTAssertEqual(clips.map(\.timelineStart), [0, 10, 12, 16])
+        XCTAssertEqual(clips.map(\.duration), [4, 2, 4, 4])
+        XCTAssertEqual(clips.map(\.sourceIn), [0, 20, 0, 26])
+        XCTAssertEqual(model.selectedTimelineClipIDs.count, 1)
+        XCTAssertEqual(try XCTUnwrap(model.selectedTimelineClip).timelineStart, 12, accuracy: 1e-9)
+
+        undoManager.undo()
+        XCTAssertEqual(model.currentTimelineProject, appliedProject)
+    }
+
+    func testTimelineClipboardCutAndPasteInsertRipplesUnlockedTracks() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let video = MediaAsset(
+            id: "video",
+            kind: .video,
+            url: URL(fileURLWithPath: "/tmp/insert.mov"),
+            displayName: "insert.mov",
+            duration: 60
+        )
+        let activity = MediaAsset(
+            id: "activity",
+            kind: .activity,
+            url: URL(fileURLWithPath: "/tmp/insert.fit"),
+            displayName: "insert.fit",
+            duration: 60
+        )
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [video, activity],
+            tracks: [
+                TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "source", assetID: video.id, timelineStart: 0, duration: 4),
+                    TimelineClip(id: "later", assetID: video.id, timelineStart: 10, duration: 4)
+                ]),
+                TimelineTrack(id: "o1", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(id: "activity", assetID: activity.id, timelineStart: 0, duration: 20)
+                ])
+            ]
+        )
+        model.applyTimelineProject(project, loadAssets: false)
+        let appliedProject = model.currentTimelineProject
+        model.selectTimelineClip(id: "source")
+
+        model.cutSelectedTimelineClips()
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips.map(\.id), ["later"])
+        XCTAssertTrue(model.canPasteTimelineClips)
+
+        model.previewTime = 5
+        model.pasteInsertTimelineClips()
+
+        let videoClips = model.currentTimelineProject.tracks[0].clips
+        XCTAssertEqual(videoClips.map(\.timelineStart), [5, 14])
+        XCTAssertEqual(videoClips.map(\.duration), [4, 4])
+        let overlayClips = model.currentTimelineProject.tracks[1].clips
+        XCTAssertEqual(overlayClips.map(\.timelineStart), [0, 9])
+        XCTAssertEqual(overlayClips.map(\.duration), [5, 15])
+        XCTAssertEqual(overlayClips[1].sourceIn, 5, accuracy: 1e-9)
+
+        undoManager.undo()
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips.map(\.id), ["later"])
+        XCTAssertEqual(model.currentTimelineProject.tracks[1].clips.map(\.id), ["activity"])
+
+        undoManager.undo()
+        XCTAssertEqual(model.currentTimelineProject, appliedProject)
+    }
+
     func testDraggingOneOfMultipleSelectedClipsMovesTheSelectionAsAGroup() {
         let model = StudioModel()
         let project = TimelineProject(

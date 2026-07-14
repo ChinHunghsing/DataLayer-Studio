@@ -61,6 +61,11 @@ private struct TimelinePreviewSnapshot {
     var overlayLayers: [TimelinePreviewOverlayLayer]
 }
 
+private struct TimelineClipboardItem {
+    var trackID: String
+    var clip: TimelineClip
+}
+
 enum TimelinePendingAction: Equatable {
     case selectVideoAsset(id: String)
     case selectActivityAsset(id: String)
@@ -243,6 +248,7 @@ final class StudioModel: ObservableObject {
     }
     @Published private(set) var selectedMediaAssetID: String?
     @Published private(set) var selectedTimelineClipIDs: Set<String> = []
+    @Published private var timelineClipboard: [TimelineClipboardItem] = []
     @Published var selectedTimelineClipID: String? {
         didSet {
             if let selectedTimelineClipID {
@@ -4590,6 +4596,109 @@ final class StudioModel: ObservableObject {
         previewTime = clampedPreviewTime(previewTime)
         refreshOverlayOrPreview()
         setStatus(ripple ? "status.timelineClipRippleDeleted" : "status.timelineClipDeleted")
+    }
+
+    var canCopySelectedTimelineClips: Bool {
+        !effectiveSelectedTimelineClipIDs.isEmpty
+    }
+
+    var canCutSelectedTimelineClips: Bool {
+        !editableSelectedTimelineClipIDs.isEmpty
+    }
+
+    var canPasteTimelineClips: Bool {
+        guard !isExporting, !timelineClipboard.isEmpty else { return false }
+        let assetIDs = Set(timeline.assets.map(\.id))
+        return timelineClipboard.allSatisfy { item in
+            assetIDs.contains(item.clip.assetID)
+                && timeline.tracks.contains { $0.id == item.trackID && !$0.isLocked }
+        }
+    }
+
+    func copySelectedTimelineClips() {
+        let items = timelineClipboardItems(for: effectiveSelectedTimelineClipIDs)
+        guard !items.isEmpty else { return }
+        timelineClipboard = items
+        setStatus("status.timelineClipsCopied")
+    }
+
+    func cutSelectedTimelineClips() {
+        let selectedIDs = editableSelectedTimelineClipIDs
+        let items = timelineClipboardItems(for: selectedIDs)
+        guard !items.isEmpty else { return }
+
+        let previousUndoState = timelineUndoSnapshotNow
+        var updated = timeline
+        let removed = selectedIDs.reduce(into: false) { didRemove, id in
+            didRemove = updated.removeClip(id: id) || didRemove
+        }
+        guard removed else { return }
+
+        timelineClipboard = items
+        beginTimelineClipEditingIfNeeded()
+        timeline = updated
+        clearTimelineClipSelection()
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.cutClips",
+            coalescing: false
+        )
+        previewTime = clampedPreviewTime(previewTime)
+        refreshOverlayOrPreview()
+        setStatus("status.timelineClipsCut")
+    }
+
+    func pasteTimelineClips() {
+        pasteTimelineClips(inserting: false)
+    }
+
+    func pasteInsertTimelineClips() {
+        pasteTimelineClips(inserting: true)
+    }
+
+    private func pasteTimelineClips(inserting: Bool) {
+        guard canPasteTimelineClips,
+              let clipboardStart = timelineClipboard.map(\.clip.timelineStart).min(),
+              let clipboardEnd = timelineClipboard.map(\.clip.timelineEnd).max() else { return }
+
+        let pasteTime = max(0, previewTime.isFinite ? previewTime : 0)
+        let previousUndoState = timelineUndoSnapshotNow
+        var updated = timeline
+        if inserting {
+            updated.insertEmptyTimeRange(at: pasteTime, duration: clipboardEnd - clipboardStart)
+        }
+
+        var pastedIDs: Set<String> = []
+        for item in timelineClipboard {
+            guard let trackIndex = updated.tracks.firstIndex(where: { $0.id == item.trackID }) else { return }
+            var clip = item.clip
+            clip.id = "\(updated.tracks[trackIndex].kind.rawValue).clip.\(UUID().uuidString)"
+            clip.timelineStart = pasteTime + item.clip.timelineStart - clipboardStart
+            clip.isAlignmentPending = false
+            updated.tracks[trackIndex].overwrite(with: clip)
+            pastedIDs.insert(clip.id)
+        }
+        guard !pastedIDs.isEmpty else { return }
+
+        beginTimelineClipEditingIfNeeded()
+        timeline = updated
+        setTimelineClipSelection(pastedIDs)
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: inserting ? "undo.timeline.pasteInsertClips" : "undo.timeline.pasteClips",
+            coalescing: false
+        )
+        refreshOverlayOrPreview()
+        setStatus(inserting ? "status.timelineClipsPasteInserted" : "status.timelineClipsPasted")
+    }
+
+    private func timelineClipboardItems(for selectedIDs: Set<String>) -> [TimelineClipboardItem] {
+        timeline.tracks.flatMap { track in
+            track.clips
+                .filter { selectedIDs.contains($0.id) }
+                .sorted { $0.timelineStart < $1.timelineStart }
+                .map { TimelineClipboardItem(trackID: track.id, clip: $0) }
+        }
     }
 
     func selectTimelineClip(id: String, extendingSelection: Bool = false) {

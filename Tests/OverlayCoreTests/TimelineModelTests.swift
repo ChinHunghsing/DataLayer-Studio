@@ -628,6 +628,46 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(clips[1].sourceIn, 52, accuracy: 1e-9)
     }
 
+    func testOverwriteClipPreservesUncoveredSourceContent() {
+        var track = TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+            TimelineClip(id: "original", assetID: "video", timelineStart: 0, duration: 20, sourceIn: 5)
+        ])
+
+        track.overwrite(
+            with: TimelineClip(id: "pasted", assetID: "video", timelineStart: 7, duration: 5, sourceIn: 40),
+            makeClipID: { "tail" }
+        )
+
+        XCTAssertEqual(track.clips.map(\.id), ["original", "pasted", "tail"])
+        XCTAssertEqual(track.clips.map(\.timelineStart), [0, 7, 12])
+        XCTAssertEqual(track.clips.map(\.duration), [7, 5, 8])
+        XCTAssertEqual(track.clips.map(\.sourceIn), [5, 40, 17])
+    }
+
+    func testInsertEmptyTimeRangeSplitsCrossingClipsAndSkipsLockedTracks() {
+        var project = editingProject()
+        var nextID = 0
+
+        project.insertEmptyTimeRange(at: 15, duration: 4) {
+            nextID += 1
+            return "insert-tail-\(nextID)"
+        }
+
+        let video = project.tracks[0].clips
+        XCTAssertEqual(video.map(\.id), ["video-a", "video-b", "insert-tail-1", "video-c"])
+        XCTAssertEqual(video.map(\.timelineStart), [0, 10, 19, 29])
+        XCTAssertEqual(video.map(\.duration), [10, 5, 5, 10])
+        XCTAssertEqual(video[2].sourceIn, 45, accuracy: 1e-9)
+
+        let overlay = project.tracks[1].clips
+        XCTAssertEqual(overlay.map(\.timelineStart), [5, 19])
+        XCTAssertEqual(overlay.map(\.duration), [10, 15])
+        XCTAssertEqual(overlay[1].sourceIn, 13, accuracy: 1e-9)
+
+        XCTAssertEqual(project.tracks[2].clips[0].timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(project.tracks[2].clips[0].duration, 30, accuracy: 1e-9)
+    }
+
     // MARK: overlap prevention
 
     private func occupiedTrack() -> TimelineTrack {

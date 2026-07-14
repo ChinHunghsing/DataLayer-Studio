@@ -883,6 +883,33 @@ struct ProjectTimelineView: View {
             )
         }
         .contextMenu {
+            Button(localization.string("menu.copyTimelineClips")) {
+                if !model.isTimelineClipSelected(id: clip.id) {
+                    model.selectTimelineClip(id: clip.id)
+                }
+                model.copySelectedTimelineClips()
+            }
+
+            Button(localization.string("menu.cutTimelineClips")) {
+                if !model.isTimelineClipSelected(id: clip.id) {
+                    model.selectTimelineClip(id: clip.id)
+                }
+                model.cutSelectedTimelineClips()
+            }
+            .disabled(isLocked)
+
+            Button(localization.string("menu.pasteTimelineClips")) {
+                model.pasteTimelineClips()
+            }
+            .disabled(!model.canPasteTimelineClips)
+
+            Button(localization.string("menu.pasteInsertTimelineClips")) {
+                model.pasteInsertTimelineClips()
+            }
+            .disabled(!model.canPasteTimelineClips)
+
+            Divider()
+
             Button(localization.string(clip.isEnabled ? "menu.disableTimelineClip" : "menu.enableTimelineClip")) {
                 model.setTimelineClipEnabled(id: clip.id, isEnabled: !clip.isEnabled)
             }
