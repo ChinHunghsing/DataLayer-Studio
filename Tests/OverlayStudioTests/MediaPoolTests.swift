@@ -338,6 +338,43 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertFalse(model.importDroppedMediaFiles([URL(fileURLWithPath: "/tmp/notes.txt")]))
     }
 
+    func testImportedTimelineGaugesAreEditableBeforeAddingAnotherGauge() throws {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/gauge-edit.mov")
+        let activityURL = URL(fileURLWithPath: "/tmp/gauge-edit.fit")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1_920, height: 1_080, duration: 30, fps: 30)
+        )
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 30, distanceMeters: 100)
+        ]))
+        XCTAssertTrue(model.importDroppedMediaFiles([videoURL, activityURL]))
+
+        let overlayClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first
+        )
+        let element = try XCTUnwrap(overlayClip.layout?.elements.first)
+
+        model.nudgeElement(element.id, deltaX: 0.01, deltaY: 0)
+
+        let updatedClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .filter { $0.kind == .overlay }
+                .flatMap(\.clips)
+                .first
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(updatedClip.layout?.elements.first { $0.id == element.id }).frame.x,
+            element.frame.x + 0.01,
+            accuracy: 0.000_001
+        )
+    }
+
     func testDroppedVideosWaitForFinderOrderAndAppendAfterTheDrop() throws {
         let model = StudioModel()
         let trackID = "video.track.drop-order"

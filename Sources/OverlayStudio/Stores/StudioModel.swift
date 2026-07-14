@@ -1175,7 +1175,6 @@ final class StudioModel: ObservableObject {
     func applyLayoutPreset(id: String) {
         guard !isExporting else { return }
         guard let preset = layoutPresets.first(where: { $0.id == id }) else { return }
-        prepareActiveTimelineOverlayLayoutForEditing()
         performLayoutChange("undo.applyPreset") {
             layout = preset.layout.sanitized
             selectedElementID = Self.firstSelectableElementID(in: layout)
@@ -5437,7 +5436,6 @@ final class StudioModel: ObservableObject {
 
     func addElement(kind: OverlayComponentID, atNormalizedPosition position: CGPoint?) {
         guard !isExporting else { return }
-        prepareActiveTimelineOverlayLayoutForEditing()
         performLayoutChange("undo.addElement") {
             let existingCount = layout.elements.filter { $0.kind == kind }.count
             var element = OverlayElement.defaultElement(kind: kind, id: "\(kind.rawValue)-\(UUID().uuidString)")
@@ -5745,6 +5743,7 @@ final class StudioModel: ObservableObject {
 
     private func beginLayoutUndoTransaction(_ actionKey: String) {
         guard layoutUndoTransaction == nil else { return }
+        prepareActiveTimelineOverlayLayoutForEditing()
         layoutUndoTransaction = (layout, selectedElementID, actionKey)
     }
 
@@ -5764,6 +5763,7 @@ final class StudioModel: ObservableObject {
             change()
             return
         }
+        prepareActiveTimelineOverlayLayoutForEditing()
         let previousLayout = layout
         let previousSelectedElementID = selectedElementID
         change()
