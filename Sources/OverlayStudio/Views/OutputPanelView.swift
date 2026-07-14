@@ -30,6 +30,8 @@ struct OutputPanelView: View {
     @State private var forceCustomResolution = false
     @State private var isAspectRatioLocked = true
     @State private var lockedAspectRatio: Double?
+    @State private var widthRefreshGeneration = 0
+    @State private var heightRefreshGeneration = 0
     @State private var selectedPresetID: String?
     @State private var presetName = ""
 
@@ -385,11 +387,19 @@ struct OutputPanelView: View {
                 rowDivider
                 settingRow(localization.string("output.dimensions")) {
                     HStack(spacing: 6) {
-                        InlineIntField(value: model.outputWidth, range: 2...16_384) {
+                        InlineIntField(
+                            value: model.outputWidth,
+                            range: 2...16_384,
+                            refreshToken: widthRefreshGeneration
+                        ) {
                             setOutputWidth($0)
                         }
                         Text(verbatim: "×").foregroundStyle(.secondary)
-                        InlineIntField(value: model.outputHeight, range: 2...16_384) {
+                        InlineIntField(
+                            value: model.outputHeight,
+                            range: 2...16_384,
+                            refreshToken: heightRefreshGeneration
+                        ) {
                             setOutputHeight($0)
                         }
                         Text(verbatim: "px").font(.caption).foregroundStyle(.secondary)
@@ -618,12 +628,14 @@ struct OutputPanelView: View {
         let aspectRatio = isAspectRatioLocked ? lockedAspectRatio ?? currentAspectRatio : nil
         lockedAspectRatio = aspectRatio
         model.setOutputWidth(width, lockedAspectRatio: aspectRatio)
+        heightRefreshGeneration &+= 1
     }
 
     private func setOutputHeight(_ height: Int) {
         let aspectRatio = isAspectRatioLocked ? lockedAspectRatio ?? currentAspectRatio : nil
         lockedAspectRatio = aspectRatio
         model.setOutputHeight(height, lockedAspectRatio: aspectRatio)
+        widthRefreshGeneration &+= 1
     }
 }
 
@@ -631,6 +643,7 @@ struct OutputPanelView: View {
 private struct InlineIntField: View {
     var value: Int
     var range: ClosedRange<Int>
+    var refreshToken = 0
     var set: (Int) -> Void
 
     var body: some View {
@@ -639,6 +652,7 @@ private struct InlineIntField: View {
             range: range,
             width: 74,
             publishesValidDraft: true,
+            refreshToken: refreshToken,
             set: set
         )
     }

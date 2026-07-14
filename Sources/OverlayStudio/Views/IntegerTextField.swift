@@ -7,6 +7,7 @@ struct IntegerTextField: View {
     var range: ClosedRange<Int> = Int.min...Int.max
     var width: CGFloat? = nil
     var publishesValidDraft = false
+    var refreshToken = 0
     var set: (Int) -> Void
 
     @State private var draft = ""
@@ -30,6 +31,9 @@ struct IntegerTextField: View {
             }
             .onChange(of: value) { _ in
                 guard !isFocused else { return }
+                refresh()
+            }
+            .onChange(of: refreshToken) { _ in
                 refresh()
             }
             .onChange(of: isFocused) { focused in
