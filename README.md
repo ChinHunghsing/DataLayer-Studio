@@ -1,281 +1,78 @@
 <p align="center">
-  <img src="Resources/AppIcon.png" alt="DataLayer Studio icon" width="96">
-</p>
-
-<h1 align="center">DataLayer Studio</h1>
-
-<p align="center">
-  Turn raw running telemetry into cinematic video overlays.<br>
-  Sync a <code>.fit</code> file to your footage, arrange live gauges on a canvas, and export broadcast-ready overlays — from the macOS app or the command line.
+  <img src="assets/readme/hero.svg" width="100%" alt="DataLayer Studio turns FIT running data into synchronized video overlays">
 </p>
 
 <p align="center">
-  <a href="README.md"><b>English</b></a> ·
-  <a href="README.zh-CN.md">中文</a>
+  <a href="README.md"><b>English</b></a> · <a href="README.zh-CN.md">中文</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/leeeboo/DataLayer-Studio/actions/workflows/ci.yml"><img src="https://github.com/leeeboo/DataLayer-Studio/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/leeeboo/DataLayer-Studio/releases/latest"><img src="https://img.shields.io/github/v/release/leeeboo/DataLayer-Studio?label=release" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%2013%2B-blue" alt="Platform: macOS 13+">
-  <img src="https://img.shields.io/badge/chip-Apple%20Silicon-black?logo=apple&logoColor=white" alt="Requires Apple Silicon">
-  <img src="https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white" alt="Swift 5.9">
-  <img src="https://img.shields.io/badge/license-source--available-orange" alt="Source-available license">
+  <img src="https://img.shields.io/badge/macOS-13%2B-0B2430" alt="macOS 13 or later">
+  <img src="https://img.shields.io/badge/Apple_Silicon-required-0B2430" alt="Apple Silicon required">
+  <img src="https://img.shields.io/badge/license-source--available-0B2430" alt="Source-available license">
+</p>
+
+DataLayer Studio is a native macOS editor for turning running telemetry into clean, synchronized video graphics. Drop in footage and a `.fit` activity, align them on one timeline, arrange live gauges, then export a transparent overlay or a finished video.
+
+<p align="center">
+  <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770"><img src="assets/readme/download-on-the-app-store.svg" width="200" alt="Download DataLayer Studio on the Mac App Store"></a>
 </p>
 
 <p align="center">
-  <img src="assets/appstore/v0.3.0/en-US/desktop@2x/01-multicamera-timeline.png" alt="DataLayer Studio 0.3 editor with a synchronized multi-camera timeline and telemetry overlay preview" width="100%">
+  <img src="assets/readme/app-showcase.png" width="100%" alt="DataLayer Studio previewing running footage with pace, heart rate, cadence, route, weather, and distance overlays">
 </p>
 
-<p align="center">
-  <b>Ready-to-post data overlays for your running videos — in minutes, not hours.</b>
-</p>
+## From footage to data layer
 
-<p align="center">
-  <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">
-    <img src="assets/readme/download-on-the-app-store.svg" alt="Download DataLayer Studio on the Mac App Store" width="200">
-  </a>
-</p>
+One workspace carries the whole job: edit media, lock telemetry to the right moment, and choose the output your video editor needs.
 
-<p align="center">
-  <sub>❤️ Love it? <a href="#support">Support development</a> &nbsp;·&nbsp; ⭐ Star the repo to help others find it</sub>
-</p>
+| 1 · Drop and edit | 2 · Align precisely | 3 · Export your way |
+| --- | --- | --- |
+| <img src="assets/appstore/v0.3.2/en-US/desktop/01-drag-and-edit.png" alt="Multitrack video and FIT activity timeline" width="100%"> | <img src="assets/appstore/v0.3.2/en-US/desktop/02-precise-alignment.png" alt="Millisecond timeline alignment controls" width="100%"> | <img src="assets/appstore/v0.3.2/en-US/desktop/03-export-presets.png" alt="Transparent overlay and composited video export presets" width="100%"> |
 
-<p align="center">
-  <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified badge" width="200">
-</p>
-
-<br>
-
-## Contents
-
-- [What it does](#what-it-does)
-- [System requirements](#system-requirements)
-- [Highlights](#highlights)
-- [App Store screenshots](#app-store-screenshots)
-- [Support](#support)
-- [Quick start](#quick-start)
-- [License](#license)
-- [Contributing](#contributing)
-- [Monitoring](#monitoring)
-- [Issues](#issues)
-- [Build](#build)
-- [GUI](#gui)
-- [CLI usage](#cli-usage)
-- [Time sync](#time-sync)
-- [Current FIT support](#current-fit-support)
-- [Release](#release)
-
-## What it does
-
-DataLayer Studio turns running telemetry into clean video overlays for race
-recaps, training breakdowns, and social clips. Use the macOS editor for visual
-layout work, or the command-line tool for repeatable exports.
-
-It takes:
-
-- a source video file, used for resolution, frame rate, and duration
-- a standard `.fit` activity file, used for GPS and running metrics
-
-It can export either a transparent alpha `.mov` for Final Cut Pro, DaVinci
-Resolve, Premiere, and similar editors, or a finished video with the overlay
-burned in.
-
-> DataLayer Studio is an independent project. It is not affiliated with,
-> endorsed by, or sponsored by Telemetry Overlay or its developers. This
-> project does not read from or modify `/Applications/Telemetry Overlay.app`,
-> and it does not include proprietary code or assets from Telemetry Overlay.
-
-## System requirements
-
-> Requires macOS 13.0 Ventura or later on Apple Silicon Macs.
-
-## Highlights
+## Built for the edit
 
 | | |
 | --- | --- |
-| 🎨 **Lightweight multitrack timeline** | Video and activity tracks support moving, trimming, splitting, snapping, locking, and undo, with gaps allowed anywhere. |
-| 🎯 **Timeline-based alignment** | Drag video and activity clips, or enter an exact timeline start, so matching source events land at the same relative time. |
-| 🖱 **Live layout canvas** | Drag pace, heart rate, cadence, route, distance, time, weather, and more over a live video preview. |
-| ▶️ **Preview with data alone** | No video yet? Preview and play the overlay straight from a `.fit` file — just press Space. |
-| 💾 **Reusable presets** | Save layout presets and reuse them across videos and styles. |
-| 🎬 **Alpha or burned-in export** | Export transparent HEVC/ProRes Alpha overlays for your editor, or a fully composited video. |
-| ⚙️ **Scriptable CLI** | Drive the same renderer from the command line for repeatable, automatable exports. |
+| **Multitrack timing** | Move, trim, split, snap, lock, and undo video or activity clips on one timeline. |
+| **Live telemetry canvas** | Arrange pace, heart rate, cadence, power, route, distance, weather, time, and more over the real frame. |
+| **Exact synchronization** | Drag clips into place or enter an exact relative start down to the millisecond. |
+| **Reusable layouts** | Save, import, export, and reuse gauge layouts across projects. |
+| **Two export paths** | Render transparent HEVC / ProRes Alpha for an NLE, or burn the graphics into the source video. |
+| **The same renderer in a CLI** | Automate repeatable exports without maintaining a second visual pipeline. |
 
-## App Store screenshots
+No video yet? A `.fit` file is enough to preview and play the telemetry layer.
 
-Build a reusable overlay workflow in three views: align overlapping camera clips, add and arrange telemetry components, then save the layout as a template.
+## Start here
 
-| 1 · Align multiple cameras | 2 · Add components | 3 · Reuse templates |
-| --- | --- | --- |
-| <img src="assets/appstore/v0.3.0/en-US/desktop/01-multicamera-timeline.png" alt="DataLayer Studio multi-camera timeline" width="100%"> | <img src="assets/appstore/v0.3.0/en-US/desktop/02-components-preview.png" alt="DataLayer Studio component library and live preview" width="100%"> | <img src="assets/appstore/v0.3.0/en-US/desktop/03-reusable-templates.png" alt="DataLayer Studio reusable layout templates" width="100%"> |
+### Install the app
 
-## Support
+DataLayer Studio requires an Apple Silicon Mac running macOS 13 Ventura or later.
 
-DataLayer Studio is built and maintained by one developer as an independent, source-available project. **The best way to support it is to buy it on the [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770)** — that funds testing, sample activities, and new features.
+[Download it from the Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770), or download a signed build from the [latest GitHub release](https://github.com/leeeboo/DataLayer-Studio/releases/latest).
 
-Prefer to chip in directly? A coffee is always appreciated. For WeChat Pay or Alipay, scan the QR code.
+### Run from source
 
-| Buy Me a Coffee | WeChat Pay | Alipay |
-| --- | --- | --- |
-| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsor QR code" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsor QR code" width="180"> |
-
-Sponsorship is optional and does not purchase a commercial license, priority
-support, or guaranteed feature work. Commercial use still requires a separate
-written license.
-
-## Quick start
-
-Run the GUI from source:
+You need Swift 5.9 or later.
 
 ```bash
 swift run datalayer-studio
 ```
 
-Or build a local app bundle:
+To build a local app bundle:
 
 ```bash
 scripts/build_app_bundle.sh
 open ".build/DataLayer Studio.app"
 ```
 
-Run the CLI:
+`swift run overlay-studio` remains available as a compatibility alias for older scripts.
 
-```bash
-swift run overlay \
-  --video /path/to/run-video.mov \
-  --fit /path/to/activity.fit \
-  --output /path/to/overlay.mov
-```
+## Automate with the CLI
 
-## License
-
-DataLayer Studio is source-available for noncommercial use only. Modified
-versions and derivative distributions must share their corresponding source
-under the same terms.
-
-See [LICENSE.md](LICENSE.md). This is not an OSI open-source license because
-commercial use, resale, paid redistribution, and paid hosting are not permitted
-without a separate written commercial license.
-
-See [NOTICE.md](NOTICE.md) for project notices and third-party dependency notes.
-
-## Contributing
-
-Pull requests are welcome when they are focused, testable, and compatible with
-the project license. Start here:
-
-1. Read [CONTRIBUTING.md](CONTRIBUTING.md).
-2. Open an issue first for large UI, parser, export, or licensing changes.
-3. Keep PRs small enough to review in one pass.
-4. Do not include private videos, FIT/GPX/TCX files, GPS traces, credentials,
-   generated build output, or local machine state.
-5. Run the checks that match your change.
-
-At minimum, run the repository readiness check:
-
-```bash
-scripts/verify_source_available_readiness.sh
-```
-
-For code changes, also run:
-
-```bash
-swift test
-```
-
-The pull request template asks for the exact checks you ran. GUI-visible changes
-should include a short manual verification note, such as the screen or workflow
-you opened after rebuilding.
-
-For vulnerabilities or private data exposure, follow [SECURITY.md](SECURITY.md)
-instead of opening a public issue with sensitive details.
-
-For local data handling and privacy expectations, see [PRIVACY.md](PRIVACY.md).
-
-For general support expectations, see [SUPPORT.md](SUPPORT.md).
-
-## Monitoring
-
-DataLayer Studio does not include a third-party analytics SDK or custom in-app
-event tracking. App usage is monitored with Apple's built-in
-[App Store Connect Analytics](https://developer.apple.com/app-store-connect/analytics/)
-and crash metrics, which provide aggregate data such as downloads, sessions,
-active devices, retention, sales, and crash rate for users who share analytics
-with developers.
-
-## Issues
-
-Use the issue templates for bug reports, feature requests, and documentation
-fixes. Please keep public issues free of private activity data:
-
-- redact GPS traces, names, account IDs, device IDs, and local file paths
-- avoid attaching real videos or FIT files unless you are comfortable making
-  them public
-- use synthetic or trimmed sample data when possible
-- report security problems privately through [SECURITY.md](SECURITY.md)
-
-## Build
-
-```bash
-swift build
-```
-
-For a release binary:
-
-```bash
-swift build -c release
-```
-
-The executable will be at:
-
-```bash
-.build/release/overlay
-```
-
-## GUI
-
-The SwiftUI editor can be launched directly from SwiftPM:
-
-```bash
-swift run datalayer-studio
-```
-
-`swift run overlay-studio` is kept as a compatibility alias for older local
-scripts.
-
-Or packaged as a local macOS app bundle:
-
-```bash
-scripts/build_app_bundle.sh
-open ".build/DataLayer Studio.app"
-```
-
-The GUI supports:
-
-- selecting a source video and `.fit` file
-- playing the source video in the preview while rendering the overlay on top
-- previewing and playing straight from a `.fit` file even without a video — press Space to play or pause
-- a resizable multitrack timeline for video and activity clips
-- configuring every output setting — resolution, frame rate, codec, bitrate, and destination — in a single **Output** panel
-- aligning video and activity data by dragging clips or entering an exact relative timeline start
-- gaps at the beginning or between clips, rendered as black canvas or transparency according to export mode
-- moving, trimming, snapping, splitting, multiselecting, deleting, and ripple deleting timeline clips
-- renaming, enabling, locking, and deleting empty tracks, plus moving clips between same-kind tracks
-- saving and reopening timeline projects, with relinking for moved or inaccessible media
-- dragging overlay components on the preview canvas
-- changing the layer order for overlapping components
-- changing component visibility, position, and size
-- independently editing speed, pace, heart rate, cadence, distance value, route, distance progress, and time/date components
-- changing each component's tint, opacity, font, font size, position, and size
-- showing a configurable preview grid, with optional snapping while dragging
-- saving, importing, exporting, and setting default layout presets
-- setting output resolution and frame rate through presets or manual input
-- choosing whether distance labels render in `m` or `km`
-- exporting either a transparent alpha overlay or a source video with the overlay burned in
-- setting output bitrate in kbps, codec, and destination
-
-## CLI usage
+The CLI uses the same FIT parser, timeline mapping, layouts, and renderer as the app.
 
 ```bash
 swift run overlay \
@@ -286,99 +83,84 @@ swift run overlay \
 
 Useful options:
 
-```bash
---width 1920        # override source width; 2...16384 and even
---height 1080       # override source height; 2...16384 and even
---fps 30            # override source frame rate
---fit-start 300     # video starts at FIT elapsed 5:00
---sync-video 12     # sync point in the video timeline
---sync-fit 0        # FIT elapsed at the same sync point
---offset 2.5        # legacy shorthand: video starts 2.5s before FIT
---bitrate 12000     # HEVC average bitrate in kbps
---bitrate-bps 12000000 # legacy explicit bitrate in bps
---export-mode overlay # default; transparent alpha overlay
---export-mode video # export source video with overlay burned in; requires --video
---codec hevc-alpha  # overlay mode default; use prores-4444 as an alpha-capable intermediate
---codec hevc        # video mode default; h264 is also available
---distance-unit km  # distance labels: km (default) or m
---layout-preset "Race Layout" # use a saved GUI layout preset by name or ID
---layout-preset presets.json # use a GUI-exported layout preset JSON file
---inspect           # parse metadata without rendering
---skip-fit-crc      # useful for malformed FIT exports
+```text
+--fit-start 300          Video begins at FIT elapsed 5:00
+--sync-video 12          Sync point in the video timeline
+--sync-fit 0             FIT elapsed at the same sync point
+--export-mode overlay    Transparent alpha overlay (default)
+--export-mode video      Video with graphics burned in
+--codec hevc-alpha       HEVC with alpha (overlay default)
+--codec prores-4444      Alpha-capable intermediate
+--layout-preset NAME     Saved app preset name, ID, or exported JSON file
+--inspect                Parse metadata without rendering
 ```
 
-If `--layout-preset` is not set, the command-line renderer uses the built-in
-default layout. Saved presets are looked up from the GUI's local DataLayer
-Studio preferences, first by preset ID and then by case-insensitive preset name.
-When the value is an existing JSON file path exported by the GUI, the CLI uses
-the exported default preset when present, otherwise the first preset in the file.
+Run `swift run overlay --help` for the complete option list.
 
-## Time sync
+<details>
+<summary><b>How timeline sync works</b></summary>
 
-The renderer maps each video timestamp to a FIT elapsed timestamp. You can express that mapping in three ways:
+The renderer maps each video timestamp to a FIT elapsed timestamp. Use the form that matches what you know:
 
 ```bash
-# Recording starts 12 seconds before the activity starts.
+# Recording starts 12 seconds before the activity.
 overlay --video run.mov --fit activity.fit --output overlay.mov --offset 12
 
 # Recording starts 8 minutes 20 seconds into the activity.
 overlay --video run.mov --fit activity.fit --output overlay.mov --fit-start 500
 
-# Any precise sync point: video 3.2s matches FIT elapsed 41:15.
-overlay --video run.mov --fit activity.fit --output overlay.mov --sync-video 3.2 --sync-fit 2475
+# Video 3.2s matches FIT elapsed 41:15.
+overlay --video run.mov --fit activity.fit --output overlay.mov \
+  --sync-video 3.2 --sync-fit 2475
 ```
 
-If the video continues after FIT telemetry ends, the overlay holds the last FIT sample instead of inventing extra activity time. If the video starts before FIT telemetry begins, the overlay holds the first FIT sample until the mapped FIT elapsed time reaches zero.
+Before telemetry begins, the first sample is held. After telemetry ends, the last sample is held.
 
-## Current FIT support
+</details>
 
-The parser handles standard FIT local message definitions, little and big endian records, file/header CRC validation, normal and compressed timestamp data messages, and standard `record` message fields:
+<details>
+<summary><b>FIT data support</b></summary>
 
-- timestamp
-- position latitude/longitude
-- altitude and enhanced altitude
-- distance
-- speed and enhanced speed
-- heart rate
-- cadence, converted to steps per minute for the running overlay
-- power
-- temperature
+The parser validates FIT headers and CRCs and handles standard local message definitions, little- and big-endian records, and normal or compressed timestamps. Supported record fields include:
 
-Parsed telemetry is normalized to activity-relative distance, enriched with distance-derived speed when FIT speed is missing or stuck at zero, and resampled to 1-second intervals so pace appears promptly at the start of a run.
+- GPS position, altitude, distance, speed, and temperature
+- heart rate, cadence, power, and running-dynamics metrics
+- enhanced speed and altitude
 
-Developer fields and custom streams are skipped when they are not part of the
-standard telemetry channels used by the overlay. Layouts are configurable in the
-GUI and can be saved, imported, exported, or reused as defaults.
+Telemetry is normalized to activity-relative distance and resampled to one-second intervals. When FIT speed is missing or stuck at zero, distance-derived speed can fill the gap. Developer fields outside the renderer's standard telemetry channels are skipped.
 
-## Release
+</details>
 
-GitHub Actions builds release zips only when a version tag is pushed. Regular
-pull requests run the lighter CI test workflow.
+## Privacy and project boundaries
 
-Use semantic version tags:
+- Videos, activity files, GPS traces, presets, and exports stay local unless you choose to share them.
+- The app has no third-party analytics SDK or custom event tracking. Aggregate usage and crash information comes from Apple's opt-in App Store analytics.
+- DataLayer Studio is independent from Telemetry Overlay. It does not read or modify `/Applications/Telemetry Overlay.app` and includes none of its proprietary code or assets.
+
+See [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), and [SUPPORT.md](SUPPORT.md).
+
+## Build and contribute
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+swift build
+swift test
+scripts/verify_source_available_readiness.sh
 ```
 
-When a `v*` tag is pushed, `.github/workflows/release.yml` will:
+Focused, testable pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening one, and never attach private activity data to a public issue.
 
-- run `scripts/verify_source_available_readiness.sh`
-- run `swift test`
-- build the release products for `overlay` and `datalayer-studio`
-- build `DataLayer Studio.app`
-- verify the app bundle includes the required legal files
-- zip the app as `DataLayer-Studio-<tag>-macOS-arm64.zip`
-- generate a SHA-256 checksum
-- create or update the GitHub Release for that tag and upload both files
+## Support the project
 
-The app bundle includes `LICENSE.md`, `NOTICE.md`, and `README.md` under
-`Contents/Resources/Legal`. The zip appears under the matching tag's GitHub
-Release assets.
+DataLayer Studio is built and maintained independently by one developer. Buying it on the [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) is the most direct way to fund testing and continued development.
 
-You can verify a local app bundle before publishing:
+| Buy Me a Coffee | WeChat Pay | Alipay |
+| --- | --- | --- |
+| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="150"></a> | <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsorship QR code" width="150"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsorship QR code" width="150"> |
 
-```bash
-scripts/verify_app_bundle.sh
-```
+Sponsorship is optional and does not include a commercial license, priority support, or guaranteed feature work.
+
+## License
+
+DataLayer Studio is source-available for noncommercial use. It is not OSI open source: commercial use, resale, paid redistribution, and paid hosting require separate written permission. Modified versions and derivative distributions must share their corresponding source under the same terms.
+
+See [LICENSE.md](LICENSE.md) and [NOTICE.md](NOTICE.md).
