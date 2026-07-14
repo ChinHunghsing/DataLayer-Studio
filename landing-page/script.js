@@ -64,6 +64,7 @@ const translations = {
       metricsCopy: "没有视频时，FIT/GPX 也可以独立驱动时间线播放和透明数据层预览。",
       cliTitle: "多轨时间线",
       cliCopy: "剪辑、移动、分割、多选和整体拖动多个视频与运动片段，自动保持片段间距。",
+      visualAlt: "DataLayer Studio 的组件浏览器、预览画布、检查器和多轨时间线",
     },
     showcase: {
       eyebrow: "效果展示",
@@ -86,6 +87,7 @@ const translations = {
       videoKicker: "合成视频",
       videoTitle: "直接得到带数据层的成片",
       videoCopy: "把原视频、音频和数据层一起输出，适合快速交付或无需再进剪辑软件的场景。",
+      visualAlt: "DataLayer Studio 的导出中心和视频输出预设",
     },
     pricing: {
       eyebrow: "购买",
@@ -164,6 +166,7 @@ const translations = {
       metricsCopy: "還沒有影片時，FIT/GPX 也能獨立驅動時間軸播放與透明資料層預覽。",
       cliTitle: "多軌時間軸",
       cliCopy: "剪輯、移動、分割、多選並整體拖曳多個影片與運動片段，同時保留片段間距。",
+      visualAlt: "DataLayer Studio 的元件瀏覽器、預覽畫布、檢查器與多軌時間軸",
     },
     showcase: {
       eyebrow: "效果展示",
@@ -186,6 +189,7 @@ const translations = {
       videoKicker: "合成影片",
       videoTitle: "直接得到帶資料層的完成影片",
       videoCopy: "把原影片、音訊和資料層一起輸出，適合快速交付或不需要再進剪輯軟體的情境。",
+      visualAlt: "DataLayer Studio 的輸出中心與影片輸出預設",
     },
     pricing: {
       eyebrow: "購買",
@@ -264,6 +268,7 @@ const translations = {
       metricsCopy: "A FIT/GPX file can drive timeline playback and transparent overlay preview before footage is available.",
       cliTitle: "Multitrack timeline",
       cliCopy: "Trim, split, multi-select, and move video and activity clips together while preserving their spacing.",
+      visualAlt: "DataLayer Studio component browser, preview canvas, inspector, and multitrack timeline",
     },
     showcase: {
       eyebrow: "Showcase",
@@ -286,6 +291,7 @@ const translations = {
       videoKicker: "Composited video",
       videoTitle: "Render the finished video directly",
       videoCopy: "Export the source video, audio, and data layer together when you need a ready-to-share result.",
+      visualAlt: "DataLayer Studio export center and video output presets",
     },
     pricing: {
       eyebrow: "Pricing",
@@ -364,6 +370,7 @@ const translations = {
       metricsCopy: "動画がなくても FIT/GPX だけでタイムラインを再生し、透明データレイヤーを確認できます。",
       cliTitle: "マルチトラックタイムライン",
       cliCopy: "動画と運動クリップをトリム、分割、複数選択して、間隔を保ったまままとめて移動できます。",
+      visualAlt: "DataLayer Studio のコンポーネントブラウザ、プレビュー、インスペクタ、マルチトラックタイムライン",
     },
     showcase: {
       eyebrow: "ショーケース",
@@ -386,6 +393,7 @@ const translations = {
       videoKicker: "合成動画",
       videoTitle: "データ入りの完成動画を直接書き出す",
       videoCopy: "元動画、音声、データレイヤーをまとめて出力し、そのまま共有できる動画にします。",
+      visualAlt: "DataLayer Studio の出力センターと動画書き出しプリセット",
     },
     pricing: {
       eyebrow: "購入",
@@ -422,31 +430,39 @@ const languageNames = {
 
 const localizedImageSources = {
   "zh-Hans": {
-    appShowcase: "assets/editor-0.3-zh-Hans.webp",
-    welcome: "assets/welcome-0.3-zh-Hans.webp",
-    comparison: "assets/data-layer-comparison.webp",
-    metrics: "assets/data-layer-metrics.webp",
+    appShowcase: "assets/app-editor-714.webp",
+    welcome: "assets/app-welcome-714.webp",
+    componentBrowser: "assets/app-components-714.webp",
+    exportCenter: "assets/app-export-714.webp",
+    comparison: "assets/data-layer-comparison-714.webp",
+    metrics: "assets/data-layer-metrics-714.webp",
     appStore: "assets/app-store-zh-Hans.webp",
   },
   "zh-Hant": {
-    appShowcase: "assets/editor-0.3-zh-Hant.webp",
-    welcome: "assets/editor-0.3-zh-Hant.webp",
-    comparison: "assets/data-layer-comparison-zh-Hant.webp",
-    metrics: "assets/data-layer-metrics-zh-Hant.webp",
+    appShowcase: "assets/app-editor-714.webp",
+    welcome: "assets/app-welcome-714.webp",
+    componentBrowser: "assets/app-components-714.webp",
+    exportCenter: "assets/app-export-714.webp",
+    comparison: "assets/data-layer-comparison-714.webp",
+    metrics: "assets/data-layer-metrics-714.webp",
     appStore: "assets/app-store-zh-Hant.webp",
   },
   en: {
-    appShowcase: "assets/editor-0.3-en.webp",
-    welcome: "assets/editor-0.3-en.webp",
-    comparison: "assets/data-layer-comparison-en.webp",
-    metrics: "assets/data-layer-metrics-en.webp",
+    appShowcase: "assets/app-editor-714.webp",
+    welcome: "assets/app-welcome-714.webp",
+    componentBrowser: "assets/app-components-714.webp",
+    exportCenter: "assets/app-export-714.webp",
+    comparison: "assets/data-layer-comparison-714.webp",
+    metrics: "assets/data-layer-metrics-714.webp",
     appStore: "assets/app-store-en.webp",
   },
   ja: {
-    appShowcase: "assets/editor-0.3-ja.webp",
-    welcome: "assets/editor-0.3-ja.webp",
-    comparison: "assets/data-layer-comparison-ja.webp",
-    metrics: "assets/data-layer-metrics-ja.webp",
+    appShowcase: "assets/app-editor-714.webp",
+    welcome: "assets/app-welcome-714.webp",
+    componentBrowser: "assets/app-components-714.webp",
+    exportCenter: "assets/app-export-714.webp",
+    comparison: "assets/data-layer-comparison-714.webp",
+    metrics: "assets/data-layer-metrics-714.webp",
     appStore: "assets/app-store-ja.webp",
   },
 };

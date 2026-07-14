@@ -553,41 +553,6 @@ svg {
   box-shadow: var(--shadow);
 }
 
-.window-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding-inline: 14px;
-  color: rgba(242, 248, 251, 0.72);
-  font-size: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: #20282b;
-}
-
-.window-bar span {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.window-bar span:nth-child(1) {
-  background: #ff5f57;
-}
-
-.window-bar span:nth-child(2) {
-  background: #febc2e;
-}
-
-.window-bar span:nth-child(3) {
-  background: #28c840;
-}
-
-.window-bar strong {
-  margin-left: 6px;
-  font-weight: 700;
-}
-
 .device-window img {
   width: 100%;
   height: auto;
@@ -855,6 +820,21 @@ svg {
   stroke-width: 1.45;
 }
 
+.interface-preview {
+  margin: var(--space-lg) 0 0;
+  overflow: hidden;
+  border: 1px solid rgba(118, 215, 255, 0.24);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 20, 30, 0.72);
+  box-shadow: var(--shadow);
+}
+
+.interface-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .showcase-stage {
   display: grid;
   gap: var(--space-lg);
@@ -896,7 +876,7 @@ svg {
 .showcase-media {
   position: relative;
   min-height: 0;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 3 / 2;
   border: 1px solid rgba(118, 215, 255, 0.24);
   border-radius: var(--radius-lg);
   background:
@@ -904,6 +884,10 @@ svg {
     rgba(8, 20, 30, 0.72);
   box-shadow: var(--shadow);
   overflow: hidden;
+}
+
+.output-preview {
+  margin-top: var(--space-lg);
 }
 
 .showcase-media img {
