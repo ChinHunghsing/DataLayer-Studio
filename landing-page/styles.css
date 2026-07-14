@@ -876,7 +876,7 @@ svg {
 .showcase-media {
   position: relative;
   min-height: 0;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 16 / 10;
   border: 1px solid rgba(118, 215, 255, 0.24);
   border-radius: var(--radius-lg);
   background:
