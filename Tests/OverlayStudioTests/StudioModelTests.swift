@@ -6,6 +6,25 @@ import CoreGraphics
 @testable import OverlayStudio
 @testable import OverlayStudioKit
 
+private final class ControlledSeekPlayer: AVPlayer {
+    private(set) var seekTimes: [TimeInterval] = []
+    private var completions: [(@Sendable (Bool) -> Void)] = []
+
+    override func seek(
+        to time: CMTime,
+        toleranceBefore: CMTime,
+        toleranceAfter: CMTime,
+        completionHandler: @escaping @Sendable (Bool) -> Void
+    ) {
+        seekTimes.append(CMTimeGetSeconds(time))
+        completions.append(completionHandler)
+    }
+
+    func completeNextSeek() {
+        completions.removeFirst()(true)
+    }
+}
+
 @MainActor
 final class StudioModelTests: XCTestCase {
     func testTimelineProjectFileTypeUsesDedicatedExtensionAndAcceptsCaseInsensitiveMatches() {
@@ -1466,6 +1485,25 @@ final class StudioModelTests: XCTestCase {
 
         try await waitForOverlayImage(in: model)
         XCTAssertEqual(model.previewTime, 3)
+    }
+
+    func testRapidScrubbingKeepsOnePlayerSeekInFlightAndCatchesUpToLatestTime() async throws {
+        let model = StudioModel()
+        let player = ControlledSeekPlayer()
+        model.player = player
+        model.videoURL = URL(fileURLWithPath: "/tmp/source.mov")
+        model.sourceDuration = 10
+
+        model.scrubPreview(to: 1)
+        model.scrubPreview(to: 2)
+        model.scrubPreview(to: 3)
+
+        XCTAssertEqual(player.seekTimes, [1])
+
+        player.completeNextSeek()
+        try await waitUntil { player.seekTimes.count == 2 }
+
+        XCTAssertEqual(player.seekTimes, [1, 3])
     }
 
     func testSourceFrameRatePresetOnlyAppearsWhenExportable() {

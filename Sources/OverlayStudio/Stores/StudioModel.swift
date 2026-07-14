@@ -310,6 +310,11 @@ final class StudioModel: ObservableObject {
     private var previewRenderTask: Task<Void, Never>?
     private var pendingPreviewSizeRefreshTask: Task<Void, Never>?
     private var scrubInteractionTask: Task<Void, Never>?
+    /// Smooth scrubbing: at most one AVPlayer seek is in flight; later drag events only record
+    /// the newest target here and the in-flight completion catches up, instead of cancelling and
+    /// re-issuing a seek on every input event (which stutters the main thread on large files).
+    private weak var scrubSeekInFlightPlayer: AVPlayer?
+    private var pendingScrubSeekSeconds: TimeInterval?
     private var isPreviewLiveResizing = false
     private var pendingPreviewLiveResizeSize: CGSize?
     private var scrubInteractionExpiresAt = Date.distantPast
@@ -2832,14 +2837,14 @@ final class StudioModel: ObservableObject {
             }
             if isScrubbing {
                 refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh, displayIntermediateResults: true)
-                player.currentItem?.cancelPendingSeeks()
-            }
-            player.seek(
-                to: CMTime(seconds: clamped, preferredTimescale: 600),
-                toleranceBefore: isScrubbing ? scrubSeekTolerance : .zero,
-                toleranceAfter: isScrubbing ? scrubSeekTolerance : .zero
-            )
-            if !isScrubbing {
+                performScrubSeek(to: clamped, player: player)
+            } else {
+                pendingScrubSeekSeconds = nil
+                player.seek(
+                    to: CMTime(seconds: clamped, preferredTimescale: 600),
+                    toleranceBefore: .zero,
+                    toleranceAfter: .zero
+                )
                 refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
             }
             return
@@ -2847,17 +2852,14 @@ final class StudioModel: ObservableObject {
         if let player {
             if isScrubbing {
                 refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh, displayIntermediateResults: true)
-            }
-            let targetTime = CMTime(seconds: clamped, preferredTimescale: 600)
-            if isScrubbing {
-                player.currentItem?.cancelPendingSeeks()
-            }
-            player.seek(
-                to: targetTime,
-                toleranceBefore: isScrubbing ? scrubSeekTolerance : .zero,
-                toleranceAfter: isScrubbing ? scrubSeekTolerance : .zero
-            )
-            if !isScrubbing {
+                performScrubSeek(to: clamped, player: player)
+            } else {
+                pendingScrubSeekSeconds = nil
+                player.seek(
+                    to: CMTime(seconds: clamped, preferredTimescale: 600),
+                    toleranceBefore: .zero,
+                    toleranceAfter: .zero
+                )
                 refreshOverlayOnly(coalesceIfBusy: coalesceOverlayRefresh)
             }
         } else if series != nil {
@@ -2886,6 +2888,35 @@ final class StudioModel: ObservableObject {
     private var scrubSeekTolerance: CMTime {
         let seconds = min(0.08, max(1.0 / 120.0, previewFrameDuration))
         return CMTime(seconds: seconds, preferredTimescale: 600)
+    }
+
+    /// Issue a tolerant scrub seek only when none is in flight for this player; otherwise stash
+    /// the newest target and let the in-flight completion chase it. A player swap drops the stale
+    /// pending target via the identity checks.
+    private func performScrubSeek(to seconds: TimeInterval, player: AVPlayer) {
+        if scrubSeekInFlightPlayer === player {
+            pendingScrubSeekSeconds = seconds
+            return
+        }
+        scrubSeekInFlightPlayer = player
+        pendingScrubSeekSeconds = nil
+        player.seek(
+            to: CMTime(seconds: seconds, preferredTimescale: 600),
+            toleranceBefore: scrubSeekTolerance,
+            toleranceAfter: scrubSeekTolerance
+        ) { [weak self, weak player] _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.scrubSeekInFlightPlayer === player {
+                    self.scrubSeekInFlightPlayer = nil
+                }
+                guard let pending = self.pendingScrubSeekSeconds,
+                      let player,
+                      player === self.player else { return }
+                self.pendingScrubSeekSeconds = nil
+                self.performScrubSeek(to: pending, player: player)
+            }
+        }
     }
 
     private func beginPreviewScrubInteraction() {
