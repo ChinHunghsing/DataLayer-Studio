@@ -179,30 +179,6 @@ struct PreviewCanvasView: View {
                 alignmentGuideLine(guide, displayRect: displayRect)
             }
 
-            if let part = state.selectedElementPart,
-               let selectedID = state.selectedElementID,
-               let element = visibleElements.first(where: { $0.id == selectedID }),
-               let partUnitRect = geometry.partRects(
-                   element: element,
-                   alignedMetricWidth: alignedMetricWidth
-               )[part] {
-                let rect = CGRect(
-                    x: displayRect.minX + displayRect.width * partUnitRect.minX,
-                    y: displayRect.minY + displayRect.height * partUnitRect.minY,
-                    width: displayRect.width * partUnitRect.width,
-                    height: displayRect.height * partUnitRect.height
-                )
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .stroke(Color.yellow.opacity(0.9), lineWidth: 1.5)
-                    .background(
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(Color.yellow.opacity(0.10))
-                    )
-                    .frame(width: max(1, rect.width), height: max(1, rect.height))
-                    .position(x: rect.midX, y: rect.midY)
-                    .allowsHitTesting(false)
-            }
-
             if let marquee {
                 let rect = marquee.rect
                 Rectangle()
@@ -807,7 +783,6 @@ struct PreviewCanvasState: Equatable {
     var layout: OverlayLayout
     var selectedElementID: String?
     var selectedElementIDs: Set<String>
-    var selectedElementPart: OverlayElementPart?
     var showGrid: Bool
     var hasSeries: Bool
     var outputWidth: Int
@@ -821,7 +796,6 @@ struct PreviewCanvasState: Equatable {
         layout = model.layout
         selectedElementID = model.selectedElementID
         selectedElementIDs = model.selectedElementIDs
-        selectedElementPart = model.selectedElementPart
         showGrid = model.showGrid
         hasSeries = model.series != nil || model.usesCustomTimelinePreview
         outputWidth = model.outputWidth
@@ -835,7 +809,6 @@ struct PreviewCanvasState: Equatable {
             && lhs.layout == rhs.layout
             && lhs.selectedElementID == rhs.selectedElementID
             && lhs.selectedElementIDs == rhs.selectedElementIDs
-            && lhs.selectedElementPart == rhs.selectedElementPart
             && lhs.showGrid == rhs.showGrid
             && lhs.hasSeries == rhs.hasSeries
             && lhs.outputWidth == rhs.outputWidth
