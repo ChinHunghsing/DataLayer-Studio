@@ -44,6 +44,7 @@ struct ProjectTimelineView: View {
     @State private var dragStartClipTimelineStart: TimeInterval?
     @State private var dragTimelineDuration: TimeInterval?
     @State private var dragVerticalOffset: CGFloat = 0
+    @State private var playheadScrubStartTime: TimeInterval?
     @State private var snapGuideTime: TimeInterval?
     @State private var snapGuideSource: TimelineSnapSource?
     @State private var optionFineTuneClipID: String?
@@ -200,11 +201,14 @@ struct ProjectTimelineView: View {
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             if value.startLocation.y < rulerHeight {
+                                let startTime = playheadScrubStartTime ?? model.previewTime
+                                playheadScrubStartTime = startTime
                                 scrubPlayheadWithSnap(
                                     toLaneLocationX: value.location.x,
                                     project: project,
                                     laneWidth: laneWidth,
                                     duration: duration,
+                                    excludingTime: startTime,
                                     showsGuide: true
                                 )
                             } else {
@@ -218,7 +222,10 @@ struct ProjectTimelineView: View {
                             }
                         }
                         .onEnded { value in
-                            defer { finishMarqueeSelection() }
+                            defer {
+                                finishMarqueeSelection()
+                                playheadScrubStartTime = nil
+                            }
                             snapGuideTime = nil
                             snapGuideSource = nil
                             guard value.startLocation.y >= rulerHeight,
@@ -233,6 +240,7 @@ struct ProjectTimelineView: View {
                                 project: project,
                                 laneWidth: laneWidth,
                                 duration: duration,
+                                excludingTime: playheadScrubStartTime ?? model.previewTime,
                                 showsGuide: true
                             )
                         }
@@ -327,14 +335,16 @@ struct ProjectTimelineView: View {
     static func playheadSnapResult(
         project: TimelineProject,
         proposedTime: TimeInterval,
-        threshold: TimeInterval
+        threshold: TimeInterval,
+        excludingTime: TimeInterval? = nil
     ) -> TimelineSnapResult {
         snapResult(
             project: project,
             proposedEdges: [(timelineStart: proposedTime, offset: 0)],
             threshold: threshold,
             excludingClipIDs: [],
-            playheadTime: -1
+            playheadTime: -1,
+            excludingTime: excludingTime
         )
     }
 
@@ -343,6 +353,7 @@ struct ProjectTimelineView: View {
         project: TimelineProject,
         laneWidth: CGFloat,
         duration: TimeInterval,
+        excludingTime: TimeInterval?,
         showsGuide: Bool
     ) {
         let rawTime = Self.scrubTime(
@@ -355,7 +366,8 @@ struct ProjectTimelineView: View {
             let snap = Self.playheadSnapResult(
                 project: project,
                 proposedTime: rawTime,
-                threshold: Double(6 / laneWidth) * duration
+                threshold: Double(6 / laneWidth) * duration,
+                excludingTime: excludingTime
             )
             snappedTime = min(duration, snap.timelineStart)
             if showsGuide {
@@ -481,7 +493,8 @@ struct ProjectTimelineView: View {
         proposedEdges: [(timelineStart: TimeInterval, offset: TimeInterval)],
         threshold: TimeInterval,
         excludingClipIDs: Set<String>,
-        playheadTime: TimeInterval
+        playheadTime: TimeInterval,
+        excludingTime: TimeInterval? = nil
     ) -> TimelineSnapResult {
         guard let proposedStart = proposedEdges.first.map({ $0.timelineStart - $0.offset }),
               proposedStart.isFinite,
@@ -509,6 +522,9 @@ struct ProjectTimelineView: View {
         var best: (start: TimeInterval, guide: TimeInterval, source: TimelineSnapSource, distance: TimeInterval)?
         for edge in proposedEdges where edge.timelineStart.isFinite {
             for candidate in candidates where candidate.time.isFinite && candidate.time >= 0 {
+                if let excludingTime, abs(candidate.time - excludingTime) < 1e-6 {
+                    continue
+                }
                 let distance = abs(candidate.time - edge.timelineStart)
                 let snappedStart = proposedStart + candidate.time - edge.timelineStart
                 guard distance <= threshold, snappedStart >= 0 else { continue }
@@ -573,6 +589,7 @@ struct ProjectTimelineView: View {
         }
         .frame(width: laneWidth, height: rulerHeight, alignment: .topLeading)
         .overlay(alignment: .bottom) { Divider() }
+        .allowsHitTesting(false)
     }
 
     // MARK: track row

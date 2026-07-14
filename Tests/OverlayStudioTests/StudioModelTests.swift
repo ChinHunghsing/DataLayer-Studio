@@ -1462,6 +1462,26 @@ final class StudioModelTests: XCTestCase {
         XCTAssertNil(freeScrub.guideTime)
     }
 
+    func testProjectTimelinePlayheadScrubCanMoveAwayFromItsCurrentSnapPoint() {
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: []
+        )
+
+        let result = ProjectTimelineView.playheadSnapResult(
+            project: project,
+            proposedTime: 0.2,
+            threshold: 0.25,
+            excludingTime: 0
+        )
+
+        XCTAssertEqual(result.timelineStart, 0.2, accuracy: 0.000_1)
+        XCTAssertNil(result.guideTime)
+    }
+
     func testTimelineClipInspectorFormatsTimingForHumans() {
         XCTAssertEqual(TimelineClipInspectorView.formatTimecode(0), "00:00.000")
         XCTAssertEqual(TimelineClipInspectorView.formatTimecode(2), "00:02.000")
