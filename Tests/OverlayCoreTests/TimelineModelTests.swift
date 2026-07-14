@@ -74,19 +74,24 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(project.enabledClips(kind: .overlay).map(\.id), ["o1-a", "o1-b", "o3-a"])
     }
 
-    func testClipEnabledStateRoundTripsAndDefaultsToEnabledForOldProjects() throws {
+    func testClipFlagsRoundTripAndDefaultForOldProjects() throws {
         let disabledClip = TimelineClip(
             id: "disabled",
             assetID: "asset",
             timelineStart: 1,
             duration: 2,
-            isEnabled: false
+            isEnabled: false,
+            isAlignmentPending: true
         )
         let encoded = try JSONEncoder().encode(disabledClip)
-        XCTAssertFalse(try JSONDecoder().decode(TimelineClip.self, from: encoded).isEnabled)
+        let decoded = try JSONDecoder().decode(TimelineClip.self, from: encoded)
+        XCTAssertFalse(decoded.isEnabled)
+        XCTAssertTrue(decoded.isAlignmentPending)
 
         let oldClipJSON = Data(#"{"id":"old","assetID":"asset","timelineStart":0,"duration":3,"sourceIn":0}"#.utf8)
-        XCTAssertTrue(try JSONDecoder().decode(TimelineClip.self, from: oldClipJSON).isEnabled)
+        let oldClip = try JSONDecoder().decode(TimelineClip.self, from: oldClipJSON)
+        XCTAssertTrue(oldClip.isEnabled)
+        XCTAssertFalse(oldClip.isAlignmentPending)
     }
 
     func testProjectDurationIsFurthestClipEnd() {
@@ -647,6 +652,21 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertEqual(track.nonOverlappingStart(forClipID: "b", duration: 10, proposedStart: 20), 20, accuracy: 1e-9)
         // Clips may touch exactly.
         XCTAssertEqual(track.nonOverlappingStart(forClipID: "m", duration: 10, proposedStart: 10), 10, accuracy: 1e-9)
+    }
+
+    func testNonOverlappingStartAtOrAfterNeverMovesBeforeAnchor() {
+        let track = occupiedTrack()
+
+        XCTAssertEqual(
+            track.nonOverlappingStartAtOrAfter(forClipID: "new", duration: 5, proposedStart: 8),
+            10,
+            accuracy: 1e-9
+        )
+        XCTAssertEqual(
+            track.nonOverlappingStartAtOrAfter(forClipID: "new", duration: 5, proposedStart: 18),
+            30,
+            accuracy: 1e-9
+        )
     }
 
     func testNeighborBoundsAndMaximumDurationRespectAdjacentClips() {

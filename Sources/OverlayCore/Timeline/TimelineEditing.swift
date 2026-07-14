@@ -60,6 +60,22 @@ extension TimelineTrack {
         return max(0, best ?? gapStart)
     }
 
+    /// First non-overlapping position at or after `proposedStart`. Used for provisional imports so
+    /// a failed automatic alignment never makes a newly added clip jump earlier than its anchor.
+    public func nonOverlappingStartAtOrAfter(
+        forClipID clipID: String,
+        duration: TimeInterval,
+        proposedStart: TimeInterval
+    ) -> TimeInterval {
+        var candidate = max(0, proposedStart.isFinite ? proposedStart : 0)
+        guard duration.isFinite, duration > 0 else { return candidate }
+        for interval in occupiedIntervals(excludingClipID: clipID) {
+            guard candidate < interval.end, candidate + duration > interval.start else { continue }
+            candidate = interval.end
+        }
+        return candidate
+    }
+
     /// Free space around an existing clip: the nearest other-clip end at or before the clip's
     /// start, and the nearest other-clip start at or after the clip's end (`nil` when unbounded).
     /// Trims must stay inside these bounds to keep the track overlap-free.

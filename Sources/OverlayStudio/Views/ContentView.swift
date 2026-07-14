@@ -124,6 +124,19 @@ struct ContentView: View {
             Text(localization.string("exportWeatherWarning.message"))
         }
         .alert(
+            localization.string("exportAlignmentWarning.title"),
+            isPresented: pendingAlignmentExportConfirmationBinding
+        ) {
+            Button(localization.string("exportAlignmentWarning.continue")) {
+                model.confirmPendingAlignmentExport()
+            }
+            Button(localization.string("common.cancel"), role: .cancel) {
+                model.cancelPendingAlignmentExportConfirmation()
+            }
+        } message: {
+            Text(localization.string("exportAlignmentWarning.message"))
+        }
+        .alert(
             localization.string("weatherKeyPrompt.title"),
             isPresented: weatherAPIKeyPromptBinding
         ) {
@@ -418,6 +431,17 @@ struct ContentView: View {
             set: { isPresented in
                 if !isPresented {
                     model.cancelWeatherExportConfirmation()
+                }
+            }
+        )
+    }
+
+    private var pendingAlignmentExportConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { model.isPendingAlignmentExportConfirmationPresented },
+            set: { isPresented in
+                if !isPresented {
+                    model.cancelPendingAlignmentExportConfirmation()
                 }
             }
         )

@@ -808,8 +808,14 @@ struct ProjectTimelineView: View {
             }
             .overlay(alignment: .leading) {
                 HStack(spacing: 4) {
-                    if isOffline { Image(systemName: "exclamationmark.triangle.fill") }
+                    if isOffline {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                    } else if clip.isAlignmentPending {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
                     Text(name)
+                        .foregroundStyle(.white)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -823,8 +829,15 @@ struct ProjectTimelineView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .strokeBorder(
-                            isOffline ? Color.red.opacity(0.9) : (isSelected ? Color.accentColor : Color.white.opacity(0.18)),
-                            lineWidth: isSelected ? 3 : 1
+                            isOffline
+                                ? Color.red.opacity(0.9)
+                                : (clip.isAlignmentPending
+                                    ? Color.orange.opacity(0.95)
+                                    : (isSelected ? Color.accentColor : Color.white.opacity(0.18))),
+                            style: StrokeStyle(
+                                lineWidth: isSelected ? 3 : 1,
+                                dash: clip.isAlignmentPending ? [5, 3] : []
+                            )
                         )
                     if isSelected, !isOffline {
                         RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -908,6 +921,7 @@ struct ProjectTimelineView: View {
         .accessibilityLabel(name)
         .accessibilityValue(
             "\(localization.string(clip.isEnabled ? "timeline.clip.enabled" : "timeline.clip.disabled")), "
+                + (clip.isAlignmentPending ? "\(localization.string("timeline.clip.pendingAlignment")), " : "")
                 + "\(localization.string("timelineClip.inspector.timelineStart")) \(timecode(clip.timelineStart))"
         )
         .accessibilityAddTraits(isSelected ? .isSelected : [])

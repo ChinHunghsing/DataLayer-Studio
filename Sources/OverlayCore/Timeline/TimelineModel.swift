@@ -11,6 +11,14 @@ import Foundation
 // later tracks composite on top. This layer is pure data — rendering/export consume it
 // elsewhere; it does not depend on any UI framework.
 
+public enum MediaWallClockSource: String, Codable, Equatable {
+    case recordingMetadata
+    case containerMetadata
+    case activityMetadata
+    case manual
+    case untrustedExport
+}
+
 /// A single imported source: a video, or an activity file (FIT/GPX).
 public struct MediaAsset: Codable, Equatable, Identifiable {
     public enum Kind: String, Codable {
@@ -33,6 +41,8 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
     /// Real-world recording start (video creation date, or the activity's first absolute
     /// timestamp). Nil when the source carries no such metadata; used for wall-clock alignment.
     public var wallClockStart: Date?
+    /// Provenance of `wallClockStart`, or why a container timestamp was deliberately rejected.
+    public var wallClockSource: MediaWallClockSource?
     /// Optional security-scoped bookmark used by the sandboxed GUI app when reopening projects.
     public var bookmarkData: Data?
     /// Optional path relative to the project JSON directory, used as a portable fallback when
@@ -49,6 +59,7 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         height: Int? = nil,
         framesPerSecond: Double? = nil,
         wallClockStart: Date? = nil,
+        wallClockSource: MediaWallClockSource? = nil,
         bookmarkData: Data? = nil,
         relativePath: String? = nil
     ) {
@@ -61,6 +72,7 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         self.height = height
         self.framesPerSecond = framesPerSecond
         self.wallClockStart = wallClockStart
+        self.wallClockSource = wallClockSource
         self.bookmarkData = bookmarkData
         self.relativePath = relativePath
     }
@@ -108,6 +120,8 @@ public struct TimelineClip: Codable, Equatable, Identifiable {
     public var distanceUnit: OverlayDistanceUnit?
     /// Disabled clips remain editable on the timeline but are omitted from preview and export.
     public var isEnabled: Bool
+    /// True while the clip only has a provisional position and the user has not confirmed sync.
+    public var isAlignmentPending: Bool
 
     public init(
         id: String,
@@ -117,7 +131,8 @@ public struct TimelineClip: Codable, Equatable, Identifiable {
         sourceIn: TimeInterval = 0,
         layout: OverlayLayout? = nil,
         distanceUnit: OverlayDistanceUnit? = nil,
-        isEnabled: Bool = true
+        isEnabled: Bool = true,
+        isAlignmentPending: Bool = false
     ) {
         self.id = id
         self.assetID = assetID
@@ -127,6 +142,7 @@ public struct TimelineClip: Codable, Equatable, Identifiable {
         self.layout = layout
         self.distanceUnit = distanceUnit
         self.isEnabled = isEnabled
+        self.isAlignmentPending = isAlignmentPending
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -138,6 +154,7 @@ public struct TimelineClip: Codable, Equatable, Identifiable {
         case layout
         case distanceUnit
         case isEnabled
+        case isAlignmentPending
     }
 
     public init(from decoder: Decoder) throws {
@@ -150,6 +167,7 @@ public struct TimelineClip: Codable, Equatable, Identifiable {
         layout = try container.decodeIfPresent(OverlayLayout.self, forKey: .layout)
         distanceUnit = try container.decodeIfPresent(OverlayDistanceUnit.self, forKey: .distanceUnit)
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        isAlignmentPending = try container.decodeIfPresent(Bool.self, forKey: .isAlignmentPending) ?? false
     }
 
     /// Timeline time of the clip's right edge.
@@ -436,7 +454,8 @@ extension TimelineProject {
         videoAsset: MediaAsset?,
         activityAsset: MediaAsset?,
         sync: TelemetryTimeSync,
-        layout: OverlayLayout
+        layout: OverlayLayout,
+        isAlignmentPending: Bool = false
     ) -> TimelineProject {
         var assets: [MediaAsset] = []
         var tracks: [TimelineTrack] = []
@@ -448,7 +467,8 @@ extension TimelineProject {
                 assetID: videoAsset.id,
                 timelineStart: 0,
                 duration: videoAsset.duration,
-                sourceIn: 0
+                sourceIn: 0,
+                isAlignmentPending: isAlignmentPending
             )
             tracks.append(TimelineTrack(id: "single.video.track", kind: .video, name: "V1", clips: [clip]))
         }
@@ -462,7 +482,8 @@ extension TimelineProject {
                 duration: activityAsset.duration,
                 sourceIn: 0,
                 layout: layout,
-                distanceUnit: distanceUnit
+                distanceUnit: distanceUnit,
+                isAlignmentPending: isAlignmentPending
             )
             tracks.append(TimelineTrack(id: "single.overlay.track", kind: .overlay, name: "O1", clips: [clip]))
         }

@@ -272,6 +272,7 @@ final class StudioModel: ObservableObject {
     @Published var previewWarning: String?
     @Published var isExporting = false
     @Published private(set) var isWeatherExportConfirmationPresented = false
+    @Published private(set) var isPendingAlignmentExportConfirmationPresented = false
     @Published private(set) var isWeatherAPIKeyPromptPresented = false
     @Published var exportProgress = 0.0
     @Published private(set) var exportETASeconds: TimeInterval?
@@ -338,6 +339,8 @@ final class StudioModel: ObservableObject {
     private var isScrubbingPreview = false
     private var isGaugeDragActive = false
     private var exportProgressSamples: [(date: Date, progress: Double)] = []
+    private var pendingAlignmentExportAllowsUnreadyWeather = false
+    private var singleSourceAlignmentIsPending = false
     private static let exportETASampleWindow: TimeInterval = 10
     private static let minimumExportTrimDuration: TimeInterval = 0.1
     weak var undoManager: UndoManager? {
@@ -1649,6 +1652,7 @@ final class StudioModel: ObservableObject {
         pendingActivityTimelineImportIDs.removeAll()
         pendingVideoPositionedTimelineImports.removeAll()
         pendingActivityPositionedTimelineImports.removeAll()
+        singleSourceAlignmentIsPending = false
 
         var sanitizedProject = project
         sanitizedProject.outputWidth = Self.sanitizedOutputDimension(project.outputWidth)
@@ -1970,6 +1974,8 @@ final class StudioModel: ObservableObject {
         reportsRelinkStatus: Bool
     ) {
         guard let existing = currentTimelineProject.asset(id: id), existing.kind == .video else { return }
+        let wallClockStart = existing.wallClockSource == .manual ? existing.wallClockStart : loaded.creationDate
+        let wallClockSource = existing.wallClockSource == .manual ? .manual : loaded.creationDateSource
         if reportsRelinkStatus {
             replaceTimelineAssetLocation(
                 id: id,
@@ -1977,16 +1983,34 @@ final class StudioModel: ObservableObject {
                 duration: loaded.duration,
                 width: Int(loaded.size.width.rounded()),
                 height: Int(loaded.size.height.rounded()),
-                framesPerSecond: loaded.framesPerSecond
+                framesPerSecond: loaded.framesPerSecond,
+                wallClockStart: wallClockStart,
+                wallClockSource: wallClockSource
             )
-        } else if let index = videoAssets.firstIndex(where: { $0.id == id }) {
-            var updated = videoAssets[index]
+        } else {
+            var updated = existing
             updated.duration = loaded.duration
             updated.width = Int(loaded.size.width.rounded())
             updated.height = Int(loaded.size.height.rounded())
             updated.framesPerSecond = loaded.framesPerSecond
-            videoAssets[index] = updated
+            updated.wallClockStart = wallClockStart
+            updated.wallClockSource = wallClockSource
+            if let index = timeline.assets.firstIndex(where: { $0.id == id }) {
+                timeline.assets[index] = updated
+            }
+            if let index = videoAssets.firstIndex(where: { $0.id == id }) {
+                videoAssets[index] = updated
+            }
             offlineTimelineAssetReasons.removeValue(forKey: id)
+        }
+        if wallClockSource == .untrustedExport,
+           reportsRelinkStatus || existing.wallClockSource != .untrustedExport {
+            for trackIndex in timeline.tracks.indices {
+                for clipIndex in timeline.tracks[trackIndex].clips.indices
+                where timeline.tracks[trackIndex].clips[clipIndex].assetID == id {
+                    timeline.tracks[trackIndex].clips[clipIndex].isAlignmentPending = true
+                }
+            }
         }
         if videoURL == existing.url || preferredActiveAssetID(kind: .video) == id {
             videoURL = url
@@ -2009,11 +2033,24 @@ final class StudioModel: ObservableObject {
         activitySeriesByAssetID[id] = loaded.series
         activitySportByAssetID[id] = loaded.sport
         if reportsRelinkStatus {
-            replaceTimelineAssetLocation(id: id, url: url, duration: loaded.series.duration)
-        } else if let index = activityAssets.firstIndex(where: { $0.id == id }) {
-            var updated = activityAssets[index]
+            replaceTimelineAssetLocation(
+                id: id,
+                url: url,
+                duration: loaded.series.duration,
+                wallClockStart: loaded.series.activityStartDate,
+                wallClockSource: loaded.series.activityStartDate == nil ? nil : .activityMetadata
+            )
+        } else {
+            var updated = existing
             updated.duration = loaded.series.duration
-            activityAssets[index] = updated
+            updated.wallClockStart = loaded.series.activityStartDate
+            updated.wallClockSource = loaded.series.activityStartDate == nil ? nil : .activityMetadata
+            if let index = timeline.assets.firstIndex(where: { $0.id == id }) {
+                timeline.assets[index] = updated
+            }
+            if let index = activityAssets.firstIndex(where: { $0.id == id }) {
+                activityAssets[index] = updated
+            }
             offlineTimelineAssetReasons.removeValue(forKey: id)
         }
         if fitURL == existing.url || preferredActiveAssetID(kind: .activity) == id {
@@ -2033,7 +2070,9 @@ final class StudioModel: ObservableObject {
         duration: TimeInterval,
         width: Int? = nil,
         height: Int? = nil,
-        framesPerSecond: Double? = nil
+        framesPerSecond: Double? = nil,
+        wallClockStart: Date?,
+        wallClockSource: MediaWallClockSource?
     ) {
         guard let index = timeline.assets.firstIndex(where: { $0.id == id }) else { return }
         var updated = timeline.assets[index]
@@ -2043,6 +2082,8 @@ final class StudioModel: ObservableObject {
         updated.width = width ?? updated.width
         updated.height = height ?? updated.height
         updated.framesPerSecond = framesPerSecond ?? updated.framesPerSecond
+        updated.wallClockStart = wallClockStart
+        updated.wallClockSource = wallClockSource
         updated.bookmarkData = securityScopedBookmarkData(for: url)
         timeline.assets[index] = updated
         if let poolIndex = videoAssets.firstIndex(where: { $0.id == id }) { videoAssets[poolIndex] = updated }
@@ -2204,6 +2245,7 @@ final class StudioModel: ObservableObject {
 
     func setVideo(_ url: URL) {
         guard !isExporting else { return }
+        singleSourceAlignmentIsPending = false
         stopPlayback()
         cancelPreviewRenderTasks()
         videoLoadTask?.cancel()
@@ -2986,6 +3028,62 @@ final class StudioModel: ObservableObject {
         clearTimelineClipSelection()
     }
 
+    func chooseManualRecordingDate(forAssetID id: String) {
+        guard !isExporting,
+              let asset = videoAssets.first(where: { $0.id == id }),
+              asset.kind == .video else { return }
+
+        let picker = NSDatePicker(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        picker.datePickerStyle = .textFieldAndStepper
+        picker.datePickerElements = [.yearMonthDay, .hourMinuteSecond]
+        picker.dateValue = asset.wallClockStart
+            ?? activityAssets.compactMap(\.wallClockStart).first
+            ?? Date()
+
+        let alert = NSAlert()
+        alert.messageText = localized("timeline.alignment.setRecordingTime")
+        alert.informativeText = localized("timeline.alignment.setRecordingTimeMessage")
+        alert.alertStyle = .informational
+        alert.accessoryView = picker
+        alert.addButton(withTitle: localized("timeline.alignment.applyRecordingTime"))
+        alert.addButton(withTitle: localized("common.cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        setManualRecordingDate(picker.dateValue, forAssetID: id)
+    }
+
+    func setManualRecordingDate(_ date: Date, forAssetID id: String) {
+        guard !isExporting,
+              date.timeIntervalSinceReferenceDate.isFinite,
+              let index = videoAssets.firstIndex(where: { $0.id == id }) else { return }
+
+        if timelineUsesSingleSourceMigration, activeVideoAssetID == id {
+            singleSourceAlignmentIsPending = true
+        }
+        var updated = videoAssets[index]
+        updated.wallClockStart = date
+        updated.wallClockSource = .manual
+        videoAssets[index] = updated
+        if let timelineIndex = timeline.assets.firstIndex(where: { $0.id == id }) {
+            timeline.assets[timelineIndex].wallClockStart = date
+            timeline.assets[timelineIndex].wallClockSource = .manual
+        }
+        for trackIndex in timeline.tracks.indices {
+            for clipIndex in timeline.tracks[trackIndex].clips.indices
+            where timeline.tracks[trackIndex].clips[clipIndex].assetID == id {
+                timeline.tracks[trackIndex].clips[clipIndex].isAlignmentPending = true
+            }
+        }
+        if activeVideoAssetID == id {
+            if var activeMetadata = metadata {
+                activeMetadata.creationDate = date
+                activeMetadata.creationDateSource = .manual
+                metadata = activeMetadata
+            }
+            applyWallClockAutoSync(force: true)
+        }
+        setStatus("status.manualRecordingTimeSet", updated.displayName)
+    }
+
     func clearMediaAssetSelection() {
         selectedMediaAssetID = nil
     }
@@ -3016,7 +3114,7 @@ final class StudioModel: ObservableObject {
 
     /// Add or refresh a video in the pool (called once its metadata has loaded). Deduplicated by path.
     func upsertVideoAsset(url: URL, metadata: VideoMetadata) {
-        let asset = MediaAsset(
+        var asset = MediaAsset(
             id: url.path,
             kind: .video,
             url: url,
@@ -3025,9 +3123,14 @@ final class StudioModel: ObservableObject {
             width: Int(metadata.size.width.rounded()),
             height: Int(metadata.size.height.rounded()),
             framesPerSecond: metadata.framesPerSecond,
-            wallClockStart: metadata.creationDate
+            wallClockStart: metadata.creationDate,
+            wallClockSource: metadata.creationDateSource
         )
         if let index = videoAssets.firstIndex(where: { $0.id == asset.id }) {
+            if videoAssets[index].wallClockSource == .manual {
+                asset.wallClockStart = videoAssets[index].wallClockStart
+                asset.wallClockSource = .manual
+            }
             videoAssets[index] = asset
         } else {
             videoAssets.append(asset)
@@ -3044,7 +3147,8 @@ final class StudioModel: ObservableObject {
             url: url,
             displayName: url.lastPathComponent,
             duration: series.duration,
-            wallClockStart: series.activityStartDate
+            wallClockStart: series.activityStartDate,
+            wallClockSource: series.activityStartDate == nil ? nil : .activityMetadata
         )
         activitySeriesByAssetID[asset.id] = series
         activitySportByAssetID[asset.id] = sport
@@ -3290,14 +3394,21 @@ final class StudioModel: ObservableObject {
             timeline.assets.append(asset)
         }
 
-        let placement: (start: TimeInterval?, statusKey: String, shiftedTimeline: Bool)
+        let placement: (
+            start: TimeInterval?,
+            statusKey: String,
+            shiftedTimeline: Bool,
+            isAlignmentPending: Bool
+        )
         if autoAlignsWhenStartMissing {
             placement = resolveAutoAlignedTimelineStart(
                 explicitStart: timelineStart,
-                assetWallClockStart: asset.wallClockStart
+                assetWallClockStart: asset.wallClockStart,
+                assetWallClockSource: asset.wallClockSource,
+                assetKind: asset.kind
             )
         } else {
-            placement = (timelineStart, "status.timelineAddedActivity", false)
+            placement = (timelineStart, "status.timelineAddedActivity", false, false)
         }
         autoAlignmentShiftedTimeline = placement.shiftedTimeline
 
@@ -3308,7 +3419,8 @@ final class StudioModel: ObservableObject {
             duration: asset.duration,
             sourceIn: 0,
             layout: layout.sanitized,
-            distanceUnit: distanceUnit
+            distanceUnit: distanceUnit,
+            isAlignmentPending: placement.isAlignmentPending
         )
 
         let targetTrackIndex = targetTrackID.flatMap { targetTrackID in
@@ -3322,11 +3434,18 @@ final class StudioModel: ObservableObject {
             // other tracks' content must not push it later. Land in the nearest gap that
             // fits so the track stays overlap-free.
             let laneEnd = timeline.tracks[trackIndex].clips.map(\.timelineEnd).max() ?? 0
-            clip.timelineStart = timeline.tracks[trackIndex].nonOverlappingStart(
-                forClipID: clip.id,
-                duration: clip.duration,
-                proposedStart: max(0, placement.start ?? laneEnd)
-            )
+            let proposedStart = max(0, placement.start ?? laneEnd)
+            clip.timelineStart = placement.isAlignmentPending
+                ? timeline.tracks[trackIndex].nonOverlappingStartAtOrAfter(
+                    forClipID: clip.id,
+                    duration: clip.duration,
+                    proposedStart: proposedStart
+                )
+                : timeline.tracks[trackIndex].nonOverlappingStart(
+                    forClipID: clip.id,
+                    duration: clip.duration,
+                    proposedStart: proposedStart
+                )
             timeline.tracks[trackIndex].clips.append(clip)
             setStatus(placement.statusKey, asset.displayName)
             return
@@ -3347,31 +3466,60 @@ final class StudioModel: ObservableObject {
     /// (a drop) always wins; otherwise recording times decide regardless of import order — an
     /// asset recorded before the current timeline zero shifts the existing content right and
     /// lands at zero. A missing or implausible result falls back to the lane-end default
-    /// (`start == nil`) with an explaining status.
+    /// near the selected counterpart or playhead and marks the clip as awaiting confirmation.
     private func resolveAutoAlignedTimelineStart(
         explicitStart: TimeInterval?,
-        assetWallClockStart: Date?
-    ) -> (start: TimeInterval?, statusKey: String, shiftedTimeline: Bool) {
+        assetWallClockStart: Date?,
+        assetWallClockSource: MediaWallClockSource?,
+        assetKind: MediaAsset.Kind
+    ) -> (
+        start: TimeInterval?,
+        statusKey: String,
+        shiftedTimeline: Bool,
+        isAlignmentPending: Bool
+    ) {
         if let explicitStart {
-            return (explicitStart, "status.timelineAddedActivity", false)
+            return (explicitStart, "status.timelineAddedActivity", false, false)
         }
-        switch TimelineAutoAlignment.placement(forAssetWallClockStart: assetWallClockStart, in: timeline) {
+        let pendingStart = pendingAlignmentTimelineStart(for: assetKind)
+        let pendingStatusKey = assetWallClockSource == .untrustedExport
+            ? "status.timelineExportDateRejected"
+            : "status.timelineAlignmentPending"
+        let trustedWallClockStart = assetWallClockSource == .untrustedExport ? nil : assetWallClockStart
+        switch TimelineAutoAlignment.placement(forAssetWallClockStart: trustedWallClockStart, in: timeline) {
         case let .aligned(start):
-            guard start < 0 else { return (start, "status.timelineAutoAligned", false) }
+            guard start < 0 else { return (start, "status.timelineAutoAligned", false, false) }
             // Shifting must move every track to keep relative alignment; a locked track
             // cannot move, so fall back instead of silently breaking its sync.
             guard !timeline.tracks.contains(where: { $0.isLocked && !$0.clips.isEmpty }) else {
-                return (nil, "status.timelineAutoAlignLocked", false)
+                return (pendingStart, "status.timelineAutoAlignLocked", false, true)
             }
             shiftTimelineContent(by: -start)
-            return (0, "status.timelineAutoAligned", true)
+            return (0, "status.timelineAutoAligned", true, false)
         case .missingWallClock:
-            return (nil, "status.timelineAutoAlignUnavailable", false)
+            return (pendingStart, pendingStatusKey, false, true)
         case .unreasonable:
-            return (nil, "status.timelineAutoAlignGapTooLarge", false)
+            return (pendingStart, "status.timelineAutoAlignGapTooLarge", false, true)
         case .noReference:
-            return (nil, "status.timelineAddedActivity", false)
+            let hasPlacedClips = timeline.tracks.contains { !$0.clips.isEmpty }
+            guard hasPlacedClips else {
+                if assetWallClockSource == .untrustedExport {
+                    return (pendingStart, pendingStatusKey, false, true)
+                }
+                return (nil, "status.timelineAddedActivity", false, false)
+            }
+            return (pendingStart, pendingStatusKey, false, true)
         }
+    }
+
+    private func pendingAlignmentTimelineStart(for assetKind: MediaAsset.Kind) -> TimeInterval {
+        guard timeline.tracks.contains(where: { !$0.clips.isEmpty }) else { return 0 }
+        if let selectedTimelineClip,
+           let selectedAsset = timeline.asset(id: selectedTimelineClip.assetID),
+           selectedAsset.kind != assetKind {
+            return selectedTimelineClip.timelineStart
+        }
+        return max(0, previewTime.isFinite ? previewTime : 0)
     }
 
     /// Move every clip later by `delta` so an earlier-recorded asset can land at timeline
@@ -3433,14 +3581,21 @@ final class StudioModel: ObservableObject {
             timeline.assets.append(asset)
         }
 
-        let placement: (start: TimeInterval?, statusKey: String, shiftedTimeline: Bool)
+        let placement: (
+            start: TimeInterval?,
+            statusKey: String,
+            shiftedTimeline: Bool,
+            isAlignmentPending: Bool
+        )
         if autoAlignsWhenStartMissing {
             placement = resolveAutoAlignedTimelineStart(
                 explicitStart: timelineStart,
-                assetWallClockStart: asset.wallClockStart
+                assetWallClockStart: asset.wallClockStart,
+                assetWallClockSource: asset.wallClockSource,
+                assetKind: asset.kind
             )
         } else {
-            placement = (timelineStart, "status.timelineAddedActivity", false)
+            placement = (timelineStart, "status.timelineAddedActivity", false, false)
         }
         autoAlignmentShiftedTimeline = placement.shiftedTimeline
 
@@ -3449,7 +3604,8 @@ final class StudioModel: ObservableObject {
             assetID: asset.id,
             timelineStart: max(0, placement.start ?? 0),
             duration: asset.duration,
-            sourceIn: 0
+            sourceIn: 0,
+            isAlignmentPending: placement.isAlignmentPending
         )
 
         let targetTrackIndex = targetTrackID.flatMap { targetTrackID in
@@ -3458,7 +3614,10 @@ final class StudioModel: ObservableObject {
             }
         }
         let proposedStart = max(0, placement.start ?? 0)
-        let isAutoAligned = targetTrackIndex == nil && timelineStart == nil && placement.start != nil
+        let isAutoAligned = !placement.isAlignmentPending
+            && targetTrackIndex == nil
+            && timelineStart == nil
+            && placement.start != nil
         let availableTrackIndex = timeline.tracks.firstIndex { track in
             guard track.kind == .video, !track.isLocked else { return false }
             guard isAutoAligned else { return true }
@@ -3473,11 +3632,18 @@ final class StudioModel: ObservableObject {
             // Default append lands after the lane's own last clip (0 on an empty lane) —
             // overlay-track content must not push a new video later.
             let laneEnd = timeline.tracks[trackIndex].clips.map(\.timelineEnd).max() ?? 0
-            clip.timelineStart = timeline.tracks[trackIndex].nonOverlappingStart(
-                forClipID: clip.id,
-                duration: clip.duration,
-                proposedStart: max(0, placement.start ?? laneEnd)
-            )
+            let proposedStart = max(0, placement.start ?? laneEnd)
+            clip.timelineStart = placement.isAlignmentPending
+                ? timeline.tracks[trackIndex].nonOverlappingStartAtOrAfter(
+                    forClipID: clip.id,
+                    duration: clip.duration,
+                    proposedStart: proposedStart
+                )
+                : timeline.tracks[trackIndex].nonOverlappingStart(
+                    forClipID: clip.id,
+                    duration: clip.duration,
+                    proposedStart: proposedStart
+                )
             timeline.tracks[trackIndex].clips.append(clip)
         } else {
             timeline.tracks.insert(
@@ -3688,7 +3854,8 @@ final class StudioModel: ObservableObject {
             videoAsset: video,
             activityAsset: activity,
             sync: timeSync,
-            layout: layout
+            layout: layout,
+            isAlignmentPending: singleSourceAlignmentIsPending
         )
         project.exportSettings = currentTimelineProjectExportSettings
         timeline = project
@@ -3757,7 +3924,11 @@ final class StudioModel: ObservableObject {
         guard force || syncIsUntouched || syncWasAutoAlignedByWallClock else { return }
         switch wallClockAlignmentForActiveSources {
         case let .aligned(videoSourceTime, activitySourceTime):
-            guard force || syncVideoSeconds != videoSourceTime || syncFITSeconds != activitySourceTime else { return }
+            setActiveSourceAlignmentPending(false)
+            guard force || syncVideoSeconds != videoSourceTime || syncFITSeconds != activitySourceTime else {
+                syncWasAutoAlignedByWallClock = true
+                return
+            }
             isApplyingWallClockAutoSync = true
             syncMode = .syncPoint
             syncVideoSeconds = videoSourceTime
@@ -3766,18 +3937,43 @@ final class StudioModel: ObservableObject {
             syncWasAutoAlignedByWallClock = true
             setStatusAndToast(.success, "status.timelineAutoAligned", fitURL.lastPathComponent)
         case .gapTooLarge:
+            setActiveSourceAlignmentPending(true)
             setStatusAndToast(.warning, "status.autoSyncGapTooLarge")
         case .missingWallClock:
+            setActiveSourceAlignmentPending(true)
             if force {
                 setStatusAndToast(.warning, "status.autoSyncMissingWallClock")
             }
         }
     }
 
+    private func setActiveSourceAlignmentPending(_ isPending: Bool) {
+        singleSourceAlignmentIsPending = isPending
+        guard !timelineUsesSingleSourceMigration else {
+            rebuildCurrentTimelineProject()
+            return
+        }
+        let activeAssetIDs = Set([activeVideoAssetID, activeActivityAssetID].compactMap { $0 })
+        guard !activeAssetIDs.isEmpty else { return }
+        var updatedTimeline = timeline
+        for trackIndex in updatedTimeline.tracks.indices {
+            for clipIndex in updatedTimeline.tracks[trackIndex].clips.indices
+            where activeAssetIDs.contains(updatedTimeline.tracks[trackIndex].clips[clipIndex].assetID) {
+                updatedTimeline.tracks[trackIndex].clips[clipIndex].isAlignmentPending = isPending
+            }
+        }
+        if updatedTimeline != timeline {
+            timeline = updatedTimeline
+        }
+    }
+
     private var wallClockAlignmentForActiveSources: TimelineAutoAlignment.SingleSourceAlignment {
         let project = currentTimelineProject
-        let videoStart = metadata?.creationDate
-            ?? activeVideoAssetID.flatMap { project.asset(id: $0)?.wallClockStart }
+        let activeVideoAsset = activeVideoAssetID.flatMap { project.asset(id: $0) }
+        let videoStart = activeVideoAsset?.wallClockSource == .manual
+                || activeVideoAsset?.wallClockSource == .untrustedExport
+            ? activeVideoAsset?.wallClockStart
+            : metadata?.creationDate ?? activeVideoAsset?.wallClockStart
         let activityStart = series?.activityStartDate
             ?? activeActivityAssetID.flatMap { project.asset(id: $0)?.wallClockStart }
         return TimelineAutoAlignment.singleSourceAlignment(
@@ -3831,10 +4027,12 @@ final class StudioModel: ObservableObject {
     }
 
     private func updateTimelineForSyncChange() {
-        if !isApplyingWallClockAutoSync {
+        let clearsPendingAlignment = !isApplyingWallClockAutoSync
+        if clearsPendingAlignment {
             // Any other sync write (launch options, project restore) is user/state intent;
             // stop auto-alignment from overriding it later.
             syncWasAutoAlignedByWallClock = false
+            singleSourceAlignmentIsPending = false
         }
         guard !isRestoringTimelineSourceMatchPoint else { return }
         guard !timelineUsesSingleSourceMigration else {
@@ -3862,6 +4060,15 @@ final class StudioModel: ObservableObject {
             movingClipID: activityClipID,
             movingSourceTime: sync.fitSyncTime
         )
+        if clearsPendingAlignment {
+            for trackIndex in updatedTimeline.tracks.indices {
+                for clipIndex in updatedTimeline.tracks[trackIndex].clips.indices
+                where updatedTimeline.tracks[trackIndex].clips[clipIndex].assetID == videoAssetID
+                    || updatedTimeline.tracks[trackIndex].clips[clipIndex].assetID == activityAssetID {
+                    updatedTimeline.tracks[trackIndex].clips[clipIndex].isAlignmentPending = false
+                }
+            }
+        }
         guard updatedTimeline != timeline else { return }
         timeline = updatedTimeline
         refreshOverlayOrPreview()
@@ -4099,12 +4306,14 @@ final class StudioModel: ObservableObject {
             proposedStart: sanitizedStart
         )
         guard sourceTrackIndex != targetTrackIndex
-                || abs(clip.timelineStart - constrainedStart) > 1e-6 else {
+                || abs(clip.timelineStart - constrainedStart) > 1e-6
+                || clip.isAlignmentPending else {
             return
         }
 
         beginTimelineClipEditingIfNeeded()
         clip.timelineStart = constrainedStart
+        clip.isAlignmentPending = false
         if sourceTrackIndex == targetTrackIndex {
             timeline.tracks[sourceTrackIndex].clips[sourceClipIndex] = clip
         } else {
@@ -4188,7 +4397,9 @@ final class StudioModel: ObservableObject {
             return abs(leftDistance - rightDistance) > epsilon
                 ? leftDistance < rightDistance
                 : lhs < rhs
-        }), abs(constrainedDelta) > 1e-6 || movesToTargetTrack else {
+        }), abs(constrainedDelta) > 1e-6
+                || movesToTargetTrack
+                || movingClips.contains(where: { $0.clip.isAlignmentPending }) else {
             return
         }
 
@@ -4198,6 +4409,7 @@ final class StudioModel: ObservableObject {
             let moved = movingClips.map { movingClip -> TimelineClip in
                 var clip = movingClip.clip
                 clip.timelineStart += constrainedDelta
+                clip.isAlignmentPending = false
                 return clip
             }
             updated.tracks[sourceTrackIndex].clips.removeAll { selectedIDs.contains($0.id) }
@@ -4207,6 +4419,7 @@ final class StudioModel: ObservableObject {
                 for clipIndex in updated.tracks[trackIndex].clips.indices
                 where selectedIDs.contains(updated.tracks[trackIndex].clips[clipIndex].id) {
                     updated.tracks[trackIndex].clips[clipIndex].timelineStart += constrainedDelta
+                    updated.tracks[trackIndex].clips[clipIndex].isAlignmentPending = false
                 }
             }
         }
@@ -4598,12 +4811,21 @@ final class StudioModel: ObservableObject {
                 duration: isMovingWholeClip ? clip.duration : minimumDuration,
                 proposedStart: max(0, timelineStart ?? clip.timelineStart)
             )
+            if timelineStart != nil {
+                clip.isAlignmentPending = false
+            }
             if let gapLimit = track.maximumNonOverlappingDuration(
                 forClipID: clip.id,
                 startingAt: clip.timelineStart
             ) {
                 clip.duration = min(clip.duration, max(minimumDuration, gapLimit))
             }
+        }
+    }
+
+    func confirmTimelineClipAlignment(id: String) {
+        updateTimelineClip(id: id) { clip, _, _ in
+            clip.isAlignmentPending = false
         }
     }
 
@@ -4724,6 +4946,7 @@ final class StudioModel: ObservableObject {
 
     func setFIT(_ url: URL) {
         guard !isExporting else { return }
+        singleSourceAlignmentIsPending = false
         cancelPreviewRenderTasks()
         fitLoadTask?.cancel()
         weatherLoadTask?.cancel()
@@ -6009,6 +6232,9 @@ final class StudioModel: ObservableObject {
         selectedTimelineClipIDs = previous.selectedClipIDs.filter { timelineClip(id: $0) != nil }
         selectedTimelineClipID = previous.selectedClipID.flatMap { timelineClip(id: $0) == nil ? nil : $0 }
             ?? firstSelectedTimelineClipID
+        singleSourceAlignmentIsPending = previous.timeline.tracks
+            .flatMap(\.clips)
+            .contains(where: \.isAlignmentPending)
         timelineUsesSingleSourceMigration = restoredMigrationState
         stopTimelineSecurityScopedAccess()
         startTimelineSecurityScopedAccess(for: timeline.assets)
@@ -6113,6 +6339,9 @@ final class StudioModel: ObservableObject {
         lastCoalescedTimelineUndo = nil
         pausePlayback()
         timeline = previous.timeline
+        singleSourceAlignmentIsPending = previous.timeline.tracks
+            .flatMap(\.clips)
+            .contains(where: \.isAlignmentPending)
         timelineUsesSingleSourceMigration = previous.usesSingleSourceMigration
         if let positionState = previous.timelinePositionState {
             exportTrimRangeWasManuallyEdited = positionState.exportTrimRangeWasManuallyEdited
@@ -6182,15 +6411,49 @@ final class StudioModel: ObservableObject {
         }
     }
 
+    nonisolated static func requiresPendingAlignmentExportConfirmation(
+        project: TimelineProject,
+        mode: OverlayExportMode,
+        renderScope: ExportRenderScope,
+        timelineStart: TimeInterval,
+        duration: TimeInterval
+    ) -> Bool {
+        guard timelineStart.isFinite,
+              timelineStart >= 0,
+              duration.isFinite,
+              duration > 0,
+              (timelineStart + duration).isFinite else { return false }
+
+        let renderedRanges: [(start: TimeInterval, duration: TimeInterval)]
+        if renderScope == .individualClips {
+            renderedRanges = project.individualClipExportRanges(
+                kind: mode == .video ? .video : .overlay,
+                timelineStart: timelineStart,
+                duration: duration
+            )
+        } else {
+            renderedRanges = [(timelineStart, duration)]
+        }
+        guard !renderedRanges.isEmpty else { return false }
+
+        let pendingClips = project.enabledClips(kind: .overlay).filter(\.isAlignmentPending)
+            + (mode == .video ? project.enabledClips(kind: .video).filter(\.isAlignmentPending) : [])
+        return pendingClips.contains { clip in
+            renderedRanges.contains { range in
+                clip.timelineEnd > range.start && clip.timelineStart < range.start + range.duration
+            }
+        }
+    }
+
     func export() {
-        export(allowingUnreadyWeather: false)
+        export(allowingUnreadyWeather: false, allowingPendingAlignment: false)
     }
 
     func confirmWeatherExport() {
         guard isWeatherExportConfirmationPresented else { return }
         isWeatherExportConfirmationPresented = false
         addDebugLog(.export, "Continuing export without ready weather data")
-        export(allowingUnreadyWeather: true)
+        export(allowingUnreadyWeather: true, allowingPendingAlignment: false)
     }
 
     func cancelWeatherExportConfirmation() {
@@ -6199,9 +6462,26 @@ final class StudioModel: ObservableObject {
         addDebugLog(.export, "Export cancelled before rendering: weather data not ready")
     }
 
-    private func export(allowingUnreadyWeather: Bool) {
+    func confirmPendingAlignmentExport() {
+        guard isPendingAlignmentExportConfirmationPresented else { return }
+        let allowingUnreadyWeather = pendingAlignmentExportAllowsUnreadyWeather
+        isPendingAlignmentExportConfirmationPresented = false
+        pendingAlignmentExportAllowsUnreadyWeather = false
+        addDebugLog(.export, "Continuing export with clips awaiting alignment")
+        export(allowingUnreadyWeather: allowingUnreadyWeather, allowingPendingAlignment: true)
+    }
+
+    func cancelPendingAlignmentExportConfirmation() {
+        guard isPendingAlignmentExportConfirmationPresented else { return }
+        isPendingAlignmentExportConfirmationPresented = false
+        pendingAlignmentExportAllowsUnreadyWeather = false
+        addDebugLog(.export, "Export cancelled before rendering: clips awaiting alignment")
+    }
+
+    private func export(allowingUnreadyWeather: Bool, allowingPendingAlignment: Bool) {
         guard !isExporting else { return }
         guard allowingUnreadyWeather || !isWeatherExportConfirmationPresented else { return }
+        guard allowingPendingAlignment || !isPendingAlignmentExportConfirmationPresented else { return }
         let offlineNames = offlineAssetNamesForExport(mode: exportMode)
         if !offlineNames.isEmpty {
             setStatus("status.timelineOfflineAssets", offlineNames.joined(separator: ", "))
@@ -6231,6 +6511,19 @@ final class StudioModel: ObservableObject {
            ) {
             isWeatherExportConfirmationPresented = true
             addDebugLog(.export, "Export confirmation requested: weather data not ready")
+            return
+        }
+        if !allowingPendingAlignment,
+           Self.requiresPendingAlignmentExportConfirmation(
+               project: timelineProject,
+               mode: exportMode,
+               renderScope: exportRenderScope,
+               timelineStart: exportSettings.startTime,
+               duration: exportSettings.duration
+           ) {
+            pendingAlignmentExportAllowsUnreadyWeather = allowingUnreadyWeather
+            isPendingAlignmentExportConfirmationPresented = true
+            addDebugLog(.export, "Export confirmation requested: clips awaiting alignment")
             return
         }
         if needsOutputSelectionBeforeExport {

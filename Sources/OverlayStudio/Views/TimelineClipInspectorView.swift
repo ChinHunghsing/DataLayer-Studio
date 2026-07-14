@@ -51,6 +51,38 @@ struct TimelineClipInspectorView: View {
         let reapplyUnavailableReasonKey = model.reapplyWallClockAutoSyncUnavailableReasonKey(for: currentClip.id)
 
         VStack(alignment: .leading, spacing: ShellStyle.spacing3) {
+            if currentClip.isAlignmentPending {
+                TimelineClipNotice(
+                    title: localization.string("timeline.alignment.pendingTitle"),
+                    message: localization.string(
+                        currentAsset?.wallClockSource == .untrustedExport
+                            ? "timeline.alignment.untrustedExportMessage"
+                            : "timeline.alignment.pendingMessage"
+                    ),
+                    systemImage: "exclamationmark.triangle.fill",
+                    tint: .orange
+                )
+
+                HStack(spacing: 8) {
+                    Button {
+                        model.confirmTimelineClipAlignment(id: currentClip.id)
+                    } label: {
+                        Label(localization.string("timeline.alignment.confirmPosition"), systemImage: "checkmark")
+                    }
+                    .disabled(!model.selectedTimelineClipIsEditable)
+
+                    if currentAsset?.kind == .video {
+                        Button {
+                            model.chooseManualRecordingDate(forAssetID: currentClip.assetID)
+                        } label: {
+                            Label(localization.string("timeline.alignment.setRecordingTime"), systemImage: "calendar.badge.clock")
+                        }
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
             if !model.selectedTimelineClipIsEditable {
                 TimelineClipNotice(
                     title: localization.string("timelineClip.inspector.readOnlyTitle"),
@@ -214,12 +246,14 @@ struct TimelineClipInspectorView: View {
 private struct TimelineClipNotice: View {
     let title: String
     let message: String
+    var systemImage = "lock"
+    var tint = Color.secondary
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "lock")
+            Image(systemName: systemImage)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(tint)
                 .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -235,7 +269,7 @@ private struct TimelineClipNotice: View {
             Spacer(minLength: 0)
         }
         .padding(12)
-        .background(Color.secondary.opacity(0.09), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .background(tint.opacity(0.09), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 }
 

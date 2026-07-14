@@ -9,19 +9,22 @@ public struct VideoMetadata {
     public var bitRateBitsPerSecond: Double?
     /// Recording start from the container's creation-date metadata; nil when the file carries none.
     public var creationDate: Date?
+    public var creationDateSource: MediaWallClockSource?
 
     public init(
         size: CGSize,
         duration: TimeInterval,
         framesPerSecond: Double,
         bitRateBitsPerSecond: Double? = nil,
-        creationDate: Date? = nil
+        creationDate: Date? = nil,
+        creationDateSource: MediaWallClockSource? = nil
     ) {
         self.size = size
         self.duration = duration
         self.framesPerSecond = framesPerSecond
         self.bitRateBitsPerSecond = bitRateBitsPerSecond
         self.creationDate = creationDate
+        self.creationDateSource = creationDateSource ?? (creationDate == nil ? nil : .containerMetadata)
     }
 
     public static func load(from url: URL) throws -> VideoMetadata {
@@ -68,18 +71,57 @@ public struct VideoMetadata {
             let bitRate = Double(rate)
             return bitRate.isFinite && bitRate > 0 ? bitRate : nil
         }
-        // Missing creation-date metadata is common and must not fail the load.
-        var creationDate: Date?
-        if let creationDateItem = try? await asset.load(.creationDate) {
-            creationDate = try? await creationDateItem.load(.dateValue)
+        // Explicit recording metadata is stronger than the MP4 header date, which editors may
+        // rewrite to the export time.
+        let metadataFormats = (try? await asset.load(.availableMetadataFormats)) ?? []
+        var metadataItems: [AVMetadataItem] = []
+        for format in metadataFormats {
+            if let items = try? await asset.loadMetadata(for: format) {
+                metadataItems.append(contentsOf: items)
+            }
         }
+        var explicitRecordingDate: Date?
+        if let item = metadataItems.first(where: {
+            $0.identifier?.rawValue == "mdta/com.apple.quicktime.creationdate"
+        }) {
+            explicitRecordingDate = try? await item.load(.dateValue)
+        }
+        var writingApplication: String?
+        if let item = metadataItems.first(where: { $0.commonKey?.rawValue == "software" }) {
+            writingApplication = try? await item.load(.stringValue)
+        }
+        var containerCreationDate: Date?
+        if let creationDateItem = try? await asset.load(.creationDate) {
+            containerCreationDate = try? await creationDateItem.load(.dateValue)
+        }
+        let resolvedDate = resolveCreationDate(
+            containerCreationDate: containerCreationDate,
+            explicitRecordingDate: explicitRecordingDate,
+            writingApplication: writingApplication
+        )
         return VideoMetadata(
             size: size,
             duration: duration,
             framesPerSecond: fps,
             bitRateBitsPerSecond: trackBitRate ?? fileBitRateBitsPerSecond(for: url, duration: duration),
-            creationDate: creationDate
+            creationDate: resolvedDate.date,
+            creationDateSource: resolvedDate.source
         )
+    }
+
+    static func resolveCreationDate(
+        containerCreationDate: Date?,
+        explicitRecordingDate: Date?,
+        writingApplication: String?
+    ) -> (date: Date?, source: MediaWallClockSource?) {
+        if let explicitRecordingDate {
+            return (explicitRecordingDate, .recordingMetadata)
+        }
+        // ponytail: only reject the verified editor signature; add more editors with sample-backed tests.
+        if writingApplication?.localizedCaseInsensitiveContains("DaVinci Resolve") == true {
+            return (nil, .untrustedExport)
+        }
+        return (containerCreationDate, containerCreationDate == nil ? nil : .containerMetadata)
     }
 
     private static func fileBitRateBitsPerSecond(for url: URL, duration: TimeInterval) -> Double? {

@@ -2831,7 +2831,7 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertLessThan(secondTrack?.offset ?? .max, firstTrack?.offset ?? .min)
     }
 
-    func testImportWithoutRecordingTimeAppendsToLaneEnd() {
+    func testImportWithoutRecordingTimeUsesProvisionalPosition() {
         let model = StudioModel()
         let base = Date(timeIntervalSince1970: 1_750_000_000)
 
@@ -2857,9 +2857,20 @@ final class MediaPoolTests: XCTestCase {
             .first { $0.kind == .video }?.clips
             .map(\.timelineStart) ?? []
         XCTAssertEqual(videoStarts, [0, 147])
+        let pendingClip = model.timeline.tracks
+            .flatMap(\.clips)
+            .first { $0.assetID == "/tmp/undated.mov" }
+        XCTAssertTrue(pendingClip?.isAlignmentPending == true)
+
+        model.moveTimelineClip(id: pendingClip?.id ?? "", toTimelineStart: 160)
+
+        XCTAssertFalse(model.timeline.tracks
+            .flatMap(\.clips)
+            .first { $0.assetID == "/tmp/undated.mov" }?
+            .isAlignmentPending ?? true)
     }
 
-    func testImportWithImplausibleRecordingTimeAppendsToLaneEnd() {
+    func testImportWithImplausibleRecordingTimeUsesProvisionalPosition() {
         let model = StudioModel()
         let base = Date(timeIntervalSince1970: 1_750_000_000)
 
@@ -2891,6 +2902,81 @@ final class MediaPoolTests: XCTestCase {
             .first { $0.kind == .video }?.clips
             .map(\.timelineStart) ?? []
         XCTAssertEqual(videoStarts, [0, 147])
+        XCTAssertTrue(model.timeline.tracks
+            .flatMap(\.clips)
+            .first { $0.assetID == "/tmp/next-week.mov" }?
+            .isAlignmentPending == true)
+    }
+
+    func testUntrustedExportDateUsesSelectedCounterpartAsProvisionalAnchor() throws {
+        let model = StudioModel()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let activityURL = URL(fileURLWithPath: "/tmp/reference.fit")
+        model.upsertActivityAsset(url: activityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: base, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, date: base.addingTimeInterval(60), distanceMeters: 100)
+        ]))
+        model.addActivityAssetToTimeline(
+            id: activityURL.path,
+            targetTrackID: nil,
+            timelineStart: 30,
+            autoAlignsWhenStartMissing: false
+        )
+        let activityClip = try XCTUnwrap(model.timeline.tracks.flatMap(\.clips).first)
+        model.selectTimelineClip(id: activityClip.id)
+        model.previewTime = 90
+
+        let videoURL = URL(fileURLWithPath: "/tmp/davinci-export.mp4")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 20,
+                framesPerSecond: 30,
+                creationDate: base.addingTimeInterval(10_000),
+                creationDateSource: .untrustedExport
+            )
+        )
+        model.addVideoAssetToTimeline(id: videoURL.path)
+
+        let videoClip = try XCTUnwrap(model.timeline.tracks
+            .flatMap(\.clips)
+            .first { $0.assetID == videoURL.path })
+        XCTAssertEqual(videoClip.timelineStart, 30, accuracy: 0.001)
+        XCTAssertTrue(videoClip.isAlignmentPending)
+    }
+
+    func testManualRecordingTimeSurvivesMetadataRefresh() {
+        let model = StudioModel()
+        let url = URL(fileURLWithPath: "/tmp/manual-time.mov")
+        let containerDate = Date(timeIntervalSince1970: 1_750_000_000)
+        let manualDate = containerDate.addingTimeInterval(-300)
+        model.upsertVideoAsset(
+            url: url,
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 20,
+                framesPerSecond: 30,
+                creationDate: containerDate
+            )
+        )
+        model.addVideoAssetToTimeline(id: url.path)
+        model.setManualRecordingDate(manualDate, forAssetID: url.path)
+
+        XCTAssertTrue(model.timeline.tracks.flatMap(\.clips).first?.isAlignmentPending == true)
+
+        model.upsertVideoAsset(
+            url: url,
+            metadata: VideoMetadata(
+                size: CGSize(width: 1920, height: 1080),
+                duration: 25,
+                framesPerSecond: 30,
+                creationDate: containerDate.addingTimeInterval(600)
+            )
+        )
+
+        XCTAssertEqual(model.videoAssets.first?.wallClockStart, manualDate)
+        XCTAssertEqual(model.videoAssets.first?.wallClockSource, .manual)
     }
 
     func testReverseOrderImportShiftsExistingClipsToMatchChronology() {

@@ -28,6 +28,12 @@ struct MediaAssetInspectorView: View {
             }
             if let reason = model.offlineTimelineAssetReasons[asset.id] {
                 infoRow("library.mediaInspector.status", value: localization.string(reason.localizationKey), tint: .orange)
+            } else if asset.wallClockSource == .untrustedExport {
+                infoRow(
+                    "library.mediaInspector.status",
+                    value: localization.string("library.mediaInspector.untrustedExportDate"),
+                    tint: .orange
+                )
             } else {
                 infoRow("library.mediaInspector.status", value: localization.string("library.mediaInspector.available"))
             }
@@ -65,6 +71,15 @@ struct MediaAssetInspectorView: View {
             }
             .controlSize(.small)
 
+            if asset.kind == .video {
+                Button {
+                    model.chooseManualRecordingDate(forAssetID: asset.id)
+                } label: {
+                    Label(localization.string("timeline.alignment.setRecordingTime"), systemImage: "calendar.badge.clock")
+                }
+                .controlSize(.small)
+            }
+
             if model.offlineTimelineAssetIDs.contains(asset.id) {
                 Button {
                     model.chooseReplacementForTimelineAsset(id: asset.id)
@@ -94,4 +109,3 @@ struct MediaAssetInspectorView: View {
         return String(format: "%02d:%02d:%02d", total / 3600, (total / 60) % 60, total % 60)
     }
 }
-

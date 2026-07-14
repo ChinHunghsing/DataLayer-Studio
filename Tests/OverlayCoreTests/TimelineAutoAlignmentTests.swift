@@ -31,8 +31,22 @@ final class TimelineAutoAlignmentTests: XCTestCase {
         )
     }
 
-    private func clip(id: String, assetID: String, start: TimeInterval, duration: TimeInterval, sourceIn: TimeInterval = 0) -> TimelineClip {
-        TimelineClip(id: id, assetID: assetID, timelineStart: start, duration: duration, sourceIn: sourceIn)
+    private func clip(
+        id: String,
+        assetID: String,
+        start: TimeInterval,
+        duration: TimeInterval,
+        sourceIn: TimeInterval = 0,
+        isAlignmentPending: Bool = false
+    ) -> TimelineClip {
+        TimelineClip(
+            id: id,
+            assetID: assetID,
+            timelineStart: start,
+            duration: duration,
+            sourceIn: sourceIn,
+            isAlignmentPending: isAlignmentPending
+        )
     }
 
     func testAlignsRelativeToPlacedReferenceClip() {
@@ -116,6 +130,27 @@ final class TimelineAutoAlignmentTests: XCTestCase {
         )
         XCTAssertEqual(
             TimelineAutoAlignment.placement(forAssetWallClockStart: base, in: withUndatedClip),
+            .noReference
+        )
+    }
+
+    func testPendingClipIsNotUsedAsAlignmentReference() {
+        let pending = asset(id: "pending.mov", duration: 147, wallClockStart: base)
+        let project = project(
+            assets: [pending],
+            tracks: [TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+                clip(
+                    id: "pending-clip",
+                    assetID: pending.id,
+                    start: 0,
+                    duration: 147,
+                    isAlignmentPending: true
+                )
+            ])]
+        )
+
+        XCTAssertEqual(
+            TimelineAutoAlignment.placement(forAssetWallClockStart: base.addingTimeInterval(10), in: project),
             .noReference
         )
     }

@@ -80,6 +80,7 @@ public enum TimelineAutoAlignment {
         var earliest: (clip: TimelineClip, wallClockStart: Date)?
         for track in project.tracks {
             for clip in track.clips {
+                guard !clip.isAlignmentPending else { continue }
                 guard let wallClockStart = project.asset(id: clip.assetID)?.wallClockStart else { continue }
                 if let current = earliest, current.clip.timelineStart <= clip.timelineStart { continue }
                 earliest = (clip, wallClockStart)
