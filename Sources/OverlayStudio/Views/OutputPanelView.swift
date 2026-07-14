@@ -127,6 +127,7 @@ struct OutputPanelView: View {
             .onChange(of: selectedPresetID) { id in
                 guard let id,
                       let preset = model.exportPresetsForDisplay.first(where: { $0.id == id }) else { return }
+                forceCustomResolution = false
                 model.applyExportPreset(id: id)
                 let name = preset.isBuiltIn
                     ? localization.string("exportPreset.\(preset.id)")
