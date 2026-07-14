@@ -303,6 +303,7 @@ final class StudioModel: ObservableObject {
     private var previewRenderGeneration = 0
     private var videoLoadGeneration = 0
     private var fitLoadGeneration = 0
+    private var mediaPoolImportGeneration = 0
     private var previewOverlayRenderSize: CGSize?
     private var lastOverlayRefresh = Date.distantPast
     private let maximumPreviewRenderDimension: CGFloat = 3_200
@@ -318,13 +319,15 @@ final class StudioModel: ObservableObject {
     private var videoWaveformLoadTasks: [String: Task<Void, Never>] = [:]
     private var pendingVideoTimelineImportIDs: [String] = []
     private var pendingActivityTimelineImportIDs: [String] = []
-    /// Timeline Finder drops waiting for their asset to finish importing; keyed by asset id.
-    /// A nil track means the default append target for the asset's kind.
+    /// Timeline Finder drops waiting for their asset to finish importing. Separate queues preserve
+    /// Finder order even when metadata/parsing finishes out of order.
     private struct PositionedTimelineImport {
+        var assetID: String
         var trackID: String?
         var timelineStart: TimeInterval?
     }
-    private var pendingPositionedTimelineImports: [String: PositionedTimelineImport] = [:]
+    private var pendingVideoPositionedTimelineImports: [PositionedTimelineImport] = []
+    private var pendingActivityPositionedTimelineImports: [PositionedTimelineImport] = []
     private var pendingOverlayRefreshAfterCurrentRender = false
     private var pendingOverlayRefreshDisplaysIntermediateResult = false
     private var isScrubbingPreview = false
@@ -843,15 +846,19 @@ final class StudioModel: ObservableObject {
     /// Load a video's metadata off the main thread and add it to the pool without changing the
     /// active source. Used when multiple files are imported at once.
     private func addVideoAssetToPool(_ url: URL) {
+        let importGeneration = mediaPoolImportGeneration
         Task.detached {
             do {
                 let loaded = try await VideoMetadata.loadAsync(from: url)
                 await MainActor.run { [weak self] in
-                    self?.upsertVideoAsset(url: url, metadata: loaded)
+                    guard let self, self.mediaPoolImportGeneration == importGeneration else { return }
+                    self.upsertVideoAsset(url: url, metadata: loaded)
                 }
             } catch {
                 await MainActor.run { [weak self] in
-                    self?.discardPendingVideoTimelineImport(id: url.path)
+                    guard let self, self.mediaPoolImportGeneration == importGeneration else { return }
+                    self.discardPendingVideoTimelineImport(id: url.path)
+                    self.setStatusAndToast(.warning, "status.videoError", error.localizedDescription)
                 }
             }
         }
@@ -860,17 +867,21 @@ final class StudioModel: ObservableObject {
     /// Parse an activity file off the main thread and add it to the pool without changing the
     /// active source. Used when multiple files are imported at once.
     private func addActivityAssetToPool(_ url: URL) {
+        let importGeneration = mediaPoolImportGeneration
         Task.detached {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
             do {
                 let parsed = try TelemetryFileParser().parseActivity(url: url)
                 await MainActor.run { [weak self] in
-                    self?.upsertActivityAsset(url: url, series: parsed.series, sport: parsed.sport)
+                    guard let self, self.mediaPoolImportGeneration == importGeneration else { return }
+                    self.upsertActivityAsset(url: url, series: parsed.series, sport: parsed.sport)
                 }
             } catch {
                 await MainActor.run { [weak self] in
-                    self?.discardPendingActivityTimelineImport(id: url.path)
+                    guard let self, self.mediaPoolImportGeneration == importGeneration else { return }
+                    self.discardPendingActivityTimelineImport(id: url.path)
+                    self.setStatusAndToast(.warning, "status.fitError", error.localizedDescription)
                 }
             }
         }
@@ -1569,23 +1580,26 @@ final class StudioModel: ObservableObject {
             let assetID = url.path
             switch kind {
             case .video:
-                if videoAssets.contains(where: { $0.id == assetID }) {
-                    addVideoAssetToTimeline(id: assetID, targetTrackID: clipTrackID, timelineStart: clipStart)
-                } else {
-                    pendingPositionedTimelineImports[assetID] = PositionedTimelineImport(
-                        trackID: clipTrackID,
-                        timelineStart: clipStart
-                    )
+                let needsLoad = !videoAssets.contains(where: { $0.id == assetID })
+                    && !pendingVideoPositionedTimelineImports.contains(where: { $0.assetID == assetID })
+                pendingVideoPositionedTimelineImports.append(PositionedTimelineImport(
+                    assetID: assetID,
+                    trackID: clipTrackID,
+                    timelineStart: clipStart
+                ))
+                if needsLoad {
                     addVideoAssetToPool(url)
                 }
             case .activity:
-                if activityAssets.contains(where: { $0.id == assetID }), activitySeriesByAssetID[assetID] != nil {
-                    addActivityAssetToTimeline(id: assetID, targetTrackID: clipTrackID, timelineStart: clipStart)
-                } else {
-                    pendingPositionedTimelineImports[assetID] = PositionedTimelineImport(
-                        trackID: clipTrackID,
-                        timelineStart: clipStart
-                    )
+                let needsLoad = (!activityAssets.contains(where: { $0.id == assetID })
+                    || activitySeriesByAssetID[assetID] == nil)
+                    && !pendingActivityPositionedTimelineImports.contains(where: { $0.assetID == assetID })
+                pendingActivityPositionedTimelineImports.append(PositionedTimelineImport(
+                    assetID: assetID,
+                    trackID: clipTrackID,
+                    timelineStart: clipStart
+                ))
+                if needsLoad {
                     addActivityAssetToPool(url)
                 }
             default:
@@ -1593,6 +1607,8 @@ final class StudioModel: ObservableObject {
             }
             imported = true
         }
+        drainPendingPositionedVideoTimelineImports()
+        drainPendingPositionedActivityTimelineImports()
         return imported
     }
 
@@ -1624,6 +1640,11 @@ final class StudioModel: ObservableObject {
         previewRenderGeneration += 1
         videoLoadGeneration += 1
         fitLoadGeneration += 1
+        mediaPoolImportGeneration += 1
+        pendingVideoTimelineImportIDs.removeAll()
+        pendingActivityTimelineImportIDs.removeAll()
+        pendingVideoPositionedTimelineImports.removeAll()
+        pendingActivityPositionedTimelineImports.removeAll()
 
         var sanitizedProject = project
         sanitizedProject.outputWidth = Self.sanitizedOutputDimension(project.outputWidth)
@@ -2982,13 +3003,7 @@ final class StudioModel: ObservableObject {
             videoAssets.append(asset)
         }
         drainPendingVideoTimelineImports()
-        if let positioned = pendingPositionedTimelineImports.removeValue(forKey: asset.id) {
-            addVideoAssetToTimeline(
-                id: asset.id,
-                targetTrackID: positioned.trackID,
-                timelineStart: positioned.timelineStart
-            )
-        }
+        drainPendingPositionedVideoTimelineImports()
     }
 
     /// Add or refresh an activity in the pool (called once its telemetry has parsed). Deduplicated by path.
@@ -3009,13 +3024,7 @@ final class StudioModel: ObservableObject {
             activityAssets.append(asset)
         }
         drainPendingActivityTimelineImports()
-        if let positioned = pendingPositionedTimelineImports.removeValue(forKey: asset.id) {
-            addActivityAssetToTimeline(
-                id: asset.id,
-                targetTrackID: positioned.trackID,
-                timelineStart: positioned.timelineStart
-            )
-        }
+        drainPendingPositionedActivityTimelineImports()
     }
 
     /// Keep the Finder selection order even though metadata loading can finish out of order.
@@ -3068,14 +3077,43 @@ final class StudioModel: ObservableObject {
 
     private func discardPendingVideoTimelineImport(id: String) {
         pendingVideoTimelineImportIDs.removeAll { $0 == id }
-        pendingPositionedTimelineImports.removeValue(forKey: id)
+        pendingVideoPositionedTimelineImports.removeAll { $0.assetID == id }
         drainPendingVideoTimelineImports()
+        drainPendingPositionedVideoTimelineImports()
     }
 
     private func discardPendingActivityTimelineImport(id: String) {
         pendingActivityTimelineImportIDs.removeAll { $0 == id }
-        pendingPositionedTimelineImports.removeValue(forKey: id)
+        pendingActivityPositionedTimelineImports.removeAll { $0.assetID == id }
         drainPendingActivityTimelineImports()
+        drainPendingPositionedActivityTimelineImports()
+    }
+
+    private func drainPendingPositionedVideoTimelineImports() {
+        while let pending = pendingVideoPositionedTimelineImports.first,
+              videoAssets.contains(where: { $0.id == pending.assetID }) {
+            pendingVideoPositionedTimelineImports.removeFirst()
+            addVideoAssetToTimeline(
+                id: pending.assetID,
+                targetTrackID: pending.trackID,
+                timelineStart: pending.timelineStart,
+                autoAlignsWhenStartMissing: false
+            )
+        }
+    }
+
+    private func drainPendingPositionedActivityTimelineImports() {
+        while let pending = pendingActivityPositionedTimelineImports.first,
+              activityAssets.contains(where: { $0.id == pending.assetID }),
+              activitySeriesByAssetID[pending.assetID] != nil {
+            pendingActivityPositionedTimelineImports.removeFirst()
+            addActivityAssetToTimeline(
+                id: pending.assetID,
+                targetTrackID: pending.trackID,
+                timelineStart: pending.timelineStart,
+                autoAlignsWhenStartMissing: false
+            )
+        }
     }
 
     /// Make a pooled video the active source.
@@ -3187,7 +3225,12 @@ final class StudioModel: ObservableObject {
 
     /// Add a pooled activity as an overlay clip. Button-based insertion appends at the end of the
     /// project on the first available overlay lane; drops can target a lane and relative time.
-    func addActivityAssetToTimeline(id: String, targetTrackID: String?, timelineStart: TimeInterval?) {
+    func addActivityAssetToTimeline(
+        id: String,
+        targetTrackID: String?,
+        timelineStart: TimeInterval?,
+        autoAlignsWhenStartMissing: Bool = true
+    ) {
         guard !isExporting,
               let asset = activityAssets.first(where: { $0.id == id }),
               activitySeriesByAssetID[id] != nil,
@@ -3217,10 +3260,15 @@ final class StudioModel: ObservableObject {
             timeline.assets.append(asset)
         }
 
-        let placement = resolveAutoAlignedTimelineStart(
-            explicitStart: timelineStart,
-            assetWallClockStart: asset.wallClockStart
-        )
+        let placement: (start: TimeInterval?, statusKey: String, shiftedTimeline: Bool)
+        if autoAlignsWhenStartMissing {
+            placement = resolveAutoAlignedTimelineStart(
+                explicitStart: timelineStart,
+                assetWallClockStart: asset.wallClockStart
+            )
+        } else {
+            placement = (timelineStart, "status.timelineAddedActivity", false)
+        }
         autoAlignmentShiftedTimeline = placement.shiftedTimeline
 
         var clip = TimelineClip(
@@ -3321,7 +3369,12 @@ final class StudioModel: ObservableObject {
 
     /// Add a pooled video to a chosen video lane at a relative timeline position. Button-based
     /// insertion keeps appending to the end of the base lane; a drop uses the nearest free gap.
-    func addVideoAssetToTimeline(id: String, targetTrackID: String?, timelineStart: TimeInterval?) {
+    func addVideoAssetToTimeline(
+        id: String,
+        targetTrackID: String?,
+        timelineStart: TimeInterval?,
+        autoAlignsWhenStartMissing: Bool = true
+    ) {
         guard !isExporting,
               let asset = videoAssets.first(where: { $0.id == id }),
               asset.duration > 0 else { return }
@@ -3350,10 +3403,15 @@ final class StudioModel: ObservableObject {
             timeline.assets.append(asset)
         }
 
-        let placement = resolveAutoAlignedTimelineStart(
-            explicitStart: timelineStart,
-            assetWallClockStart: asset.wallClockStart
-        )
+        let placement: (start: TimeInterval?, statusKey: String, shiftedTimeline: Bool)
+        if autoAlignsWhenStartMissing {
+            placement = resolveAutoAlignedTimelineStart(
+                explicitStart: timelineStart,
+                assetWallClockStart: asset.wallClockStart
+            )
+        } else {
+            placement = (timelineStart, "status.timelineAddedActivity", false)
+        }
         autoAlignmentShiftedTimeline = placement.shiftedTimeline
 
         var clip = TimelineClip(
@@ -4146,7 +4204,8 @@ final class StudioModel: ObservableObject {
             .first(where: { selectedIDs.contains($0.id) }) else { return }
         moveTimelineClip(
             id: anchor.id,
-            toTimelineStart: anchor.timelineStart + Double(frameOffset) * previewFrameDuration
+            toTimelineStart: anchor.timelineStart
+                + Double(frameOffset) / Self.sanitizedOutputFrameRate(outputFPS)
         )
     }
 

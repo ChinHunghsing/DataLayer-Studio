@@ -233,7 +233,7 @@ struct ProjectTimelineView: View {
                                 project: project,
                                 laneWidth: laneWidth,
                                 duration: duration,
-                                showsGuide: false
+                                showsGuide: true
                             )
                         }
                 )
@@ -1044,7 +1044,9 @@ struct ProjectTimelineView: View {
                         : dragStartTrackID
                 }
                 let base = dragStartClipTimelineStart ?? clip.timelineStart
-                if Self.isShiftKeyPressed {
+                let locksHorizontalPosition = Self.isShiftKeyPressed
+                    && dragTargetTrackID != dragStartTrackID
+                if locksHorizontalPosition {
                     // Shift 约束拖动：跨轨道移动时锁定水平位置，与达芬奇一致。
                     snapGuideTime = nil
                     snapGuideSource = nil
@@ -1076,8 +1078,16 @@ struct ProjectTimelineView: View {
                     && model.timelineAlignmentOffsetMilliseconds(for: clip.id) != nil
                 if let dragStartTrackID {
                     let base = dragStartClipTimelineStart ?? clip.timelineStart
+                    let targetTrackID = dragMovesSelectionVertically
+                        ? Self.targetTrackID(
+                            project: project,
+                            sourceTrackID: dragStartTrackID,
+                            verticalTranslation: value.translation.height,
+                            trackHeight: trackHeight
+                        )
+                        : dragStartTrackID
                     let finalStart: TimeInterval
-                    if Self.isShiftKeyPressed {
+                    if Self.isShiftKeyPressed && targetTrackID != dragStartTrackID {
                         finalStart = base
                     } else {
                         let gestureDuration = dragTimelineDuration ?? duration
@@ -1093,14 +1103,6 @@ struct ProjectTimelineView: View {
                             playheadTime: model.previewTime
                         ).timelineStart
                     }
-                    let targetTrackID = dragMovesSelectionVertically
-                        ? Self.targetTrackID(
-                            project: project,
-                            sourceTrackID: dragStartTrackID,
-                            verticalTranslation: value.translation.height,
-                            trackHeight: trackHeight
-                        )
-                        : dragStartTrackID
                     model.moveTimelineClip(
                         id: clip.id,
                         toTrackID: targetTrackID,

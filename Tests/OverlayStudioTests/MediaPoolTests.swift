@@ -338,6 +338,140 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertFalse(model.importDroppedMediaFiles([URL(fileURLWithPath: "/tmp/notes.txt")]))
     }
 
+    func testDroppedVideosWaitForFinderOrderAndAppendAfterTheDrop() throws {
+        let model = StudioModel()
+        let trackID = "video.track.drop-order"
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                tracks: [TimelineTrack(id: trackID, kind: .video, name: "V1")]
+            ),
+            loadAssets: false
+        )
+
+        let firstURL = URL(fileURLWithPath: "/tmp/drop-order-1.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/drop-order-2.mov")
+        XCTAssertTrue(model.importDroppedMediaFiles(
+            [firstURL, secondURL],
+            targetTrackID: trackID,
+            timelineStart: 10
+        ))
+
+        model.upsertVideoAsset(
+            url: secondURL,
+            metadata: videoMetadata(width: 1_280, height: 720, duration: 7, fps: 30)
+        )
+        XCTAssertTrue(model.currentTimelineProject.tracks[0].clips.isEmpty)
+
+        model.upsertVideoAsset(
+            url: firstURL,
+            metadata: videoMetadata(width: 1_920, height: 1_080, duration: 5, fps: 30)
+        )
+
+        let clips = model.currentTimelineProject.tracks[0].clips
+        XCTAssertEqual(clips.map(\.assetID), [firstURL.path, secondURL.path])
+        XCTAssertEqual(clips[0].timelineStart, 10, accuracy: 1e-9)
+        XCTAssertEqual(clips[1].timelineStart, 15, accuracy: 1e-9)
+    }
+
+    func testDroppedVideoPendingPlacementDoesNotSurviveProjectReplacement() {
+        let model = StudioModel()
+        let oldTrackID = "video.track.old"
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                tracks: [TimelineTrack(id: oldTrackID, kind: .video, name: "Old")]
+            ),
+            loadAssets: false
+        )
+
+        let url = URL(fileURLWithPath: "/tmp/drop-old-project.mov")
+        XCTAssertTrue(model.importDroppedMediaFiles([url], targetTrackID: oldTrackID, timelineStart: 4))
+
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                tracks: [TimelineTrack(id: "video.track.new", kind: .video, name: "New")]
+            ),
+            loadAssets: false
+        )
+        model.upsertVideoAsset(
+            url: url,
+            metadata: videoMetadata(width: 1_920, height: 1_080, duration: 5, fps: 30)
+        )
+
+        XCTAssertTrue(model.currentTimelineProject.tracks.flatMap(\.clips).isEmpty)
+    }
+
+    func testAdditionalDroppedVideoAppendsInsteadOfWallClockAutoAligning() throws {
+        let baseDate = Date(timeIntervalSinceReferenceDate: 10_000)
+        let baseURL = URL(fileURLWithPath: "/tmp/drop-base.mov")
+        let firstURL = URL(fileURLWithPath: "/tmp/drop-wallclock-1.mov")
+        let secondURL = URL(fileURLWithPath: "/tmp/drop-wallclock-2.mov")
+        let assets = [
+            MediaAsset(
+                id: baseURL.path,
+                kind: .video,
+                url: baseURL,
+                displayName: baseURL.lastPathComponent,
+                duration: 5,
+                wallClockStart: baseDate
+            ),
+            MediaAsset(
+                id: firstURL.path,
+                kind: .video,
+                url: firstURL,
+                displayName: firstURL.lastPathComponent,
+                duration: 5,
+                wallClockStart: baseDate.addingTimeInterval(10)
+            ),
+            MediaAsset(
+                id: secondURL.path,
+                kind: .video,
+                url: secondURL,
+                displayName: secondURL.lastPathComponent,
+                duration: 5,
+                wallClockStart: baseDate.addingTimeInterval(-10)
+            )
+        ]
+        let trackID = "video.track.append"
+        let model = StudioModel()
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: assets,
+                tracks: [TimelineTrack(id: trackID, kind: .video, name: "V1", clips: [
+                    TimelineClip(id: "base", assetID: baseURL.path, timelineStart: 0, duration: 5)
+                ])]
+            ),
+            loadAssets: false
+        )
+
+        XCTAssertTrue(model.importDroppedMediaFiles(
+            [firstURL, secondURL],
+            targetTrackID: trackID,
+            timelineStart: 20
+        ))
+
+        let clips = try XCTUnwrap(model.currentTimelineProject.tracks.first).clips
+        XCTAssertEqual(clips.map(\.assetID), [baseURL.path, firstURL.path, secondURL.path])
+        XCTAssertEqual(clips[0].timelineStart, 0, accuracy: 1e-9)
+        XCTAssertEqual(clips[1].timelineStart, 20, accuracy: 1e-9)
+        XCTAssertEqual(clips[2].timelineStart, 25, accuracy: 1e-9)
+    }
+
     func testDroppedMediaFileIntoPoolNeverTouchesTimelineOrActiveSources() throws {
         let model = StudioModel()
         let activeURL = URL(fileURLWithPath: "/tmp/pool-active.fit")
@@ -394,6 +528,7 @@ final class MediaPoolTests: XCTestCase {
 
         model.selectTimelineClip(id: "a")
         XCTAssertTrue(model.canNudgeSelectedTimelineClips)
+        model.metadata = videoMetadata(width: 1_920, height: 1_080, duration: 30, fps: 30)
         model.nudgeSelectedTimelineClips(byFrames: 1)
         XCTAssertEqual(clipStart("a"), 10.02, accuracy: 1e-9)
         model.nudgeSelectedTimelineClips(byFrames: -1)
