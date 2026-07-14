@@ -197,6 +197,7 @@ struct ProjectTimelineView: View {
             Color.clear
                 .contentShape(Rectangle())
                 .frame(width: laneWidth, height: contentHeight)
+                .contextMenu { timelinePasteContextMenu }
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
@@ -688,6 +689,7 @@ struct ProjectTimelineView: View {
         }
         .frame(width: laneWidth, height: trackHeight, alignment: .topLeading)
         .contentShape(Rectangle())
+        .contextMenu { timelinePasteContextMenu }
         .background(
             dragTargetTrackID == track.id
                 ? Color.accentColor.opacity(0.10)
@@ -705,6 +707,19 @@ struct ProjectTimelineView: View {
         .opacity(track.isEnabled ? 1 : 0.42)
         .zIndex(track.clips.contains { dragClipIDs.contains($0.id) } ? 1 : 0)
         .overlay(alignment: .bottom) { Divider() }
+    }
+
+    @ViewBuilder
+    private var timelinePasteContextMenu: some View {
+        Button(localization.string("menu.pasteTimelineClips")) {
+            model.pasteTimelineClips()
+        }
+        .disabled(!model.canPasteTimelineClips)
+
+        Button(localization.string("menu.pasteInsertTimelineClips")) {
+            model.pasteInsertTimelineClips()
+        }
+        .disabled(!model.canPasteTimelineClips)
     }
 
     private func handleMediaDrop(
