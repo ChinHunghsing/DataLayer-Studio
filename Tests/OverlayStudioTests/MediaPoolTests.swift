@@ -1791,6 +1791,50 @@ final class MediaPoolTests: XCTestCase {
         )
     }
 
+    func testPastingIntoGapUsesGapStartInsteadOfPlayhead() throws {
+        let model = StudioModel()
+        let asset = MediaAsset(
+            id: "gap-video",
+            kind: .video,
+            url: URL(fileURLWithPath: "/tmp/gap-video.mov"),
+            displayName: "gap-video.mov",
+            duration: 30
+        )
+        let firstClip = TimelineClip(
+            id: "first",
+            assetID: asset.id,
+            timelineStart: 0,
+            duration: 5
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1920,
+                outputHeight: 1080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [asset],
+                tracks: [
+                    TimelineTrack(id: "video", kind: .video, name: "V1", clips: [
+                        firstClip,
+                        TimelineClip(id: "second", assetID: asset.id, timelineStart: 15, duration: 5)
+                    ])
+                ]
+            ),
+            loadAssets: false
+        )
+        model.selectTimelineClip(id: firstClip.id)
+        model.copySelectedTimelineClips()
+        model.previewTime = 20
+
+        model.pasteTimelineClips(at: 5)
+
+        let pastedClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks[0].clips.first { $0.id != "first" && $0.id != "second" }
+        )
+        XCTAssertEqual(pastedClip.timelineStart, 5, accuracy: 1e-9)
+        XCTAssertEqual(model.previewTime, 20, accuracy: 1e-9)
+    }
+
     func testChangingProjectExportSettingsMarksTimelineDirty() {
         let model = StudioModel()
         model.applyTimelineProject(

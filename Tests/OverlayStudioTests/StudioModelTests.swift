@@ -158,10 +158,11 @@ final class StudioModelTests: XCTestCase {
         model.backgroundImage = makeBlankCGImage(width: 8, height: 8)
         let stalePreview = makeBlankCGImage(width: 8, height: 8)
         model.overlayImage = stalePreview
+        XCTAssertNil(model.selectedTimelineClipID)
 
         model.setDistanceUnitForCurrentSelection(.meters)
 
-        try await waitUntil { model.overlayImage !== stalePreview }
+        try await waitUntil(timeout: 1) { model.overlayImage !== stalePreview }
         XCTAssertFalse(model.overlayImage === stalePreview)
         XCTAssertEqual(model.distanceUnitForCurrentSelection, .meters)
     }
@@ -824,6 +825,11 @@ final class StudioModelTests: XCTestCase {
         model.series = originalSeries
         model.upsertActivityAsset(url: activityURL, series: originalSeries)
         model.openWeatherAPIKey = "test-key"
+        let projectURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("weather-project-\(UUID().uuidString).dlsproject")
+        defer { try? FileManager.default.removeItem(at: projectURL) }
+        XCTAssertTrue(model.saveTimelineProject(to: projectURL))
+        XCTAssertFalse(model.hasUnsavedTimelineChanges)
 
         model.refreshOpenWeatherForCurrentFIT()
         try await waitUntil {
@@ -833,6 +839,7 @@ final class StudioModelTests: XCTestCase {
         let exportSeries = model.timelineTelemetrySeriesForExport(project: model.currentTimelineProject)
         XCTAssertEqual(exportSeries[activityURL.path]?.samples.first?.weatherTemperatureCelsius, 22)
         XCTAssertEqual(exportSeries[activityURL.path]?.samples.last?.weatherTemperatureCelsius, 22)
+        XCTAssertTrue(model.hasUnsavedTimelineChanges)
         let saved = try JSONDecoder().decode(TimelineProject.self, from: model.timelineProjectJSONData())
         XCTAssertEqual(saved.assets.first?.weatherRecords?.first?.temperatureCelsius, 22)
         XCTAssertEqual(saved.assets.first?.weatherRecords?.first?.humidityPercent, 58)
@@ -886,6 +893,7 @@ final class StudioModelTests: XCTestCase {
             XCTFail("Embedded weather must not call the API")
             return Data()
         })
+        model.openWeatherAPIKey = "test-key"
 
         model.applyTimelineProject(project, loadAssets: true)
         try await waitUntil { model.series != nil }
