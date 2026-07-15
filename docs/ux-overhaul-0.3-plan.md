@@ -171,7 +171,7 @@
 
 - 新增 toast 层（画布右下角，自动 3s 消失，可堆叠 3 条）：保存成功、预设应用、自动对表结果、复制完成等瞬时消息。（实现偏差：toast 实际挂载于整窗右下角与导出 sheet 右下角，非画布右下角。）
 - 持久状态就地化:同步状态→时间线片段角标；离线素材→素材池行（已有）；导出→导出中心。删除左栏页脚 `statusFooter`。
-- `model.status` 字符串通道保留为 debug console 日志源，不再上屏。（实现偏差：「不再上屏」已完成，但 `setStatus` 未接入 debug console；未升级为 toast 的瞬时消息目前没有任何用户可见出口，遗留至 0.3.3。）
+- `model.status` 字符串通道保留为 debug console 日志源，不再上屏。（当前状态：`setStatus` 已接入应用内 debug console，系统日志消息使用 private 隐私级别；复制时间线片段仍没有用户可见 toast。）
 
 ### 4.9 视觉令牌收敛
 
@@ -215,8 +215,8 @@
 - 已知测试环境问题：~~全仓 `swift test` 在未改动的 `OverlayTouchTests.TouchStudioModelTests.testNudgeClampsPosition` 处稳定收到 Xcode `xctest` signal 10~~（2026-07-14 发版前审核复跑全量 `swift test` 501 项全部通过，该问题未复现；此类崩溃通常是增量构建产物损坏，`swift package clean` 后即恢复）。
 - 与原文的实现偏差：保留仍在使用的 Double 数字字段，整数路径完成统一；没有为追求形式统一重写既有检查器。导出验收使用自动化小尺寸完整时间线矩阵，未重复导出本地 24 GB 真实素材。
   - 4.7：用户另存导出预设时分辨率/帧率固化为当前具体数值（`.fixed`），暂不支持保存「跟随源」语义；内置预设的 `name` 字段与 `exportPreset.builtin.*` 本地化 key 双份并存，UI 以本地化 key 为准。
-  - 4.8：见上节备注（`setStatus` 未接 debug console、toast 位置为整窗右下角）。
-  - 4.9：`fontXS/fontSmall/fontBody/fontTitle` 与 `panelFill` 令牌已在 `ShellStyle` 定义但尚无调用方；「快速控件区 .regular / 高级折叠区 .small」分层未实施，全局仍为 `.small`。间距/圆角/整数输入统一已落地。
+  - 4.8：`setStatus` 已接入 debug console，toast 位置为整窗右下角；复制时间线片段仍缺少用户可见反馈。
+  - 4.9：无调用方的 `fontXS/fontSmall/fontBody/fontTitle` 与 `panelFill` 已删除；完整视觉令牌与「快速控件区 .regular / 高级折叠区 .small」分层仍未实施。间距/圆角/整数输入统一已落地。
 
 #### 0.3.2 发版前体验修正（2026-07-14，用户点名 + 达芬奇语义对齐）
 
@@ -227,7 +227,7 @@
   - 播放头交互仍有问题（含吸附排除逻辑怪癖：拖离起点后拖回，起点在本次拖动内不再吸附），用户拍板暂缓处理。
   - `setStatus` 中未升级为 toast 的瞬时消息无用户可见出口（见 4.8 备注）。
   - 4.9 字号/面板令牌与 controlSize 分层未收口（见上）。
-  - 以上遗留连同内置预设 name 双份、重复保护逻辑等小项列为 0.3.3 候选清理。（2026-07-15 已全部完成，明细见 `docs/handoff-0.3.3.md`；controlSize 分层按约定继续推迟。）
+  - 以上遗留连同内置预设 name 双份、重复保护逻辑等小项列为 0.3.3 候选清理。（2026-07-15：播放头、状态日志、内置预设名称和重复保护逻辑已处理；复制片段可见反馈、完整视觉令牌与 controlSize 分层仍待后续，明细见 `docs/handoff-0.3.3.md`。）
 
 ### 明确不做（本重构范围外）
 

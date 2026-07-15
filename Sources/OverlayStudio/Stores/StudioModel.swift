@@ -6749,7 +6749,7 @@ final class StudioModel: ObservableObject {
             ?? (exportRenderScope == .individualClips ? outputURL.deletingLastPathComponent() : outputURL)
         let didStartOutputAccess = outputAccessURL.startAccessingSecurityScopedResource()
         let diagnosticsHandler: ((String) -> Void)? = currentExportMode == .video
-            ? { message in studioDebugLogger.info("[export] \(message, privacy: .public)") }
+            ? { message in studioDebugLogger.info("[export] \(message, privacy: .private)") }
             : nil
         // Per-segment progress handlers are built on the main actor up front; each maps its
         // segment's progress into the overall multi-file progress.
@@ -7367,7 +7367,7 @@ final class StudioModel: ObservableObject {
         if debugLogEntries.count > 200 {
             debugLogEntries.removeFirst(debugLogEntries.count - 200)
         }
-        studioDebugLogger.info("[\(category.rawValue, privacy: .public)] \(message, privacy: .public)")
+        studioDebugLogger.info("[\(category.rawValue, privacy: .public)] \(message, privacy: .private)")
     }
 
     private func debugLogText(_ entries: [DebugLogEntry]) -> String {
