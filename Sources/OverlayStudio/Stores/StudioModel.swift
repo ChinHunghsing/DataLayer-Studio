@@ -1186,7 +1186,7 @@ final class StudioModel: ObservableObject {
     func saveLayoutPreset(named rawName: String) -> Bool {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
-            setStatus("status.presetNameRequired")
+            setStatusAndToast(.warning, "status.presetNameRequired")
             return false
         }
 
@@ -1244,7 +1244,7 @@ final class StudioModel: ObservableObject {
 
     func exportLayoutPresets() {
         guard !layoutPresets.isEmpty else {
-            setStatus("status.noPresetsToExport")
+            setStatusAndToast(.warning, "status.noPresetsToExport")
             return
         }
 
@@ -1264,7 +1264,7 @@ final class StudioModel: ObservableObject {
             try data.write(to: url, options: .atomic)
             setStatusAndToast(.success, "status.exportedPresets", layoutPresets.count)
         } catch {
-            setStatus("status.presetExportError", error.localizedDescription)
+            setStatusAndToast(.warning, "status.presetExportError", error.localizedDescription)
         }
     }
 
@@ -1302,13 +1302,13 @@ final class StudioModel: ObservableObject {
 
             let importedCount = mergeImportedLayoutPresets(state)
             if importedCount == 0 {
-                setStatus("status.noPresetsImported")
+                setStatusAndToast(.warning, "status.noPresetsImported")
             } else {
                 setStatusAndToast(.success, "status.importedPresets", importedCount)
             }
             return importedCount
         } catch {
-            setStatus("status.presetImportError", error.localizedDescription)
+            setStatusAndToast(.warning, "status.presetImportError", error.localizedDescription)
             return nil
         }
     }
@@ -1470,7 +1470,7 @@ final class StudioModel: ObservableObject {
             if didStartAccessing {
                 url.stopAccessingSecurityScopedResource()
             }
-            setStatus("status.timelineProjectSaveError", error.localizedDescription)
+            setStatusAndToast(.warning, "status.timelineProjectSaveError", error.localizedDescription)
             return false
         }
     }
@@ -1497,7 +1497,7 @@ final class StudioModel: ObservableObject {
             if didStartAccessing {
                 url.stopAccessingSecurityScopedResource()
             }
-            setStatus("status.timelineProjectLoadError", error.localizedDescription)
+            setStatusAndToast(.warning, "status.timelineProjectLoadError", error.localizedDescription)
             studioEntryErrorMessage = localized("status.timelineProjectLoadError", error.localizedDescription)
             return false
         }
@@ -2051,7 +2051,7 @@ final class StudioModel: ObservableObject {
             metadata = loaded
             if usesCustomTimelinePreview { configureTimelinePlayer() } else { configurePlayer(url: url) }
         }
-        if reportsRelinkStatus { setStatus("status.timelineMediaRelinked", url.lastPathComponent) }
+        if reportsRelinkStatus { setStatusAndToast(.success, "status.timelineMediaRelinked", url.lastPathComponent) }
         if reportsRelinkStatus, let previous = pendingRelinkUndoSnapshots.removeValue(forKey: id) {
             registerTimelineMediaUndo(previous: previous, actionKey: "undo.timeline.relinkAsset")
         }
@@ -2102,7 +2102,7 @@ final class StudioModel: ObservableObject {
                 generation: fitLoadGeneration
             )
         }
-        if reportsRelinkStatus { setStatus("status.timelineMediaRelinked", url.lastPathComponent) }
+        if reportsRelinkStatus { setStatusAndToast(.success, "status.timelineMediaRelinked", url.lastPathComponent) }
         if reportsRelinkStatus, let previous = pendingRelinkUndoSnapshots.removeValue(forKey: id) {
             registerTimelineMediaUndo(previous: previous, actionKey: "undo.timeline.relinkAsset")
         }
@@ -2147,7 +2147,7 @@ final class StudioModel: ObservableObject {
         offlineTimelineAssetReasons[id] = Self.offlineReason(for: error, asset: timeline.asset(id: id))
         pendingRelinkUndoSnapshots.removeValue(forKey: id)
         if reportsRelinkStatus {
-            setStatus("status.timelineMediaRelinkError", displayName, error.localizedDescription)
+            setStatusAndToast(.warning, "status.timelineMediaRelinkError", displayName, error.localizedDescription)
         }
     }
 
@@ -3130,7 +3130,7 @@ final class StudioModel: ObservableObject {
             }
             applyWallClockAutoSync(force: true)
         }
-        setStatus("status.manualRecordingTimeSet", updated.displayName)
+        setStatusAndToast(.success, "status.manualRecordingTimeSet", updated.displayName)
     }
 
     func clearMediaAssetSelection() {
@@ -6654,21 +6654,21 @@ final class StudioModel: ObservableObject {
         guard allowingUnreadyWeather || !isWeatherExportConfirmationPresented else { return }
         let offlineNames = offlineAssetNamesForExport(mode: exportMode)
         if !offlineNames.isEmpty {
-            setStatus("status.timelineOfflineAssets", offlineNames.joined(separator: ", "))
+            setStatusAndToast(.warning, "status.timelineOfflineAssets", offlineNames.joined(separator: ", "))
             return
         }
         if let exportReadinessMessageKey {
-            setStatus(exportReadinessMessageKey)
+            setStatusAndToast(.warning, exportReadinessMessageKey)
             return
         }
         guard let exportSettings = validatedExportSettings else {
-            setStatus("status.checkOutputSettings")
+            setStatusAndToast(.warning, "status.checkOutputSettings")
             return
         }
         let timelineProject = currentTimelineProject
         let timelineTelemetrySeries = timelineTelemetrySeriesForExport(project: timelineProject)
         guard !timelineTelemetrySeries.isEmpty else {
-            setStatus("status.chooseFitBeforeExport")
+            setStatusAndToast(.warning, "status.chooseFitBeforeExport")
             return
         }
         if !allowingUnreadyWeather,
@@ -6702,7 +6702,7 @@ final class StudioModel: ObservableObject {
                 duration: exportSettings.duration
             )
             guard !ranges.isEmpty else {
-                setStatus("status.noClipsInExportRange")
+                setStatusAndToast(.warning, "status.noClipsInExportRange")
                 return
             }
             if ranges.count == 1, let only = ranges.first {
@@ -6954,11 +6954,13 @@ final class StudioModel: ObservableObject {
     private func setStatus(_ key: String, _ arguments: CVarArg...) {
         statusMessage = (key, arguments)
         status = AppLocalizer.string(key, language: resolvedLanguage, arguments: arguments)
+        addDebugLog(.status, status)
     }
 
     private func setStatusAndToast(_ kind: StudioToast.Kind, _ key: String, _ arguments: CVarArg...) {
         statusMessage = (key, arguments)
         status = AppLocalizer.string(key, language: resolvedLanguage, arguments: arguments)
+        addDebugLog(.status, status)
         showToast(status, kind: kind)
     }
 

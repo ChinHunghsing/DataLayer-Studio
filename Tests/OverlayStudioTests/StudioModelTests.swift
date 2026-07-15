@@ -1174,6 +1174,31 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(store.load().userExportPresets, [userPreset])
     }
 
+    func testBuiltInExportPresetNamesComeFromLocalizationOnly() {
+        for preset in ExportPreset.builtIn {
+            XCTAssertEqual(preset.localizedNameKey, "exportPreset.\(preset.id)")
+            for language in AppResolvedLanguage.allCases {
+                let localized = preset.displayName { AppLocalizer.string($0, language: language) }
+                XCTAssertFalse(localized.isEmpty)
+                // A raw key leaking through means the localization entry is missing.
+                XCTAssertFalse(localized.hasPrefix("exportPreset."), "\(language) missing \(preset.id)")
+            }
+        }
+
+        let userPreset = ExportPreset(
+            id: "custom",
+            name: "My Export",
+            resolution: .source,
+            frameRate: .source,
+            exportMode: .video,
+            codec: .hevc,
+            bitRateKbps: 24_000,
+            renderScope: .singleClip
+        )
+        XCTAssertNil(userPreset.localizedNameKey)
+        XCTAssertEqual(userPreset.displayName { _ in "unused" }, "My Export")
+    }
+
     func testSavingAndApplyingExportPresetUpdatesExistingName() {
         let model = StudioModel()
         model.exportMode = .video
@@ -1567,6 +1592,41 @@ final class StudioModelTests: XCTestCase {
 
         XCTAssertEqual(result.timelineStart, 0.2, accuracy: 0.000_1)
         XCTAssertNil(result.guideTime)
+    }
+
+    func testProjectTimelinePlayheadScrubSnapsBackToStartAfterEscapingIt() {
+        // Within the threshold the start stays excluded, so the playhead can leave its snap point.
+        XCTAssertFalse(ProjectTimelineView.playheadScrubEscapesStart(
+            rawTime: 0.2, startTime: 0, threshold: 0.25, alreadyEscaped: false
+        ))
+        // Once the pointer moves past the threshold the exclusion lifts…
+        XCTAssertTrue(ProjectTimelineView.playheadScrubEscapesStart(
+            rawTime: 0.3, startTime: 0, threshold: 0.25, alreadyEscaped: false
+        ))
+        // …and stays lifted when dragging back to the origin within the same drag.
+        XCTAssertTrue(ProjectTimelineView.playheadScrubEscapesStart(
+            rawTime: 0.1, startTime: 0, threshold: 0.25, alreadyEscaped: true
+        ))
+        XCTAssertFalse(ProjectTimelineView.playheadScrubEscapesStart(
+            rawTime: .nan, startTime: 0, threshold: 0.25, alreadyEscaped: false
+        ))
+
+        // With the exclusion lifted, the origin snaps again on the way back.
+        let project = TimelineProject(
+            outputWidth: 1_920,
+            outputHeight: 1_080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            tracks: []
+        )
+        let returnSnap = ProjectTimelineView.playheadSnapResult(
+            project: project,
+            proposedTime: 0.2,
+            threshold: 0.25,
+            excludingTime: nil
+        )
+        XCTAssertEqual(returnSnap.timelineStart, 0, accuracy: 0.000_1)
+        XCTAssertEqual(returnSnap.source, .timelineStart)
     }
 
     func testTimelineClipInspectorFormatsTimingForHumans() {

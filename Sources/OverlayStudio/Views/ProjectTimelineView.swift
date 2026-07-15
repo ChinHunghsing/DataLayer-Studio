@@ -45,6 +45,7 @@ struct ProjectTimelineView: View {
     @State private var dragTimelineDuration: TimeInterval?
     @State private var dragVerticalOffset: CGFloat = 0
     @State private var playheadScrubStartTime: TimeInterval?
+    @State private var playheadScrubHasEscapedStart = false
     @State private var snapGuideTime: TimeInterval?
     @State private var snapGuideSource: TimelineSnapSource?
     @State private var optionFineTuneClipID: String?
@@ -205,12 +206,22 @@ struct ProjectTimelineView: View {
                             if value.startLocation.y < rulerHeight {
                                 let startTime = playheadScrubStartTime ?? model.previewTime
                                 playheadScrubStartTime = startTime
+                                playheadScrubHasEscapedStart = Self.playheadScrubEscapesStart(
+                                    rawTime: Self.scrubTime(
+                                        laneLocationX: value.location.x,
+                                        laneWidth: laneWidth,
+                                        duration: duration
+                                    ),
+                                    startTime: startTime,
+                                    threshold: snapThreshold(laneWidth: laneWidth, duration: duration),
+                                    alreadyEscaped: playheadScrubHasEscapedStart
+                                )
                                 scrubPlayheadWithSnap(
                                     toLaneLocationX: value.location.x,
                                     project: project,
                                     laneWidth: laneWidth,
                                     duration: duration,
-                                    excludingTime: startTime,
+                                    excludingTime: playheadScrubHasEscapedStart ? nil : startTime,
                                     showsGuide: true
                                 )
                             } else {
@@ -227,6 +238,7 @@ struct ProjectTimelineView: View {
                             defer {
                                 finishMarqueeSelection()
                                 playheadScrubStartTime = nil
+                                playheadScrubHasEscapedStart = false
                             }
                             snapGuideTime = nil
                             snapGuideSource = nil
@@ -242,7 +254,9 @@ struct ProjectTimelineView: View {
                                 project: project,
                                 laneWidth: laneWidth,
                                 duration: duration,
-                                excludingTime: playheadScrubStartTime ?? model.previewTime,
+                                excludingTime: playheadScrubHasEscapedStart
+                                    ? nil
+                                    : playheadScrubStartTime ?? model.previewTime,
                                 showsGuide: true
                             )
                         }
@@ -331,6 +345,27 @@ struct ProjectTimelineView: View {
         return Double(progress) * duration
     }
 
+    /// The drag-start exclusion exists so a playhead parked on a snap point can be dragged
+    /// away without sticking. It must lift as soon as the pointer has left the start point
+    /// once, otherwise dragging back to the origin never snaps within the same drag.
+    static func playheadScrubEscapesStart(
+        rawTime: TimeInterval,
+        startTime: TimeInterval,
+        threshold: TimeInterval,
+        alreadyEscaped: Bool
+    ) -> Bool {
+        if alreadyEscaped { return true }
+        guard rawTime.isFinite, startTime.isFinite, threshold.isFinite else { return false }
+        return abs(rawTime - startTime) > threshold
+    }
+
+    /// Shared magnet threshold for playhead scrubs, clip moves and trims: 6 lane points
+    /// expressed in timeline seconds, or 0 when snapping is off or the lane has no geometry.
+    private func snapThreshold(laneWidth: CGFloat, duration: TimeInterval) -> TimeInterval {
+        guard isSnappingEnabled, laneWidth > 0, duration > 0 else { return 0 }
+        return Double(6 / laneWidth) * duration
+    }
+
     /// Playhead scrubbing snaps to the same clip-edge / timeline-start candidates that clip
     /// dragging uses, so click-to-seek and ruler drags land exactly on edit points.
     static func playheadSnapResult(
@@ -363,11 +398,12 @@ struct ProjectTimelineView: View {
             duration: duration
         )
         var snappedTime = rawTime
-        if isSnappingEnabled, laneWidth > 0, duration > 0 {
+        let threshold = snapThreshold(laneWidth: laneWidth, duration: duration)
+        if threshold > 0 {
             let snap = Self.playheadSnapResult(
                 project: project,
                 proposedTime: rawTime,
-                threshold: Double(6 / laneWidth) * duration,
+                threshold: threshold,
                 excludingTime: excludingTime
             )
             snappedTime = min(duration, snap.timelineStart)
@@ -1135,7 +1171,7 @@ struct ProjectTimelineView: View {
                 }
                 let base = clipTrimBaseTime ?? (isStart ? clip.timelineStart : clip.timelineEnd)
                 let deltaT = Double(value.translation.width / laneWidth) * duration
-                let threshold = isSnappingEnabled ? Double(6 / laneWidth) * duration : 0
+                let threshold = snapThreshold(laneWidth: laneWidth, duration: duration)
                 let snapResult = Self.trimSnapResult(
                     project: project,
                     proposedTime: base + deltaT,
@@ -1201,7 +1237,7 @@ struct ProjectTimelineView: View {
                 } else {
                     let gestureDuration = dragTimelineDuration ?? duration
                     let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
-                    let snap = isSnappingEnabled ? Double(6 / laneWidth) * gestureDuration : 0
+                    let snap = snapThreshold(laneWidth: laneWidth, duration: gestureDuration)
                     let snapResult = Self.moveSnapResult(
                         project: project,
                         proposedStart: base + deltaT,
@@ -1239,7 +1275,7 @@ struct ProjectTimelineView: View {
                     } else {
                         let gestureDuration = dragTimelineDuration ?? duration
                         let deltaT = Double(value.translation.width / laneWidth) * gestureDuration
-                        let snap = isSnappingEnabled ? Double(6 / laneWidth) * gestureDuration : 0
+                        let snap = snapThreshold(laneWidth: laneWidth, duration: gestureDuration)
                         finalStart = Self.moveSnapResult(
                             project: project,
                             proposedStart: base + deltaT,

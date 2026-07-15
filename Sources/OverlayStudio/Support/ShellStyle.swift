@@ -12,14 +12,6 @@ enum ShellStyle {
     static let spacing6: CGFloat = 24
     static let spacing8: CGFloat = 32
 
-    // 四级字号
-    static let fontXS: CGFloat = 11
-    static let fontSmall: CGFloat = 12
-    static let fontBody: CGFloat = 13
-    static let fontTitle: CGFloat = 15
-
-    // 三级表面
-    static let panelFill = Color(nsColor: .windowBackgroundColor)
     /// 抬升卡片填充：浅色下近白、深色下比面板明显亮一档，跨主题都能从 `.bar` 面板上浮起来。
     static let cardFill = Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua

@@ -6,6 +6,7 @@ enum DebugLogCategory: String, CaseIterable, Identifiable {
     case weather
     case preview
     case export
+    case status
 
     var id: String { rawValue }
 
@@ -116,10 +117,18 @@ struct ExportPreset: Codable, Equatable, Identifiable {
 
     var isBuiltIn: Bool { id.hasPrefix(Self.builtInPrefix) }
 
+    /// Built-in presets carry no free-form name: their display name always comes from the
+    /// `exportPreset.builtin.*` localization table, so the two sources can't drift apart.
+    var localizedNameKey: String? { isBuiltIn ? "exportPreset.\(id)" : nil }
+
+    func displayName(localize: (String) -> String) -> String {
+        localizedNameKey.map(localize) ?? name
+    }
+
     static let builtIn: [ExportPreset] = [
         ExportPreset(
             id: "\(builtInPrefix)overlay-prores-4444",
-            name: "Transparent Overlay · ProRes 4444",
+            name: "",
             resolution: .source,
             frameRate: .source,
             exportMode: .overlay,
@@ -129,7 +138,7 @@ struct ExportPreset: Codable, Equatable, Identifiable {
         ),
         ExportPreset(
             id: "\(builtInPrefix)overlay-hevc-alpha",
-            name: "Transparent Overlay · HEVC",
+            name: "",
             resolution: .source,
             frameRate: .source,
             exportMode: .overlay,
@@ -139,7 +148,7 @@ struct ExportPreset: Codable, Equatable, Identifiable {
         ),
         ExportPreset(
             id: "\(builtInPrefix)video-4k-hevc",
-            name: "Composited Video · 4K HEVC",
+            name: "",
             resolution: .fixed(width: 3_840, height: 2_160),
             frameRate: .source,
             exportMode: .video,
@@ -149,7 +158,7 @@ struct ExportPreset: Codable, Equatable, Identifiable {
         ),
         ExportPreset(
             id: "\(builtInPrefix)video-1080p-h264",
-            name: "Composited Video · 1080p H.264",
+            name: "",
             resolution: .fixed(width: 1_920, height: 1_080),
             frameRate: .source,
             exportMode: .video,
@@ -159,7 +168,7 @@ struct ExportPreset: Codable, Equatable, Identifiable {
         ),
         ExportPreset(
             id: "\(builtInPrefix)video-vertical-4k-hevc",
-            name: "Vertical Video · 4K HEVC",
+            name: "",
             resolution: .fixed(width: 2_160, height: 3_840),
             frameRate: .source,
             exportMode: .video,

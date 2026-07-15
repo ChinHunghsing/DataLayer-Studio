@@ -134,11 +134,11 @@ struct OutputPanelView: View {
                 forceCustomResolution = false
                 model.applyExportPreset(id: id)
                 lockCurrentAspectRatio()
-                let name = preset.isBuiltIn
-                    ? localization.string("exportPreset.\(preset.id)")
-                    : preset.name
                 model.showToast(
-                    localization.string("status.appliedExportPreset", name),
+                    localization.string(
+                        "status.appliedExportPreset",
+                        preset.displayName { localization.string($0) }
+                    ),
                     kind: .success
                 )
             }
@@ -178,7 +178,7 @@ struct OutputPanelView: View {
 
     private func presetRow(_ preset: ExportPreset) -> some View {
         Label(
-            preset.isBuiltIn ? localization.string("exportPreset.\(preset.id)") : preset.name,
+            preset.displayName { localization.string($0) },
             systemImage: preset.exportMode == .overlay ? "square.on.square" : "film"
         )
         .lineLimit(1)
