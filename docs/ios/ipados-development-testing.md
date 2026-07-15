@@ -5,7 +5,7 @@
 | 状态 | 本地开发备忘（随实施持续更新） |
 | 日期 | 2026-07-06 |
 | 适用范围 | `OverlayTouch`、`OverlayTouchHost` 模拟器壳、真机临时 Xcode 壳、签名与安装启动验证 |
-| 关联文档 | `docs/ipad-product-design.md`（产品现状）、`docs/ipad-technical-design.md`（架构现状） |
+| 关联文档 | `docs/ios/ipad-product-design.md`（产品现状）、`docs/ios/ipad-technical-design.md`（架构现状） |
 
 ## 0. 原则
 

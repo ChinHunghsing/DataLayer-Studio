@@ -4,10 +4,10 @@
 | --- | --- |
 | 状态 | **实施中**（本文描述已落地架构与剩余技术工作，由 2026-07-04 提案版重写；订阅导出门已接入） |
 | 日期 | 2026-07-06 |
-| 适用平台 | iPadOS（与 iPhone 共用同一 iOS App target；iPhone 差异见 `docs/iphone-technical-design.md`） |
+| 适用平台 | iPadOS（与 iPhone 共用同一 iOS App target；iPhone 差异见 `docs/ios/iphone-technical-design.md`） |
 | 最低系统版本 | iOS / iPadOS 26（`Package.swift` 已声明 `.iOS("26.0")`；macOS 维持 13） |
 | 对应提交 | `4220ee2`、`7ff081b`、`f5aa6d4`（main） |
-| 关联文档 | `docs/ipad-product-design.md`、`docs/ipados-development-testing.md` |
+| 关联文档 | `docs/ios/ipad-product-design.md`、`docs/ios/ipados-development-testing.md` |
 
 ## 0. 现状摘要
 

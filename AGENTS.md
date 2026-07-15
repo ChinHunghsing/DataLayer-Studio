@@ -10,7 +10,7 @@
 - 修改会影响本地 App 可见行为时，完成后运行 `scripts/build_app_bundle.sh`。
 - 支持 iOS、iPadOS 或任何其他平台时，必须保证 macOS 端既有功能、视觉表现、导出结果和构建/发布流程不回退；改共享层或平台条件编译后，至少跑 macOS 相关测试与 `scripts/build_app_bundle.sh`，必要时补充预览/渲染/导出对比验证。
 - 移动端界面默认方向：iPadOS 按横屏优先开发与验收，iPhone 按竖屏优先开发与验收；除非用户明确要求，不要反过来设默认布局。
-- iPadOS 开发与真机测试流程见 `docs/ipados-development-testing.md`；涉及真机签名、临时 Xcode 壳、`assets/resourses/` 本地素材时按该文档执行，不提交临时工程、设备素材或签名文件。
+- iPadOS 开发与真机测试流程见 `docs/ios/ipados-development-testing.md`；涉及真机签名、临时 Xcode 壳、`assets/resourses/` 本地素材时按该文档执行，不提交临时工程、设备素材或签名文件。
 - 涉及 App Store Connect、TestFlight、审核、元数据、构建上传时，优先加载 `app-store-connect` skill 并使用已安装的 `asc`/脚本，不默认走网页手工流程。
 - 发内部 TestFlight 时不要对内部组调用 `asc builds add-groups`；该接口只适合外部组。用 `asc builds build-beta-detail view` 确认 `Internal State = IN_BETA_TESTING` 即完成。
 - App Store / TestFlight 构建号使用 `yyyyMMddNN`，例如 `2026062601`。
@@ -33,9 +33,9 @@
 - `Sources/OverlayStudio/`：macOS SwiftUI 图形界面；`Views/` 放界面，`Models/` 放状态模型，`Services/` 放外部服务，`Stores/` 放持久化，`Support/` 放本地化和辅助代码。
 - `Sources/OverlayStudioKit/`：平台中立共享层（禁止 import AppKit/UIKit），macOS 与 iOS 共用。
 - `Sources/OverlayTouch/`：iPadOS/iOS 界面层；iOS 专属代码用 `#if os(iOS)` 门控，macOS 构建必须始终通过；新增文案走 `TouchLocalization.swift` 四语言字典。
-- `Sources/OverlayTouchHost/`：iOS 模拟器调试 App 壳（SwiftPM executable）；配套脚本 `scripts/build_touch_sim_app.sh`，流程见 `docs/ipados-development-testing.md`。
+- `Sources/OverlayTouchHost/`：iOS 模拟器调试 App 壳（SwiftPM executable）；配套脚本 `scripts/build_touch_sim_app.sh`，流程见 `docs/ios/ipados-development-testing.md`。
 - `Sources/overlay/`：命令行入口。
-- `App/`：iOS 正式壳工程 `DataLayerStudioMobile.xcodeproj`（bundle id `run.libo.datalayer-studio.mobile`，独立 App record；entitlements 与 `.storekit` 订阅配置在 `App/DataLayerStudioMobile/`）；商业模式与红线见 `docs/mobile-subscription-design.md`。
+- `App/`：iOS 正式壳工程 `DataLayerStudioMobile.xcodeproj`（bundle id `run.libo.datalayer-studio.mobile`，独立 App record；entitlements 与 `.storekit` 订阅配置在 `App/DataLayerStudioMobile/`）；商业模式与红线见 `docs/ios/mobile-subscription-design.md`。
 - `Tests/OverlayCoreTests/`：核心逻辑、渲染、视频写出测试。
 - `Tests/OverlayStudioTests/`：界面模型、设置、服务、本地化测试。
 - `Tests/OverlayCLITests/`：命令行参数和布局预设测试。
@@ -43,7 +43,7 @@
 - `Resources/`：App 资源和权限配置。
 - `assets/`：README、营销图、App Store 图片和赞助图片。
 - `assets/resourses/`：本地验证素材目录，已被 `.gitignore` 忽略；可放一组视频与配套 FIT，当前这组 FIT 的开表时间是视频开始后第 49 秒。此目录只用于本机调试，不提交到 Git。
-- `docs/`：产品、技术和本地开发测试文档；iPadOS 真机流程见 `docs/ipados-development-testing.md`。
+- `docs/`：产品、技术和本地开发测试文档；iPadOS 真机流程见 `docs/ios/ipados-development-testing.md`。
 - `scripts/`：本地 app bundle 构建、签名、公证、校验脚本。
 - `.github/`：CI、issue 模板、PR 模板。
 
@@ -65,7 +65,7 @@
 - 改导出、透明通道、合成视频：至少跑 `TransparentVideoWriterTests`、`CompositedVideoWriterTests`、`OverlayRendererTests`。
 - 改 UI 状态、导出设置、预设、天气：至少跑相关 `OverlayStudioTests`。
 - 改 CLI 参数：跑 `OverlayCLITests`。
-- 改 `OverlayTouch`：跑 `OverlayTouchTests`，并按 `docs/ipados-development-testing.md` 跑一次 iPhoneOS/模拟器编译；改到共享层还要跑 macOS 回归。
+- 改 `OverlayTouch`：跑 `OverlayTouchTests`，并按 `docs/ios/ipados-development-testing.md` 跑一次 iPhoneOS/模拟器编译；改到共享层还要跑 macOS 回归。
 
 ## 代码风格
 

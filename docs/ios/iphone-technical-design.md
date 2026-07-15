@@ -6,12 +6,12 @@
 | 日期 | 2026-07-06 |
 | 适用平台 | iOS / iPhone（与 iPad 共用同一 iOS App target） |
 | 最低系统版本 | iOS 26（已定，`Package.swift` 已声明 `.iOS("26.0")`；设备下限 iPhone 11 / SE 第 2 代，A13） |
-| 商业模式 | 已定（2026-07-07）：iOS 免费下载 + 订阅（与 iPad 同一 App 同一订阅），macOS 保持买断；方案见 `docs/mobile-subscription-design.md` |
-| 关联文档 | `docs/iphone-product-design.md`、`docs/ipad-technical-design.md`（共享架构以该文档为准，本文只展开 iPhone 特有部分） |
+| 商业模式 | 已定（2026-07-07）：iOS 免费下载 + 订阅（与 iPad 同一 App 同一订阅），macOS 保持买断；方案见 `docs/ios/mobile-subscription-design.md` |
+| 关联文档 | `docs/ios/iphone-product-design.md`、`docs/ios/ipad-technical-design.md`（共享架构以该文档为准，本文只展开 iPhone 特有部分） |
 
 ## 0. 结论摘要
 
-- 可行性已被 iPad 版实施证实：核心引擎 100% 复用，iPad 编辑器与平台中立会话模型 `TouchStudioModel` 已落在 `Sources/OverlayTouch`（现状架构、文件访问、iCloud 预设同步、导出生命周期、发布前置项见 `docs/ipad-technical-design.md`，本文不重复）。
+- 可行性已被 iPad 版实施证实：核心引擎 100% 复用，iPad 编辑器与平台中立会话模型 `TouchStudioModel` 已落在 `Sources/OverlayTouch`（现状架构、文件访问、iCloud 预设同步、导出生命周期、发布前置项见 `docs/ios/ipad-technical-design.md`，本文不重复）。
 - **已定决策（2026-07-06）：iOS App（iPad 与 iPhone）只导出合成成片（HEVC/H.264），不提供透明浮层导出**；`TouchStudioModel.exportMode` 已是常量 `.video`，iPhone 形态直接继承。
 - iPhone 特有的技术工作集中在五处：**相册直读管线**（PHAsset → AVAsset，避免大视频落盘拷贝）、**自动对齐**（视频创建时间 × FIT 绝对时间，新共享能力）、**compact 界面层**（sheet 化检查器与竖屏画布手势）、**更严格的导出生命周期**（热/电/锁屏 + 可选 Live Activity）、**内置竖版模板资产管线**。
 - 硬阻塞项：无。最大的不确定性是自动对齐依赖的视频时间元数据质量（§3.2），需真实素材库验证并设计兜底。

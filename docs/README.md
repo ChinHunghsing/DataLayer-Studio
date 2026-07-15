@@ -11,15 +11,12 @@
 - [user-guide-zh-CN.md](user-guide-zh-CN.md) — 功能说明与完整使用手册（适用 0.3.x 界面）。
 - [quick-export-guide-zh-CN.md](quick-export-guide-zh-CN.md) — 快速上手：导出第一条数据浮层。
 
-### 开发流程
+### iOS / iPadOS（ios/）
 
-- [ipados-development-testing.md](ipados-development-testing.md) — iPadOS 开发与真机测试流程（`AGENTS.md` 引用，改移动端前必读）。
-
-### 移动端设计（实施中 / 提案）
-
-- [mobile-subscription-design.md](mobile-subscription-design.md) — 移动端商业模式与订阅红线（`AGENTS.md` 引用）。
-- [ipad-product-design.md](ipad-product-design.md) / [ipad-technical-design.md](ipad-technical-design.md) — iPad 版产品与技术设计（v1 已合入 main，实施中）。
-- [iphone-product-design.md](iphone-product-design.md) / [iphone-technical-design.md](iphone-technical-design.md) — iPhone 版产品与技术设计（提案，未开工）。
+- [ios/ipados-development-testing.md](ios/ipados-development-testing.md) — iPadOS 开发与真机测试流程（`AGENTS.md` 引用，改移动端前必读）。
+- [ios/mobile-subscription-design.md](ios/mobile-subscription-design.md) — 移动端商业模式与订阅红线（`AGENTS.md` 引用）。
+- [ios/ipad-product-design.md](ios/ipad-product-design.md) / [ios/ipad-technical-design.md](ios/ipad-technical-design.md) — iPad 版产品与技术设计（v1 已合入 main，实施中）。
+- [ios/iphone-product-design.md](ios/iphone-product-design.md) / [ios/iphone-technical-design.md](ios/iphone-technical-design.md) — iPhone 版产品与技术设计（提案，未开工）。
 
 ### 算法专题（描述现行实现）
 
@@ -28,7 +25,7 @@
 
 ### 本地文件（不入库）
 
-- `ios-handover.md` — 本地交接笔记，已被 `.gitignore` 忽略，只存在于开发机。
+- `ios/ios-handover.md` — 本地交接笔记，已被 `.gitignore` 忽略，只存在于开发机。
 
 ## 归档（archive/）
 

@@ -70,7 +70,7 @@ assets/resourses/
 # Private Docs
 DataLayer-Studio-handoff.md
 DataLayer-Studio-UX-Review.md
-docs/ios-handover.md
+docs/ios/ios-handover.md
 
 # Local purchase notification webhook deployment.
 cloudflare/app-store-webhook/

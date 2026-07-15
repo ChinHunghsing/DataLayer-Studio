@@ -6,7 +6,7 @@
 | 日期 | 2026-07-07 |
 | 适用平台 | iOS / iPadOS（iPad 与 iPhone 为同一 iOS App）；macOS 版**完全不动** |
 | 已定参数 | 月付 **$1.99**；年付 **$19.99**（≈10 个月价）；新用户免费试用 7 天；Mac 买断用户送 3 个月订阅码（发码 v1 人工渠道）；Family Sharing 不开启；iOS bundle id `run.libo.datalayer-studio.mobile`；免费层 = 编辑/预览全免费、导出需订阅；macOS 维持买断不动 |
-| 关联文档 | `docs/ipad-product-design.md`、`docs/ipad-technical-design.md`、`docs/iphone-product-design.md` |
+| 关联文档 | `docs/ios/ipad-product-design.md`、`docs/ios/ipad-technical-design.md`、`docs/ios/iphone-product-design.md` |
 
 ## 0. 结论摘要
 
@@ -200,8 +200,8 @@ App Store Server Notifications V2 订阅事件（`SUBSCRIBED` / `DID_RENEW` / `E
 
 ## 6. 采纳后需同步修订的文档
 
-- `docs/ipad-product-design.md` / `docs/ipad-technical-design.md`：已同步 S2 代码落地状态；S3 完成后继续回填 ASC/沙盒验收结果。
-- `docs/iphone-product-design.md` / `docs/iphone-technical-design.md`：头表商业模式行、§10/§9 商业化段。
+- `docs/ios/ipad-product-design.md` / `docs/ios/ipad-technical-design.md`：已同步 S2 代码落地状态；S3 完成后继续回填 ASC/沙盒验收结果。
+- `docs/ios/iphone-product-design.md` / `docs/ios/iphone-technical-design.md`：头表商业模式行、§10/§9 商业化段。
 - `AGENTS.md`：iOS 的 ASC 流程补充（新 App record id、platform IOS、订阅 SKU 约定）——待 S3 配置完成后回填实际 id。
 - 落地页与 README 的「一次购买三端使用」表述。
 

@@ -6,9 +6,9 @@
 | 日期 | 2026-07-06（由 2026-07-04 提案版重写） |
 | 适用平台 | iPadOS（与 iPhone 版共用同一 iOS App，本文只覆盖 iPad 形态） |
 | 最低系统版本 | iPadOS 26（已定；macOS 版维持 13 不变） |
-| 商业模式 | 已定（2026-07-07）：iOS 免费下载 + 订阅（月 $1.99 / 年 $19.99，7 天免费试用，导出需订阅）；macOS 保持买断；详见 `docs/mobile-subscription-design.md` |
+| 商业模式 | 已定（2026-07-07）：iOS 免费下载 + 订阅（月 $1.99 / 年 $19.99，7 天免费试用，导出需订阅）；macOS 保持买断；详见 `docs/ios/mobile-subscription-design.md` |
 | 对应提交 | `4220ee2` 新增 iPadOS 编辑器首个可用版本、`7ff081b` 收口 iPad 版合成导出流程、`f5aa6d4` 接入订阅导出门 |
-| 关联文档 | `docs/ipad-technical-design.md`、`docs/iphone-product-design.md`、`docs/ipados-development-testing.md` |
+| 关联文档 | `docs/ios/ipad-technical-design.md`、`docs/ios/iphone-product-design.md`、`docs/ios/ipados-development-testing.md` |
 
 ## 0. 现状摘要
 
