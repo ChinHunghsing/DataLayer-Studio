@@ -82,12 +82,7 @@ enum OpenWeatherKeyStore {
     }
 }
 
-struct OpenWeatherRecord: Codable, Equatable {
-    var timestamp: Date
-    var temperatureCelsius: Int?
-    var humidityPercent: Int?
-    var summary: String?
-}
+typealias OpenWeatherRecord = TimelineWeatherRecord
 
 final class OpenWeatherService {
     typealias DataLoader = (URL) async throws -> Data
@@ -111,11 +106,11 @@ final class OpenWeatherService {
         apiKey: String,
         language: String,
         forceRefresh: Bool = false
-    ) async throws -> TelemetrySeries {
+    ) async throws -> (series: TelemetrySeries, records: [OpenWeatherRecord]) {
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedKey.isEmpty,
               let anchor = Self.anchor(in: series) else {
-            return series
+            return (series, [])
         }
 
         let records = try await weatherRecords(
@@ -127,7 +122,7 @@ final class OpenWeatherService {
             language: language,
             forceRefresh: forceRefresh
         )
-        return Self.series(series, applying: records)
+        return (Self.series(series, applying: records), records)
     }
 
     private func weatherRecords(

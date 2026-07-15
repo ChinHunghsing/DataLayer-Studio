@@ -79,9 +79,9 @@ final class OpenWeatherServiceTests: XCTestCase {
         _ = try await service.enrichedSeries(series, apiKey: "test-key", language: "en", forceRefresh: true)
 
         XCTAssertEqual(loadCount, 2)
-        XCTAssertEqual(first.samples.first?.weatherTemperatureCelsius, 22)
-        XCTAssertEqual(second.samples.first?.weatherHumidityPercent, 58)
-        XCTAssertEqual(second.samples.first?.weatherSummary, "Clear")
+        XCTAssertEqual(first.series.samples.first?.weatherTemperatureCelsius, 22)
+        XCTAssertEqual(second.series.samples.first?.weatherHumidityPercent, 58)
+        XCTAssertEqual(second.series.samples.first?.weatherSummary, "Clear")
     }
 
     func testUnauthorizedOpenWeatherErrorExplainsOneCallAccess() {
@@ -114,8 +114,8 @@ final class OpenWeatherServiceTests: XCTestCase {
         let english = try await service.enrichedSeries(series, apiKey: "test-key", language: "en")
         let chinese = try await service.enrichedSeries(series, apiKey: "test-key", language: "zh_cn")
 
-        XCTAssertEqual(english.samples.first?.weatherSummary, "Clouds")
-        XCTAssertEqual(chinese.samples.first?.weatherSummary, "多云")
+        XCTAssertEqual(english.series.samples.first?.weatherSummary, "Clouds")
+        XCTAssertEqual(chinese.series.samples.first?.weatherSummary, "多云")
     }
 
     func testWeatherFetchesPreviousPageWhenFirstPageStartsAfterActivity() async throws {
@@ -147,9 +147,9 @@ final class OpenWeatherServiceTests: XCTestCase {
         let enriched = try await service.enrichedSeries(series, apiKey: "test-key", language: "en")
 
         XCTAssertEqual(starts.count, 2)
-        XCTAssertEqual(enriched.samples.first?.weatherTemperatureCelsius, 24)
-        XCTAssertEqual(enriched.samples.first?.weatherHumidityPercent, 70)
-        XCTAssertEqual(enriched.samples.first?.weatherSummary, "Rain")
+        XCTAssertEqual(enriched.series.samples.first?.weatherTemperatureCelsius, 24)
+        XCTAssertEqual(enriched.series.samples.first?.weatherHumidityPercent, 70)
+        XCTAssertEqual(enriched.series.samples.first?.weatherSummary, "Rain")
     }
 
     func testWeatherUsesNearestRecordAcrossRecentTimelineGap() {

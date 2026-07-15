@@ -814,6 +814,67 @@ final class StudioModelTests: XCTestCase {
         let exportSeries = model.timelineTelemetrySeriesForExport(project: model.currentTimelineProject)
         XCTAssertEqual(exportSeries[activityURL.path]?.samples.first?.weatherTemperatureCelsius, 22)
         XCTAssertEqual(exportSeries[activityURL.path]?.samples.last?.weatherTemperatureCelsius, 22)
+        let saved = try JSONDecoder().decode(TimelineProject.self, from: model.timelineProjectJSONData())
+        XCTAssertEqual(saved.assets.first?.weatherRecords?.first?.temperatureCelsius, 22)
+        XCTAssertEqual(saved.assets.first?.weatherRecords?.first?.humidityPercent, 58)
+        XCTAssertEqual(saved.assets.first?.weatherRecords?.first?.summary, "Clear")
+    }
+
+    func testOpeningProjectAppliesEmbeddedWeatherBeforeAnyPlaybackOrScrub() async throws {
+        let activityURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("embedded-weather-\(UUID().uuidString).gpx")
+        defer { try? FileManager.default.removeItem(at: activityURL) }
+        try Data("""
+        <gpx version="1.1" creator="DataLayer Studio" xmlns="http://www.topografix.com/GPX/1/1">
+          <trk><trkseg>
+            <trkpt lat="35.0" lon="139.0"><time>2026-07-10T00:00:00Z</time></trkpt>
+            <trkpt lat="35.0001" lon="139.0001"><time>2026-07-10T00:00:03Z</time></trkpt>
+          </trkseg></trk>
+        </gpx>
+        """.utf8).write(to: activityURL)
+        let timestamp = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-10T00:00:00Z"))
+        let asset = MediaAsset(
+            id: activityURL.path,
+            kind: .activity,
+            url: activityURL,
+            displayName: activityURL.lastPathComponent,
+            duration: 3,
+            weatherRecords: [
+                TimelineWeatherRecord(
+                    timestamp: timestamp,
+                    temperatureCelsius: 22,
+                    humidityPercent: 58,
+                    summary: "Clear"
+                )
+            ]
+        )
+        let project = TimelineProject(
+            outputWidth: 1920,
+            outputHeight: 1080,
+            framesPerSecond: 30,
+            distanceUnit: .kilometers,
+            assets: [asset],
+            tracks: [
+                TimelineTrack(
+                    id: "overlay",
+                    kind: .overlay,
+                    name: "O1",
+                    clips: [TimelineClip(id: "activity", assetID: asset.id, timelineStart: 0, duration: 3)]
+                )
+            ]
+        )
+        let model = StudioModel(openWeatherService: OpenWeatherService { _ in
+            XCTFail("Embedded weather must not call the API")
+            return Data()
+        })
+
+        model.applyTimelineProject(project, loadAssets: true)
+        try await waitUntil { model.series != nil }
+
+        XCTAssertEqual(model.previewTime, 0, accuracy: 1e-9)
+        XCTAssertEqual(model.series?.samples.first?.weatherTemperatureCelsius, 22)
+        XCTAssertEqual(model.series?.samples.first?.weatherHumidityPercent, 58)
+        XCTAssertEqual(model.series?.samples.first?.weatherSummary, "Clear")
     }
 
     func testClearingOneManualWeatherValueLoadsItsAPIFallbackAndKeepsOtherManualValue() async throws {

@@ -57,6 +57,7 @@ struct ProjectTimelineView: View {
     @State private var renamingTrackID: String?
     @State private var trackNameDraft = ""
     @State private var hoveredTrackID: String?
+    @State private var hoveredGapID: String?
     @State private var marqueeSelectionRect: CGRect?
     @State private var marqueeBaseClipIDs: Set<String> = []
     @FocusState private var isTimelineFocused: Bool
@@ -676,6 +677,9 @@ struct ProjectTimelineView: View {
 
     private func trackLane(_ track: TimelineTrack, project: TimelineProject, duration: TimeInterval, laneWidth: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
+            ForEach(track.gaps) { gap in
+                gapView(gap, isLocked: track.isLocked, duration: duration, laneWidth: laneWidth)
+            }
             ForEach(track.clips) { clip in
                 clipView(
                     clip,
@@ -707,6 +711,64 @@ struct ProjectTimelineView: View {
         .opacity(track.isEnabled ? 1 : 0.42)
         .zIndex(track.clips.contains { dragClipIDs.contains($0.id) } ? 1 : 0)
         .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private func gapView(
+        _ gap: TimelineGap,
+        isLocked: Bool,
+        duration: TimeInterval,
+        laneWidth: CGFloat
+    ) -> some View {
+        let x = CGFloat(gap.timelineStart / duration) * laneWidth
+        let width = max(1, CGFloat(gap.duration / duration) * laneWidth)
+        let isSelected = model.selectedTimelineGap == gap
+        let isHovered = hoveredGapID == gap.id
+
+        return RoundedRectangle(cornerRadius: 4)
+            .fill(
+                isSelected
+                    ? Color.accentColor.opacity(0.20)
+                    : (isHovered ? Color.secondary.opacity(0.10) : Color.white.opacity(0.001))
+            )
+            .overlay {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(Color.accentColor, lineWidth: 1.5)
+                }
+            }
+            .frame(width: width, height: trackHeight - 12)
+            .offset(x: x, y: 6)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                focusTimelineKeyboardCommands()
+                model.selectTimelineGap(gap)
+            }
+            .onHover { hovering in
+                hoveredGapID = hovering ? gap.id : (hoveredGapID == gap.id ? nil : hoveredGapID)
+            }
+            .contextMenu {
+                Button(localization.string("menu.deleteTimelineGap")) {
+                    model.selectTimelineGap(gap)
+                    model.deleteSelectedTimelineGap()
+                }
+                .disabled(isLocked)
+
+                Divider()
+
+                Button(localization.string("menu.pasteTimelineClips")) {
+                    model.pasteTimelineClips(at: gap.timelineStart)
+                }
+                .disabled(!model.canPasteTimelineClips)
+
+                Button(localization.string("menu.pasteInsertTimelineClips")) {
+                    model.pasteInsertTimelineClips(at: gap.timelineStart)
+                }
+                .disabled(!model.canPasteTimelineClips)
+            }
+            .help(localization.string("timeline.gap.help"))
+            .accessibilityLabel(localization.string("timeline.gap.help"))
+            .accessibilityValue("\(timecode(gap.timelineStart)) – \(timecode(gap.timelineEnd))")
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder

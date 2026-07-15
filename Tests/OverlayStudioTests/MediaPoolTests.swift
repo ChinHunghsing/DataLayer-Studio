@@ -1695,6 +1695,102 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertFalse(restored.hasUnsavedTimelineChanges)
     }
 
+    func testTimelineProjectPersistsAndRestoresPreviewTime() throws {
+        let model = StudioModel()
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1920,
+                outputHeight: 1080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                tracks: [
+                    TimelineTrack(
+                        id: "video",
+                        kind: .video,
+                        name: "V1",
+                        clips: [TimelineClip(id: "clip", assetID: "video", timelineStart: 0, duration: 90)]
+                    )
+                ]
+            ),
+            loadAssets: false
+        )
+        model.previewTime = 42.5
+
+        let data = try model.timelineProjectJSONData()
+        let saved = try JSONDecoder().decode(TimelineProject.self, from: data)
+        XCTAssertEqual(saved.previewTime, 42.5)
+
+        let restored = StudioModel()
+        try restored.loadTimelineProject(from: data, loadAssets: false)
+        XCTAssertEqual(restored.previewTime, 42.5, accuracy: 1e-9)
+    }
+
+    func testClosingCleanSavedProjectPersistsLatestPreviewTime() throws {
+        let projectURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("preview-time-\(UUID().uuidString).dlsproject")
+        defer { try? FileManager.default.removeItem(at: projectURL) }
+        let model = StudioModel()
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1920,
+                outputHeight: 1080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                tracks: [
+                    TimelineTrack(
+                        id: "video",
+                        kind: .video,
+                        name: "V1",
+                        clips: [TimelineClip(id: "clip", assetID: "video", timelineStart: 0, duration: 90)]
+                    )
+                ]
+            ),
+            loadAssets: false
+        )
+        XCTAssertTrue(model.saveTimelineProject(to: projectURL))
+        model.previewTime = 63
+
+        XCTAssertTrue(model.requestWindowClose())
+
+        let saved = try JSONDecoder().decode(TimelineProject.self, from: Data(contentsOf: projectURL))
+        XCTAssertEqual(saved.previewTime, 63)
+    }
+
+    func testDeletingSelectedGapClosesTimeAcrossUnlockedTracks() {
+        let model = StudioModel()
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1920,
+                outputHeight: 1080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                tracks: [
+                    TimelineTrack(id: "video", kind: .video, name: "V1", clips: [
+                        TimelineClip(id: "v1", assetID: "video", timelineStart: 0, duration: 10),
+                        TimelineClip(id: "v2", assetID: "video", timelineStart: 20, duration: 10)
+                    ]),
+                    TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                        TimelineClip(id: "o1", assetID: "activity", timelineStart: 0, duration: 30)
+                    ])
+                ]
+            ),
+            loadAssets: false
+        )
+        let gap = TimelineGap(trackID: "video", timelineStart: 10, timelineEnd: 20)
+
+        model.selectTimelineGap(gap)
+        model.deleteSelectedTimelineClip(ripple: false)
+
+        XCTAssertNil(model.selectedTimelineGap)
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips[1].timelineStart, 10, accuracy: 1e-9)
+        XCTAssertEqual(model.currentTimelineProject.tracks[1].clips.count, 2)
+        XCTAssertEqual(
+            model.currentTimelineProject.tracks[1].clips.reduce(0) { $0 + $1.duration },
+            20,
+            accuracy: 1e-9
+        )
+    }
+
     func testChangingProjectExportSettingsMarksTimelineDirty() {
         let model = StudioModel()
         model.applyTimelineProject(

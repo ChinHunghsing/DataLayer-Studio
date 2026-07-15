@@ -248,6 +248,7 @@ final class StudioModel: ObservableObject {
     }
     @Published private(set) var selectedMediaAssetID: String?
     @Published private(set) var selectedTimelineClipIDs: Set<String> = []
+    @Published private(set) var selectedTimelineGap: TimelineGap?
     @Published private var timelineClipboard: [TimelineClipboardItem] = []
     @Published var selectedTimelineClipID: String? {
         didSet {
@@ -659,7 +660,7 @@ final class StudioModel: ObservableObject {
     }
 
     var selectedElement: OverlayElement? {
-        guard selectedTimelineClipID == nil else { return nil }
+        guard selectedTimelineClipID == nil, selectedTimelineGap == nil else { return nil }
         guard let selectedElementID else { return layout.elements.first }
         return layout.elements.first { $0.id == selectedElementID } ?? layout.elements.first
     }
@@ -697,6 +698,12 @@ final class StudioModel: ObservableObject {
         return timeline.tracks.contains { track in
             !track.isLocked && track.clips.contains { $0.id == selectedTimelineClipID }
         }
+    }
+
+    var selectedTimelineSelectionIsEditable: Bool {
+        if selectedTimelineClipIsEditable { return true }
+        guard let selectedTimelineGap, !isExporting else { return false }
+        return timeline.tracks.contains { $0.id == selectedTimelineGap.trackID && !$0.isLocked }
     }
 
     var canToggleSelectedTimelineClipsEnabled: Bool {
@@ -1721,7 +1728,7 @@ final class StudioModel: ObservableObject {
         fitLoadFailure = nil
         clearTimelineClipSelection()
         selectedMediaAssetID = nil
-        previewTime = clampedPreviewTime(previewTime)
+        previewTime = clampedPreviewTime(sanitizedProject.previewTime ?? 0)
         if let sourceURL = activeVideo?.url ?? activeActivity?.url {
             applySuggestedOutputURLIfNeeded(for: sourceURL)
         }
@@ -1738,6 +1745,7 @@ final class StudioModel: ObservableObject {
         var project = currentTimelineProject
         project.schemaVersion = TimelineProject.currentSchemaVersion
         project.exportSettings = currentTimelineProjectExportSettings
+        project.previewTime = clampedPreviewTime(previewTime)
         project.assets = project.assets.map { asset in
             var updated = asset
             updated.bookmarkData = securityScopedBookmarkData(for: asset.url) ?? asset.bookmarkData
@@ -2050,7 +2058,9 @@ final class StudioModel: ObservableObject {
         reportsRelinkStatus: Bool
     ) {
         guard let existing = currentTimelineProject.asset(id: id), existing.kind == .activity else { return }
-        activitySeriesByAssetID[id] = loaded.series
+        let embeddedWeatherRecords = existing.weatherRecords ?? []
+        let loadedSeries = OpenWeatherService.series(loaded.series, applying: embeddedWeatherRecords)
+        activitySeriesByAssetID[id] = loadedSeries
         activitySportByAssetID[id] = loaded.sport
         if reportsRelinkStatus {
             replaceTimelineAssetLocation(
@@ -2062,9 +2072,9 @@ final class StudioModel: ObservableObject {
             )
         } else {
             var updated = existing
-            updated.duration = loaded.series.duration
-            updated.wallClockStart = loaded.series.activityStartDate
-            updated.wallClockSource = loaded.series.activityStartDate == nil ? nil : .activityMetadata
+            updated.duration = loadedSeries.duration
+            updated.wallClockStart = loadedSeries.activityStartDate
+            updated.wallClockSource = loadedSeries.activityStartDate == nil ? nil : .activityMetadata
             if let index = timeline.assets.firstIndex(where: { $0.id == id }) {
                 timeline.assets[index] = updated
             }
@@ -2075,9 +2085,17 @@ final class StudioModel: ObservableObject {
         }
         if fitURL == existing.url || preferredActiveAssetID(kind: .activity) == id {
             fitURL = url
-            series = loaded.series
+            series = loadedSeries
         }
         refreshOverlayOrPreview()
+        if existing.weatherRecords == nil,
+           activeActivityAssetID == id {
+            loadOpenWeatherIfPossible(
+                for: loadedSeries,
+                sourceName: existing.displayName,
+                generation: fitLoadGeneration
+            )
+        }
         if reportsRelinkStatus { setStatus("status.timelineMediaRelinked", url.lastPathComponent) }
         if reportsRelinkStatus, let previous = pendingRelinkUndoSnapshots.removeValue(forKey: id) {
             registerTimelineMediaUndo(previous: previous, actionKey: "undo.timeline.relinkAsset")
@@ -2236,7 +2254,12 @@ final class StudioModel: ObservableObject {
             allowsNextWindowClose = false
             return true
         }
-        guard hasUnsavedTimelineChanges else { return true }
+        guard hasUnsavedTimelineChanges else {
+            if !isExporting, let currentTimelineProjectURL {
+                _ = saveTimelineProject(to: currentTimelineProjectURL)
+            }
+            return true
+        }
         requestTimelineConfirmation(.closeWindow)
         return false
     }
@@ -4582,7 +4605,10 @@ final class StudioModel: ObservableObject {
 
     func deleteSelectedTimelineClip(ripple: Bool) {
         let selectedIDs = effectiveSelectedTimelineClipIDs.filter(canDeleteTimelineClip)
-        guard !selectedIDs.isEmpty else { return }
+        guard !selectedIDs.isEmpty else {
+            deleteSelectedTimelineGap()
+            return
+        }
         if selectedIDs.count == 1, let id = selectedIDs.first {
             deleteTimelineClip(id: id, ripple: ripple)
             return
@@ -4612,6 +4638,26 @@ final class StudioModel: ObservableObject {
         previewTime = clampedPreviewTime(previewTime)
         refreshOverlayOrPreview()
         setStatus(ripple ? "status.timelineClipRippleDeleted" : "status.timelineClipDeleted")
+    }
+
+    func deleteSelectedTimelineGap() {
+        guard let gap = selectedTimelineGap,
+              selectedTimelineSelectionIsEditable,
+              timeline.tracks.first(where: { $0.id == gap.trackID })?.gaps.contains(gap) == true else { return }
+        let previousUndoState = timelineUndoSnapshotNow
+        var updated = timeline
+        updated.removeTimeRange(from: gap.timelineStart, to: gap.timelineEnd)
+        beginTimelineClipEditingIfNeeded()
+        timeline = updated
+        clearTimelineClipSelection()
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.deleteGap",
+            coalescing: false
+        )
+        previewTime = clampedPreviewTime(previewTime)
+        refreshOverlayOrPreview()
+        setStatus("status.timelineGapDeleted")
     }
 
     var canCopySelectedTimelineClips: Bool {
@@ -4665,19 +4711,28 @@ final class StudioModel: ObservableObject {
     }
 
     func pasteTimelineClips() {
-        pasteTimelineClips(inserting: false)
+        pasteTimelineClips(inserting: false, at: nil)
     }
 
     func pasteInsertTimelineClips() {
-        pasteTimelineClips(inserting: true)
+        pasteTimelineClips(inserting: true, at: nil)
     }
 
-    private func pasteTimelineClips(inserting: Bool) {
+    func pasteTimelineClips(at timelineTime: TimeInterval) {
+        pasteTimelineClips(inserting: false, at: timelineTime)
+    }
+
+    func pasteInsertTimelineClips(at timelineTime: TimeInterval) {
+        pasteTimelineClips(inserting: true, at: timelineTime)
+    }
+
+    private func pasteTimelineClips(inserting: Bool, at timelineTime: TimeInterval?) {
         guard canPasteTimelineClips,
               let clipboardStart = timelineClipboard.map(\.clip.timelineStart).min(),
               let clipboardEnd = timelineClipboard.map(\.clip.timelineEnd).max() else { return }
 
-        let pasteTime = max(0, previewTime.isFinite ? previewTime : 0)
+        let requestedPasteTime = timelineTime ?? previewTime
+        let pasteTime = max(0, requestedPasteTime.isFinite ? requestedPasteTime : 0)
         let previousUndoState = timelineUndoSnapshotNow
         var updated = timeline
         if inserting {
@@ -4734,6 +4789,7 @@ final class StudioModel: ObservableObject {
             selectedTimelineClipIDs = [id]
             selectedTimelineClipID = id
         }
+        selectedTimelineGap = nil
         selectedElementID = nil
         selectedMediaAssetID = nil
     }
@@ -4750,6 +4806,7 @@ final class StudioModel: ObservableObject {
         if selectedMediaAssetID != nil {
             selectedMediaAssetID = nil
         }
+        selectedTimelineGap = nil
     }
 
     func isTimelineClipSelected(id: String) -> Bool {
@@ -4783,6 +4840,15 @@ final class StudioModel: ObservableObject {
     func clearTimelineClipSelection() {
         selectedTimelineClipIDs = []
         selectedTimelineClipID = nil
+        selectedTimelineGap = nil
+    }
+
+    func selectTimelineGap(_ gap: TimelineGap) {
+        guard timeline.tracks.first(where: { $0.id == gap.trackID })?.gaps.contains(gap) == true else { return }
+        clearTimelineClipSelection()
+        selectedTimelineGap = gap
+        selectedElementID = nil
+        selectedMediaAssetID = nil
     }
 
     func selectElement(id: String) {
@@ -5172,11 +5238,12 @@ final class StudioModel: ObservableObject {
 
         let service = openWeatherService
         let language = openWeatherLanguageCode
+        let targetActivityAssetID = activeActivityAssetID
         weatherLoadTask?.cancel()
         addDebugLog(.weather, "Weather request queued: language=\(language), force=\(forceRefresh)")
         weatherLoadTask = Task { [weak self] in
             do {
-                let enrichedSeries = try await service.enrichedSeries(
+                let enrichment = try await service.enrichedSeries(
                     parsedSeries,
                     apiKey: apiKey,
                     language: language,
@@ -5186,11 +5253,12 @@ final class StudioModel: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self,
                           self.fitLoadGeneration == generation else { return }
-                    self.series = enrichedSeries
-                    if let activeActivityAssetID = self.activeActivityAssetID {
-                        self.activitySeriesByAssetID[activeActivityAssetID] = enrichedSeries
+                    self.series = enrichment.series
+                    if let targetActivityAssetID {
+                        self.activitySeriesByAssetID[targetActivityAssetID] = enrichment.series
+                        self.storeWeatherRecords(enrichment.records, forActivityAssetID: targetActivityAssetID)
                     }
-                    let weatherSampleCount = enrichedSeries.samples.filter { $0.weatherTemperatureCelsius != nil || $0.weatherHumidityPercent != nil || $0.weatherSummary != nil }.count
+                    let weatherSampleCount = enrichment.series.samples.filter { $0.weatherTemperatureCelsius != nil || $0.weatherHumidityPercent != nil || $0.weatherSummary != nil }.count
                     let displayName = self.activityDisplayName ?? sourceName
                     if weatherSampleCount > 0 {
                         self.setStatus("status.loadedFitWithWeather", displayName)
@@ -5198,7 +5266,7 @@ final class StudioModel: ObservableObject {
                         self.setStatus("status.weatherUnavailable", displayName)
                     }
                     self.weatherRefreshMessage = self.status
-                    self.addDebugLog(.weather, "Weather request finished: weatherSamples=\(weatherSampleCount)/\(enrichedSeries.samples.count)")
+                    self.addDebugLog(.weather, "Weather request finished: weatherSamples=\(weatherSampleCount)/\(enrichment.series.samples.count)")
                     self.refreshOverlayOrPreview()
                     self.weatherLoadTask = nil
                 }
@@ -5220,6 +5288,16 @@ final class StudioModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private func storeWeatherRecords(_ records: [TimelineWeatherRecord], forActivityAssetID id: String) {
+        if let index = timeline.assets.firstIndex(where: { $0.id == id }) {
+            timeline.assets[index].weatherRecords = records
+        }
+        if let index = activityAssets.firstIndex(where: { $0.id == id }) {
+            activityAssets[index].weatherRecords = records
+        }
+        updateTimelineDirtyState()
     }
 
     private var openWeatherLanguageCode: String {
@@ -6363,6 +6441,7 @@ final class StudioModel: ObservableObject {
         selectedTimelineClipIDs = previous.selectedClipIDs.filter { timelineClip(id: $0) != nil }
         selectedTimelineClipID = previous.selectedClipID.flatMap { timelineClip(id: $0) == nil ? nil : $0 }
             ?? firstSelectedTimelineClipID
+        selectedTimelineGap = nil
         singleSourceAlignmentIsPending = previous.timeline.tracks
             .flatMap(\.clips)
             .contains(where: \.isAlignmentPending)
@@ -6392,6 +6471,7 @@ final class StudioModel: ObservableObject {
         var usesSingleSourceMigration: Bool
         var selectedClipID: String?
         var selectedClipIDs: Set<String>
+        var selectedGap: TimelineGap?
         var timelinePositionState: TimelinePositionUndoState?
     }
 
@@ -6410,6 +6490,7 @@ final class StudioModel: ObservableObject {
             usesSingleSourceMigration: timelineUsesSingleSourceMigration,
             selectedClipID: selectedTimelineClipID,
             selectedClipIDs: selectedTimelineClipIDs,
+            selectedGap: selectedTimelineGap,
             timelinePositionState: nil
         )
     }
@@ -6485,6 +6566,9 @@ final class StudioModel: ObservableObject {
             selectedTimelineClipID = selectedClipID
         } else {
             repairSelectedTimelineClipIfNeeded()
+        }
+        selectedTimelineGap = previous.selectedGap.flatMap { gap in
+            timeline.tracks.first(where: { $0.id == gap.trackID })?.gaps.contains(gap) == true ? gap : nil
         }
         if !usesCustomTimelinePreview, let videoURL {
             // Undo back into single-source mode: return the player to the raw video item.

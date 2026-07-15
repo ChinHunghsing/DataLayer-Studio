@@ -19,6 +19,26 @@ public enum MediaWallClockSource: String, Codable, Equatable {
     case untrustedExport
 }
 
+/// Weather samples downloaded for an activity asset and embedded in the project file.
+public struct TimelineWeatherRecord: Codable, Equatable {
+    public var timestamp: Date
+    public var temperatureCelsius: Int?
+    public var humidityPercent: Int?
+    public var summary: String?
+
+    public init(
+        timestamp: Date,
+        temperatureCelsius: Int?,
+        humidityPercent: Int?,
+        summary: String?
+    ) {
+        self.timestamp = timestamp
+        self.temperatureCelsius = temperatureCelsius
+        self.humidityPercent = humidityPercent
+        self.summary = summary
+    }
+}
+
 /// A single imported source: a video, or an activity file (FIT/GPX).
 public struct MediaAsset: Codable, Equatable, Identifiable {
     public enum Kind: String, Codable {
@@ -48,6 +68,8 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
     /// Optional path relative to the project JSON directory, used as a portable fallback when
     /// bookmarks and the original absolute URL no longer resolve.
     public var relativePath: String?
+    /// Downloaded weather records for activity assets. Nil for legacy projects and videos.
+    public var weatherRecords: [TimelineWeatherRecord]?
 
     public init(
         id: String,
@@ -61,7 +83,8 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         wallClockStart: Date? = nil,
         wallClockSource: MediaWallClockSource? = nil,
         bookmarkData: Data? = nil,
-        relativePath: String? = nil
+        relativePath: String? = nil,
+        weatherRecords: [TimelineWeatherRecord]? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -75,6 +98,7 @@ public struct MediaAsset: Codable, Equatable, Identifiable {
         self.wallClockSource = wallClockSource
         self.bookmarkData = bookmarkData
         self.relativePath = relativePath
+        self.weatherRecords = weatherRecords
     }
 }
 
@@ -225,6 +249,40 @@ public struct TimelineTrack: Codable, Equatable, Identifiable {
     public func clip(atTimelineTime t: TimeInterval) -> TimelineClip? {
         clips.last { $0.contains(timelineTime: t) }
     }
+
+    /// Selectable empty ranges bounded by clips on both sides.
+    public var gaps: [TimelineGap] {
+        let sortedClips = clips
+            .filter { $0.duration.isFinite && $0.duration > 0 }
+            .sorted { $0.timelineStart < $1.timelineStart }
+        guard var previousEnd = sortedClips.first?.timelineEnd else { return [] }
+        var result: [TimelineGap] = []
+        for clip in sortedClips.dropFirst() {
+            if clip.timelineStart > previousEnd {
+                result.append(TimelineGap(trackID: id, timelineStart: previousEnd, timelineEnd: clip.timelineStart))
+            }
+            previousEnd = max(previousEnd, clip.timelineEnd)
+        }
+        return result
+    }
+}
+
+public struct TimelineGap: Equatable, Identifiable {
+    public var trackID: String
+    public var timelineStart: TimeInterval
+    public var timelineEnd: TimeInterval
+
+    public init(trackID: String, timelineStart: TimeInterval, timelineEnd: TimeInterval) {
+        self.trackID = trackID
+        self.timelineStart = timelineStart
+        self.timelineEnd = timelineEnd
+    }
+
+    public var id: String {
+        "\(trackID):\(timelineStart.bitPattern):\(timelineEnd.bitPattern)"
+    }
+
+    public var duration: TimeInterval { timelineEnd - timelineStart }
 }
 
 public struct TimelineProjectExportSettings: Codable, Equatable {
@@ -278,6 +336,8 @@ public struct TimelineProject: Codable, Equatable {
     /// App-level render intent. Nil only for legacy schema-1 projects and programmatic projects
     /// that do not need GUI export-state persistence.
     public var exportSettings: TimelineProjectExportSettings?
+    /// Last saved timeline playhead position. Nil for projects saved by older versions.
+    public var previewTime: TimeInterval?
 
     public init(
         outputWidth: Int,
@@ -288,6 +348,7 @@ public struct TimelineProject: Codable, Equatable {
         tracks: [TimelineTrack] = [],
         sourceMatchPoint: TimelineSourceMatchPoint? = nil,
         exportSettings: TimelineProjectExportSettings? = nil,
+        previewTime: TimeInterval? = nil,
         schemaVersion: Int = TimelineProject.currentSchemaVersion
     ) {
         self.schemaVersion = schemaVersion
@@ -299,6 +360,7 @@ public struct TimelineProject: Codable, Equatable {
         self.tracks = tracks
         self.sourceMatchPoint = sourceMatchPoint
         self.exportSettings = exportSettings
+        self.previewTime = previewTime
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -311,6 +373,7 @@ public struct TimelineProject: Codable, Equatable {
         case tracks
         case sourceMatchPoint
         case exportSettings
+        case previewTime
     }
 
     public init(from decoder: Decoder) throws {
@@ -332,6 +395,7 @@ public struct TimelineProject: Codable, Equatable {
         tracks = try container.decodeIfPresent([TimelineTrack].self, forKey: .tracks) ?? []
         sourceMatchPoint = try container.decodeIfPresent(TimelineSourceMatchPoint.self, forKey: .sourceMatchPoint)
         exportSettings = try container.decodeIfPresent(TimelineProjectExportSettings.self, forKey: .exportSettings)
+        previewTime = try container.decodeIfPresent(TimeInterval.self, forKey: .previewTime)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -345,6 +409,7 @@ public struct TimelineProject: Codable, Equatable {
         try container.encode(tracks, forKey: .tracks)
         try container.encodeIfPresent(sourceMatchPoint, forKey: .sourceMatchPoint)
         try container.encodeIfPresent(exportSettings, forKey: .exportSettings)
+        try container.encodeIfPresent(previewTime, forKey: .previewTime)
     }
 
     public func asset(id: String) -> MediaAsset? {

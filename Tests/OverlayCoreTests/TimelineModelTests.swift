@@ -567,6 +567,20 @@ final class TimelineModelTests: XCTestCase {
         XCTAssertFalse(project.removeClip(id: "missing"))
     }
 
+    func testTrackExposesOnlyGapsBoundedByTwoClips() {
+        let track = TimelineTrack(id: "v1", kind: .video, name: "V1", clips: [
+            TimelineClip(id: "b", assetID: "video", timelineStart: 20, duration: 5),
+            TimelineClip(id: "a", assetID: "video", timelineStart: 5, duration: 10),
+            TimelineClip(id: "overlap", assetID: "video", timelineStart: 12, duration: 6),
+            TimelineClip(id: "c", assetID: "video", timelineStart: 30, duration: 5)
+        ])
+
+        XCTAssertEqual(track.gaps, [
+            TimelineGap(trackID: "v1", timelineStart: 18, timelineEnd: 20),
+            TimelineGap(trackID: "v1", timelineStart: 25, timelineEnd: 30)
+        ])
+    }
+
     func testRippleRemoveClipClosesRangeAcrossUnlockedTracks() throws {
         var project = editingProject()
         var nextID = 0
