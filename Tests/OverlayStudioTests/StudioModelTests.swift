@@ -147,6 +147,25 @@ final class StudioModelTests: XCTestCase {
         XCTAssertEqual(model.overlayImage?.height, 1_000)
     }
 
+    func testDistanceUnitChangeBeforeTimelineInteractionRefreshesPreview() async throws {
+        let model = StudioModel()
+        model.distanceUnit = .kilometers
+        model.series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, distanceMeters: 1_000)
+        ])
+        model.videoURL = URL(fileURLWithPath: "/tmp/initial-unit-video.mov")
+        model.backgroundImage = makeBlankCGImage(width: 8, height: 8)
+        let stalePreview = makeBlankCGImage(width: 8, height: 8)
+        model.overlayImage = stalePreview
+
+        model.setDistanceUnitForCurrentSelection(.meters)
+
+        try await waitUntil { model.overlayImage !== stalePreview }
+        XCTAssertFalse(model.overlayImage === stalePreview)
+        XCTAssertEqual(model.distanceUnitForCurrentSelection, .meters)
+    }
+
     func testDeleteSelectedElementCanUndoAndRedo() {
         let model = StudioModel()
         let undoManager = UndoManager()

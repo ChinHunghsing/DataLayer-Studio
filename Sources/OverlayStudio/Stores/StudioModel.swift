@@ -688,6 +688,7 @@ final class StudioModel: ObservableObject {
     func setDistanceUnitForCurrentSelection(_ unit: OverlayDistanceUnit) {
         guard let clip = distanceUnitTimelineClip else {
             distanceUnit = unit
+            refreshOverlayOrPreview()
             return
         }
         setTimelineClipDistanceUnit(id: clip.id, unit)
