@@ -724,18 +724,31 @@ struct ProjectTimelineView: View {
         let isSelected = model.selectedTimelineGap == gap
         let isHovered = hoveredGapID == gap.id
 
-        return RoundedRectangle(cornerRadius: 4)
-            .fill(
-                isSelected
-                    ? Color.accentColor.opacity(0.20)
-                    : (isHovered ? Color.secondary.opacity(0.10) : Color.white.opacity(0.001))
-            )
-            .overlay {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(Color.accentColor, lineWidth: 1.5)
+        return ZStack {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(
+                    isSelected
+                        ? Color.accentColor.opacity(0.20)
+                        : Color.secondary.opacity(isHovered ? 0.14 : 0.07)
+                )
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(
+                    isSelected ? Color.accentColor : Color.secondary.opacity(0.38),
+                    style: StrokeStyle(lineWidth: isSelected ? 1.5 : 1, dash: isSelected ? [] : [4, 3])
+                )
+            if width >= 24 {
+                HStack(spacing: 3) {
+                    Image(systemName: "arrow.left.and.right")
+                    if width >= 58 {
+                        Text(localization.string("timeline.gap.label"))
+                            .lineLimit(1)
+                    }
                 }
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+                .allowsHitTesting(false)
             }
+        }
             .frame(width: width, height: trackHeight - 12)
             .offset(x: x, y: 6)
             .contentShape(Rectangle())
