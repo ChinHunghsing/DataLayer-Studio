@@ -1,263 +1,78 @@
 <p align="center">
-  <img src="Resources/AppIcon.png" alt="DataLayer Studio 图标" width="96">
-</p>
-
-<h1 align="center">DataLayer Studio</h1>
-
-<p align="center">
-  把原始跑步运动数据，变成有电影感的视频数据层。<br>
-  同步 <code>.fit</code> 文件与你的素材，在画布上实时排布数据浮层，从 macOS 应用或命令行导出可直接使用的成片。
+  <img src="assets/readme/hero.svg" width="100%" alt="DataLayer Studio 将 FIT 跑步数据转换为同步的视频数据层">
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> ·
-  <a href="README.zh-CN.md"><b>中文</b></a>
+  <a href="README.md">English</a> · <a href="README.zh-CN.md"><b>中文</b></a>
 </p>
 
 <p align="center">
   <a href="https://github.com/leeeboo/DataLayer-Studio/actions/workflows/ci.yml"><img src="https://github.com/leeeboo/DataLayer-Studio/actions/workflows/ci.yml/badge.svg" alt="CI 状态"></a>
   <a href="https://github.com/leeeboo/DataLayer-Studio/releases/latest"><img src="https://img.shields.io/github/v/release/leeeboo/DataLayer-Studio?label=release" alt="最新版本"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%2013%2B-blue" alt="平台：macOS 13+">
-  <img src="https://img.shields.io/badge/chip-Apple%20Silicon-black?logo=apple&logoColor=white" alt="需要 Apple Silicon">
-  <img src="https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white" alt="Swift 5.9">
-  <img src="https://img.shields.io/badge/license-source--available-orange" alt="Source-available 许可证">
+  <img src="https://img.shields.io/badge/macOS-13%2B-0B2430" alt="macOS 13 或更新版本">
+  <img src="https://img.shields.io/badge/Apple_Silicon-required-0B2430" alt="需要 Apple Silicon">
+  <img src="https://img.shields.io/badge/license-source--available-0B2430" alt="Source-available 许可证">
+</p>
+
+DataLayer Studio 是一款原生 macOS 编辑器，可以把跑步运动数据变成清晰、同步的视频图形。导入视频和 `.fit` 运动文件，在同一条时间线上完成对齐，排布实时数据组件，再导出透明数据层或已合成的成片。
+
+<p align="center">
+  <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770"><img src="assets/readme/download-on-the-app-store.svg" width="200" alt="在 Mac App Store 下载 DataLayer Studio"></a>
 </p>
 
 <p align="center">
-  <img src="assets/appstore/v0.3.0/zh-Hans/desktop@2x/01-multicamera-timeline.png" alt="DataLayer Studio 0.3 编辑器界面，展示多机位时间线与运动数据浮层同步预览" width="100%">
+  <img src="assets/readme/app-showcase.png" width="100%" alt="DataLayer Studio 在跑步视频上预览配速、心率、步频、轨迹、天气和距离数据层">
 </p>
 
-<p align="center">
-  <b>几分钟，就能给跑步视频加上可直接发布的数据浮层。</b>
-</p>
+## 从素材到数据层
 
-<p align="center">
-  <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">
-    <img src="assets/readme/download-on-the-app-store.svg" alt="在 Mac App Store 下载 DataLayer Studio" width="200">
-  </a>
-</p>
+一个工作区完成整个流程：编辑素材、把运动数据锁定到正确时刻，再选择剪辑软件需要的输出格式。
 
-<p align="center">
-  <sub>❤️ 觉得好用？<a href="#赞助">赞助支持开发</a> &nbsp;·&nbsp; ⭐ 点个 Star 让更多人发现它</sub>
-</p>
+| 1 · 导入并编辑 | 2 · 精准对齐 | 3 · 按需导出 |
+| --- | --- | --- |
+| <img src="assets/appstore/v0.3.2/zh-Hans/desktop/01-drag-and-edit.png" alt="视频与 FIT 运动数据的多轨时间线" width="100%"> | <img src="assets/appstore/v0.3.2/zh-Hans/desktop/02-precise-alignment.png" alt="精确到毫秒的时间线对齐控制" width="100%"> | <img src="assets/appstore/v0.3.2/zh-Hans/desktop/03-export-presets.png" alt="透明数据层与合成视频导出预设" width="100%"> |
 
-<p align="center">
-  <img src="assets/readme/fable5verified.png" alt="Fable 5 Verified 徽章" width="200">
-</p>
-
-<br>
-
-## 目录
-
-- [这是什么](#这是什么)
-- [最低系统要求](#最低系统要求)
-- [亮点](#亮点)
-- [App Store 截图](#app-store-截图)
-- [赞助](#赞助)
-- [快速开始](#快速开始)
-- [使用说明](#使用说明)
-- [授权](#授权)
-- [参与贡献](#参与贡献)
-- [使用情况监控](#使用情况监控)
-- [Issue](#issue)
-- [构建](#构建)
-- [图形界面](#图形界面)
-- [命令行用法](#命令行用法)
-- [时间同步](#时间同步)
-- [当前-fit-支持](#当前-fit-支持)
-- [发布](#发布)
-
-## 这是什么
-
-DataLayer Studio 可以把跑步运动数据做成清爽的视频数据层，适合比赛回顾、训练分析和社交短片。你可以用 macOS 编辑器可视化排版，也可以用命令行批量导出。
-
-它需要：
-
-- 一个源视频文件，用于读取分辨率、帧率和时长
-- 一个标准 `.fit` 运动文件，用于读取 GPS 和跑步指标
-
-它既可以导出带 alpha 通道的透明 `.mov`，放在 Final Cut Pro、DaVinci Resolve、Premiere 等剪辑软件的上层轨道，也可以直接导出已经叠加数据层的成片。
-
-> DataLayer Studio 是独立项目，不隶属于 Telemetry Overlay，也未获得 Telemetry Overlay 或其开发者的认可、赞助或授权。本项目不会读取或修改 `/Applications/Telemetry Overlay.app`，也不包含 Telemetry Overlay 的专有代码或素材。
-
-## 最低系统要求
-
-> 需要 Apple Silicon 芯片的 Mac，系统为 macOS 13.0 Ventura 或更新版本。
-
-## 亮点
+## 为剪辑而生
 
 | | |
 | --- | --- |
-| 🎨 **轻量多轨时间线** | 多视频轨和运动数据轨支持移动、裁剪、分割、吸附、锁定与撤销；开头和片段之间都可以留白。 |
-| 🎯 **时间线上精准对齐** | 直接拖动视频与运动片段，或在片段检查器输入时间线起点，让同一事件落在同一相对时间。 |
-| 🖱 **实时排布画布** | 在实时视频预览上摆放配速、心率、步频、轨迹、距离、时间、天气等数据浮层。 |
-| ▶️ **仅数据也能预览** | 还没有视频？直接用 `.fit` 文件预览并播放浮层——按空格即可播放。 |
-| 💾 **可复用预设** | 保存布局预设，跨视频、跨风格重复使用。 |
-| 🎬 **透明或合成导出** | 导出可放入剪辑软件的透明 HEVC/ProRes Alpha 浮层，或直接导出已合成的成片。 |
-| ⚙️ **命令行可编排** | 命令行和图形界面使用同一套渲染逻辑，适合批量与自动化流程。 |
+| **多轨时间控制** | 在同一条时间线上移动、裁剪、分割、吸附、锁定和撤销视频或运动片段。 |
+| **实时数据画布** | 在真实画面上排布配速、心率、步频、功率、轨迹、距离、天气、时间等组件。 |
+| **精确同步** | 直接拖动片段，或输入精确到毫秒的相对起点。 |
+| **可复用布局** | 保存、导入、导出布局，并在不同项目中重复使用。 |
+| **两种导出路径** | 为剪辑软件导出透明 HEVC / ProRes Alpha，或把图形直接合成到源视频。 |
+| **CLI 共用同一渲染器** | 无需维护另一套视觉流程，即可自动执行可重复的导出任务。 |
 
-## App Store 截图
+还没有视频？只用一个 `.fit` 文件也能预览并播放运动数据层。
 
-从多机位素材到可复用的数据浮层：对齐重叠片段、添加并排布数据组件，再把布局保存为模板。
+## 从这里开始
 
-| 1 · 对齐多机位 | 2 · 添加组件 | 3 · 复用模板 |
-| --- | --- | --- |
-| <img src="assets/appstore/v0.3.0/zh-Hans/desktop/01-multicamera-timeline.png" alt="DataLayer Studio 多机位时间线" width="100%"> | <img src="assets/appstore/v0.3.0/zh-Hans/desktop/02-components-preview.png" alt="DataLayer Studio 组件库与实时预览" width="100%"> | <img src="assets/appstore/v0.3.0/zh-Hans/desktop/03-reusable-templates.png" alt="DataLayer Studio 可复用布局模板" width="100%"> |
+### 安装应用
 
-## 赞助
+DataLayer Studio 需要 Apple Silicon 芯片的 Mac，以及 macOS 13 Ventura 或更新版本。
 
-DataLayer Studio 由我一个人独立开发和维护，是一个 source-available 项目。**支持它最好的方式，就是在 [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) 上购买**——这能直接支持后续测试、样本整理和新功能开发。
+从 [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) 下载，或从 [最新 GitHub Release](https://github.com/leeeboo/DataLayer-Studio/releases/latest) 下载已签名版本。
 
-想直接请我喝杯咖啡也非常感谢。微信或支付宝请扫描二维码。
+### 从源码运行
 
-| Buy Me a Coffee | 微信支付 | 支付宝 |
-| --- | --- | --- |
-| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="180"></a><br>[Support on Buy Me a Coffee](https://buymeacoffee.com/leeeboo) | <img src="assets/sponsor/wechat.jpg" alt="微信赞助二维码" width="180"> | <img src="assets/sponsor/alipay.jpg" alt="支付宝赞助二维码" width="180"> |
-
-赞助是自愿支持，不等同于购买商业授权、优先支持或功能承诺。商业使用仍需另行获得书面授权。
-
-## 快速开始
-
-从源码运行图形界面：
+需要 Swift 5.9 或更新版本。
 
 ```bash
 swift run datalayer-studio
 ```
 
-或者构建本地 App：
+构建本地 App bundle：
 
 ```bash
 scripts/build_app_bundle.sh
 open ".build/DataLayer Studio.app"
 ```
 
-运行命令行工具：
+`swift run overlay-studio` 继续作为旧脚本的兼容别名保留。
 
-```bash
-swift run overlay \
-  --video /path/to/run-video.mov \
-  --fit /path/to/activity.fit \
-  --output /path/to/overlay.mov
-```
+## 用 CLI 自动化
 
-## 使用说明
-
-- [简洁版使用说明](docs/quick-export-guide-zh-CN.md)：模拟一次从导入原视频、导入运动数据、对齐时间到导出透明数据层视频的流程。
-- [功能说明与完整使用手册](docs/user-guide-zh-CN.md)：覆盖多轨时间线、相对时间对齐、数据层排布、工程恢复、输出设置、命令行和六个实战案例。
-
-## 授权
-
-DataLayer Studio 以 source-available 方式提供，仅允许非商业使用。修改版本和衍生分发必须在相同条款下共享对应源代码。
-
-详见 [LICENSE.md](LICENSE.md)。这不是 OSI 开源许可证，因为未经单独书面商业授权，不允许商业使用、转售、付费再分发或付费托管。
-
-项目声明和第三方依赖说明见 [NOTICE.md](NOTICE.md)。
-
-## 参与贡献
-
-欢迎提交聚焦、可测试，并且符合项目许可证的 Pull Request。请先阅读：
-
-1. 阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
-2. 大型 UI、解析器、导出或授权相关改动，请先开 issue 讨论。
-3. 保持 PR 足够小，方便一次审完。
-4. 不要提交私人视频、FIT/GPX/TCX 文件、GPS 轨迹、凭据、构建产物或本机状态。
-5. 运行与你的改动匹配的检查。
-
-至少运行仓库就绪检查：
-
-```bash
-scripts/verify_source_available_readiness.sh
-```
-
-如果是代码改动，也请运行：
-
-```bash
-swift test
-```
-
-Pull Request 模板会要求填写你运行过的检查。影响 GUI 的改动应附一段简短的手动验证说明，例如重新构建后打开了哪个界面或流程。
-
-漏洞或私人数据暴露问题请按 [SECURITY.md](SECURITY.md) 私下报告，不要在公开 issue 中包含敏感信息。
-
-本地数据处理和隐私预期见 [PRIVACY.md](PRIVACY.md)。
-
-一般支持预期见 [SUPPORT.md](SUPPORT.md)。
-
-## 使用情况监控
-
-DataLayer Studio 不包含第三方分析 SDK，也不做自定义应用内事件埋点。使用情况监控依赖 Apple 内置的
-[App Store Connect Analytics](https://developer.apple.com/app-store-connect/analytics/)
-和崩溃指标，用于查看下载、会话、活跃设备、留存、销售和崩溃率等聚合数据；这些使用数据只来自同意向开发者共享分析数据的用户。
-
-## Issue
-
-请使用 bug、功能请求和文档修复的 issue 模板。公开 issue 中请避免包含私人运动数据：
-
-- 隐去 GPS 轨迹、姓名、账号 ID、设备 ID 和本地文件路径
-- 除非你愿意公开，否则不要附真实视频或 FIT 文件
-- 尽量使用合成或裁剪后的样本数据
-- 安全问题请按 [SECURITY.md](SECURITY.md) 私下报告
-
-## 构建
-
-```bash
-swift build
-```
-
-构建 release 二进制：
-
-```bash
-swift build -c release
-```
-
-可执行文件位置：
-
-```bash
-.build/release/overlay
-```
-
-## 图形界面
-
-SwiftUI 编辑器可以直接通过 SwiftPM 启动：
-
-```bash
-swift run datalayer-studio
-```
-
-`swift run overlay-studio` 保留为旧本地脚本的兼容别名。
-
-也可以打包成本地 macOS App：
-
-```bash
-scripts/build_app_bundle.sh
-open ".build/DataLayer Studio.app"
-```
-
-图形界面支持：
-
-- 选择源视频和 `.fit` 文件
-- 在预览中播放源视频，并在上层实时渲染浮层
-- 仅有 `.fit` 运动数据、没有视频时也能预览并播放浮层——按空格即可播放/暂停
-- 贯穿窗口、可拖拽高度的多轨时间线，支持视频轨和运动数据轨
-- 在单个 **输出** 面板里配置全部输出设置——分辨率、帧率、编码、码率与目标文件
-- 直接拖动片段或输入片段起点，在相对时间线上对齐视频和运动数据
-- 允许时间线开头和片段之间留白；无视频区间按输出类型显示黑色画布或透明背景
-- 移动、裁剪、吸附、分割、多选、普通删除和波纹删除时间线片段
-- 重命名、启用/禁用、锁定和删除空白轨道，并在同类轨道之间移动片段
-- 保存/打开时间线工程，并重新链接被移动或失去权限的素材
-- 在预览画布上拖动浮层组件
-- 调整重叠组件的层级
-- 调整组件的显示、位置和大小
-- 分别编辑速度、配速、心率、步频、距离值、轨迹、距离进度、时间日期等组件
-- 修改每个组件的颜色、透明度、字体、字号、位置和大小
-- 显示可配置的预览网格，并可选择拖动时吸附
-- 保存、导入、导出布局预设，并设置默认预设
-- 通过预设或手动输入设置输出分辨率和帧率
-- 选择距离标签显示为 `m` 或 `km`
-- 导出透明 Alpha 浮层，或导出已叠加数据层的原视频成片
-- 设置输出码率（kbps）、编码器和目标文件
-
-## 命令行用法
+CLI 与应用共用同一套 FIT 解析器、时间线映射、布局和渲染器。
 
 ```bash
 swift run overlay \
@@ -268,32 +83,24 @@ swift run overlay \
 
 常用参数：
 
-```bash
---width 1920        # 覆盖源视频宽度；2...16384 且必须为偶数
---height 1080       # 覆盖源视频高度；2...16384 且必须为偶数
---fps 30            # 覆盖源视频帧率
---fit-start 300     # 视频从 FIT elapsed 5:00 开始
---sync-video 12     # 视频时间线上的同步点
---sync-fit 0        # 同一同步点对应的 FIT elapsed
---offset 2.5        # 旧版简写：视频比 FIT 早开始 2.5 秒
---bitrate 12000     # HEVC 平均码率，单位 kbps
---bitrate-bps 12000000 # 旧版显式 bps 码率
---export-mode overlay # 默认；导出透明 Alpha 浮层
---export-mode video # 导出已叠加数据层的原视频成片；必须提供 --video
---codec hevc-alpha  # overlay 模式默认；也可用 prores-4444 作为支持 alpha 的中间格式
---codec hevc        # video 模式默认；也可用 h264
---distance-unit km  # 距离标签：km（默认）或 m
---layout-preset "Race Layout" # 按名称或 ID 使用保存的 GUI 布局预设
---layout-preset presets.json # 使用 GUI 导出的布局预设 JSON 文件
---inspect           # 只解析元数据，不渲染
---skip-fit-crc      # 适合处理 CRC 异常的 FIT 导出
+```text
+--fit-start 300          视频从 FIT elapsed 5:00 开始
+--sync-video 12          视频时间线上的同步点
+--sync-fit 0             同一同步点对应的 FIT elapsed
+--export-mode overlay    透明 Alpha 数据层（默认）
+--export-mode video      已合成图形的视频
+--codec hevc-alpha       HEVC Alpha（数据层默认）
+--codec prores-4444      支持 Alpha 的中间格式
+--layout-preset NAME     已保存的应用预设名称、ID 或导出的 JSON 文件
+--inspect                只解析元数据，不渲染
 ```
 
-如果没有设置 `--layout-preset`，命令行渲染器会使用内置默认布局。保存的预设会从 GUI 的本地 DataLayer Studio 偏好设置中查找，先按预设 ID，再按不区分大小写的预设名称查找。当传入值是 GUI 导出的现有 JSON 文件路径时，CLI 会优先使用文件中的默认预设，否则使用文件里的第一个预设。
+运行 `swift run overlay --help` 查看完整参数列表。
 
-## 时间同步
+<details>
+<summary><b>时间线同步原理</b></summary>
 
-渲染器会把每个视频时间戳映射到 FIT elapsed 时间。你可以用三种方式表达这个映射：
+渲染器会把每个视频时间戳映射到 FIT elapsed 时间。根据已有信息选择对应形式：
 
 ```bash
 # 录像比运动早开始 12 秒。
@@ -302,56 +109,73 @@ overlay --video run.mov --fit activity.fit --output overlay.mov --offset 12
 # 录像从运动开始后 8 分 20 秒开始。
 overlay --video run.mov --fit activity.fit --output overlay.mov --fit-start 500
 
-# 任意精确同步点：视频 3.2 秒对应 FIT elapsed 41:15。
-overlay --video run.mov --fit activity.fit --output overlay.mov --sync-video 3.2 --sync-fit 2475
+# 视频 3.2 秒对应 FIT elapsed 41:15。
+overlay --video run.mov --fit activity.fit --output overlay.mov \
+  --sync-video 3.2 --sync-fit 2475
 ```
 
-如果视频在 FIT 运动数据结束后还继续，浮层会保持最后一个 FIT 样本，而不是虚构额外运动时间。如果视频在 FIT 运动数据开始前就开始，浮层会保持第一个 FIT 样本，直到映射后的 FIT elapsed 到达零。
+运动数据开始前会保持第一个样本；运动数据结束后会保持最后一个样本。
 
-## 当前 FIT 支持
+</details>
 
-解析器支持标准 FIT local message definitions、小端和大端记录、文件/header CRC 校验、普通和 compressed timestamp data messages，以及标准 `record` message 字段：
+<details>
+<summary><b>FIT 数据支持</b></summary>
 
-- timestamp
-- position latitude/longitude
-- altitude and enhanced altitude
-- distance
-- speed and enhanced speed
-- heart rate
-- cadence，并会转换为跑步浮层使用的 steps per minute
-- power
-- temperature
+解析器会校验 FIT header 和 CRC，并支持标准 local message definitions、小端和大端记录，以及普通或压缩时间戳。支持的 record 字段包括：
 
-解析后的遥测会归一化为活动相对距离；当 FIT speed 缺失或卡在 0 时，会用距离推导速度补足；并重采样到 1 秒间隔，让跑步开始阶段更快出现配速。
+- GPS 位置、海拔、距离、速度和温度
+- 心率、步频、功率和跑步动态指标
+- enhanced speed 和 enhanced altitude
 
-不属于浮层标准遥测通道的 developer fields 和自定义流会被跳过。布局可在 GUI 中配置，并可保存、导入、导出或作为默认布局复用。
+运动数据会归一化为活动相对距离，并重采样到一秒间隔。当 FIT speed 缺失或卡在零时，可以使用距离推导速度补足。不属于渲染器标准运动数据通道的 developer fields 会被跳过。
+
+</details>
+
+## 隐私与项目边界
+
+- 视频、运动文件、GPS 轨迹、预设和导出结果均保留在本地，除非你主动分享。
+- 应用不包含第三方分析 SDK，也不做自定义事件埋点。聚合使用和崩溃信息来自 Apple 的可选 App Store 分析。
+- DataLayer Studio 是独立项目，不隶属于 Telemetry Overlay，也未获得其开发者的认可、赞助或授权。它不会读取或修改 `/Applications/Telemetry Overlay.app`，也不包含 Telemetry Overlay 的专有代码或素材。
+
+详见 [PRIVACY.md](PRIVACY.md)、[SECURITY.md](SECURITY.md) 和 [SUPPORT.md](SUPPORT.md)。
+
+## 参与贡献
+
+```bash
+swift build
+swift test
+scripts/verify_source_available_readiness.sh
+```
+
+欢迎提交聚焦、可测试的 Pull Request。提交前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，不要在公开 issue 中附带私人运动数据。
 
 ## 发布
 
-只有推送版本 tag 时，GitHub Actions 才会构建 release zip。普通 Pull Request 只运行较轻量的 CI 测试流程。
-
-使用语义化版本 tag：
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
 推送 `v*` tag 后，`.github/workflows/release.yml` 会：
 
-- 运行 `scripts/verify_source_available_readiness.sh`
-- 运行 `swift test`
-- 构建 `overlay` 和 `datalayer-studio` 的 release 产物
-- 构建 `DataLayer Studio.app`
-- 验证 App bundle 中包含必要法律文件
-- 将 App 打包为 `DataLayer-Studio-<tag>-macOS-arm64.zip`
-- 生成 SHA-256 校验和
-- 为该 tag 创建或更新 GitHub Release，并上传两个文件
+- 运行 `scripts/verify_source_available_readiness.sh` 和 `swift test`
+- 构建 `overlay` 与 `datalayer-studio` 的 release 产物
+- 构建并校验 `DataLayer Studio.app`，包括必要的法律文件
+- 创建或更新 GitHub Release，并附带 zip 和 SHA-256 校验和
 
-App bundle 会在 `Contents/Resources/Legal` 下包含 `LICENSE.md`、`NOTICE.md` 和 `README.md`。zip 会出现在对应 tag 的 GitHub Release assets 中。
+App bundle 会在 `Contents/Resources/Legal` 下包含 `LICENSE.md`、`NOTICE.md` 和 `README.md`。
 
-发布前可以验证本地 App bundle：
+## 支持项目
 
-```bash
-scripts/verify_app_bundle.sh
-```
+DataLayer Studio 由一位开发者独立开发和维护。在 [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) 购买，是支持测试与持续开发最直接的方式。
+
+| Buy Me a Coffee | 微信支付 | 支付宝 |
+| --- | --- | --- |
+| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="通过 Buy Me a Coffee 支持 DataLayer Studio" width="150"></a> | <img src="assets/sponsor/wechat.jpg" alt="微信支付赞助二维码" width="150"> | <img src="assets/sponsor/alipay.jpg" alt="支付宝赞助二维码" width="150"> |
+
+赞助是自愿支持，不包含商业授权、优先支持或功能承诺。
+
+<p align="center">
+  <img src="assets/readme/made-with-codex.svg" width="360" alt="Codex 与 GPT-5.6 Sol 用于重新设计本 README">
+</p>
+
+## 授权
+
+DataLayer Studio 以 source-available 方式提供，仅允许非商业使用。这不是 OSI 开源软件：商业使用、转售、付费再分发和付费托管需要另行获得书面许可。修改版本和衍生分发必须在相同条款下共享对应源代码。
+
+详见 [LICENSE.md](LICENSE.md) 和 [NOTICE.md](NOTICE.md)。
