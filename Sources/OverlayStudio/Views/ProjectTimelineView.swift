@@ -270,7 +270,6 @@ struct ProjectTimelineView: View {
                     .allowsHitTesting(false)
             }
 
-            alignmentGuideLayer(duration: duration, laneWidth: laneWidth, contentHeight: contentHeight)
             snapGuideLayer(duration: duration, laneWidth: laneWidth, contentHeight: contentHeight)
 
             // Playhead
@@ -1272,28 +1271,6 @@ struct ProjectTimelineView: View {
                     fineTunePopoverClipID = clip.id
                 }
             }
-    }
-
-    @ViewBuilder
-    private func alignmentGuideLayer(duration: TimeInterval, laneWidth: CGFloat, contentHeight: CGFloat) -> some View {
-        if let markerTime = model.wallClockAlignmentMarkerTime, duration > 0 {
-            let x = CGFloat(min(duration, max(0, markerTime)) / duration) * laneWidth
-            Rectangle()
-                .fill(Color.mint.opacity(0.9))
-                .frame(width: 1, height: max(0, contentHeight - rulerHeight))
-                .offset(x: x, y: rulerHeight)
-                .shadow(color: Color.mint.opacity(0.45), radius: 2)
-                .allowsHitTesting(false)
-
-            Label(localization.string("timeline.alignment.wallClock"), systemImage: "clock.badge.checkmark")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.mint.opacity(0.86), in: Capsule())
-                .offset(x: min(max(2, x + 4), max(2, laneWidth - 150)), y: rulerHeight + 3)
-                .allowsHitTesting(false)
-        }
     }
 
     @ViewBuilder
