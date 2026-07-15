@@ -14,6 +14,9 @@
   --accent-strong: #2f95ff;
   --hot: #ff7284;
   --green: #74f1a4;
+  --gold: #ffd489;
+  --gold-strong: #ffb347;
+  --gold-line: rgba(255, 200, 112, 0.34);
   --shadow: 0 26px 80px rgba(0, 0, 0, 0.45);
   --radius: 8px;
   --radius-lg: 14px;
@@ -380,6 +383,7 @@ svg {
   display: grid;
   grid-template-columns: minmax(0, 0.82fr) minmax(520px, 1.18fr);
   grid-template-areas:
+    "badge badge"
     "title title"
     "copy visual";
   align-items: center;
@@ -416,6 +420,134 @@ svg {
 
 .hero-visual {
   animation: rise-in 760ms var(--ease-out) 170ms both;
+}
+
+.hero-earlybird {
+  grid-area: badge;
+  justify-self: center;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: calc(clamp(28px, 4vw, 48px) * -0.4);
+  padding: 10px 20px 10px 17px;
+  border: 1px solid var(--gold-line);
+  border-radius: 999px;
+  background:
+    linear-gradient(120deg, rgba(255, 187, 92, 0.16), rgba(255, 187, 92, 0.03) 46%, rgba(255, 187, 92, 0.13)),
+    rgba(22, 17, 8, 0.55);
+  box-shadow:
+    0 16px 44px rgba(255, 170, 64, 0.15),
+    inset 0 1px 0 rgba(255, 226, 168, 0.18);
+  overflow: hidden;
+  animation: rise-in 700ms var(--ease-out) both;
+  transition:
+    transform 180ms var(--ease-out),
+    border-color 200ms var(--ease),
+    box-shadow 200ms var(--ease);
+}
+
+.hero-earlybird::after {
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: 0;
+  width: 34%;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 231, 176, 0.22) 46%,
+    rgba(255, 231, 176, 0.34) 50%,
+    rgba(255, 231, 176, 0.22) 54%,
+    transparent
+  );
+  transform: translateX(-180%) skewX(-18deg);
+  animation: earlybird-sheen 5.2s var(--ease) 1.4s infinite;
+}
+
+@keyframes earlybird-sheen {
+  0%,
+  58% {
+    transform: translateX(-180%) skewX(-18deg);
+  }
+
+  100% {
+    transform: translateX(460%) skewX(-18deg);
+  }
+}
+
+.earlybird-dot {
+  position: relative;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffe2a3, var(--gold-strong));
+}
+
+.earlybird-dot::before {
+  position: absolute;
+  inset: -3px;
+  content: "";
+  border: 1px solid rgba(255, 179, 71, 0.85);
+  border-radius: 50%;
+  animation: earlybird-ring 2.6s var(--ease-out) infinite;
+}
+
+@keyframes earlybird-ring {
+  from {
+    opacity: 0.9;
+    transform: scale(0.55);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+.earlybird-launch {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.earlybird-divider {
+  width: 1px;
+  height: 15px;
+  background: rgba(255, 200, 112, 0.36);
+}
+
+.earlybird-tag {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.earlybird-price {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  background: linear-gradient(120deg, #ffedc4, var(--gold-strong));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.earlybird-arrow {
+  width: 15px;
+  height: 15px;
+  color: var(--gold);
+  stroke-width: 2;
+  transition: transform 180ms var(--ease-out);
 }
 
 .hero h1,
@@ -1085,6 +1217,106 @@ svg {
     rgba(7, 19, 28, 0.82);
 }
 
+.earlybird-panel {
+  position: relative;
+  padding: 7px;
+  border: 1px solid var(--gold-line);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 187, 92, 0.12), rgba(255, 187, 92, 0.02) 52%, rgba(255, 187, 92, 0.09)),
+    rgba(20, 16, 8, 0.42);
+  box-shadow: 0 22px 60px rgba(255, 170, 64, 0.1);
+  overflow: hidden;
+}
+
+.earlybird-panel::before {
+  position: absolute;
+  top: -55%;
+  left: -18%;
+  width: 58%;
+  height: 130%;
+  content: "";
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255, 187, 92, 0.2), transparent 74%);
+}
+
+.earlybird-panel-inner {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  padding: 22px 24px 20px;
+  border: 1px solid rgba(255, 214, 138, 0.14);
+  border-radius: 12px;
+  background: rgba(9, 17, 24, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 226, 168, 0.08);
+}
+
+.earlybird-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.earlybird-flag {
+  padding: 5px 12px;
+  color: #201302;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffe2a3, var(--gold-strong));
+  box-shadow: 0 8px 22px rgba(255, 179, 71, 0.28);
+}
+
+.earlybird-launchnote {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.earlybird-amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+
+.earlybird-amount strong {
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 4.4vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  background: linear-gradient(150deg, #fff3d6 12%, #ffd489 52%, var(--gold-strong));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.earlybird-buyout {
+  padding: 6px 12px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  border: 1px solid var(--gold-line);
+  border-radius: 999px;
+}
+
+.split-copy .earlybird-panel-inner > p {
+  margin: 0;
+  color: var(--quiet);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .app-store-image {
   width: 100%;
   height: auto;
@@ -1164,6 +1396,18 @@ svg {
     transform: translateY(-1px);
   }
 
+  .hero-earlybird:hover {
+    border-color: rgba(255, 210, 130, 0.62);
+    box-shadow:
+      0 20px 54px rgba(255, 170, 64, 0.24),
+      inset 0 1px 0 rgba(255, 226, 168, 0.24);
+    transform: translateY(-1px);
+  }
+
+  .hero-earlybird:hover .earlybird-arrow {
+    transform: translateX(3px);
+  }
+
   .button:active {
     transform: translateY(0) scale(0.97);
   }
@@ -1212,6 +1456,7 @@ svg {
   .hero {
     grid-template-columns: 1fr;
     grid-template-areas:
+      "badge"
       "title"
       "copy"
       "visual";
@@ -1294,6 +1539,28 @@ svg {
     padding-block: 30px 42px;
   }
 
+  .hero-earlybird {
+    gap: 9px;
+    margin-bottom: 0;
+    padding: 9px 15px 9px 13px;
+  }
+
+  .earlybird-launch {
+    font-size: 12px;
+  }
+
+  .earlybird-tag {
+    font-size: 11px;
+  }
+
+  .earlybird-price {
+    font-size: 15px;
+  }
+
+  .earlybird-panel-inner {
+    padding: 18px;
+  }
+
   .hero h1 {
     font-size: 2rem;
   }
@@ -1372,6 +1639,11 @@ svg {
 }
 
 @media (max-width: 420px) {
+  .hero-earlybird .earlybird-launch,
+  .hero-earlybird .earlybird-divider {
+    display: none;
+  }
+
   .hero h1 {
     font-size: 1.75rem;
   }

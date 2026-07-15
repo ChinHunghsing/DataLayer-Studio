@@ -27,7 +27,7 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif:wght@700&family=Noto+Serif+JP:wght@700&family=Noto+Serif+SC:wght@700&family=Noto+Serif+TC:wght@700&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="styles.css?v=20260706-ui-images">
+    <link rel="stylesheet" href="styles.css?v=20260716-earlybird">
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true">
@@ -87,6 +87,16 @@
 
     <main id="top">
       <section class="hero section-shell" aria-labelledby="hero-title">
+        <a class="hero-earlybird" href="#pricing" aria-label="刚刚上线，早鸟价 ¥68，查看购买" data-i18n-attr="aria-label:earlybird.ariaLabel">
+          <span class="earlybird-dot" aria-hidden="true"></span>
+          <span class="earlybird-launch" data-i18n="earlybird.launch">刚刚上线</span>
+          <span class="earlybird-divider" aria-hidden="true"></span>
+          <span class="earlybird-tag" data-i18n="earlybird.label">早鸟价</span>
+          <strong class="earlybird-price" data-i18n="earlybird.price">¥68</strong>
+          <svg class="earlybird-arrow" aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M5 12h14M13 6l6 6-6 6"></path>
+          </svg>
+        </a>
         <h1 id="hero-title" data-i18n="hero.title">跑步数据变成视频数据层</h1>
         <div class="hero-copy">
           <p data-i18n="hero.copy">
@@ -368,6 +378,22 @@
               把运动文件里的时间、路线和指标，变成剪辑时间线里可控、可复用、可交付的一层画面。
               DataLayer Studio 在 App Store 购买后即可使用，价格以当前地区商店显示为准。
             </p>
+            <div class="earlybird-panel">
+              <div class="earlybird-panel-inner">
+                <div class="earlybird-panel-head">
+                  <span class="earlybird-flag" data-i18n="earlybird.label">早鸟价</span>
+                  <span class="earlybird-launchnote">
+                    <span class="earlybird-dot" aria-hidden="true"></span>
+                    <span data-i18n="earlybird.launch">刚刚上线</span>
+                  </span>
+                </div>
+                <div class="earlybird-amount">
+                  <strong data-i18n="earlybird.price">¥68</strong>
+                  <span class="earlybird-buyout" data-i18n="earlybird.buyout">一次买断</span>
+                </div>
+                <p data-i18n="earlybird.note">上线初期的早鸟特惠定价，实际价格以 App Store 当前地区显示为准。</p>
+              </div>
+            </div>
             <div class="split-actions">
               <a class="button primary" href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770" target="_blank" rel="noreferrer">
                 <span data-i18n="actions.appStore">App Store 下载</span>
@@ -404,6 +430,6 @@
       <span>© 2026 DataLayer Studio contributors.</span>
     </footer>
 
-    <script src="script.js?v=20260713-studio-reset"></script>
+    <script src="script.js?v=20260716-earlybird"></script>
   </body>
 </html>
