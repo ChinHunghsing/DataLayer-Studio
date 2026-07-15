@@ -39,12 +39,12 @@ const translations = {
       visualAlt: "新版 DataLayer Studio 的媒体池、组件库、预览画布、检查器和多轨时间线",
     },
     earlybird: {
-      launch: "刚刚上线",
+      launch: "现已推出",
       label: "早鸟价",
       price: "¥68",
       buyout: "一次买断",
       note: "上线初期的早鸟特惠定价，实际价格以 App Store 当前地区显示为准。",
-      ariaLabel: "刚刚上线，早鸟价 ¥68，查看购买",
+      ariaLabel: "现已推出，早鸟价 ¥68，查看购买",
     },
     workflow: {
       eyebrow: "工作流",
@@ -149,12 +149,12 @@ const translations = {
       visualAlt: "新版 DataLayer Studio 的媒體庫、元件庫、預覽畫布、檢查器與多軌時間軸",
     },
     earlybird: {
-      launch: "剛剛上線",
+      launch: "現已推出",
       label: "早鳥價",
       price: "NT$320",
       buyout: "一次買斷",
       note: "上線初期的早鳥優惠定價，實際價格以 App Store 目前地區顯示為準。",
-      ariaLabel: "剛剛上線，早鳥價 NT$320，查看購買",
+      ariaLabel: "現已推出，早鳥價 NT$320，查看購買",
     },
     workflow: {
       eyebrow: "工作流程",
@@ -259,12 +259,12 @@ const translations = {
       visualAlt: "The redesigned DataLayer Studio workspace with media library, component browser, canvas, inspector, and multitrack timeline",
     },
     earlybird: {
-      launch: "Just launched",
+      launch: "Now available",
       label: "EARLY BIRD",
       price: "$9.99",
       buyout: "One-time purchase",
       note: "Launch-window early-bird pricing. The final price always follows your local App Store.",
-      ariaLabel: "Just launched, early-bird price $9.99, view pricing",
+      ariaLabel: "Now available, early-bird price $9.99, view pricing",
     },
     workflow: {
       eyebrow: "Workflow",
@@ -369,12 +369,12 @@ const translations = {
       visualAlt: "メディアライブラリ、コンポーネント、キャンバス、インスペクタ、マルチトラックタイムラインを備えた新しい DataLayer Studio",
     },
     earlybird: {
-      launch: "リリースしたばかり",
+      launch: "リリース記念",
       label: "早割価格",
       price: "¥1500",
       buyout: "買い切り",
       note: "リリース直後の早割価格です。実際の価格は App Store の現在の表示に従います。",
-      ariaLabel: "リリースしたばかり、早割価格 ¥1500、購入セクションを見る",
+      ariaLabel: "リリース記念、早割価格 ¥1500、購入セクションを見る",
     },
     workflow: {
       eyebrow: "ワークフロー",
