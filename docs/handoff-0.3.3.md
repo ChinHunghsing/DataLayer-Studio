@@ -46,8 +46,8 @@
 
 1. **ASC 版本**：macOS 0.3.3 已创建，状态为 `PREPARE_FOR_SUBMISSION`，version id 为 `2550366f-e8fe-48c7-b78b-a90a5596ec9d`；尚未绑定 App Store 审核构建，也未提交审核。
 2. **元数据与截图**：`en-US`、`zh-Hans`、`zh-Hant`、`ja` 的描述、关键词、宣传文本与 What's New 已填写；每语言 3 张 `APP_DESKTOP` 截图均为 `COMPLETE`。本地素材位于 `assets/appstore/v0.3.3/`，当前主工作区无未提交截图。
-3. **内部 TestFlight**：0.3.3 构建 `2026071501` 已上传且为 `VALID`，`Internal State = IN_BETA_TESTING`。该构建早于本次系统日志隐私修复，不应直接作为最终审核构建。
-4. **下一构建**：提交本次修复后，使用高于 `2026071501` 的 `yyyyMMddNN` 构建号重新构建、打包并上传；处理完成后绑定到 0.3.3 App Store 版本。
+3. **内部 TestFlight**：0.3.3 构建 `2026071502` 已上传且为 `VALID`，`Internal State = IN_BETA_TESTING`；该构建包含系统日志隐私修复。`2026071501` 为上一内部构建。
+4. **App Store 审核构建**：`2026071502` 已可用，但尚未绑定到 0.3.3 App Store 版本；提审前绑定该构建并完成发布前检查。
 5. **提审**：按 `AGENTS.md` 审核流程执行；发布方式确认 `AFTER_APPROVAL`，完成 validate、review doctor、dry-run、正式提交并确认进入 `WAITING_FOR_REVIEW` 或后续状态。
 6. **GitHub Release**：尚未发布 v0.3.3。main CI 通过后打 tag，确认 release workflow 成功并完成下载资产验证。
 
