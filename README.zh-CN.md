@@ -14,6 +14,10 @@
   <img src="https://img.shields.io/badge/license-source--available-0B2430" alt="Source-available 许可证">
 </p>
 
+<p align="center">
+  <img src="assets/readme/fable5verified.png" width="200" alt="Fable 5 Verified">
+</p>
+
 DataLayer Studio 是一款原生 macOS 编辑器，可以把跑步运动数据变成清晰、同步的视频图形。导入视频和 `.fit` 运动文件，在同一条时间线上完成对齐，排布实时数据组件，再导出透明数据层或已合成的成片。
 
 <p align="center">
