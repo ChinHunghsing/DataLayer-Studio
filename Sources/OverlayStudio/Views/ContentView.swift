@@ -320,7 +320,7 @@ struct ContentView: View {
             canSplitTimelineClips: model.canSplitTimelineClipsAtPlayhead,
             canToggleTimelineClips: model.canToggleSelectedTimelineClipsEnabled && !isEditingText,
             canNudgeTimelineClips: model.canNudgeSelectedTimelineClips && !isEditingText,
-            canDeleteTimelineClip: model.selectedTimelineSelectionIsEditable,
+            canDeleteTimelineClip: model.selectedTimelineClipIsEditable,
             canCopyTimelineClips: model.canCopySelectedTimelineClips && !isEditingText,
             canCutTimelineClips: model.canCutSelectedTimelineClips && !isEditingText,
             canPasteTimelineClips: model.canPasteTimelineClips && !isEditingText,

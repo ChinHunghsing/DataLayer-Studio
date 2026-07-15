@@ -248,7 +248,6 @@ final class StudioModel: ObservableObject {
     }
     @Published private(set) var selectedMediaAssetID: String?
     @Published private(set) var selectedTimelineClipIDs: Set<String> = []
-    @Published private(set) var selectedTimelineGap: TimelineGap?
     @Published private var timelineClipboard: [TimelineClipboardItem] = []
     @Published var selectedTimelineClipID: String? {
         didSet {
@@ -660,7 +659,7 @@ final class StudioModel: ObservableObject {
     }
 
     var selectedElement: OverlayElement? {
-        guard selectedTimelineClipID == nil, selectedTimelineGap == nil else { return nil }
+        guard selectedTimelineClipID == nil else { return nil }
         guard let selectedElementID else { return layout.elements.first }
         return layout.elements.first { $0.id == selectedElementID } ?? layout.elements.first
     }
@@ -704,12 +703,6 @@ final class StudioModel: ObservableObject {
         return timeline.tracks.contains { track in
             !track.isLocked && track.clips.contains { $0.id == selectedTimelineClipID }
         }
-    }
-
-    var selectedTimelineSelectionIsEditable: Bool {
-        if selectedTimelineClipIsEditable { return true }
-        guard let selectedTimelineGap, !isExporting else { return false }
-        return timeline.tracks.contains { $0.id == selectedTimelineGap.trackID && !$0.isLocked }
     }
 
     var canToggleSelectedTimelineClipsEnabled: Bool {
@@ -4611,10 +4604,7 @@ final class StudioModel: ObservableObject {
 
     func deleteSelectedTimelineClip(ripple: Bool) {
         let selectedIDs = effectiveSelectedTimelineClipIDs.filter(canDeleteTimelineClip)
-        guard !selectedIDs.isEmpty else {
-            deleteSelectedTimelineGap()
-            return
-        }
+        guard !selectedIDs.isEmpty else { return }
         if selectedIDs.count == 1, let id = selectedIDs.first {
             deleteTimelineClip(id: id, ripple: ripple)
             return
@@ -4644,26 +4634,6 @@ final class StudioModel: ObservableObject {
         previewTime = clampedPreviewTime(previewTime)
         refreshOverlayOrPreview()
         setStatus(ripple ? "status.timelineClipRippleDeleted" : "status.timelineClipDeleted")
-    }
-
-    func deleteSelectedTimelineGap() {
-        guard let gap = selectedTimelineGap,
-              selectedTimelineSelectionIsEditable,
-              timeline.tracks.first(where: { $0.id == gap.trackID })?.gaps.contains(gap) == true else { return }
-        let previousUndoState = timelineUndoSnapshotNow
-        var updated = timeline
-        updated.removeTimeRange(from: gap.timelineStart, to: gap.timelineEnd)
-        beginTimelineClipEditingIfNeeded()
-        timeline = updated
-        clearTimelineClipSelection()
-        registerTimelineUndoIfChanged(
-            previous: previousUndoState,
-            actionKey: "undo.timeline.deleteGap",
-            coalescing: false
-        )
-        previewTime = clampedPreviewTime(previewTime)
-        refreshOverlayOrPreview()
-        setStatus("status.timelineGapDeleted")
     }
 
     var canCopySelectedTimelineClips: Bool {
@@ -4717,28 +4687,19 @@ final class StudioModel: ObservableObject {
     }
 
     func pasteTimelineClips() {
-        pasteTimelineClips(inserting: false, at: nil)
+        pasteTimelineClips(inserting: false)
     }
 
     func pasteInsertTimelineClips() {
-        pasteTimelineClips(inserting: true, at: nil)
+        pasteTimelineClips(inserting: true)
     }
 
-    func pasteTimelineClips(at timelineTime: TimeInterval) {
-        pasteTimelineClips(inserting: false, at: timelineTime)
-    }
-
-    func pasteInsertTimelineClips(at timelineTime: TimeInterval) {
-        pasteTimelineClips(inserting: true, at: timelineTime)
-    }
-
-    private func pasteTimelineClips(inserting: Bool, at timelineTime: TimeInterval?) {
+    private func pasteTimelineClips(inserting: Bool) {
         guard canPasteTimelineClips,
               let clipboardStart = timelineClipboard.map(\.clip.timelineStart).min(),
               let clipboardEnd = timelineClipboard.map(\.clip.timelineEnd).max() else { return }
 
-        let requestedPasteTime = timelineTime ?? previewTime
-        let pasteTime = max(0, requestedPasteTime.isFinite ? requestedPasteTime : 0)
+        let pasteTime = max(0, previewTime.isFinite ? previewTime : 0)
         let previousUndoState = timelineUndoSnapshotNow
         var updated = timeline
         if inserting {
@@ -4795,7 +4756,6 @@ final class StudioModel: ObservableObject {
             selectedTimelineClipIDs = [id]
             selectedTimelineClipID = id
         }
-        selectedTimelineGap = nil
         selectedElementID = nil
         selectedMediaAssetID = nil
     }
@@ -4812,7 +4772,6 @@ final class StudioModel: ObservableObject {
         if selectedMediaAssetID != nil {
             selectedMediaAssetID = nil
         }
-        selectedTimelineGap = nil
     }
 
     func isTimelineClipSelected(id: String) -> Bool {
@@ -4846,15 +4805,6 @@ final class StudioModel: ObservableObject {
     func clearTimelineClipSelection() {
         selectedTimelineClipIDs = []
         selectedTimelineClipID = nil
-        selectedTimelineGap = nil
-    }
-
-    func selectTimelineGap(_ gap: TimelineGap) {
-        guard timeline.tracks.first(where: { $0.id == gap.trackID })?.gaps.contains(gap) == true else { return }
-        clearTimelineClipSelection()
-        selectedTimelineGap = gap
-        selectedElementID = nil
-        selectedMediaAssetID = nil
     }
 
     func selectElement(id: String) {
@@ -6447,7 +6397,6 @@ final class StudioModel: ObservableObject {
         selectedTimelineClipIDs = previous.selectedClipIDs.filter { timelineClip(id: $0) != nil }
         selectedTimelineClipID = previous.selectedClipID.flatMap { timelineClip(id: $0) == nil ? nil : $0 }
             ?? firstSelectedTimelineClipID
-        selectedTimelineGap = nil
         singleSourceAlignmentIsPending = previous.timeline.tracks
             .flatMap(\.clips)
             .contains(where: \.isAlignmentPending)
@@ -6477,7 +6426,6 @@ final class StudioModel: ObservableObject {
         var usesSingleSourceMigration: Bool
         var selectedClipID: String?
         var selectedClipIDs: Set<String>
-        var selectedGap: TimelineGap?
         var timelinePositionState: TimelinePositionUndoState?
     }
 
@@ -6496,7 +6444,6 @@ final class StudioModel: ObservableObject {
             usesSingleSourceMigration: timelineUsesSingleSourceMigration,
             selectedClipID: selectedTimelineClipID,
             selectedClipIDs: selectedTimelineClipIDs,
-            selectedGap: selectedTimelineGap,
             timelinePositionState: nil
         )
     }
@@ -6572,9 +6519,6 @@ final class StudioModel: ObservableObject {
             selectedTimelineClipID = selectedClipID
         } else {
             repairSelectedTimelineClipIfNeeded()
-        }
-        selectedTimelineGap = previous.selectedGap.flatMap { gap in
-            timeline.tracks.first(where: { $0.id == gap.trackID })?.gaps.contains(gap) == true ? gap : nil
         }
         if !usesCustomTimelinePreview, let videoURL {
             // Undo back into single-source mode: return the player to the raw video item.
