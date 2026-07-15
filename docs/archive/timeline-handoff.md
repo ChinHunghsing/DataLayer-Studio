@@ -1,5 +1,7 @@
 # DataLayer Studio 时间线改造交接文档
 
+> **归档说明（2026-07-16）**：时间线改造阶段 4–9 已全部完成收口并随 0.3.x 上架，本文所述"当前状态"为 2026-07-14 的历史基线，文末"下一步"不再是待办。时间线真实能力以当前代码与测试为准。
+
 - 更新时间：2026-07-11
 - 提交审阅范围：`093da56ec8eff6a92b1b6c68e1ef740bccbaec56`（含）至本文档所在提交（含）
 - 当前功能实现基线：阶段 9.7 时间线功能收口与真实素材终验
@@ -403,7 +405,7 @@ swift test --filter OverlayRendererTests
 
 ## 接手时先看的文件
 
-- `docs/timeline-handoff.md`
+- `docs/archive/timeline-handoff.md`（本文）
 - `Sources/OverlayCore/Timeline/TimelineModel.swift`
 - `Sources/OverlayCore/Video/TimelineVideoWriter.swift`
 - `Sources/OverlayCore/Video/CompositedVideoWriter.swift`

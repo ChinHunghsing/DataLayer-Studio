@@ -3,7 +3,7 @@ import Foundation
 /// A parsed activity file's telemetry plus its file-level metadata. `sport` is kept out of
 /// `TelemetrySeries` on purpose: the series is a value type copied into every detached preview
 /// render, and growing it perturbs a latent render-pipeline data race (see
-/// `docs/qa-0.2.3-transparent-and-longform.md`). File metadata rides alongside instead.
+/// `docs/archive/qa-0.2.3-transparent-and-longform.md`). File metadata rides alongside instead.
 public struct ParsedActivity: Equatable {
     public var series: TelemetrySeries
     public var sport: TelemetrySport?

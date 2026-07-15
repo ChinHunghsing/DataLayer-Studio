@@ -1,5 +1,7 @@
 # 0.3.3 版本交接文档
 
+> **归档说明（2026-07-16）**：本文交接的 0.3.3 发布已完成——App Store 版本 0.3.3 已上架（`READY_FOR_DISTRIBUTION`，2026-07-16 经 `asc` 实查），第三节所列 ASC 剩余工作不再成立。**唯一未完成事项：GitHub Release v0.3.3 截至归档时尚未发布（最新 tag 为 v0.3.2）**，如需补发按 `AGENTS.md` 的 GitHub Release 流程执行。第二节末尾的体验债务（复制片段可见反馈、完整视觉令牌、controlSize 分层）仍然有效。以下正文为 2026-07-15 的历史状态，仅供追溯。
+
 > 写给接手 0.3.3 发布的智能体。开工前先读根目录 `AGENTS.md`（全部流程约定都在那里），再读本文档。
 > 本文档描述的是 2026-07-15 的状态；按 AGENTS.md 约定，若仓库现状与本文不符，以当前可验证事实为准。
 
@@ -55,6 +57,6 @@
 
 - `asc`、`codesign`、`swift build` 在沙箱内会报 Keychain/TLS/权限假错误，脱沙箱重跑同一条命令即可，不要改项目配置（AGENTS.md 有明文约定）。
 - 0.3.2 版式的原始截图在 `assets/screenshots_raw/v0.3.2/`，2026-07-15 曾被误覆盖后已还原，不要再动。
-- `docs/ux-overhaul-0.3-plan.md` 第 230 行附近记录了当前遗留：复制片段的可见反馈、完整视觉令牌与 `controlSize` 分层尚未完成，均不阻塞 0.3.3 的既定修复范围。
+- `docs/archive/ux-overhaul-0.3-plan.md` 第 230 行附近记录了当前遗留：复制片段的可见反馈、完整视觉令牌与 `controlSize` 分层尚未完成，均不阻塞 0.3.3 的既定修复范围。
 - 播放头交互如再报问题，吸附核心都在 `ProjectTimelineView.swift`：候选生成 `snapResult`、阈值 `snapThreshold`、起点排除 `playheadScrubEscapesStart`。
 - 新增 UI 文案必须同步四语言（`Localization.swift`），`LocalizationTests` 会检查 key 缺失。
