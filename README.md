@@ -170,6 +170,10 @@ DataLayer Studio is built and maintained independently by one developer. Buying 
 
 Sponsorship is optional and does not include a commercial license, priority support, or guaranteed feature work.
 
+<p align="center">
+  <img src="assets/readme/made-with-codex.svg" width="360" alt="Codex &amp; GPT-5.6 Sol were used to redesign this README">
+</p>
+
 ## License
 
 DataLayer Studio is source-available for noncommercial use. It is not OSI open source: commercial use, resale, paid redistribution, and paid hosting require separate written permission. Modified versions and derivative distributions must share their corresponding source under the same terms.
