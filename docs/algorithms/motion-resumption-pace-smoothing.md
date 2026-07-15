@@ -1,7 +1,7 @@
 # 组间休息后的奔跑恢复点配速修正
 
 > 适用版本：`OverlayCore`（`Sources/OverlayCore/Telemetry/TelemetrySeries.swift`）
-> 前置阅读：`docs/startup-pace-catchup-smoothing.md`（起跑与活动结尾的配速平滑）
+> 前置阅读：`docs/algorithms/startup-pace-catchup-smoothing.md`（起跑与活动结尾的配速平滑）
 > 关键词：间歇训练、运动恢复点（motion resumption）、距离补账、微移动排除、GPS 漂移脉冲
 
 ## 摘要

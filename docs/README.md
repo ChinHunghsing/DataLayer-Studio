@@ -18,10 +18,12 @@
 - [ios/ipad-product-design.md](ios/ipad-product-design.md) / [ios/ipad-technical-design.md](ios/ipad-technical-design.md) — iPad 版产品与技术设计（v1 已合入 main，实施中）。
 - [ios/iphone-product-design.md](ios/iphone-product-design.md) / [ios/iphone-technical-design.md](ios/iphone-technical-design.md) — iPhone 版产品与技术设计（提案，未开工）。
 
-### 算法专题（描述现行实现）
+### 算法专题（algorithms/，描述现行实现）
 
-- [startup-pace-catchup-smoothing.md](startup-pace-catchup-smoothing.md) — 起跑与活动结尾的配速平滑（`TelemetrySeries.swift` 现行行为）。
-- [motion-resumption-pace-smoothing.md](motion-resumption-pace-smoothing.md) — 组间休息后奔跑恢复点的配速修正（前文的中段推广）。
+理论论文式的算法文档：问题定义、检测/修正算法、真实样本验证。描述的是 `OverlayCore` 现行行为，改相关代码前必读。
+
+- [algorithms/startup-pace-catchup-smoothing.md](algorithms/startup-pace-catchup-smoothing.md) — 起跑与活动结尾的配速平滑（`TelemetrySeries.swift` 现行行为）。
+- [algorithms/motion-resumption-pace-smoothing.md](algorithms/motion-resumption-pace-smoothing.md) — 组间休息后奔跑恢复点的配速修正（前文的中段推广）。
 
 ### 本地文件（不入库）
 
