@@ -428,9 +428,9 @@ svg {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 15px;
   margin-bottom: calc(clamp(28px, 4vw, 48px) * -0.4);
-  padding: 10px 20px 10px 17px;
+  padding: 15px 30px 15px 25px;
   border: 1px solid var(--gold-line);
   border-radius: 999px;
   background:
@@ -481,8 +481,8 @@ svg {
 .earlybird-dot {
   position: relative;
   flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: linear-gradient(135deg, #ffe2a3, var(--gold-strong));
 }
@@ -510,7 +510,7 @@ svg {
 
 .earlybird-launch {
   color: var(--text);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
@@ -518,13 +518,13 @@ svg {
 
 .earlybird-divider {
   width: 1px;
-  height: 15px;
+  height: 19px;
   background: rgba(255, 200, 112, 0.36);
 }
 
 .earlybird-tag {
   color: var(--gold);
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.14em;
   line-height: 1;
@@ -532,7 +532,7 @@ svg {
 }
 
 .earlybird-price {
-  font-size: 17px;
+  font-size: 23px;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
@@ -543,8 +543,8 @@ svg {
 }
 
 .earlybird-arrow {
-  width: 15px;
-  height: 15px;
+  width: 19px;
+  height: 19px;
   color: var(--gold);
   stroke-width: 2;
   transition: transform 180ms var(--ease-out);
@@ -1540,21 +1540,21 @@ svg {
   }
 
   .hero-earlybird {
-    gap: 9px;
+    gap: 11px;
     margin-bottom: 0;
-    padding: 9px 15px 9px 13px;
+    padding: 12px 20px 12px 17px;
   }
 
   .earlybird-launch {
-    font-size: 12px;
+    font-size: 14px;
   }
 
   .earlybird-tag {
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .earlybird-price {
-    font-size: 15px;
+    font-size: 19px;
   }
 
   .earlybird-panel-inner {
