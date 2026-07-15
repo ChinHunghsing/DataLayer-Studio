@@ -2908,11 +2908,49 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.selectedTimelineClip?.distanceUnit, .kilometers)
         XCTAssertEqual(model.distanceUnit, .kilometers)
 
+        model.layout = OverlayLayout(elements: [OverlayElement.defaultElement(kind: .speed)])
         model.selectedTimelineClipID = nil
         model.setDistanceUnitForCurrentSelection(.meters)
 
         XCTAssertEqual(model.distanceUnitForCurrentSelection, .meters)
         XCTAssertEqual(model.distanceUnit, .meters)
+    }
+
+    func testDistanceUnitSettingAfterQueuedSourceImportsUpdatesUnselectedActiveClip() throws {
+        let model = StudioModel()
+        model.distanceUnit = .kilometers
+        model.layout = OverlayLayout(elements: [
+            OverlayElement.defaultElement(kind: .distance, id: "default-distance")
+        ])
+        model.selectedElementID = nil
+
+        let videoURL = URL(fileURLWithPath: "/tmp/initial-unit-video.mov")
+        model.queueImportedVideosForTimeline([videoURL])
+        model.videoURL = videoURL
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1_920, height: 1_080, duration: 60, fps: 30)
+        )
+
+        let activityURL = URL(fileURLWithPath: "/tmp/initial-unit-activity.fit")
+        let activitySeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, distanceMeters: 1_000)
+        ])
+        model.queueImportedActivitiesForTimeline([activityURL])
+        model.fitURL = activityURL
+        model.series = activitySeries
+        model.upsertActivityAsset(url: activityURL, series: activitySeries)
+
+        XCTAssertNil(model.selectedTimelineClipID)
+        XCTAssertNil(model.selectedElementID)
+        XCTAssertEqual(model.selectedElement?.kind, .distance)
+        XCTAssertEqual(model.currentTimelineProject.tracks.first { $0.kind == .overlay }?.clips.first?.distanceUnit, .kilometers)
+
+        model.setDistanceUnitForCurrentSelection(.meters)
+
+        XCTAssertEqual(model.currentTimelineProject.tracks.first { $0.kind == .overlay }?.clips.first?.distanceUnit, .meters)
+        XCTAssertEqual(model.distanceUnitForCurrentSelection, .meters)
     }
 
     func testDistanceUnitSettingUpdatesClipWhileEditingItsGaugeLayout() throws {

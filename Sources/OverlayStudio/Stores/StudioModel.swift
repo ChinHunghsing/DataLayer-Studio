@@ -686,6 +686,11 @@ final class StudioModel: ObservableObject {
     }
 
     func setDistanceUnitForCurrentSelection(_ unit: OverlayDistanceUnit) {
+        if distanceUnitTimelineClip == nil,
+           let kind = selectedElement?.kind,
+           kind == .distance || kind == .route || kind == .topProgress {
+            prepareActiveTimelineOverlayLayoutForEditing()
+        }
         guard let clip = distanceUnitTimelineClip else {
             distanceUnit = unit
             refreshOverlayOrPreview()
