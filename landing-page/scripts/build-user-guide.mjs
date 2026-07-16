@@ -83,7 +83,8 @@ const languages = [
 
 const appStoreURL = "https://apps.apple.com/cn/app/datalayer-studio/id6782545770";
 const githubURL = "https://github.com/leeeboo/DataLayer-Studio";
-const version = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+// 分钟级版本号：每次重新生成都会变，确保样式改动后浏览器缓存刷新。
+const version = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
 
 const escapeHTML = (text) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
