@@ -28,7 +28,10 @@ struct OutputPanelView: View {
     @Binding var isCancelExportConfirmationPresented: Bool
     @EnvironmentObject private var localization: LocalizationStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var forceCustomResolution = false
+    @State private var isResolutionPopoverPresented = false
+    @State private var isFreeTierUpgradeAlertPresented = false
     @State private var isAspectRatioLocked = true
     @State private var lockedAspectRatio: Double?
     @State private var widthRefreshGeneration = 0
@@ -58,6 +61,17 @@ struct OutputPanelView: View {
         .interactiveDismissDisabled(model.isExporting)
         .onAppear {
             model.constrainOutputResolutionForCurrentEntitlement()
+        }
+        .alert(
+            localization.string("output.freeTierLocked.title"),
+            isPresented: $isFreeTierUpgradeAlertPresented
+        ) {
+            Button(localization.string("output.freeTierLocked.buy")) {
+                openURL(PurchaseAuthorizationStore.fullVersionURL)
+            }
+            Button(localization.string("common.cancel"), role: .cancel) { }
+        } message: {
+            Text(localization.string("output.freeTierLocked.message"))
         }
         .alert(localization.string("exportDialog.cancelTitle"), isPresented: $isCancelExportConfirmationPresented) {
             Button(localization.string("exportDialog.confirmCancel"), role: .destructive) {
@@ -377,24 +391,21 @@ struct OutputPanelView: View {
     private var pictureCard: some View {
         settingsCard(title: localization.string("output.section.picture"), systemImage: "aspectratio") {
             settingRow(localization.string("sidebar.resolution")) {
-                Picker(localization.string("sidebar.resolution"), selection: resolutionPresetSelection) {
-                    if let sourceTitle = model.sourceResolutionPresetTitle {
-                        Text(sourceTitle)
-                            .tag(OutputResolutionPreset.sourceID)
-                            .disabled(!model.isResolutionPresetAvailableForCurrentEntitlement(id: OutputResolutionPreset.sourceID))
+                Button {
+                    isResolutionPopoverPresented.toggle()
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(currentResolutionTitle)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
-                    ForEach(OutputResolutionPreset.fixed) { preset in
-                        Text(localization.string(preset.localizationKey))
-                            .tag(preset.id)
-                            .disabled(!model.isResolutionPresetAvailableForCurrentEntitlement(id: preset.id))
-                    }
-                    Text(localization.string("sidebar.custom"))
-                        .tag(OutputResolutionPreset.customID)
-                        .disabled(!model.isResolutionPresetAvailableForCurrentEntitlement(id: OutputResolutionPreset.customID))
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
+                .buttonStyle(.bordered)
                 .fixedSize()
+                .popover(isPresented: $isResolutionPopoverPresented, arrowEdge: .bottom) {
+                    resolutionPopover
+                }
             }
 
             if isCustomResolution {
@@ -441,17 +452,23 @@ struct OutputPanelView: View {
 
             if model.exportEntitlement == .free {
                 rowDivider
-                VStack(alignment: .leading, spacing: 6) {
-                    Label(localization.string("output.freeTierNotice"), systemImage: "info.circle")
-                        .font(.caption)
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "info.circle")
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Link(
-                        localization.string("output.freeTierBuy"),
-                        destination: PurchaseAuthorizationStore.fullVersionURL
-                    )
-                    .font(.caption)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(localization.string("output.freeTierNotice"))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Link(
+                            localization.string("output.freeTierBuy"),
+                            destination: PurchaseAuthorizationStore.fullVersionURL
+                        )
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .font(.caption)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
             }
         }
     }
@@ -625,6 +642,78 @@ struct OutputPanelView: View {
                 }
             }
         )
+    }
+
+    private var currentResolutionTitle: String {
+        let id = resolutionPresetSelection.wrappedValue
+        if id == OutputResolutionPreset.sourceID,
+           let sourceTitle = model.sourceResolutionPresetTitle {
+            return sourceTitle
+        }
+        if let preset = OutputResolutionPreset.fixed.first(where: { $0.id == id }) {
+            return localization.string(preset.localizationKey)
+        }
+        return localization.string("sidebar.custom")
+    }
+
+    private var resolutionPopover: some View {
+        VStack(spacing: 2) {
+            if let sourceTitle = model.sourceResolutionPresetTitle {
+                resolutionOptionRow(id: OutputResolutionPreset.sourceID, title: sourceTitle)
+            }
+            ForEach(OutputResolutionPreset.fixed) { preset in
+                resolutionOptionRow(id: preset.id, title: localization.string(preset.localizationKey))
+            }
+            Divider().padding(.vertical, 3)
+            resolutionOptionRow(
+                id: OutputResolutionPreset.customID,
+                title: localization.string("sidebar.custom")
+            )
+        }
+        .padding(8)
+        .frame(width: 300)
+    }
+
+    private func resolutionOptionRow(id: String, title: String) -> some View {
+        let isAvailable = model.isResolutionPresetAvailableForCurrentEntitlement(id: id)
+        let isSelected = resolutionPresetSelection.wrappedValue == id
+
+        return Button {
+            guard isAvailable else {
+                isResolutionPopoverPresented = false
+                DispatchQueue.main.async {
+                    isFreeTierUpgradeAlertPresented = true
+                }
+                return
+            }
+            resolutionPresetSelection.wrappedValue = id
+            isResolutionPopoverPresented = false
+        } label: {
+            HStack(spacing: 8) {
+                Group {
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                    } else {
+                        Color.clear
+                    }
+                }
+                .frame(width: 12, height: 12)
+
+                Text(title)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if !isAvailable {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                }
+            }
+            .foregroundStyle(isAvailable ? Color.primary : Color.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var frameRatePresetSelection: Binding<String> {
