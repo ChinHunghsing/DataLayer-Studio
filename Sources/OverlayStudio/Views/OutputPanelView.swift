@@ -131,7 +131,6 @@ struct OutputPanelView: View {
                     ForEach(ExportPreset.builtIn) { preset in
                         presetRow(preset)
                             .tag(Optional(preset.id))
-                            .disabled(!model.isExportPresetAvailableForCurrentEntitlement(preset))
                     }
                 }
 
@@ -144,7 +143,6 @@ struct OutputPanelView: View {
                         ForEach(model.userExportPresets) { preset in
                             presetRow(preset)
                                 .tag(Optional(preset.id))
-                                .disabled(!model.isExportPresetAvailableForCurrentEntitlement(preset))
                         }
                     }
                 }
@@ -153,6 +151,11 @@ struct OutputPanelView: View {
             .onChange(of: selectedPresetID) { id in
                 guard let id,
                       let preset = model.exportPresetsForDisplay.first(where: { $0.id == id }) else { return }
+                guard model.isExportPresetAvailableForCurrentEntitlement(preset) else {
+                    selectedPresetID = nil
+                    isFreeTierUpgradeAlertPresented = true
+                    return
+                }
                 forceCustomResolution = false
                 model.applyExportPreset(id: id)
                 lockCurrentAspectRatio()
@@ -199,11 +202,21 @@ struct OutputPanelView: View {
     }
 
     private func presetRow(_ preset: ExportPreset) -> some View {
-        Label(
-            preset.displayName { localization.string($0) },
-            systemImage: preset.exportMode == .overlay ? "square.on.square" : "film"
-        )
-        .lineLimit(1)
+        let isAvailable = model.isExportPresetAvailableForCurrentEntitlement(preset)
+
+        return HStack(spacing: 8) {
+            Label(
+                preset.displayName { localization.string($0) },
+                systemImage: preset.exportMode == .overlay ? "square.on.square" : "film"
+            )
+            .lineLimit(1)
+            Spacer(minLength: 4)
+            if !isAvailable {
+                Image(systemName: "lock.fill")
+                    .font(.caption)
+            }
+        }
+        .foregroundStyle(isAvailable ? Color.primary : Color.secondary)
     }
 
     private func saveCurrentPreset() {
