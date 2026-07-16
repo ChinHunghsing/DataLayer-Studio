@@ -231,19 +231,28 @@ struct ContentView: View {
         #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             ToolbarItem(placement: .primaryAction) {
-                OutputToolbarButton(model: model) { isExportCenterPresented = true }
+                outputToolbarActions
             }
             .sharedBackgroundVisibility(.hidden)
         } else {
             ToolbarItem(placement: .primaryAction) {
-                OutputToolbarButton(model: model) { isExportCenterPresented = true }
+                outputToolbarActions
             }
         }
         #else
         ToolbarItem(placement: .primaryAction) {
-            OutputToolbarButton(model: model) { isExportCenterPresented = true }
+            outputToolbarActions
         }
         #endif
+    }
+
+    private var outputToolbarActions: some View {
+        HStack(spacing: 8) {
+            if model.exportEntitlement == .free {
+                FreeTierToolbarButton()
+            }
+            OutputToolbarButton(model: model) { isExportCenterPresented = true }
+        }
     }
 
     private func panelToggleButton(

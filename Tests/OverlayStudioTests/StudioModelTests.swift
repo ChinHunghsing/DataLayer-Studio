@@ -1211,6 +1211,7 @@ final class StudioModelTests: XCTestCase {
         let presetID = model.userExportPresets[0].id
 
         model.setOutputWidth(1_920)
+        model.setOutputHeight(1_080)
         XCTAssertTrue(model.saveCurrentExportPreset(named: "social"))
         XCTAssertEqual(model.userExportPresets.count, 1)
         XCTAssertEqual(model.userExportPresets[0].id, presetID)
@@ -1218,7 +1219,7 @@ final class StudioModelTests: XCTestCase {
         model.setOutputWidth(640)
         model.applyExportPreset(id: presetID)
         XCTAssertEqual(model.outputWidth, 1_920)
-        XCTAssertEqual(model.outputHeight, 720)
+        XCTAssertEqual(model.outputHeight, 1_080)
         XCTAssertEqual(model.outputFPS, 25)
         XCTAssertEqual(model.bitRateKbps, 8_000)
         XCTAssertEqual(model.exportMode, .video)
@@ -1226,6 +1227,22 @@ final class StudioModelTests: XCTestCase {
 
         model.deleteUserExportPreset(id: presetID)
         XCTAssertTrue(model.userExportPresets.isEmpty)
+    }
+
+    func testFreeTierOnlyAllows1080LandscapeAndPortraitExportResolutions() {
+        let model = StudioModel()
+
+        XCTAssertTrue(model.isResolutionPresetAvailableForCurrentEntitlement(id: "fhd-1080"))
+        XCTAssertTrue(model.isResolutionPresetAvailableForCurrentEntitlement(id: "vertical-1080"))
+        XCTAssertFalse(model.isResolutionPresetAvailableForCurrentEntitlement(id: "uhd-4k"))
+        XCTAssertFalse(model.isResolutionPresetAvailableForCurrentEntitlement(id: "hd-720"))
+        XCTAssertFalse(model.isResolutionPresetAvailableForCurrentEntitlement(id: OutputResolutionPreset.customID))
+
+        model.setOutputWidth(2_160)
+        model.setOutputHeight(3_840)
+        model.constrainOutputResolutionForCurrentEntitlement()
+        XCTAssertEqual(model.outputWidth, 1_080)
+        XCTAssertEqual(model.outputHeight, 1_920)
     }
 
     func testCustomOutputDimensionsCanPreserveAspectRatio() {

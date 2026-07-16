@@ -167,6 +167,10 @@ struct PreviewCanvasView: View {
                 overlayImage(overlay, displayRect: displayRect)
             }
 
+            if state.exportEntitlement == .free {
+                freePreviewWatermark(displayRect: displayRect)
+            }
+
             if state.showGrid {
                 PreviewGridOverlay(columns: PreviewGridOverlay.defaultColumns, rows: PreviewGridOverlay.defaultRows)
                     .stroke(Color.white.opacity(0.34), style: StrokeStyle(lineWidth: 1, dash: [5, 5]))
@@ -729,6 +733,26 @@ struct PreviewCanvasView: View {
             .allowsHitTesting(false)
     }
 
+    private func freePreviewWatermark(displayRect: CGRect) -> some View {
+        let shortEdge = min(displayRect.width, displayRect.height)
+        let fontSize = max(10, shortEdge * 0.022)
+        let margin = max(8, shortEdge * 0.018)
+
+        return ZStack(alignment: .bottomTrailing) {
+            Color.clear
+            Text(ExportEntitlement.freeWatermarkText)
+                .font(.system(size: fontSize, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
+                .padding(.horizontal, fontSize * 0.65)
+                .padding(.vertical, fontSize * 0.38)
+                .background(.black.opacity(0.32), in: Capsule())
+                .padding(margin)
+        }
+        .frame(width: displayRect.width, height: displayRect.height)
+        .position(x: displayRect.midX, y: displayRect.midY)
+        .allowsHitTesting(false)
+    }
+
     private func aspectFitSize(container: CGSize, aspectRatio: CGFloat) -> CGSize {
         let containerAspect = container.width / max(1, container.height)
         if containerAspect > aspectRatio {
@@ -787,6 +811,7 @@ struct PreviewCanvasState: Equatable {
     var hasSeries: Bool
     var outputWidth: Int
     var outputHeight: Int
+    var exportEntitlement: ExportEntitlement
 
     @MainActor
     init(model: StudioModel) {
@@ -800,6 +825,7 @@ struct PreviewCanvasState: Equatable {
         hasSeries = model.series != nil || model.usesCustomTimelinePreview
         outputWidth = model.outputWidth
         outputHeight = model.outputHeight
+        exportEntitlement = model.exportEntitlement
     }
 
     static func == (lhs: PreviewCanvasState, rhs: PreviewCanvasState) -> Bool {
@@ -813,6 +839,7 @@ struct PreviewCanvasState: Equatable {
             && lhs.hasSeries == rhs.hasSeries
             && lhs.outputWidth == rhs.outputWidth
             && lhs.outputHeight == rhs.outputHeight
+            && lhs.exportEntitlement == rhs.exportEntitlement
     }
 }
 

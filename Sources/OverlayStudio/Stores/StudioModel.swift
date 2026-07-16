@@ -816,6 +816,50 @@ final class StudioModel: ObservableObject {
         return OutputResolutionPreset.customID
     }
 
+    func isResolutionPresetAvailableForCurrentEntitlement(id: String) -> Bool {
+        guard exportEntitlement == .free else { return true }
+        guard id != OutputResolutionPreset.customID else { return false }
+
+        if id == OutputResolutionPreset.sourceID {
+            guard let sourceDimensions else { return false }
+            return OutputResolutionPreset.isFreeTierResolution(
+                width: sourceDimensions.width,
+                height: sourceDimensions.height
+            )
+        }
+
+        guard let preset = OutputResolutionPreset.fixed.first(where: { $0.id == id }) else { return false }
+        return OutputResolutionPreset.isFreeTierResolution(width: preset.width, height: preset.height)
+    }
+
+    func isExportPresetAvailableForCurrentEntitlement(_ preset: ExportPreset) -> Bool {
+        guard exportEntitlement == .free else { return true }
+
+        switch preset.resolution {
+        case .source:
+            let dimensions = sourceDimensions ?? (outputWidth, outputHeight)
+            return OutputResolutionPreset.isFreeTierResolution(
+                width: dimensions.width,
+                height: dimensions.height
+            )
+        case let .fixed(width, height):
+            return OutputResolutionPreset.isFreeTierResolution(width: width, height: height)
+        }
+    }
+
+    func constrainOutputResolutionForCurrentEntitlement() {
+        guard exportEntitlement == .free,
+              !OutputResolutionPreset.isFreeTierResolution(width: outputWidth, height: outputHeight) else { return }
+
+        if outputHeight > outputWidth {
+            setOutputWidth(1080)
+            setOutputHeight(1920)
+        } else {
+            setOutputWidth(1920)
+            setOutputHeight(1080)
+        }
+    }
+
     var sourceFrameRatePresetTitle: String? {
         guard let sourceFrameRate else { return nil }
         return localized("sidebar.sourceFrameRatePreset", formatFrameRate(sourceFrameRate))
@@ -1019,7 +1063,8 @@ final class StudioModel: ObservableObject {
     }
 
     func applyResolutionPreset(id: String) {
-        guard !isExporting else { return }
+        guard !isExporting,
+              isResolutionPresetAvailableForCurrentEntitlement(id: id) else { return }
         if id == OutputResolutionPreset.sourceID, let sourceDimensions {
             setOutputWidth(sourceDimensions.width)
             setOutputHeight(sourceDimensions.height)
@@ -1119,7 +1164,8 @@ final class StudioModel: ObservableObject {
 
     func applyExportPreset(id: String) {
         guard !isExporting,
-              let preset = exportPresetsForDisplay.first(where: { $0.id == id }) else { return }
+              let preset = exportPresetsForDisplay.first(where: { $0.id == id }),
+              isExportPresetAvailableForCurrentEntitlement(preset) else { return }
 
         exportMode = preset.exportMode
         codec = preset.codec.exportMode == preset.exportMode ? preset.codec : preset.exportMode.defaultCodec
@@ -6579,6 +6625,7 @@ final class StudioModel: ObservableObject {
     }
 
     func attachPurchaseAuthorization(_ store: PurchaseAuthorizationStore) {
+        objectWillChange.send()
         purchaseAuthorization = store
     }
 
@@ -6607,6 +6654,7 @@ final class StudioModel: ObservableObject {
     private func export(allowingUnreadyWeather: Bool) {
         guard !isExporting else { return }
         guard allowingUnreadyWeather || !isWeatherExportConfirmationPresented else { return }
+        constrainOutputResolutionForCurrentEntitlement()
         let offlineNames = offlineAssetNamesForExport(mode: exportMode)
         if !offlineNames.isEmpty {
             setStatusAndToast(.warning, "status.timelineOfflineAssets", offlineNames.joined(separator: ", "))

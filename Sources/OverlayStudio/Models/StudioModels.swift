@@ -71,6 +71,10 @@ struct OutputResolutionPreset: Identifiable, Hashable {
         OutputResolutionPreset(id: "vertical-1080", title: "Vertical 1080x1920", width: 1080, height: 1920),
         OutputResolutionPreset(id: "vertical-720", title: "Vertical 720x1280", width: 720, height: 1280)
     ]
+
+    static func isFreeTierResolution(width: Int, height: Int) -> Bool {
+        (width == 1920 && height == 1080) || (width == 1080 && height == 1920)
+    }
 }
 
 struct OutputFrameRatePreset: Identifiable, Hashable {

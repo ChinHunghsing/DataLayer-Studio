@@ -56,6 +56,9 @@ struct OutputPanelView: View {
         }
         .frame(width: 860, height: 620)
         .interactiveDismissDisabled(model.isExporting)
+        .onAppear {
+            model.constrainOutputResolutionForCurrentEntitlement()
+        }
         .alert(localization.string("exportDialog.cancelTitle"), isPresented: $isCancelExportConfirmationPresented) {
             Button(localization.string("exportDialog.confirmCancel"), role: .destructive) {
                 model.cancelExport()
@@ -112,7 +115,9 @@ struct OutputPanelView: View {
             List(selection: $selectedPresetID) {
                 Section(localization.string("output.presets.builtIn")) {
                     ForEach(ExportPreset.builtIn) { preset in
-                        presetRow(preset).tag(Optional(preset.id))
+                        presetRow(preset)
+                            .tag(Optional(preset.id))
+                            .disabled(!model.isExportPresetAvailableForCurrentEntitlement(preset))
                     }
                 }
 
@@ -123,7 +128,9 @@ struct OutputPanelView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(model.userExportPresets) { preset in
-                            presetRow(preset).tag(Optional(preset.id))
+                            presetRow(preset)
+                                .tag(Optional(preset.id))
+                                .disabled(!model.isExportPresetAvailableForCurrentEntitlement(preset))
                         }
                     }
                 }
@@ -372,12 +379,18 @@ struct OutputPanelView: View {
             settingRow(localization.string("sidebar.resolution")) {
                 Picker(localization.string("sidebar.resolution"), selection: resolutionPresetSelection) {
                     if let sourceTitle = model.sourceResolutionPresetTitle {
-                        Text(sourceTitle).tag(OutputResolutionPreset.sourceID)
+                        Text(sourceTitle)
+                            .tag(OutputResolutionPreset.sourceID)
+                            .disabled(!model.isResolutionPresetAvailableForCurrentEntitlement(id: OutputResolutionPreset.sourceID))
                     }
                     ForEach(OutputResolutionPreset.fixed) { preset in
-                        Text(localization.string(preset.localizationKey)).tag(preset.id)
+                        Text(localization.string(preset.localizationKey))
+                            .tag(preset.id)
+                            .disabled(!model.isResolutionPresetAvailableForCurrentEntitlement(id: preset.id))
                     }
-                    Text(localization.string("sidebar.custom")).tag(OutputResolutionPreset.customID)
+                    Text(localization.string("sidebar.custom"))
+                        .tag(OutputResolutionPreset.customID)
+                        .disabled(!model.isResolutionPresetAvailableForCurrentEntitlement(id: OutputResolutionPreset.customID))
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
@@ -433,10 +446,11 @@ struct OutputPanelView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    if let storeURL = URL(string: "https://apps.apple.com/cn/app/datalayer-studio/id6782545770") {
-                        Link(localization.string("output.freeTierBuy"), destination: storeURL)
-                            .font(.caption)
-                    }
+                    Link(
+                        localization.string("output.freeTierBuy"),
+                        destination: PurchaseAuthorizationStore.fullVersionURL
+                    )
+                    .font(.caption)
                 }
             }
         }
