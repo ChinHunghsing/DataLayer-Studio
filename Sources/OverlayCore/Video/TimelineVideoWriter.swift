@@ -15,6 +15,7 @@ public struct TimelineVideoWriterConfig {
     public var averageBitRate: Int
     public var codec: OverlayVideoCodec
     public var activityTrim: ActivityTrim
+    public var entitlement: ExportEntitlement
     public var progressHandler: ((Int, Int) -> Void)?
     public var cancellationHandler: (() -> Bool)?
     public var diagnosticsHandler: ((String) -> Void)?
@@ -28,6 +29,7 @@ public struct TimelineVideoWriterConfig {
         averageBitRate: Int = 12_000_000,
         codec: OverlayVideoCodec = .hevc,
         activityTrim: ActivityTrim = .none,
+        entitlement: ExportEntitlement = .full,
         progressHandler: ((Int, Int) -> Void)? = nil,
         cancellationHandler: (() -> Bool)? = nil,
         diagnosticsHandler: ((String) -> Void)? = nil
@@ -40,6 +42,7 @@ public struct TimelineVideoWriterConfig {
         self.averageBitRate = averageBitRate
         self.codec = codec
         self.activityTrim = activityTrim
+        self.entitlement = entitlement
         self.progressHandler = progressHandler
         self.cancellationHandler = cancellationHandler
         self.diagnosticsHandler = diagnosticsHandler
@@ -61,6 +64,10 @@ public final class TimelineVideoWriter {
         self.outputURL = outputURL
         self.project = project
         self.telemetrySeriesByAssetID = telemetrySeriesByAssetID
+        var config = config
+        let clampedSize = config.entitlement.clampedExportSize(width: config.width, height: config.height)
+        config.width = clampedSize.width
+        config.height = clampedSize.height
         self.config = config
     }
 
@@ -110,6 +117,7 @@ public final class TimelineVideoWriter {
             averageBitRate: config.averageBitRate,
             codec: config.codec,
             activityTrim: config.activityTrim,
+            entitlement: config.entitlement,
             progressHandler: config.progressHandler,
             cancellationHandler: config.cancellationHandler,
             diagnosticsHandler: config.diagnosticsHandler
@@ -182,6 +190,7 @@ public final class TimelineVideoWriter {
                 overlayLayout: overlay.clip.layout ?? .default,
                 distanceUnit: overlay.clip.distanceUnit ?? project.distanceUnit,
                 activityTrim: config.activityTrim,
+                entitlement: config.entitlement,
                 progressHandler: config.progressHandler,
                 cancellationHandler: config.cancellationHandler
             )
@@ -283,6 +292,7 @@ public final class TimelineVideoWriter {
                                 compositeContext: compositeContext,
                                 colorSpace: colorSpace
                             )
+                            ExportWatermarkRenderer.drawIfNeeded(self.config.entitlement, into: renderedBuffer)
 
                             let appendBuffer: CVPixelBuffer
                             if let alphaContext {

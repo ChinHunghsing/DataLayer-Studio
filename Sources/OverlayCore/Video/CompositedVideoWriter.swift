@@ -19,6 +19,7 @@ public struct CompositedVideoWriterConfig {
     public var overlayLayout: OverlayLayout
     public var distanceUnit: OverlayDistanceUnit
     public var activityTrim: ActivityTrim
+    public var entitlement: ExportEntitlement
     public var progressHandler: ((Int, Int) -> Void)?
     public var cancellationHandler: (() -> Bool)?
     public var diagnosticsHandler: ((String) -> Void)?
@@ -35,6 +36,7 @@ public struct CompositedVideoWriterConfig {
         overlayLayout: OverlayLayout = .default,
         distanceUnit: OverlayDistanceUnit = .kilometers,
         activityTrim: ActivityTrim = .none,
+        entitlement: ExportEntitlement = .full,
         progressHandler: ((Int, Int) -> Void)? = nil,
         cancellationHandler: (() -> Bool)? = nil,
         diagnosticsHandler: ((String) -> Void)? = nil
@@ -50,9 +52,19 @@ public struct CompositedVideoWriterConfig {
         self.overlayLayout = overlayLayout
         self.distanceUnit = distanceUnit
         self.activityTrim = activityTrim
+        self.entitlement = entitlement
         self.progressHandler = progressHandler
         self.cancellationHandler = cancellationHandler
         self.diagnosticsHandler = diagnosticsHandler
+    }
+
+    /// 免费层导出前把尺寸钳制到 1080p 以内。
+    var clampedToEntitlement: CompositedVideoWriterConfig {
+        var config = self
+        let clampedSize = entitlement.clampedExportSize(width: width, height: height)
+        config.width = clampedSize.width
+        config.height = clampedSize.height
+        return config
     }
 }
 
@@ -74,7 +86,7 @@ public final class CompositedVideoWriter {
         self.sourceVideoRanges = nil
         self.sourceVideoComposition = nil
         self.series = series
-        self.config = config
+        self.config = config.clampedToEntitlement
         self.overlayStartTime = config.startTime
         self.renderOverlay = nil
     }
@@ -92,7 +104,7 @@ public final class CompositedVideoWriter {
         self.sourceVideoRanges = nil
         self.sourceVideoComposition = nil
         self.series = nil
-        self.config = config
+        self.config = config.clampedToEntitlement
         self.overlayStartTime = overlayStartTime
         self.renderOverlay = renderOverlay
     }
@@ -113,7 +125,7 @@ public final class CompositedVideoWriter {
         self.sourceVideoRanges = sourceVideoRanges
         self.sourceVideoComposition = sourceVideoComposition
         self.series = nil
-        self.config = config
+        self.config = config.clampedToEntitlement
         self.overlayStartTime = overlayStartTime
         self.renderOverlay = renderOverlay
     }
@@ -130,7 +142,7 @@ public final class CompositedVideoWriter {
         self.sourceVideoRanges = nil
         self.sourceVideoComposition = nil
         self.series = nil
-        self.config = config
+        self.config = config.clampedToEntitlement
         self.overlayStartTime = overlayStartTime
         self.renderOverlay = renderOverlay
     }
@@ -385,6 +397,7 @@ public final class CompositedVideoWriter {
                         } else if let renderer {
                             try renderer.render(videoTime: overlayTime, into: overlayBuffer)
                         }
+                        ExportWatermarkRenderer.drawIfNeeded(self.config.entitlement, into: overlayBuffer)
                         let composed = CIImage(cvPixelBuffer: overlayBuffer)
                             .composited(over: sourceImage)
                         ciContext.render(

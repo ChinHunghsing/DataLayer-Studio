@@ -24,6 +24,8 @@ DataLayer Studio is a native macOS editor for turning running telemetry into cle
   <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770"><img src="assets/readme/download-on-the-app-store.svg" width="200" alt="Download DataLayer Studio on the Mac App Store"></a>
 </p>
 
+> **Free vs. paid:** the [Mac App Store version](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) is the full version. The free version (GitHub releases, self-compiled builds, and the CLI) keeps every editing and preview feature, but exports are limited to 1080p and carry a "Made with DataLayer Studio" watermark. Buy the Mac App Store version to unlock full-resolution, watermark-free exports.
+
 <p align="center">
   <img src="assets/readme/app-showcase.png" width="100%" alt="DataLayer Studio previewing running footage with pace, heart rate, cadence, route, weather, and distance overlays">
 </p>
@@ -55,7 +57,7 @@ No video yet? A `.fit` file is enough to preview and play the telemetry layer.
 
 DataLayer Studio requires an Apple Silicon Mac running macOS 13 Ventura or later.
 
-[Download it from the Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770), or download a signed build from the [latest GitHub release](https://github.com/leeeboo/DataLayer-Studio/releases/latest).
+[Buy the full version on the Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770), or download the free version as a signed build from the [latest GitHub release](https://github.com/leeeboo/DataLayer-Studio/releases/latest). The free version (GitHub builds, self-compiled builds, and the CLI) has full editing and preview features; exports are limited to 1080p and include a "Made with DataLayer Studio" watermark. The Mac App Store version exports at full resolution without a watermark.
 
 ### Run from source
 

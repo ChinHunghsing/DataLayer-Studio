@@ -431,6 +431,7 @@ func run() async throws {
         return
     }
     try validateOutputDimensions(width: width, height: height)
+    printFreeTierExportNotice(width: width, height: height)
 
     let progressHandler: (Int, Int) -> Void = { completed, total in
         let percent = Double(completed) / Double(total) * 100
@@ -453,6 +454,7 @@ func run() async throws {
                 overlayLayout: resolvedLayout.layout,
                 distanceUnit: options.distanceUnit,
                 activityTrim: options.activityTrim,
+                entitlement: cliExportEntitlement,
                 progressHandler: progressHandler
             )
         ).write()
@@ -500,6 +502,7 @@ func run() async throws {
                 averageBitRate: options.averageBitRate,
                 codec: options.codec,
                 activityTrim: options.activityTrim,
+                entitlement: cliExportEntitlement,
                 progressHandler: progressHandler
             )
         ).write()
@@ -545,6 +548,7 @@ func renderTimelineProject(options: CommandLineOptions, projectURL: URL) throws 
         return
     }
     try validateOutputDimensions(width: width, height: height)
+    printFreeTierExportNotice(width: width, height: height)
 
     let progressHandler: (Int, Int) -> Void = { completed, total in
         let percent = Double(completed) / Double(total) * 100
@@ -563,11 +567,25 @@ func renderTimelineProject(options: CommandLineOptions, projectURL: URL) throws 
             averageBitRate: options.averageBitRate,
             codec: options.codec,
             activityTrim: options.activityTrim,
+            entitlement: cliExportEntitlement,
             progressHandler: progressHandler
         )
     ).write()
 
     print("Wrote \(options.outputURL.path)")
+}
+
+/// CLI 属于免费分发渠道，导出统一走免费层（水印 + 1080p 上限）。
+let cliExportEntitlement = ExportEntitlement.free
+
+func printFreeTierExportNotice(width: Int, height: Int) {
+    print("Free build: exports include a \"\(ExportEntitlement.freeWatermarkText)\" watermark and are limited to 1080p.")
+    print("Buy DataLayer Studio on the Mac App Store for full-resolution, watermark-free exports:")
+    print("https://apps.apple.com/cn/app/datalayer-studio/id6782545770")
+    let clamped = cliExportEntitlement.clampedExportSize(width: width, height: height)
+    if clamped.width != width || clamped.height != height {
+        print("Output resized to \(clamped.width)x\(clamped.height).")
+    }
 }
 
 func validateOutputDimensions(width: Int, height: Int) throws {

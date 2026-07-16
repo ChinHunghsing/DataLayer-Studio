@@ -32,6 +32,14 @@ derived work, compiled app, packaged binary, or service based on it.
 5. No trademark license. This license does not grant rights to use the
    DataLayer Studio name, logos, or branding except to accurately describe the
    software.
+6. No circumvention of free-version limits. The free distributions of the
+   software (including GitHub releases, the command-line tool, and builds
+   compiled from this source code) apply an export watermark and an export
+   resolution limit. You may modify or remove these limits in private builds
+   for your own personal use only. You may not distribute, publish, or make
+   available to others any modified version, compiled app, packaged binary,
+   or hosted service that removes, disables, weakens, or circumvents the
+   watermark, the export limits, or the purchase verification.
 
 ## No Warranty
 

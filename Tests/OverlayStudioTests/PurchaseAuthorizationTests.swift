@@ -1,3 +1,4 @@
+import OverlayCore
 import XCTest
 @testable import OverlayStudio
 
@@ -13,7 +14,8 @@ final class PurchaseAuthorizationTests: XCTestCase {
 
         await store.verifyIfNeeded()
 
-        XCTAssertEqual(store.state, .allowed)
+        XCTAssertEqual(store.state, .allowed(.free))
+        XCTAssertEqual(store.state.exportEntitlement, .free)
     }
 
     func testAppStoreSignedBuildWithoutReceiptIsRestricted() async {
@@ -45,7 +47,8 @@ final class PurchaseAuthorizationTests: XCTestCase {
 
         await store.verifyIfNeeded()
 
-        XCTAssertEqual(store.state, .allowed)
+        XCTAssertEqual(store.state, .allowed(.full))
+        XCTAssertEqual(store.state.exportEntitlement, .full)
     }
 
     func testTemporaryStoreKitFailureDoesNotBlockLaunch() async {
@@ -61,7 +64,7 @@ final class PurchaseAuthorizationTests: XCTestCase {
 
         await store.verifyIfNeeded()
 
-        XCTAssertEqual(store.state, .allowed)
+        XCTAssertEqual(store.state, .allowed(.full))
     }
 
     func testRestoreRechecksReceiptBeforeAllowingLaunch() async {
@@ -85,7 +88,15 @@ final class PurchaseAuthorizationTests: XCTestCase {
         XCTAssertEqual(store.state, .restricted(.missingReceipt, detail: nil))
 
         await store.restoreAndVerify()
-        XCTAssertEqual(store.state, .allowed)
+        XCTAssertEqual(store.state, .allowed(.full))
+    }
+
+    func testCheckingAndRestrictedStatesFallBackToFreeEntitlement() {
+        XCTAssertEqual(PurchaseAuthorizationState.checking.exportEntitlement, .free)
+        XCTAssertEqual(
+            PurchaseAuthorizationState.restricted(.missingReceipt, detail: nil).exportEntitlement,
+            .free
+        )
     }
 }
 

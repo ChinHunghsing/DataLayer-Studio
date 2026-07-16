@@ -1,4 +1,5 @@
 import Foundation
+import OverlayCore
 import SwiftUI
 
 private struct SidebarSummaryRow: View {
@@ -423,6 +424,20 @@ struct OutputPanelView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .fixedSize()
+            }
+
+            if model.exportEntitlement == .free {
+                rowDivider
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(localization.string("output.freeTierNotice"), systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let storeURL = URL(string: "https://apps.apple.com/cn/app/datalayer-studio/id6782545770") {
+                        Link(localization.string("output.freeTierBuy"), destination: storeURL)
+                            .font(.caption)
+                    }
+                }
             }
         }
     }

@@ -2,6 +2,7 @@
 
 - 对外名称统一写 `DataLayer Studio`。
 - 官方 App Store URL：`https://apps.apple.com/cn/app/datalayer-studio/id6782545770`。
+- 免费版策略：Mac App Store 版是付费完整版；免费版（GitHub Release 下载、自编译、CLI）编辑与预览功能完整，但导出限 1080p 且带 `Made with DataLayer Studio` 水印（核心实现在 `OverlayCore` 的 `ExportEntitlement` 与三个视频写出器，GUI 判定在 `PurchaseAuthorizationStore`）。所有面向免费版用户的界面、CLI 输出、README、Release 说明都必须明确引导购买 Mac App Store 完整版；不得移除或绕过该限制，改动导出/授权路径时不得让免费层限制失效。
 - Git 提交信息必须使用简体中文。
 - 每次做修改前和提交前，都要先确认本地仓库已同步到远端最新 Git 版本；多人协作时至少执行 `git fetch` 并检查当前分支与上游分支没有落后。
 - 本项目由多个不同的智能体共同维护。若智能体依赖本地或持久记忆，发现仓库现状、提交历史、项目文档或外部状态与记忆不一致时，必须以当前可验证事实为准，并及时更新或纠正记忆；不得继续基于过期记忆操作。
@@ -21,7 +22,7 @@
 - App Store 打包如果 `.apple.env.local` 只有 ASC API 变量、缺少 `APP_STORE_PROVISIONING_PROFILE`，不要临时改脚本；用 `asc profiles list --output table --paginate` 找 ACTIVE 的 Mac App Store profile，用 `asc profiles download` 下载并 `asc profiles inspect` 确认包含当前 bundle/capabilities，再显式传 `APP_STORE_PROVISIONING_PROFILE=<path>` 给 `scripts/package_app_store_pkg.sh`。如果下载提示文件已存在，优先复用并 inspect 现有 profile。
 - Swift/Clang cache 权限错误、`asc` Keychain 错误、`codesign`/`stapler`/`spctl` 假阴性通常是 Codex 沙箱问题；先脱沙箱重跑同一条命令，不要先改构建、签名或项目配置。
 - GitHub Release 流程：先 `git fetch --tags` 并确认当前分支不落后、工作区干净、目标 tag 不存在；先让 `main` 的 CI 通过，再创建 `vX.Y.Z` tag 并 `git push origin vX.Y.Z`。
-- `v*` tag 会触发 `.github/workflows/release.yml`：运行测试、构建、签名、公证，并创建/更新 GitHub Release，上传 zip 和 sha256。发布后必须用 `gh run list` / `gh run watch` 确认 release workflow 成功，再用 `gh release view <tag>` 核对资产；Release 正文必须包含 Highlights 和 `Full commit list since <上一版本>`，commit 列表用 `git log --oneline <上一tag>..<当前tag>` 生成，自动生成内容太短时发布后用 `gh release edit <tag> --notes-file <file>` 补齐。
+- `v*` tag 会触发 `.github/workflows/release.yml`：运行测试、构建、签名、公证，并创建/更新 GitHub Release，上传 zip 和 sha256。发布后必须用 `gh run list` / `gh run watch` 确认 release workflow 成功，再用 `gh release view <tag>` 核对资产；Release 正文必须包含 Highlights 和 `Full commit list since <上一版本>`，commit 列表用 `git log --oneline <上一tag>..<当前tag>` 生成，自动生成内容太短时发布后用 `gh release edit <tag> --notes-file <file>` 补齐；Release 正文还必须明确说明这是免费版（导出限 1080p、带 `Made with DataLayer Studio` 水印），并附 Mac App Store 完整版购买链接 `https://apps.apple.com/cn/app/datalayer-studio/id6782545770`。
 - GitHub Release 资产必须做下载后验证：下载 zip、核对 sha256、解压后运行 `codesign --verify --deep --strict`、`xcrun stapler validate`、`spctl -a -vv -t exec`，三者都通过才算“用户可直接运行”。
 - 在 Codex 沙箱内运行 `codesign` / `stapler` / `spctl` 可能对已签名公证的 GitHub 下载包给出假阴性（例如 `invalid signature`、`kLSDataUnavailableErr`、`internal error in Code Signing subsystem`）；Release 资产验证必须脱沙箱执行这三条命令，只有脱沙箱仍失败才修签名或重打包。
 - release workflow 失败时，先修复并推送新提交，确认 `main` CI 通过后再处理 tag；不要无原因覆盖或移动已发布 tag。

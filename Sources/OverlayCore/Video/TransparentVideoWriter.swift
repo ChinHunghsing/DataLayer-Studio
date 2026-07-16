@@ -79,6 +79,7 @@ public struct TransparentVideoWriterConfig {
     public var overlayLayout: OverlayLayout
     public var distanceUnit: OverlayDistanceUnit
     public var activityTrim: ActivityTrim
+    public var entitlement: ExportEntitlement
     public var progressHandler: ((Int, Int) -> Void)?
     public var cancellationHandler: (() -> Bool)?
 
@@ -94,6 +95,7 @@ public struct TransparentVideoWriterConfig {
         overlayLayout: OverlayLayout = .default,
         distanceUnit: OverlayDistanceUnit = .kilometers,
         activityTrim: ActivityTrim = .none,
+        entitlement: ExportEntitlement = .full,
         progressHandler: ((Int, Int) -> Void)? = nil,
         cancellationHandler: (() -> Bool)? = nil
     ) {
@@ -108,6 +110,7 @@ public struct TransparentVideoWriterConfig {
         self.overlayLayout = overlayLayout
         self.distanceUnit = distanceUnit
         self.activityTrim = activityTrim
+        self.entitlement = entitlement
         self.progressHandler = progressHandler
         self.cancellationHandler = cancellationHandler
     }
@@ -196,6 +199,10 @@ public final class TransparentVideoWriter {
     public init(outputURL: URL, series: TelemetrySeries, config: TransparentVideoWriterConfig) {
         self.outputURL = outputURL
         self.series = series
+        var config = config
+        let clampedSize = config.entitlement.clampedExportSize(width: config.width, height: config.height)
+        config.width = clampedSize.width
+        config.height = clampedSize.height
         self.config = config
     }
 
@@ -310,6 +317,7 @@ public final class TransparentVideoWriter {
         let progressHandler = config.progressHandler
         let cancellationHandler = config.cancellationHandler
         let exportStartTime = config.startTime
+        let entitlement = config.entitlement
         var frameIndex = 0
         var renderError: Error?
         var didFinishInput = false
@@ -336,6 +344,7 @@ public final class TransparentVideoWriter {
                         let presentationTime = timing.presentationTime(for: frameIndex)
                         let videoTime = exportStartTime + CMTimeGetSeconds(presentationTime)
                         try renderer.render(videoTime: videoTime, into: renderBuffer)
+                        ExportWatermarkRenderer.drawIfNeeded(entitlement, into: renderBuffer)
                         if let alphaContext {
                             Self.prepareHEVCAlphaForEncoding(
                                 from: renderBuffer,

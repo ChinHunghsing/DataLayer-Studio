@@ -1,4 +1,5 @@
 import Foundation
+import OverlayCore
 import Security
 import StoreKit
 
@@ -25,9 +26,17 @@ enum PurchaseVerificationResult: Equatable {
 }
 
 enum PurchaseAuthorizationState: Equatable {
-    case allowed
+    case allowed(ExportEntitlement)
     case checking
     case restricted(PurchaseRestrictionReason, detail: String?)
+
+    /// 导出路径使用的权益；校验中或受限时按免费层处理。
+    var exportEntitlement: ExportEntitlement {
+        if case let .allowed(entitlement) = self {
+            return entitlement
+        }
+        return .free
+    }
 }
 
 enum PurchaseRestrictionReason: Equatable {
@@ -75,7 +84,9 @@ final class PurchaseAuthorizationStore: ObservableObject {
     ) {
         self.requirementProvider = requirementProvider
         self.verifier = verifier
-        self.state = requirementProvider().requiresVerification ? .checking : .allowed
+        // 无收据、无 App Store 签名标识的构建（GitHub 直下版/自编译版）走免费层：
+        // App 全功能可用，导出叠加水印并限制 1080p。
+        self.state = requirementProvider().requiresVerification ? .checking : .allowed(.free)
     }
 
     func verifyIfNeeded() async {
@@ -103,7 +114,7 @@ final class PurchaseAuthorizationStore: ObservableObject {
 
         let requirement = requirementProvider()
         guard requirement.requiresVerification else {
-            state = .allowed
+            state = .allowed(.free)
             return
         }
 
@@ -115,11 +126,12 @@ final class PurchaseAuthorizationStore: ObservableObject {
         state = .checking
         switch await verifier.verifyAppTransaction() {
         case .verified:
-            state = .allowed
+            state = .allowed(.full)
         case let .unverified(message):
             state = .restricted(.unverifiedReceipt, detail: message)
         case .unavailable:
-            state = .allowed
+            // 有收据说明是 App Store/TestFlight 构建；StoreKit 暂时不可用时放行全功能，避免误伤付费用户。
+            state = .allowed(.full)
         }
     }
 }

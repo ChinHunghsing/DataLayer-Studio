@@ -24,6 +24,8 @@ DataLayer Studio 是一款原生 macOS 编辑器，可以把跑步运动数据�
   <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770"><img src="assets/readme/download-on-the-app-store.svg" width="200" alt="在 Mac App Store 下载 DataLayer Studio"></a>
 </p>
 
+> **免费版与付费版：**[Mac App Store 版](https://apps.apple.com/cn/app/datalayer-studio/id6782545770)是完整版。免费版（GitHub Release 下载、自行编译和 CLI）保留全部编辑与预览功能，但导出最高 1080p 且右下角带 "Made with DataLayer Studio" 水印。购买 Mac App Store 版即可解锁全分辨率、无水印导出。
+
 <p align="center">
   <img src="assets/readme/app-showcase.png" width="100%" alt="DataLayer Studio 在跑步视频上预览配速、心率、步频、轨迹、天气和距离数据层">
 </p>
@@ -55,7 +57,7 @@ DataLayer Studio 是一款原生 macOS 编辑器，可以把跑步运动数据�
 
 DataLayer Studio 需要 Apple Silicon 芯片的 Mac，以及 macOS 13 Ventura 或更新版本。
 
-从 [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) 下载，或从 [最新 GitHub Release](https://github.com/leeeboo/DataLayer-Studio/releases/latest) 下载已签名版本。
+从 [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) 购买完整版，或从 [最新 GitHub Release](https://github.com/leeeboo/DataLayer-Studio/releases/latest) 下载已签名的免费版。免费版（GitHub 下载、自行编译和 CLI）编辑与预览功能完整，导出最高 1080p 且右下角带 "Made with DataLayer Studio" 水印；Mac App Store 版导出全分辨率、无水印。
 
 ### 从源码运行
 

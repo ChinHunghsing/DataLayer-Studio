@@ -112,7 +112,9 @@ jobs:
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
           title="DataLayer Studio ${tag}"
-          notes="Automated macOS arm64 build for ${tag}."
+          notes="Automated macOS arm64 build for ${tag}.
+
+This is the free version: exports are limited to 1080p and include a \"Made with DataLayer Studio\" watermark. Buy the full version on the Mac App Store for full-resolution, watermark-free exports: https://apps.apple.com/cn/app/datalayer-studio/id6782545770"
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$ZIP_NAME" "$SHA_NAME" --clobber

@@ -115,6 +115,8 @@ while IFS= read -r path; do
 done < <(git ls-files)
 
 network_matches="$(grep -RInE 'URLSession|URLRequest|NSURLConnection|NWConnection|WKWebView|ASWebAuthenticationSession|^[[:space:]]*import[[:space:]]+Network[[:space:]]*$|https?://' Sources 2>/dev/null || true)"
+# 官方 Mac App Store 链接是项目约定常量（免费版购买引导），只作展示/跳转，不属于网络传输 API。
+network_matches="$(grep -v 'apps\.apple\.com/cn/app/datalayer-studio/id6782545770' <<<"$network_matches" || true)"
 if [[ -n "$network_matches" ]]; then
     allowed_network_matches="$(grep -E '^(Sources/OverlayStudio/Services/OpenWeatherService.swift|Sources/OverlayTouch/Stores/MobileSubscriptionStore.swift):' <<<"$network_matches" || true)"
     unexpected_network_matches="$(grep -Ev '^(Sources/OverlayStudio/Services/OpenWeatherService.swift|Sources/OverlayTouch/Stores/MobileSubscriptionStore.swift):' <<<"$network_matches" || true)"

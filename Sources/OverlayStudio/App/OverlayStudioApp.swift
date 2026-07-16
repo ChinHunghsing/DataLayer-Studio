@@ -22,6 +22,7 @@ struct OverlayStudioApp: App {
             PurchaseAuthorizationGate(authorization: purchaseAuthorization) {
                 WelcomeWindowView(model: model)
             }
+            .onAppear { model.attachPurchaseAuthorization(purchaseAuthorization) }
             .environmentObject(localization)
             .environment(\.locale, localization.locale)
             .preferredColorScheme(preferredColorScheme)
@@ -32,6 +33,7 @@ struct OverlayStudioApp: App {
             PurchaseAuthorizationGate(authorization: purchaseAuthorization) {
                 StudioWindowView(model: model)
             }
+            .onAppear { model.attachPurchaseAuthorization(purchaseAuthorization) }
             .environmentObject(localization)
             .environment(\.locale, localization.locale)
             .preferredColorScheme(preferredColorScheme)
