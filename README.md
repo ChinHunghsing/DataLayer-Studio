@@ -171,7 +171,7 @@ The app bundle includes `LICENSE.md`, `NOTICE.md`, and `README.md` under `Conten
 DataLayer Studio is built and maintained independently by one developer. Buying it on the [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) is the most direct way to fund testing and continued development.
 
 <p align="center">
-  <img src="assets/sponsor/support-options.png" alt="Support DataLayer Studio with Buy Me a Coffee, WeChat, or Alipay" width="960">
+  <img src="assets/sponsor/support-options-v2.png" alt="Support DataLayer Studio with Buy Me a Coffee, WeChat, or Alipay" width="960">
 </p>
 
 <p align="center">

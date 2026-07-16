@@ -171,7 +171,7 @@ App bundle 会在 `Contents/Resources/Legal` 下包含 `LICENSE.md`、`NOTICE.md
 DataLayer Studio 由一位开发者独立开发和维护。在 [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) 购买，是支持测试与持续开发最直接的方式。
 
 <p align="center">
-  <img src="assets/sponsor/support-options.png" alt="通过 Buy Me a Coffee、微信赞赏码或支付宝支持 DataLayer Studio" width="960">
+  <img src="assets/sponsor/support-options-v2.png" alt="通过 Buy Me a Coffee、微信赞赏码或支付宝支持 DataLayer Studio" width="960">
 </p>
 
 <p align="center">
