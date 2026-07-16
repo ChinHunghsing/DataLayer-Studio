@@ -170,9 +170,13 @@ The app bundle includes `LICENSE.md`, `NOTICE.md`, and `README.md` under `Conten
 
 DataLayer Studio is built and maintained independently by one developer. Buying it on the [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) is the most direct way to fund testing and continued development.
 
-| Buy Me a Coffee | WeChat Pay | Alipay |
-| --- | --- | --- |
-| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="Support DataLayer Studio on Buy Me a Coffee" width="150"></a> | <img src="assets/sponsor/wechat.jpg" alt="WeChat Pay sponsorship QR code" width="150"> | <img src="assets/sponsor/alipay.jpg" alt="Alipay sponsorship QR code" width="150"> |
+<p align="center">
+  <img src="assets/sponsor/support-options.png" alt="Support DataLayer Studio with Buy Me a Coffee, WeChat, or Alipay" width="960">
+</p>
+
+<p align="center">
+  <a href="https://buymeacoffee.com/leeeboo">Open Buy Me a Coffee</a> · Scan WeChat or Alipay with the corresponding app
+</p>
 
 Sponsorship is optional and does not include a commercial license, priority support, or guaranteed feature work.
 

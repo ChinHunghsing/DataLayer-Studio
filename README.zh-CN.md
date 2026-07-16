@@ -170,9 +170,13 @@ App bundle 会在 `Contents/Resources/Legal` 下包含 `LICENSE.md`、`NOTICE.md
 
 DataLayer Studio 由一位开发者独立开发和维护。在 [Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) 购买，是支持测试与持续开发最直接的方式。
 
-| Buy Me a Coffee | 微信支付 | 支付宝 |
-| --- | --- | --- |
-| <a href="https://buymeacoffee.com/leeeboo"><img src="assets/sponsor/buymeacoffee.png" alt="通过 Buy Me a Coffee 支持 DataLayer Studio" width="150"></a> | <img src="assets/sponsor/wechat.jpg" alt="微信支付赞助二维码" width="150"> | <img src="assets/sponsor/alipay.jpg" alt="支付宝赞助二维码" width="150"> |
+<p align="center">
+  <img src="assets/sponsor/support-options.png" alt="通过 Buy Me a Coffee、微信赞赏码或支付宝支持 DataLayer Studio" width="960">
+</p>
+
+<p align="center">
+  <a href="https://buymeacoffee.com/leeeboo">打开 Buy Me a Coffee</a> · 微信与支付宝请使用对应应用扫码
+</p>
 
 赞助是自愿支持，不包含商业授权、优先支持或功能承诺。
 
