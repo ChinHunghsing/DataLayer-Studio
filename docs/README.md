@@ -6,6 +6,10 @@
 
 ## 现行文档
 
+### 产品方案
+
+- [product-plan-1.0.0.md](product-plan-1.0.0.md) — 1.0.0 正式版产品方案（打磨版，Feature Freeze）；1.0.0 里程碑的唯一总纲，任务分派与验收以此为准。
+
 ### 用户文档（user-guide/）
 
 - [user-guide/zh-Hans.md](user-guide/zh-Hans.md) / [zh-Hant.md](user-guide/zh-Hant.md) / [en.md](user-guide/en.md) / [ja.md](user-guide/ja.md) — 功能说明与完整使用手册，四语言（适用 0.3.3）。这是网页版手册的唯一内容源：修改后运行 `node landing-page/scripts/build-user-guide.mjs` 重新生成 `landing-page/user-guide/` 并部署。
