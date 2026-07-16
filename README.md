@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/fable5verified.png" width="200" alt="Fable 5 Verified">
+  <img src="assets/readme/project-credits-v2.webp" width="900" alt="Fable 5 Verified and README designed with Codex and GPT-5.6 Sol">
 </p>
 
 DataLayer Studio is a native macOS editor for turning running telemetry into clean, synchronized video graphics. Drop in footage and a `.fit` activity, align them on one timeline, arrange live gauges, then export a transparent overlay or a finished video.
@@ -175,10 +175,6 @@ DataLayer Studio is built and maintained independently by one developer. Buying 
 </p>
 
 Sponsorship is optional and does not include a commercial license, priority support, or guaranteed feature work.
-
-<p align="center">
-  <img src="assets/readme/made-with-codex.svg" width="360" alt="Codex &amp; GPT-5.6 Sol were used to redesign this README">
-</p>
 
 ## License
 

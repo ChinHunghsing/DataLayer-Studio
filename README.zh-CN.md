@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/fable5verified.png" width="200" alt="Fable 5 Verified">
+  <img src="assets/readme/project-credits-v2.webp" width="900" alt="Fable 5 Verified，README 使用 Codex 与 GPT-5.6 Sol 设计">
 </p>
 
 DataLayer Studio 是一款原生 macOS 编辑器，可以把跑步运动数据变成清晰、同步的视频图形。导入视频和 `.fit` 运动文件，在同一条时间线上完成对齐，排布实时数据组件，再导出透明数据层或已合成的成片。
@@ -175,10 +175,6 @@ DataLayer Studio 由一位开发者独立开发和维护。在 [Mac App Store](h
 </p>
 
 赞助是自愿支持，不包含商业授权、优先支持或功能承诺。
-
-<p align="center">
-  <img src="assets/readme/made-with-codex.svg" width="360" alt="Codex 与 GPT-5.6 Sol 用于重新设计本 README">
-</p>
 
 ## 授权
 
