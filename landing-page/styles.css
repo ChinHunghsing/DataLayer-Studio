@@ -1317,6 +1317,19 @@ svg {
   line-height: 1.6;
 }
 
+.pricing-free-note {
+  margin: 0;
+  color: var(--quiet);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pricing-free-note a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .app-store-image {
   width: 100%;
   height: auto;

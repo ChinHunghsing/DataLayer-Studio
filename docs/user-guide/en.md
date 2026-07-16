@@ -478,6 +478,13 @@ Before exporting, the app checks:
 
 If the export button is disabled, read the reason shown next to it instead of clicking repeatedly.
 
+### 9.8 Free-version export limits
+
+- The Mac App Store version is the full paid version with no export limits.
+- The free version (GitHub releases, self-compiled builds, and the CLI) keeps every editing and preview feature, but exports are limited to 1080p and carry a "Made with DataLayer Studio" watermark in the bottom-right corner.
+- If you set a higher resolution, the free version automatically scales the output down to fit within 1080p and shows a note in the export panel.
+- [Buy the full version on the Mac App Store](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) to unlock full-resolution, watermark-free exports.
+
 ---
 
 ## 10. Saving, opening, and recovering projects
