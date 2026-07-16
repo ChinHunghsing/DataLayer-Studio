@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="DataLayer Studio 将 FIT 跑步数据转换为同步的视频数据层">
+  <img src="assets/readme/hero-zh-v2.webp" width="100%" alt="DataLayer Studio 将 FIT 跑步数据转换为同步的视频数据层">
 </p>
 
 <p align="center">
@@ -26,17 +26,13 @@ DataLayer Studio 是一款原生 macOS 编辑器，可以把跑步运动数据�
 
 > **免费版与付费版：**[Mac App Store 版](https://apps.apple.com/cn/app/datalayer-studio/id6782545770)是完整版。免费版（GitHub Release 下载、自行编译和 CLI）保留全部编辑与预览功能，但导出最高 1080p 且右下角带 "Made with DataLayer Studio" 水印。购买 Mac App Store 版即可解锁全分辨率、无水印导出。
 
-<p align="center">
-  <img src="assets/readme/app-showcase.png" width="100%" alt="DataLayer Studio 在跑步视频上预览配速、心率、步频、轨迹、天气和距离数据层">
-</p>
-
 ## 从素材到数据层
 
 一个工作区完成整个流程：编辑素材、把运动数据锁定到正确时刻，再选择剪辑软件需要的输出格式。
 
 | 1 · 导入并编辑 | 2 · 精准对齐 | 3 · 按需导出 |
 | --- | --- | --- |
-| <img src="assets/appstore/v0.3.2/zh-Hans/desktop/01-drag-and-edit.png" alt="视频与 FIT 运动数据的多轨时间线" width="100%"> | <img src="assets/appstore/v0.3.2/zh-Hans/desktop/02-precise-alignment.png" alt="精确到毫秒的时间线对齐控制" width="100%"> | <img src="assets/appstore/v0.3.2/zh-Hans/desktop/03-export-presets.png" alt="透明数据层与合成视频导出预设" width="100%"> |
+| <img src="assets/appstore/v0.3.3/zh-Hans/desktop/01-drag-and-edit.png" alt="视频与 FIT 运动数据的多轨时间线" width="100%"> | <img src="assets/appstore/v0.3.3/zh-Hans/desktop/02-precise-alignment.png" alt="精确到毫秒的时间线对齐控制" width="100%"> | <img src="assets/appstore/v0.3.3/zh-Hans/desktop/03-export-presets.png" alt="透明数据层与合成视频导出预设" width="100%"> |
 
 ## 为剪辑而生
 

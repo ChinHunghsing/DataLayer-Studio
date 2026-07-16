@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="DataLayer Studio turns FIT running data into synchronized video overlays">
+  <img src="assets/readme/hero-en-v2.webp" width="100%" alt="DataLayer Studio turns FIT running data into synchronized video overlays">
 </p>
 
 <p align="center">
@@ -26,17 +26,13 @@ DataLayer Studio is a native macOS editor for turning running telemetry into cle
 
 > **Free vs. paid:** the [Mac App Store version](https://apps.apple.com/cn/app/datalayer-studio/id6782545770) is the full version. The free version (GitHub releases, self-compiled builds, and the CLI) keeps every editing and preview feature, but exports are limited to 1080p and carry a "Made with DataLayer Studio" watermark. Buy the Mac App Store version to unlock full-resolution, watermark-free exports.
 
-<p align="center">
-  <img src="assets/readme/app-showcase.png" width="100%" alt="DataLayer Studio previewing running footage with pace, heart rate, cadence, route, weather, and distance overlays">
-</p>
-
 ## From footage to data layer
 
 One workspace carries the whole job: edit media, lock telemetry to the right moment, and choose the output your video editor needs.
 
 | 1 · Drop and edit | 2 · Align precisely | 3 · Export your way |
 | --- | --- | --- |
-| <img src="assets/appstore/v0.3.2/en-US/desktop/01-drag-and-edit.png" alt="Multitrack video and FIT activity timeline" width="100%"> | <img src="assets/appstore/v0.3.2/en-US/desktop/02-precise-alignment.png" alt="Millisecond timeline alignment controls" width="100%"> | <img src="assets/appstore/v0.3.2/en-US/desktop/03-export-presets.png" alt="Transparent overlay and composited video export presets" width="100%"> |
+| <img src="assets/appstore/v0.3.3/en-US/desktop/01-drag-and-edit.png" alt="Multitrack video and FIT activity timeline" width="100%"> | <img src="assets/appstore/v0.3.3/en-US/desktop/02-precise-alignment.png" alt="Millisecond timeline alignment controls" width="100%"> | <img src="assets/appstore/v0.3.3/en-US/desktop/03-export-presets.png" alt="Transparent overlay and composited video export presets" width="100%"> |
 
 ## Built for the edit
 
