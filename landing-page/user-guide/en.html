@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DataLayer Studio User Guide</title>
+    <meta name="description" content="The complete DataLayer Studio guide: multitrack timeline, data components, weather, the Export Center, and the command line.">
+    <meta name="theme-color" content="#061018">
+    <link rel="canonical" href="https://datalayer-studio.ligh-t-ouch.com/user-guide/en.html">
+    <link rel="alternate" hreflang="zh-Hans" href="https://datalayer-studio.ligh-t-ouch.com/user-guide/">
+    <link rel="alternate" hreflang="zh-Hant" href="https://datalayer-studio.ligh-t-ouch.com/user-guide/zh-hant.html">
+    <link rel="alternate" hreflang="en" href="https://datalayer-studio.ligh-t-ouch.com/user-guide/en.html">
+    <link rel="alternate" hreflang="ja" href="https://datalayer-studio.ligh-t-ouch.com/user-guide/ja.html">
+    <link rel="icon" href="../assets/app-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif:wght@700&family=Noto+Serif+JP:wght@700&family=Noto+Serif+SC:wght@700&family=Noto+Serif+TC:wght@700&display=swap"
+      rel="stylesheet"
+    >
+    <link rel="stylesheet" href="../styles.css?v=20260716-guide">
+    <link rel="stylesheet" href="styles.css?v=20260716">
+    <script>
+      (function () {
+        try {
+          if (new URLSearchParams(location.search).get("sel") === "1") {
+            localStorage.setItem("dlsGuideLang", "en");
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="user-guide-page">
+    <header class="site-header">
+      <a class="brand" href="../?lang=en" aria-label="Back to home">
+        <img src="../assets/app-icon.png" alt="" width="32" height="32">
+        <span>DataLayer Studio</span>
+      </a>
+      <nav class="site-nav" aria-label="Navigation">
+        <a href="en.html" aria-current="page">User Guide</a>
+        <a href="../?lang=en#pricing">Pricing</a>
+      </nav>
+      <div class="header-actions">
+        <a class="button secondary header-cta guide-github" href="https://github.com/leeeboo/DataLayer-Studio" target="_blank" rel="noreferrer">
+          <svg class="github-mark" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12z"></path></svg>
+          <span>GitHub</span>
+        </a>
+        <a class="button primary header-cta" href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770" target="_blank" rel="noreferrer">
+          <span>Download on App Store</span>
+        </a>
+      </div>
+    </header>
+
+    <main class="guide-shell section-shell">
+      <aside class="guide-side">
+        <nav class="lang-switch" aria-label="Language">
+          <a class="lang-link" href="./?sel=1" lang="zh-Hans" hreflang="zh-Hans">简体中文</a>
+          <a class="lang-link" href="zh-hant.html?sel=1" lang="zh-Hant" hreflang="zh-Hant">繁體中文</a>
+          <a aria-current="page" class="lang-link is-active" href="en.html" lang="en" hreflang="en">English</a>
+          <a class="lang-link" href="ja.html?sel=1" lang="ja" hreflang="ja">日本語</a>
+        </nav>
+        <nav class="guide-toc" aria-label="Contents">
+          <p class="guide-toc-title">Contents</p>
+          <ol>
+            <li><a href="#1-what-the-app-is-for">1. What the app is for</a></li>
+            <li><a href="#2-feature-overview">2. Feature overview</a></li>
+            <li><a href="#3-before-you-start">3. Before you start</a></li>
+            <li><a href="#4-interface-layout">4. Interface layout</a></li>
+            <li><a href="#5-your-first-project">5. Your first project</a></li>
+            <li><a href="#6-timeline-editing-in-detail">6. Timeline editing in detail</a></li>
+            <li><a href="#7-data-components-and-the-canvas">7. Data components and the canvas</a></li>
+            <li><a href="#8-the-weather-component">8. The weather component</a></li>
+            <li><a href="#9-the-export-center">9. The Export Center</a></li>
+            <li><a href="#10-saving-opening-and-recovering-projects">10. Saving, opening, and recovering projects</a></li>
+            <li><a href="#11-case-studies">11. Case studies</a></li>
+            <li><a href="#12-keyboard-shortcuts">12. Keyboard shortcuts</a></li>
+            <li><a href="#13-faq">13. FAQ</a></li>
+            <li><a href="#14-command-line">14. Command line</a></li>
+            <li><a href="#15-pre-export-checklist">15. Pre-export checklist</a></li>
+          </ol>
+        </nav>
+      </aside>
+      <article class="guide-doc">
+<h1>DataLayer Studio Features &amp; User Guide</h1>
+<p>Last updated: 2026-07-16</p>
+<p>Applies to: macOS 0.3.3</p>
+<p>DataLayer Studio is a data-overlay production tool for running, cycling, and outdoor sports videos. It puts video footage and <code>.fit</code> / <code>.gpx</code> activity recordings on one multitrack timeline, lets you arrange speed, pace, heart rate, route, distance, and weather components in a live preview, and exports either a transparent overlay or a fully composited video.</p>
+<p>This guide has three parts:</p>
+<ol><li>Features: what the app can and cannot do.</li><li>User manual: the complete workflow from a new project to export.</li><li>Case studies: how to organize and align complex timelines in common shooting scenarios.</li></ol>
+<h2 id="1-what-the-app-is-for">1. What the app is for</h2>
+<p>Typical uses:</p>
+<ul><li>Overlay route, distance, pace, and heart rate on a race recap video.</li><li>Show cadence, power, running dynamics, and elevation in a training review.</li><li>Put multiple clips filmed at scattered moments of one activity back at their true activity time.</li><li>Export a transparent Alpha overlay and finish the edit in DaVinci Resolve, Final Cut Pro, or Premiere.</li><li>Export a finished video with the original footage, original audio, and the data overlay composited.</li><li>Save projects, layout templates, and export presets to reuse on your next video.</li></ul>
+<p>DataLayer Studio follows the principle of &quot;standard editing logic, lightweight interaction&quot;. The timeline supports multiple video tracks, multiple activity tracks, clip moving, trimming, splitting, copy/paste, multi-select, snapping, track locking, and undo — but it is not a full NLE:</p>
+<ul><li>No transitions, speed ramps, picture-in-picture, keyframes, or multicam tools yet.</li><li>When video tracks overlap, the upper video covers the lower one full-frame.</li><li>Activity tracks are for data overlays, not for blending two video images.</li></ul>
+<h2 id="2-feature-overview">2. Feature overview</h2>
+<h3 id="21-media-and-projects">2.1 Media and projects</h3>
+<ul><li>Import one or more video files, and one or more <code>.fit</code> / <code>.gpx</code> activity files.</li><li>Multi-select imports from Finder join the timeline in order; when the timeline already has content, new media is appended at the end of the project.</li><li>Files can be dragged straight from Finder into the media library or onto a timeline track: dropping on the library only imports; dropping on the timeline imports and places the clip at the drop point.</li><li>When both video and activity files carry reliable recording times, they are aligned automatically by absolute time; import order does not matter.</li><li>The media library marks which assets are in use; offline assets can be relinked.</li><li>Projects use the dedicated <code>.dlsproj</code> format, storing media references, tracks, clips, layouts, export settings, the playhead position, and fetched weather data. Legacy <code>.json</code> projects still open.</li></ul>
+<h3 id="22-a-standard-multitrack-timeline">2.2 A standard multitrack timeline</h3>
+<ul><li>Any number of video tracks and activity tracks; clips move freely, and gaps are allowed at the start, between clips, and at the end.</li><li>Clips trim at both ends; trimming changes the source in or out point.</li><li>Clips can be copied, cut, pasted, and paste-inserted — including right-click paste on empty timeline space.</li><li>Clip edges snap to the timeline start, the red playhead, and other clip edges; snapping toggles with one click in the timeline toolbar.</li><li>Command multi-select, split at playhead, delete, ripple delete, and undo/redo.</li><li><code>,</code> / <code>.</code> nudge the selected clips one frame left or right; holding Shift locks the horizontal position while dragging across tracks.</li><li>Clips can be disabled temporarily instead of deleted; disabled clips are excluded from preview, export, and edit-point navigation.</li><li>Video clips show audio waveforms; sections without video stay silent in composited output.</li><li>Pauses recorded in FIT files are preserved on the activity time axis; values hold at the pause boundary during the pause.</li></ul>
+<h3 id="23-data-overlays">2.3 Data overlays</h3>
+<p>Available components:</p>
+<ul><li>Basics: speed, pace, heart rate, cadence, calories, total ascent, stride length, power.</li><li>Running dynamics: vertical oscillation, ground contact time, ground contact ratio, ground contact balance, vertical ratio, respiration rate.</li><li>Extended metrics: pace loss, form power, air power, leg spring stiffness.</li><li>Visualizations: GPS route, distance value, distance progress, time and date, weather.</li></ul>
+<p>What can actually display depends on the fields in your activity file. GPX usually carries only time, position, distance, and speed; a full FIT file usually has much more.</p>
+<h3 id="24-preview-and-canvas">2.4 Preview and canvas</h3>
+<ul><li>Video, black gaps, and data overlays preview on the same single timeline; with no video, the preview is the data layer on a black canvas.</li><li>Components drag directly, with multi-select, part sub-selection, and smart-guide snapping.</li><li>The Arrange menu and the context menu provide layering, alignment, distribution, and copy/paste style.</li><li>Each activity clip can inherit the project's default layout or keep its own layout and distance unit.</li></ul>
+<h3 id="25-export">2.5 Export</h3>
+<p>The Export Center (<code>⌘E</code>) keeps presets, settings, progress, and results in one window:</p>
+<ul><li><strong>Transparent overlay</strong>: always keeps a transparent background; encode as HEVC Alpha or ProRes 4444.</li><li><strong>Composited video</strong>: shows video where it exists, the data layer on black where only data exists, and pure black where neither exists. Encode as HEVC or H.264.</li><li>Render scope is either <strong>Full Timeline</strong> (one file) or <strong>Individual Clips</strong> (one file per clip).</li><li>Five built-in export presets; save your own settings as My Presets.</li></ul>
+<hr>
+<h2 id="3-before-you-start">3. Before you start</h2>
+<h3 id="31-system-requirements">3.1 System requirements</h3>
+<ul><li>Apple Silicon Mac.</li><li>macOS 13 Ventura or later.</li><li>The App Store build needs a valid purchase; use Restore Purchases if the status looks wrong.</li></ul>
+<h3 id="32-media-recommendations">3.2 Media recommendations</h3>
+<p>Video:</p>
+<ul><li>Keep original files and original creation times; auto-alignment relies on recording-time metadata.</li><li>Landscape, portrait, mixed resolutions, and mixed frame rates can live in one project.</li><li>Don't move or delete files a project references in Finder; if you must, use Relink afterwards.</li></ul>
+<p>Activity data:</p>
+<ul><li>Prefer the original FIT exported by your device.</li><li>GPX works for route, distance, speed, and pace, but usually lacks heart rate, power, and running dynamics.</li><li>The activity file and the video should come from the same session.</li><li>If you paused during the activity, the timeline keeps the real wall-clock time the pause occupied; it is not compressed away.</li></ul>
+<h3 id="33-understand-the-two-clocks-first">3.3 Understand the two clocks first</h3>
+<p>Every clip has two time systems:</p>
+<ul><li><strong>Timeline time</strong>: where the clip sits in the project.</li><li><strong>Source time</strong>: which second of the source file the clip starts reading from.</li></ul>
+<p>The clip inspector on the right shows:</p>
+<ul><li><strong>Timeline start</strong>: editable; use it to move the whole clip precisely.</li><li><strong>Source in point</strong>: read-only; determined by the left trim handle.</li><li><strong>Duration</strong>: read-only; determined by the trims at both ends.</li></ul>
+<p>Normal alignment only requires moving clips — never modifying the source itself.</p>
+<hr>
+<h2 id="4-interface-layout">4. Interface layout</h2>
+<p>The main window has five areas:</p>
+<ol><li><strong>The Library panel</strong> on the left: import media, browse components, and manage templates in the Media / Components / Templates tabs.</li><li><strong>The preview canvas</strong> in the center: see the final frame at the current time; select and drag data components.</li><li><strong>The preview control bar</strong>: play, pause, frame stepping, timecode, preview zoom, and fullscreen.</li><li><strong>The timeline</strong> at the bottom: arrange video and activity clips, manage tracks, trim, split, copy and paste.</li><li><strong>The inspector</strong> on the right: edit component styles when a data component is selected; edit clip timing and layout when a timeline clip is selected.</li></ol>
+<p>The toolbar shows or collapses the Library, timeline, and inspector (<code>⌥⌘1</code> / <code>⌥⌘2</code> / <code>⌥⌘3</code>); panel widths are draggable. The Output button in the top-right corner or <code>⌘E</code> opens the Export Center. Alignment, trimming, and splitting all happen directly on the timeline — there is no separate &quot;Sync&quot; or &quot;Trim&quot; page.</p>
+<p>Transient messages (saved, export failure reasons, and so on) appear as toasts in the bottom-right corner — at most three at a time, disappearing after a few seconds. The full runtime log lives in Debug &gt; Show Debug Console (<code>⇧⌘D</code>).</p>
+<p>On launch, only the welcome window appears: create a project, open an existing one, browse recent projects and My Templates, or drop a project, video, FIT, or GPX file anywhere in the window. Once an activity file loads, the window title prefers &quot;activity date + sport&quot;, e.g. &quot;2026-07-05 Running&quot;.</p>
+<hr>
+<h2 id="5-your-first-project">5. Your first project</h2>
+<h3 id="step-1-import-media">Step 1: Import media</h3>
+<p>In Library &gt; Media:</p>
+<ol><li>Use the drop zone or the &quot;Import Video…&quot; / &quot;Import Activity File…&quot; buttons, or drag files straight from Finder into the library or timeline.</li><li>Wait for each row to show a duration; videos also show their resolution.</li><li>Confirm the clips appear on the timeline.</li></ol>
+<p>If both the video metadata and the FIT/GPX carry reliable recording times, the app arranges and aligns the clips automatically by real time. Still verify at one clear event; when recording times are missing, far apart, or the track is locked, align manually as described below.</p>
+<p>Shortcuts: open video <code>⌘O</code>, open activity file <code>⌘F</code>.</p>
+<h3 id="step-2-organize-the-timeline">Step 2: Organize the timeline</h3>
+<p>New media appends at the end by default; tracks are not created per asset. You can:</p>
+<ul><li>Drag clips horizontally to reposition, or vertically onto a same-type track to change tracks (hold Shift to lock the horizontal position).</li><li>Drag assets from the media library straight onto a target track at a target time.</li><li>Click &quot;Add to Timeline&quot; on an asset row to append a new instance at the end of the project.</li></ul>
+<p>For more tracks, click &quot;Add Track&quot; at the top right of the timeline and choose a video track or an activity track.</p>
+<h3 id="step-3-align-video-with-activity-data">Step 3: Align video with activity data</h3>
+<p>Alignment means making the same real-world event land at the same timeline position in both media types.</p>
+<p>The common method:</p>
+<ol><li>Find a clear event in the video — the start gun, a road sign, an aid station, a turn.</li><li>Note when that event happens in the video source.</li><li>Note when the same event happens in the activity recording.</li><li>Drag the video or activity clip until both events sit under the red playhead.</li><li>Play a few seconds around the event and watch distance, route, and pace.</li></ol>
+<p>For precise input: select the clip and type hours, minutes, seconds, and milliseconds into &quot;Timeline start&quot; in the clip inspector — or nudge frame by frame with <code>,</code> / <code>.</code>.</p>
+<p>For untrimmed clips the quick formula is:</p>
+<pre><code>activity clip timeline start
+= video clip timeline start + event time in video - event time in activity</code></pre>
+<p>If the result is negative, don't place a clip at negative time. Move the other clip later instead, leaving a gap at the start of the timeline.</p>
+<p>For already-trimmed clips, correct with the &quot;Source in point&quot; shown in the inspector:</p>
+<pre><code>activity clip start
+= video clip start
+ + (video event time - video source in point)
+ - (activity event time - activity source in point)</code></pre>
+<h3 id="step-4-trim-and-split">Step 4: Trim and split</h3>
+<p>Trimming:</p>
+<ul><li>Drag the left handle: changes the source in point and the clip start.</li><li>Drag the right handle: changes the clip end.</li><li>Handles snap to the red playhead, other clip edges, and the timeline start, showing a guide line; turn snapping off in the timeline toolbar when you don't want it.</li></ul>
+<p>Splitting:</p>
+<ol><li>Move the red playhead to the cut position.</li><li>With one or more clips selected, <code>⌘B</code> splits only the selected clips under the playhead.</li><li>With nothing selected, <code>⌘B</code> splits clips on every editable track under the playhead.</li></ol>
+<p>This matches the common DaVinci Resolve behavior.</p>
+<h3 id="step-5-arrange-data-components">Step 5: Arrange data components</h3>
+<ol><li>Move the playhead somewhere with activity data.</li><li>In Library &gt; Components, double-click a component to add it, or drag it to a specific spot on the canvas.</li><li>Drag components on the canvas; smart guides align them to other components, the canvas center lines, and the safe frame.</li><li>Fine-tune layout, style, and data settings in the inspector.</li></ol>
+<p>For a first pass, keep just route, distance, pace, and heart rate. Make the information legible first; add running dynamics or weather later.</p>
+<h3 id="step-6-export">Step 6: Export</h3>
+<ol><li>Click Output in the top-right corner or press <code>⌘E</code> to open the Export Center.</li><li>Pick a built-in preset on the left, or adjust render mode, size, frame rate, codec, and bitrate on the right.</li><li>Choose the destination (a folder when using Individual Clips).</li><li>Click export; progress shows in place, and the result can be revealed in Finder when done.</li></ol>
+<hr>
+<h2 id="6-timeline-editing-in-detail">6. Timeline editing in detail</h2>
+<h3 id="61-selection-and-multi-select">6.1 Selection and multi-select</h3>
+<ul><li>Click a clip: selects just that clip and shows the clip inspector.</li><li>Command-click: adds a clip to, or removes it from, the selection.</li><li>Click empty timeline space: clears the selection.</li></ul>
+<p>A multi-selection can be moved, split, deleted, ripple-deleted, or copied in one action.</p>
+<h3 id="62-moving-and-changing-tracks">6.2 Moving and changing tracks</h3>
+<ul><li>Drag horizontally to change the timeline start; hold Shift to keep the horizontal position while changing tracks.</li><li>Drag vertically onto a same-type track to move and switch tracks in one gesture.</li><li>Video clips only go on video tracks, activity clips only on activity tracks; locked tracks accept nothing.</li><li>When the target track has clips, the app finds the nearest gap that fits — it never overwrites or pushes existing clips.</li></ul>
+<h3 id="63-copy-cut-and-paste">6.3 Copy, cut, and paste</h3>
+<ul><li><code>⌘C</code> copies, <code>⌘X</code> cuts the selected clips.</li><li><code>⌘V</code> pastes at the playhead.</li><li><code>⇧⌘V</code> paste-inserts: pastes and shifts subsequent clips on the track later to make room.</li><li>Right-click empty timeline space and choose Paste to paste at the clicked position.</li></ul>
+<h3 id="64-snapping">6.4 Snapping</h3>
+<p>Moving and trimming snaps to: the timeline start, the red playhead, and other clips' heads and tails. A guide line with the snap source appears on a hit. To align to an exact moment, park the playhead there first, then drag the clip edge onto the red line. The magnet toggle in the timeline toolbar disables snapping temporarily.</p>
+<h3 id="65-delete-and-ripple-delete">6.5 Delete and ripple delete</h3>
+<ul><li><code>⌫</code>: deletes the selected clips, keeping the gap.</li><li><code>⇧⌫</code>: ripple-deletes the selected clips and closes the gap.</li><li><code>⌘Z</code> undo, <code>⇧⌘Z</code> redo.</li></ul>
+<p>Ordinary edits never ask for confirmation; destructive operations — like deleting a library asset the timeline still uses — do.</p>
+<h3 id="66-multiple-video-tracks">6.6 Multiple video tracks</h3>
+<p>When several video tracks have clips at the same moment:</p>
+<ul><li>The upper enabled video track covers the lower ones.</li><li>When the covering clip ends, the lower video resumes from its own continuous source time.</li><li>Exported audio follows whichever video clip is visible.</li></ul>
+<p>This is full-frame covering — not picture-in-picture or video blending.</p>
+<h3 id="67-multiple-activity-tracks">6.7 Multiple activity tracks</h3>
+<ul><li>Every enabled activity track participates in compositing.</li><li>Different tracks can use different activity files, layouts, and distance units.</li><li>Upper activity tracks draw last — put components you want emphasized on upper tracks.</li><li>Avoid overlapping clips within one track; if they overlap, the last matching clip in the track wins.</li></ul>
+<h3 id="68-track-management">6.8 Track management</h3>
+<p>Track headers support renaming, enabling/disabling, locking/unlocking, and deleting empty tracks. Disabled tracks are excluded from preview and export; locked tracks block moving, trimming, splitting, deleting, and drops. With many tracks, the track area scrolls vertically.</p>
+<h3 id="69-temporarily-disabling-clips">6.9 Temporarily disabling clips</h3>
+<ul><li>Select one or more clips and press <code>D</code> to toggle enabled/disabled.</li><li>Disabled clips dim but keep their track and position — handy for comparing alternatives.</li><li>Disabled clips are excluded from preview, export, edit-point navigation, and export preflight.</li><li>Disabling a clip and disabling a whole track are independent switches.</li></ul>
+<h3 id="610-zoom-and-navigation">6.10 Zoom and navigation</h3>
+<ul><li>Zoom horizontally with the control at the top right of the timeline or by pinching on the trackpad; zoom anchors on the red playhead.</li><li><code>↑</code> / <code>↓</code> jump to the previous / next edit point and bring the playhead back into view.</li><li>The playhead can be clicked or dragged on the ruler and snaps near clip edges.</li></ul>
+<h3 id="611-what-gaps-look-like">6.11 What gaps look like</h3>
+<div class="table-scroll"><table><thead><tr><th>Timeline state</th><th>Preview / composited video</th><th>Transparent overlay</th></tr></thead><tbody><tr><td>Video + data</td><td>Data over video</td><td>Data layer only, transparent</td></tr><tr><td>Video, no data</td><td>Original video</td><td>Fully transparent</td></tr><tr><td>No video, data</td><td>Data on a black canvas</td><td>Data layer on transparency</td></tr><tr><td>Neither</td><td>Pure black canvas</td><td>Fully transparent</td></tr></tbody></table></div>
+<p>Activity clips can therefore be much longer than video clips — the recommended structure when one recording covers the whole activity and footage exists only for parts of it.</p>
+<hr>
+<h2 id="7-data-components-and-the-canvas">7. Data components and the canvas</h2>
+<h3 id="71-adding-and-selecting-components">7.1 Adding and selecting components</h3>
+<p>Browse or search all components in Library &gt; Components; double-click to add at the default position, or drag onto the canvas. The Add menu at the top of the inspector also works. Components whose source data is missing stay visible but cannot be added — no GPS means no route, no heart-rate field means no heart rate.</p>
+<p>On the canvas:</p>
+<ul><li>Click to select a component; Command-click to multi-select.</li><li>Click a part inside a component — its label, value, or unit — to edit that part directly; the inspector switches to the matching style settings.</li></ul>
+<h3 id="72-inspector-and-quick-controls">7.2 Inspector and quick controls</h3>
+<p>With a component selected, the inspector splits into layout, style, and data sections, with a quick-controls row always showing X/Y position, scale, length (for components that support it), and a visibility toggle. Adjustable properties include:</p>
+<ul><li>Position, size, and length.</li><li>Label, unit, icon, and custom text.</li><li>Panel, border, opacity, and line width.</li><li>Font, font size, and color (settable per part).</li><li>Decimal places, gauge range, tick marks, and weather icons.</li></ul>
+<p>The meter/kilometer unit for distance components (distance value, distance progress) is set in their own inspectors.</p>
+<h3 id="73-arrange-align-and-reuse-styles">7.3 Arrange, align, and reuse styles</h3>
+<p>The Arrange menu and the canvas context menu provide:</p>
+<ul><li>Layering: Bring to Front, Bring Forward, Send Backward, Send to Back (<code>⌘⌥↑</code> / <code>⌘⌥↓</code> for forward/backward).</li><li>Alignment: left, horizontal center, right, top, vertical center, bottom.</li><li>Distribution: horizontal and vertical (needs three or more components).</li><li>Copy Style / Paste Style: apply one component's look to others quickly.</li><li>Delete: acts on the whole selection.</li></ul>
+<h3 id="74-smart-guides-grid-and-safe-frame">7.4 Smart guides, grid, and safe frame</h3>
+<ul><li>While dragging, smart guides snap to other components' edges and centers, the canvas center lines and thirds, and the safe frame.</li><li>Preview &gt; Show Grid displays a purely visual reference grid; there are no row/column settings to configure.</li><li>The safe-frame inset lives in Settings (0–20%, default 5%) and keeps components away from the frame edges.</li></ul>
+<h3 id="75-per-clip-layouts">7.5 Per-clip layouts</h3>
+<p>With an activity clip selected, the inspector offers:</p>
+<ul><li>The meter/kilometer unit for that clip.</li><li>&quot;Use current layout&quot;: stores the current canvas layout on that clip.</li><li>&quot;Use default layout&quot;: makes the clip inherit the project default.</li></ul>
+<h3 id="76-layout-templates">7.6 Layout templates</h3>
+<p>Library &gt; Templates saves, applies, sets default, imports, and exports user layout templates:</p>
+<ul><li>Exports use the dedicated <code>.dlspreset</code> extension; imports also accept legacy <code>.json</code> presets.</li><li>Useful for reusing one visual style across races, keeping separate landscape and portrait templates, or migrating to another Mac.</li></ul>
+<p>Applying a template replaces the current canvas layout — check whether current changes need saving first. The app ships no built-in templates; the welcome window shows only templates you saved or imported.</p>
+<hr>
+<h2 id="8-the-weather-component">8. The weather component</h2>
+<p>The weather component needs:</p>
+<ul><li>An activity file with time and GPS.</li><li>A valid OpenWeather API key.</li><li>Network access for the first fetch.</li></ul>
+<p>The first time you add a weather component without a key, the app shows a setup guide. Click &quot;Get API Key&quot; to register an OpenWeather account, enable One Call 4.0 for the key (it has a free daily quota), then paste the key into the inspector and refresh. New keys can take a while to activate. The key is stored only on this Mac.</p>
+<p>Once fetched, weather data is cached into the project. Loaded weather is never lost if the network drops mid-render, and reopening the project does not require another fetch.</p>
+<p>If the project contains a weather component whose data hasn't loaded yet, starting an export raises a confirmation. Wait for the weather to display properly before exporting; continue only if you're sure you don't need it.</p>
+<hr>
+<h2 id="9-the-export-center">9. The Export Center</h2>
+<p>Press <code>⌘E</code> or click Output in the top-right corner. Settings, progress, and results all live in this one window.</p>
+<h3 id="91-presets">9.1 Presets</h3>
+<p>The preset list on the left:</p>
+<ul><li><strong>Built-in presets</strong>: Transparent Overlay · ProRes 4444, Transparent Overlay · HEVC, Composited Video · 4K HEVC, Composited Video · 1080p H.264, Vertical Video · 4K HEVC.</li><li><strong>My Presets</strong>: save the current settings under a name for reuse; deletable. User presets store concrete resolution/frame-rate values.</li></ul>
+<p>After picking a preset you can still override any option on the right.</p>
+<h3 id="92-transparent-overlay-vs-composited-video">9.2 Transparent overlay vs. composited video</h3>
+<p>Choose the transparent overlay if:</p>
+<ul><li>You still need grading, captions, transitions, or speed changes.</li><li>You want to hide or replace the data layer at will in your editor.</li><li>You need the same data layer over different cuts of the video.</li></ul>
+<p>Choose the composited video if:</p>
+<ul><li>The timeline is final and you don't want another editor.</li><li>You need a shareable file fast, with the original audio preserved.</li></ul>
+<h3 id="93-render-scope">9.3 Render scope</h3>
+<ul><li><strong>Full Timeline</strong>: the whole timeline as one continuous file.</li><li><strong>Individual Clips</strong>: composited video exports one file per video clip; transparent overlay exports one per activity clip. Requires choosing an output folder; files are numbered.</li></ul>
+<p>To export only part of the timeline, first shape the timeline with trims, splits, and deletions.</p>
+<h3 id="94-codec-advice">9.4 Codec advice</h3>
+<p>Transparent overlay:</p>
+<ul><li>HEVC/H.265 Alpha: smaller files, fine for regular post work.</li><li>ProRes 4444: much larger, for high-quality intermediates and wider professional pipelines.</li></ul>
+<p>Composited video:</p>
+<ul><li>HEVC/H.265: efficient compression, the recommended default.</li><li>H.264: broadest compatibility for older playback devices.</li></ul>
+<h3 id="95-size-and-frame-rate">9.5 Size and frame rate</h3>
+<ul><li>Presets cover landscape and portrait sizes from 3840×2160 down to 720×1280, at 23.976–60 fps.</li><li>Custom sizes support Lock Aspect Ratio — changing width updates height.</li><li>With video present, prefer the source resolution and frame rate. Mixed landscape/portrait clips each scale proportionally and center, with black bars filling the rest.</li></ul>
+<h3 id="96-bitrate">9.6 Bitrate</h3>
+<p>The default is 12000 kbps. As a guide:</p>
+<ul><li>1080p: 8000–16000 kbps.</li><li>4K: 30000–80000 kbps.</li><li>ProRes 4444 doesn't follow delivery-bitrate logic; files are simply much larger.</li></ul>
+<h3 id="97-export-preflight">9.7 Export preflight</h3>
+<p>Before exporting, the app checks:</p>
+<ul><li>Whether the timeline has usable video or activity clips.</li><li>Whether any media is offline.</li><li>Whether any clip reads beyond its source.</li><li>Whether the codec matches the overlay/composited mode.</li><li>Whether weather components are ready.</li><li>Whether the output path is writable.</li></ul>
+<p>If the export button is disabled, read the reason shown next to it instead of clicking repeatedly.</p>
+<hr>
+<h2 id="10-saving-opening-and-recovering-projects">10. Saving, opening, and recovering projects</h2>
+<h3 id="101-saving">10.1 Saving</h3>
+<ul><li>Save: <code>⌘S</code>; Save As: <code>⇧⌘S</code>; Open project: <code>⇧⌘O</code>.</li><li>Projects default to the <code>.dlsproj</code> extension; legacy <code>.json</code> projects still open.</li><li>Saved projects appear in File &gt; Open Recent; the welcome window can also open or locate recent projects.</li></ul>
+<p>A project file stores:</p>
+<ul><li>The media library and asset references.</li><li>Track names, enabled and locked states.</li><li>Clip positions, source in points, durations, layouts, and distance units.</li><li>Export size, frame rate, codec, bitrate, and render scope.</li><li>The playhead position and fetched weather data.</li></ul>
+<p>The output destination path is not stored in the project.</p>
+<h3 id="102-moving-projects">10.2 Moving projects</h3>
+<p>If the project file sits in the same folder as (or a parent of) its media, the app records relative paths as a recovery aid. When moving across machines, put the project and all media in one folder and copy it whole.</p>
+<h3 id="103-relinking-offline-media">10.3 Relinking offline media</h3>
+<p>When a file is moved, renamed, or loses permissions:</p>
+<ol><li>The media library shows Offline with the reason.</li><li>Click the link button or &quot;Relink…&quot;.</li><li>Pick the correct replacement file.</li><li>The app validates the video metadata or parses the activity file first.</li><li>On success, clip positions, trims, and layouts are preserved.</li></ol>
+<p>Relinking supports undo/redo. A wrong file never silently replaces the original.</p>
+<hr>
+<h2 id="11-case-studies">11. Case studies</h2>
+<h3 id="case-1-camera-starts-first-the-watch-starts-49-seconds-in">Case 1: Camera starts first; the watch starts 49 seconds in</h3>
+<p>Scene: the video starts during warm-up; the watch starts at <code>00:49.000</code> of the video.</p>
+<p>Goal: keep the first 49 seconds of video with no data; the overlay starts changing after 49 s.</p>
+<p>Steps:</p>
+<ol><li>Put the video clip at timeline <code>00:00.000</code>.</li><li>Put the full activity clip at <code>00:49.000</code>.</li><li>Park the playhead at 49 s and drag the activity clip's head onto the red line — or type <code>00:00:49.000</code> in the inspector.</li><li>Play from 45 s and confirm the data appears at the right moment.</li><li>A composited export shows plain video for 49 s; a transparent overlay is fully transparent for 49 s.</li></ol>
+<p>Lesson: don't trim the start of the activity file just to &quot;align&quot;. The natural expression is simply an activity clip that starts 49 seconds late.</p>
+<h3 id="case-2-recording-starts-530-after-the-activity">Case 2: Recording starts 5:30 after the activity</h3>
+<p>Scene: the watch starts first; video <code>00:00</code> corresponds to activity <code>05:30</code>.</p>
+<p>Recommended structure:</p>
+<ol><li>Put the full activity clip at timeline <code>00:00</code>.</li><li>Put the video clip at <code>05:30</code>.</li><li>If you don't want the leading data-on-black section, trim the first 5:30 off the activity clip with its left handle, then move both clips back to the timeline start together.</li><li>If you want 5:30 of route/data animation before cutting to footage, keep it as is.</li></ol>
+<p>Result:</p>
+<ul><li>The composited video shows a data layer on black for 0–5:30, then the footage.</li><li>The transparent overlay stays transparent throughout, drawing only data.</li></ul>
+<p>Lesson: the timeline may start with a gap, so negative offsets are never needed. Place later media at the relative time it really appeared.</p>
+<h3 id="case-3-a-long-activity-with-three-scattered-clips">Case 3: A long activity with three scattered clips</h3>
+<p>Scene: one ~110-minute FIT and three videos sorted by name, with large gaps between them and two pauses in the FIT.</p>
+<p>Recommended steps:</p>
+<ol><li>Multi-select and import the three videos, then the FIT; with reliable recording times the app places them automatically.</li><li>Keep the activity clip covering the full wall-clock duration.</li><li>Play the start of each video clip and verify alignment against junctions, landmarks, or the watch readout; nudge with <code>,</code> / <code>.</code> if needed.</li><li>Keep videos on V1; use V2 for comparing or temporary covering.</li><li>Don't split around FIT pauses; distance and speed hold during a pause and continue after.</li><li>A full composited export shows data-on-black where there is no video; an overlay export stays transparent where there is no data.</li></ol>
+<p>Lesson: the activity clip is usually the longest clip on the timeline, and the videos are scattered visual evidence inside it. That reflects real activity time far better than splicing three clips into fake continuous footage.</p>
+<h3 id="case-4-a-transparent-data-layer-for-davinci-resolve">Case 4: A transparent data layer for DaVinci Resolve</h3>
+<p>Goal: keep editing, grading, and audio in DaVinci; DataLayer Studio only produces the data layer.</p>
+<p>Steps:</p>
+<ol><li>Arrange video and activity clips at the same relative positions as the DaVinci timeline.</li><li>In the Export Center pick &quot;Transparent Overlay · HEVC&quot; — or &quot;Transparent Overlay · ProRes 4444&quot; for a high-quality intermediate.</li><li>Match the size and frame rate to the DaVinci project.</li><li>Export the full timeline.</li><li>In DaVinci, place the overlay on the track above the footage, aligned to the same start.</li></ol>
+<p>Verification:</p>
+<ul><li>A black background in a normal player does not mean Alpha failed.</li><li>Check transparency on DaVinci's upper track.</li><li>Never time-stretch the overlay afterwards, or the data desyncs.</li></ul>
+<h3 id="case-5-batch-exporting-social-clips-from-a-long-timeline">Case 5: Batch-exporting social clips from a long timeline</h3>
+<p>Goal: several independent short videos from one activity.</p>
+<p>Steps:</p>
+<ol><li>Shape multiple video clips with splits and trims.</li><li>Make sure the data track covers each short clip correctly.</li><li>Choose render scope Individual Clips in the Export Center.</li><li>Pick an output folder.</li><li>Composited export writes one file per video clip; overlay export writes one per activity clip.</li></ol>
+<p>Lesson: if the clips need different layouts, give each activity clip its own &quot;current layout&quot;; if the style is uniform, let them inherit the default.</p>
+<h3 id="case-6-media-offline-after-copying-the-project-to-another-mac">Case 6: Media offline after copying the project to another Mac</h3>
+<p>Steps:</p>
+<ol><li>Open the <code>.dlsproj</code> project.</li><li>Click Relink on every asset marked offline.</li><li>Pick the matching video or FIT on the new machine.</li><li>Confirm clip positions, source in points, and layouts are intact.</li><li>Save the project once to refresh access permissions on the new machine.</li></ol>
+<p>Lesson: put the project file and all media in one folder before copying — recovery is then trivial.</p>
+<hr>
+<h2 id="12-keyboard-shortcuts">12. Keyboard shortcuts</h2>
+<div class="table-scroll"><table><thead><tr><th>Action</th><th>Shortcut</th></tr></thead><tbody><tr><td>Open video</td><td><code>⌘O</code></td></tr><tr><td>Open activity file</td><td><code>⌘F</code></td></tr><tr><td>Open timeline project</td><td><code>⇧⌘O</code></td></tr><tr><td>Save timeline project</td><td><code>⌘S</code></td></tr><tr><td>Save timeline project as</td><td><code>⇧⌘S</code></td></tr><tr><td>Open Export Center</td><td><code>⌘E</code></td></tr><tr><td>Cancel export</td><td><code>⌘.</code></td></tr><tr><td>Play / pause</td><td><code>Space</code></td></tr><tr><td>Refresh preview</td><td><code>⌘R</code></td></tr><tr><td>Previous / next edit point</td><td><code>↑</code> / <code>↓</code></td></tr><tr><td>Split at playhead</td><td><code>⌘B</code></td></tr><tr><td>Enable or disable selected clips</td><td><code>D</code></td></tr><tr><td>Copy / cut selected clips</td><td><code>⌘C</code> / <code>⌘X</code></td></tr><tr><td>Paste / paste insert</td><td><code>⌘V</code> / <code>⇧⌘V</code></td></tr><tr><td>Nudge selected clips one frame</td><td><code>,</code> / <code>.</code></td></tr><tr><td>Delete, keeping the gap</td><td><code>⌫</code></td></tr><tr><td>Ripple delete</td><td><code>⇧⌫</code></td></tr><tr><td>Multi-select clips or components</td><td><code>Command</code> + click</td></tr><tr><td>Undo / redo</td><td><code>⌘Z</code> / <code>⇧⌘Z</code></td></tr><tr><td>Zoom preview in / out</td><td><code>⌘+</code> / <code>⌘-</code></td></tr><tr><td>Reset preview zoom</td><td><code>⌘0</code></td></tr><tr><td>Fullscreen preview</td><td><code>⇧⌘F</code></td></tr><tr><td>Show or hide Library / timeline / inspector</td><td><code>⌥⌘1</code> / <code>⌥⌘2</code> / <code>⌥⌘3</code></td></tr><tr><td>Bring component forward / send backward</td><td><code>⌘⌥↑</code> / <code>⌘⌥↓</code></td></tr><tr><td>Open debug console</td><td><code>⇧⌘D</code></td></tr></tbody></table></div>
+<hr>
+<h2 id="13-faq">13. FAQ</h2>
+<h3 id="131-data-and-video-dont-line-up">13.1 Data and video don't line up</h3>
+<p>Check in this order:</p>
+<ol><li>Use one clear matching event — never &quot;looks about right&quot;.</li><li>Check the timeline starts of both the activity and video clips.</li><li>Check whether clips are trimmed; trimmed clips need the &quot;Source in point&quot; taken into account.</li><li>Check whether the FIT contains pauses — activity time and wall-clock time can differ.</li><li>Play 5–10 seconds on both sides of the match point.</li></ol>
+<h3 id="132-auto-alignment-didnt-happen">13.2 Auto-alignment didn't happen</h3>
+<p>Auto-alignment relies on the video's recording-time metadata and the activity file's start time. Transcodes, editor re-exports, and files downloaded from chat apps often lose the original recording time. Align manually in that case; editor-exported videos won't trigger false auto-alignment.</p>
+<h3 id="133-a-component-shows---">13.3 A component shows <code>--</code></h3>
+<p>Possible reasons:</p>
+<ul><li>The activity file lacks the field.</li><li>The current time is outside the activity clip.</li><li>The activity clip uses a different layout.</li><li>Weather hasn't loaded or the cache is unavailable.</li></ul>
+<h3 id="134-the-exported-overlay-looks-black">13.4 The exported overlay looks black</h3>
+<p>Many players don't display Alpha. Check on an upper track in DaVinci Resolve, Final Cut Pro, or Premiere. Cross-check with ProRes 4444 if in doubt.</p>
+<h3 id="135-the-export-button-is-disabled">13.5 The export button is disabled</h3>
+<p>Read the hint in the Export Center. Common causes:</p>
+<ul><li>No clips of the required type on the timeline.</li><li>Offline media.</li><li>A clip reading beyond its source range.</li><li>A non-Alpha codec in overlay mode, or an Alpha codec in composited mode.</li><li>No output destination or folder chosen yet.</li></ul>
+<h3 id="136-why-are-gaps-black-in-the-composited-video">13.6 Why are gaps black in the composited video</h3>
+<p>By design: normal video has no Alpha channel. Gaps use a black canvas; if activity data exists there, it draws on the black canvas. Use the transparent overlay when you need transparency.</p>
+<h3 id="137-can-weather-be-lost-mid-render-if-the-network-drops">13.7 Can weather be lost mid-render if the network drops</h3>
+<p>No. Once fetched, weather is cached with the project and used from there. The only risk window is starting an export before weather ever loaded — the app asks for confirmation then.</p>
+<h3 id="138-long-exports-fail">13.8 Long exports fail</h3>
+<p>Check:</p>
+<ul><li>Free space on the destination disk.</li><li>Write permission on the output folder.</li><li>Whether resolution, frame rate, or bitrate are too high.</li><li>Whether the system can decode the source video.</li><li>The &quot;export&quot; entries in the debug console.</li></ul>
+<p>DataLayer Studio streams frame by frame and never caches whole videos in memory, but 4K, long durations, and ProRes 4444 still need plenty of disk space.</p>
+<hr>
+<h2 id="14-command-line">14. Command line</h2>
+<p>The GUI is for multitrack editing; the CLI is for automation and reusing existing projects.</p>
+<h3 id="141-single-video-single-activity-file">14.1 Single video + single activity file</h3>
+<pre><code>swift run overlay \
+  --video /path/to/run.mov \
+  --fit /path/to/activity.fit \
+  --output /path/to/overlay.mov</code></pre>
+<p>Common options:</p>
+<pre><code>--export-mode overlay|video
+--width 1920 --height 1080
+--fps 30
+--codec hevc-alpha|prores-4444|hevc|h264
+--bitrate 12000
+--distance-unit km|m
+--layout-preset &quot;Race Layout&quot;
+--skip-fit-crc
+--inspect</code></pre>
+<p>The single-source CLI still accepts <code>--fit-start</code>, <code>--sync-video</code> / <code>--sync-fit</code>, and the legacy <code>--offset</code>; these are CLI compatibility options — the app itself has no separate sync page.</p>
+<h3 id="142-exporting-a-timeline-project">14.2 Exporting a timeline project</h3>
+<pre><code>swift run overlay \
+  --timeline-project /path/to/project.dlsproj \
+  --output /path/to/output.mov \
+  --export-mode video</code></pre>
+<p>With <code>--timeline-project</code>, don't mix in <code>--fit</code>, <code>--video</code>, sync options, or layout presets. The project's multitrack structure is read by the same core rendering engine.</p>
+<hr>
+<h2 id="15-pre-export-checklist">15. Pre-export checklist</h2>
+<ul class="checklist"><li>All videos and activity files in use are online.</li><li>Video and activity data align at least at one clear event.</li><li>FIT pause sections behave as expected.</li><li>Upper video tracks cover exactly what they should.</li><li>Activity clips use the right layouts and distance units.</li><li>Weather has loaded, or you're sure you don't need it.</li><li>Data components don't cover subjects, captions, or safe areas.</li><li>The timeline contains exactly what should be exported (extra clips deleted or disabled).</li><li>Size, frame rate, codec, and bitrate suit the target platform.</li><li>The transparent overlay and your editing timeline start at the same moment.</li><li>Enough disk space and write permission at the destination.</li><li>The project is saved with <code>⌘S</code>.</li></ul>
+<p>Run through this list before long or 4K exports — it prevents most rework.</p>
+      </article>
+    </main>
+
+    <footer class="site-footer section-shell">
+      <span>DataLayer Studio</span>
+      <a href="https://apps.apple.com/cn/app/datalayer-studio/id6782545770">App Store</a>
+      <a href="https://github.com/leeeboo/DataLayer-Studio" target="_blank" rel="noreferrer"><svg class="github-mark" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12z"></path></svg><span>GitHub</span></a>
+      <span>© 2026 DataLayer Studio contributors.</span>
+    </footer>
+  </body>
+</html>

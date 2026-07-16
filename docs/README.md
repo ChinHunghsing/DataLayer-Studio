@@ -6,9 +6,9 @@
 
 ## 现行文档
 
-### 用户文档
+### 用户文档（user-guide/）
 
-- [user-guide-zh-CN.md](user-guide-zh-CN.md) — 功能说明与完整使用手册（适用 0.3.x 界面）。
+- [user-guide/zh-Hans.md](user-guide/zh-Hans.md) / [zh-Hant.md](user-guide/zh-Hant.md) / [en.md](user-guide/en.md) / [ja.md](user-guide/ja.md) — 功能说明与完整使用手册，四语言（适用 0.3.3）。这是网页版手册的唯一内容源：修改后运行 `node landing-page/scripts/build-user-guide.mjs` 重新生成 `landing-page/user-guide/` 并部署。
 - [quick-export-guide-zh-CN.md](quick-export-guide-zh-CN.md) — 快速上手：导出第一条数据浮层。
 
 ### iOS / iPadOS（ios/）
