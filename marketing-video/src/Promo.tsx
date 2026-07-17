@@ -573,7 +573,18 @@ const CtaScene: React.FC<PromoConfig> = (config) => {
             boxShadow: '0 34px 90px rgba(0,0,0,.25)',
           }}
         >
-          <div style={{color: config.colors.muted, fontSize: 26}}>{config.priceLabel}</div>
+          <div
+            style={{
+              color: config.colors.cyan,
+              fontSize: 42,
+              lineHeight: 1,
+              fontWeight: 780,
+              letterSpacing: '0.08em',
+              textShadow: '0 0 28px rgba(91,226,245,.28)',
+            }}
+          >
+            {config.priceLabel}
+          </div>
           <div
             style={{
               marginTop: 10,
