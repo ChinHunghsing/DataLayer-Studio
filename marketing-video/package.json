@@ -1,0 +1,22 @@
+{
+  "name": "datalayer-studio-remotion-promo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "assets": "bash scripts/prepare-assets.sh",
+    "preview": "npm run assets && remotion studio src/index.ts",
+    "render": "bash scripts/render.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.490",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "remotion": "4.0.490"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+public/generated/
+.remotion/
+
+!package.json
+!package-lock.json
