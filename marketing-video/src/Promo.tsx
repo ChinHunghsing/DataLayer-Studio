@@ -567,6 +567,10 @@ const CtaScene: React.FC<PromoConfig> = (config) => {
           style={{
             height: 252,
             padding: '36px 44px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 36,
             borderRadius: 30,
             border: '1px solid rgba(125,220,255,.22)',
             background: 'rgba(12,38,52,.7)',
@@ -576,20 +580,20 @@ const CtaScene: React.FC<PromoConfig> = (config) => {
           <div
             style={{
               color: config.colors.cyan,
-              fontSize: 42,
+              fontSize: 62,
               lineHeight: 1,
               fontWeight: 780,
-              letterSpacing: '0.08em',
-              textShadow: '0 0 28px rgba(91,226,245,.28)',
+              letterSpacing: '0.04em',
+              whiteSpace: 'nowrap',
+              textShadow: '0 0 36px rgba(91,226,245,.42)',
             }}
           >
             {config.priceLabel}
           </div>
           <div
             style={{
-              marginTop: 10,
               color: config.colors.text,
-              fontSize: 92,
+              fontSize: 96,
               lineHeight: 1,
               fontWeight: 780,
               letterSpacing: '-0.045em',
