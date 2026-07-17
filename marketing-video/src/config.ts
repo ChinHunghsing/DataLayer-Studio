@@ -33,8 +33,8 @@ export const promoConfig: PromoConfig = {
   taglineZh: '让每一次训练，都成为值得回看的故事。',
   hook: '训练，不只是一段视频。',
   finalStatement: '让数据进入画面，让观众读懂每一次突破。',
-  priceLabel: 'Early Bird Price',
-  price: '$9.99',
+  priceLabel: '早鸟价',
+  price: '¥68',
   website: 'datalayer-studio.ligh-t-ouch.com',
   cta: '立即了解',
   features: [
