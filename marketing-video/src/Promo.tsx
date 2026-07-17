@@ -569,8 +569,8 @@ const CtaScene: React.FC<PromoConfig> = (config) => {
             padding: '36px 44px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 36,
+            justifyContent: 'center',
+            gap: 72,
             borderRadius: 30,
             border: '1px solid rgba(125,220,255,.22)',
             background: 'rgba(12,38,52,.7)',
@@ -612,12 +612,12 @@ const CtaScene: React.FC<PromoConfig> = (config) => {
             boxShadow: '0 34px 90px rgba(20,157,176,.24)',
           }}
         >
-          <div style={{fontSize: 32, fontWeight: 740}}>{config.cta} →</div>
+          <div style={{fontSize: 44, lineHeight: 1, fontWeight: 780}}>{config.cta} →</div>
           <div
             style={{
-              marginTop: 54,
-              fontSize: 29,
-              fontWeight: 650,
+              marginTop: 48,
+              fontSize: 36,
+              fontWeight: 700,
               letterSpacing: '-0.015em',
               whiteSpace: 'nowrap',
             }}
