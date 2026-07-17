@@ -150,7 +150,13 @@ const HookScene: React.FC<PromoConfig> = (config) => {
       <OffthreadVideo
         src={staticFile('generated/run-before.mp4')}
         muted
-        style={{width: '100%', height: '100%', objectFit: 'cover'}}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+        }}
       />
       <AbsoluteFill style={{clipPath: `inset(0 ${100 - reveal}% 0 0)`}}>
         <OffthreadVideo
