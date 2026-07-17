@@ -483,9 +483,10 @@ const FinalEffectScene: React.FC<PromoConfig> = (config) => {
           position: 'absolute',
           left: 90,
           right: 90,
-          bottom: 160,
+          top: 562,
           textAlign: 'center',
           ...copy,
+          transform: `translateY(-50%) ${copy.transform}`,
         }}
       >
         <div
