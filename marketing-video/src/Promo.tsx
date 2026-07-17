@@ -184,7 +184,16 @@ const HookScene: React.FC<PromoConfig> = (config) => {
             'linear-gradient(90deg, rgba(3,12,19,.72) 0%, rgba(3,12,19,.18) 50%, transparent 76%), linear-gradient(0deg, rgba(3,12,19,.62), transparent 48%)',
         }}
       />
-      <div style={{position: 'absolute', left: 94, top: 86, ...copy}}>
+      <div
+        style={{
+          position: 'absolute',
+          left: 960,
+          top: 515,
+          textAlign: 'center',
+          ...copy,
+          transform: `translate(-50%, -50%) ${copy.transform}`,
+        }}
+      >
         <Eyebrow color={config.colors.cyan}>BEFORE / AFTER</Eyebrow>
         <div
           style={{
