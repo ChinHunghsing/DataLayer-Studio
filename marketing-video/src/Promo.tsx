@@ -316,7 +316,7 @@ type FeatureSceneProps = PromoConfig & {
 
 const focusRects = {
   timeline: {left: 64, top: 388, width: 990, height: 150, origin: '54% 80%'},
-  components: {left: 18, top: 70, width: 300, height: 430, origin: '18% 48%'},
+  components: {left: 160, top: 12, width: 170, height: 350, origin: '18% 48%'},
   export: {left: 350, top: 92, width: 520, height: 390, origin: '52% 45%'},
 };
 
@@ -335,7 +335,10 @@ const FeatureScene: React.FC<FeatureSceneProps> = ({
     ...clamp,
     easing: easeInOut,
   });
-  const ringOpacity = interpolate(local, [22, 34, 112, 138], [0, 0.8, 0.8, 0], clamp);
+  const ringOpacity =
+    focus === 'components'
+      ? interpolate(local, [10, 18, 112, 138], [0, 1, 1, 0], clamp)
+      : interpolate(local, [22, 34, 112, 138], [0, 0.8, 0.8, 0], clamp);
 
   return (
     <SceneLayer colors={config.colors}>
@@ -368,7 +371,9 @@ const FeatureScene: React.FC<FeatureSceneProps> = ({
             <div
               key={tag}
               style={{
-                ...fadeUp(local, 22 + index * 3, 12),
+                ...(focus === 'components'
+                  ? {opacity: 1, transform: 'translateY(0)'}
+                  : fadeUp(local, 22 + index * 3, 12)),
                 padding: '10px 16px',
                 borderRadius: 999,
                 border: '1px solid rgba(125,220,255,.24)',
@@ -418,9 +423,15 @@ const FeatureScene: React.FC<FeatureSceneProps> = ({
             top: focusRect.top,
             width: focusRect.width,
             height: focusRect.height,
-            borderRadius: 18,
-            border: '2px solid rgba(91,226,245,.78)',
-            boxShadow: '0 0 0 999px rgba(3,13,21,.08), 0 0 30px rgba(91,226,245,.18)',
+            borderRadius: focus === 'components' ? 12 : 18,
+            border:
+              focus === 'components'
+                ? '3px solid rgba(91,226,245,.98)'
+                : '2px solid rgba(91,226,245,.78)',
+            boxShadow:
+              focus === 'components'
+                ? '0 0 0 999px rgba(3,13,21,.14), 0 0 34px rgba(91,226,245,.42)'
+                : '0 0 0 999px rgba(3,13,21,.08), 0 0 30px rgba(91,226,245,.18)',
             opacity: ringOpacity,
           }}
         />
@@ -641,7 +652,7 @@ export const Promo30s: React.FC<PromoConfig> = (config) => {
         <FeatureScene
           {...config}
           feature={config.features[1]}
-          sourceStart={30.4}
+          sourceStart={34}
           focus="components"
         />
       </Sequence>
