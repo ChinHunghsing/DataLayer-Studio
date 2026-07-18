@@ -1,6 +1,6 @@
 # docs 目录索引
 
-> 最后整理：2026-07-18（当时线上版本 macOS 0.3.3，已上架）。
+> 最后整理：2026-07-18（macOS 1.0.0 提审与发布准备中）。
 > 流程约定一律以根目录 `AGENTS.md` 为准；本目录只放产品、技术与使用文档。
 > 若文档内容与仓库现状冲突，以当前可验证事实为准。
 
@@ -12,7 +12,7 @@
 
 ### 用户文档（user-guide/）
 
-- [user-guide/zh-Hans.md](user-guide/zh-Hans.md) / [zh-Hant.md](user-guide/zh-Hant.md) / [en.md](user-guide/en.md) / [ja.md](user-guide/ja.md) — 功能说明与完整使用手册，四语言（适用 0.3.3）。这是网页版手册的唯一内容源：修改后运行 `node landing-page/scripts/build-user-guide.mjs` 重新生成 `landing-page/user-guide/` 并部署。
+- [user-guide/zh-Hans.md](user-guide/zh-Hans.md) / [zh-Hant.md](user-guide/zh-Hant.md) / [en.md](user-guide/en.md) / [ja.md](user-guide/ja.md) — 功能说明与完整使用手册，四语言（适用 1.0.0）。这是网页版手册的唯一内容源：修改后运行 `node landing-page/scripts/build-user-guide.mjs` 重新生成 `landing-page/user-guide/` 并部署。
 - [quick-export-guide-zh-CN.md](quick-export-guide-zh-CN.md) — 快速上手：导出第一条数据浮层。
 
 ### iOS / iPadOS（ios/）

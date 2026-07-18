@@ -1,8 +1,8 @@
 # DataLayer Studio Features & User Guide
 
-Last updated: 2026-07-16
+Last updated: 2026-07-18
 
-Applies to: macOS 0.3.3
+Applies to: macOS 1.0.0
 
 DataLayer Studio is a data-overlay production tool for running, cycling, and outdoor sports videos. It puts video footage and `.fit` / `.gpx` activity recordings on one multitrack timeline, lets you arrange speed, pace, heart rate, route, distance, and weather components in a live preview, and exports either a transparent overlay or a fully composited video.
 
