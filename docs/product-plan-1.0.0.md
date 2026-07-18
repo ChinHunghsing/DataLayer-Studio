@@ -1,7 +1,7 @@
 # DataLayer Studio 1.0.0 产品方案
 
 > 方案版本：v2，2026-07-18。替代 2026-07-17 的初稿。
-> 校订基线：本地 `main` 与 `origin/main` 同步；GitHub Release 最新为 v0.3.4；GitHub 无 open issue；最新 `main` CI 通过。App Store 当前版本沿用仓库记录的 0.3.3，发布阶段必须再用 ASC 实查。
+> 校订基线：本地 `main` 与 `origin/main` 同步；GitHub Release v1.0.0 已发布并完成下载资产验证；App Store 1.0.0（2026071803）已进入 `WAITING_FOR_REVIEW`。
 > 本文只定义 1.0.0 的产品范围和发布门槛；通用开发、测试、签名与发布流程以根目录 `AGENTS.md` 为准。
 
 ## 一、修订结论
@@ -140,6 +140,17 @@ M2 RC 已完成本地放行验证，未发现新增 P0/P1。内部 TestFlight �
 - 画面与透明：抽查开头、中段、结尾帧及白/红背景合成，透明区与边缘正常，无灰边、白边或画面损坏。
 - 界面与语言：简体中文完成素材导入、FIT 对表与编辑器主路径核对；英文、繁中、日文关键界面无截断或阻断错译。免费版购买入口、1080p 限制及水印保持有效。
 - TestFlight：已签名并上传 `0.3.4 (2026071801)`；ASC 显示构建 `VALID`、`Internal State = IN_BETA_TESTING`。
+
+### M3 执行记录（2026-07-18）
+
+M3 已完成提审与 GitHub 正式发布；App Store 仍需等待 Apple 审核结果，方案暂不归档。
+
+- App Store：创建 macOS `1.0.0`，绑定构建 `2026071803`；四语言元数据已更新，每种语言沿用 3 张现有 `APP_DESKTOP` 截图且状态均为 `COMPLETE`。
+- 提审校验：`asc validate` 为 0 error / 0 warning / 0 blocking，`asc review doctor` 为 0 blocker / 0 warning；发布方式为 `AFTER_APPROVAL`。
+- 审核状态：submission `40045a76-476d-44b5-88fa-ccd40e12f612` 已进入 `WAITING_FOR_REVIEW`。
+- GitHub：`v1.0.0` Release workflow `29640794479` 成功；Release 正文包含 Highlights、带链接的完整提交列表、免费版限制与 Mac App Store 购买入口。
+- 下载验证：zip SHA-256 校验通过；脱沙箱执行 `codesign`、`stapler validate`、`spctl` 均通过，Gatekeeper 判定为 `Notarized Developer ID`。
+- 公开内容：四语言手册与网页版手册源码已更新为 1.0.0 并进入标签；生产落地页未在本轮重新部署。
 
 ### RC 放行清单
 
