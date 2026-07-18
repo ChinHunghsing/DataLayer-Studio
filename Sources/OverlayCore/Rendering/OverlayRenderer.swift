@@ -409,7 +409,7 @@ public final class OverlayRenderer {
         let iconText = element.customization.icon(default: defaultIcon(for: element.kind))
         let iconWidth = drawsTopRowIcon ? textWidth(iconText, size: iconFontSize, fontName: iconFontName(element)) : 0
         let desiredWidth = max(
-            alignedWidth ?? 0,
+            (alignedWidth ?? 0) * max(0.1, CGFloat(element.frame.scale)),
             metricTileWidth(
                 element: element,
                 label: label,
@@ -490,6 +490,7 @@ public final class OverlayRenderer {
     }
 
     private func alignedMetricTileWidth(contents: [Int: MetricContent], canvas: CGRect) -> CGFloat? {
+        // Normalize before alignment so resizing one gauge cannot resize its siblings.
         let widths = contents.map { index, content -> CGFloat in
             let element = visibleElements[index]
             let scale = componentScale(element, canvas: canvas)
@@ -506,7 +507,7 @@ public final class OverlayRenderer {
                 unitFontSize: unitSize(10, scale: textScale, element: element),
                 labelFontSize: labelSize(10, scale: textScale, element: element),
                 iconFontSize: metricIconFontSize(element: element, textScale: textScale)
-            )
+            ) / max(0.1, CGFloat(element.frame.scale))
         }
         return widths.max()
     }

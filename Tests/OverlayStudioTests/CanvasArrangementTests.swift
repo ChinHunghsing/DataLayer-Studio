@@ -117,6 +117,33 @@ final class CanvasSelectionTests: XCTestCase {
         return (model, Array(ids))
     }
 
+    func testScalingOneMetricGaugeDoesNotResizeAnotherGauge() {
+        let model = StudioModel()
+        var pace = OverlayElement.defaultElement(kind: .pace, id: "pace")
+        let heartRate = OverlayElement.defaultElement(kind: .heartRate, id: "heart-rate")
+        model.layout = OverlayLayout(elements: [pace, heartRate])
+        let geometry = CanvasElementGeometry(model: model)
+
+        let initialAlignedWidth = geometry.alignedMetricOutputWidth(for: model.layout.visibleElements)
+        let initialPaceWidth = geometry.unitRect(element: pace, alignedMetricWidth: initialAlignedWidth).width
+        let initialHeartRateWidth = geometry.unitRect(
+            element: heartRate,
+            alignedMetricWidth: initialAlignedWidth
+        ).width
+
+        pace.frame.scale = 1.8
+        model.layout = OverlayLayout(elements: [pace, heartRate])
+        let enlargedAlignedWidth = geometry.alignedMetricOutputWidth(for: model.layout.visibleElements)
+        let enlargedPaceWidth = geometry.unitRect(element: pace, alignedMetricWidth: enlargedAlignedWidth).width
+        let enlargedHeartRateWidth = geometry.unitRect(
+            element: heartRate,
+            alignedMetricWidth: enlargedAlignedWidth
+        ).width
+
+        XCTAssertGreaterThan(enlargedPaceWidth, initialPaceWidth)
+        XCTAssertEqual(enlargedHeartRateWidth, initialHeartRateWidth, accuracy: 1e-9)
+    }
+
     func testToggleElementInSelectionAddsAndRemoves() {
         let (model, ids) = makeModelWithThreeElements()
         guard ids.count >= 2 else { return XCTFail("default layout needs at least 2 elements") }

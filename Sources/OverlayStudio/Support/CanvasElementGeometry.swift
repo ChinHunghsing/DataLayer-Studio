@@ -10,6 +10,7 @@ import OverlayStudioKit
 struct CanvasElementGeometry {
     let model: StudioModel
 
+    /// Shared metric width at element scale 1; callers reapply each gauge's own scale.
     func alignedMetricOutputWidth(for visibleElements: [OverlayElement]) -> CGFloat? {
         let widths = visibleElements.compactMap { element -> CGFloat? in
             guard isMetricElement(element) else { return nil }
@@ -17,6 +18,7 @@ struct CanvasElementGeometry {
             let scale = rendererLayoutScale() * CGFloat(element.frame.scale)
             let baseWidth = base.width * scale * CGFloat(max(0.1, element.customization.lengthScale))
             return metricDesiredOutputWidth(element: element, baseWidth: baseWidth, scale: scale)
+                / max(0.1, CGFloat(element.frame.scale))
         }
         return widths.max()
     }
@@ -259,7 +261,7 @@ struct CanvasElementGeometry {
         let iconWidth = drawsTopRowIcon ? textWidth(text.icon, size: iconFontSize, fontName: element.customization.iconFont) : 0
         let iconGap = drawsTopRowIcon ? 12 * scale : 0
         let desiredWidth = max(
-            alignedMetricWidth ?? 0,
+            (alignedMetricWidth ?? 0) * max(0.1, CGFloat(element.frame.scale)),
             baseWidth,
             (horizontalPadding * 2) + valueWidth + unitGap + unitWidth,
             (horizontalPadding * 2) + labelWidth + iconGap + iconWidth
