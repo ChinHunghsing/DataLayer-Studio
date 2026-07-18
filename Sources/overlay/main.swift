@@ -579,13 +579,20 @@ func renderTimelineProject(options: CommandLineOptions, projectURL: URL) throws 
 let cliExportEntitlement = ExportEntitlement.free
 
 func printFreeTierExportNotice(width: Int, height: Int) {
-    print("Free build: exports include a \"\(ExportEntitlement.freeWatermarkText)\" watermark and are limited to 1080p.")
-    print("Buy DataLayer Studio on the Mac App Store for full-resolution, watermark-free exports:")
-    print("https://apps.apple.com/cn/app/datalayer-studio/id6782545770")
+    freeTierExportNoticeLines(width: width, height: height).forEach { print($0) }
+}
+
+func freeTierExportNoticeLines(width: Int, height: Int) -> [String] {
+    var lines = [
+        "Free build: exports include a \"\(ExportEntitlement.freeWatermarkText)\" watermark and are limited to 1080p.",
+        "Buy DataLayer Studio on the Mac App Store for full-resolution, watermark-free exports:",
+        "https://apps.apple.com/cn/app/datalayer-studio/id6782545770"
+    ]
     let clamped = cliExportEntitlement.clampedExportSize(width: width, height: height)
     if clamped.width != width || clamped.height != height {
-        print("Output resized to \(clamped.width)x\(clamped.height).")
+        lines.append("Output resized to \(clamped.width)x\(clamped.height).")
     }
+    return lines
 }
 
 func validateOutputDimensions(width: Int, height: Int) throws {

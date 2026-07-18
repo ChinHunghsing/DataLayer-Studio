@@ -1,0 +1,54 @@
+{
+  "defaultPresetID" : "preset-v034",
+  "presets" : [
+    {
+      "createdAt" : 710000000,
+      "id" : "preset-v034",
+      "layout" : {
+        "elements" : [
+          {
+            "customization" : {
+              "iconFont" : "helveticaNeueBold",
+              "iconScale" : 1,
+              "labelFont" : "helveticaNeueBold",
+              "labelOverride" : "Weather 0.3.4",
+              "labelScale" : 1,
+              "lengthScale" : 1,
+              "lineWidth" : 1,
+              "manualWeatherHumidityPercent" : 64,
+              "manualWeatherTemperatureCelsius" : 26,
+              "showsIcon" : false,
+              "showsLabel" : true,
+              "showsPanel" : true,
+              "showsUnit" : true,
+              "showsWeatherHumidity" : false,
+              "unitFont" : "helveticaNeueBold",
+              "unitScale" : 1,
+              "valueFont" : "menloBold",
+              "valueScale" : 1
+            },
+            "frame" : {
+              "isVisible" : true,
+              "scale" : 1,
+              "style" : {
+                "textScale" : 1
+              },
+              "x" : 0.15,
+              "y" : 0.25
+            },
+            "id" : "weather-v034",
+            "kind" : "weather"
+          }
+        ],
+        "style" : {
+          "accentColor" : "telemetryGreen",
+          "metricScale" : 1,
+          "panelOpacity" : 0.64,
+          "showGaugeTicks" : true
+        }
+      },
+      "name" : "Fixture 0.3.4",
+      "updatedAt" : 710000000
+    }
+  ]
+}

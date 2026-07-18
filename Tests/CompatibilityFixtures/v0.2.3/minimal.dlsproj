@@ -1,0 +1,82 @@
+{
+  "assets" : [
+    {
+      "displayName" : "v0.2.3.mov",
+      "duration" : 60,
+      "framesPerSecond" : 30,
+      "height" : 720,
+      "id" : "video-v023",
+      "kind" : "video",
+      "url" : "file:\/\/\/tmp\/v0.2.3.mov",
+      "wallClockStart" : 700000000,
+      "width" : 1280
+    },
+    {
+      "displayName" : "v0.2.3.fit",
+      "duration" : 90,
+      "id" : "activity-v023",
+      "kind" : "activity",
+      "url" : "file:\/\/\/tmp\/v0.2.3.fit",
+      "wallClockStart" : 700000005
+    }
+  ],
+  "distanceUnit" : "m",
+  "exportSettings" : {
+    "activityTrim" : {
+      "startSeconds" : 0
+    },
+    "bitRateKbps" : 9000,
+    "codec" : "h264",
+    "exportMode" : "video",
+    "renderScope" : "individualClips",
+    "timelineEnd" : 58,
+    "timelineStart" : 1
+  },
+  "framesPerSecond" : 30,
+  "outputHeight" : 720,
+  "outputWidth" : 1280,
+  "schemaVersion" : 2,
+  "sourceMatchPoint" : {
+    "activityAssetID" : "activity-v023",
+    "activitySourceTime" : 15,
+    "videoAssetID" : "video-v023",
+    "videoSourceTime" : 10
+  },
+  "tracks" : [
+    {
+      "clips" : [
+        {
+          "assetID" : "video-v023",
+          "duration" : 60,
+          "id" : "video-clip-v023",
+          "isEnabled" : true,
+          "sourceIn" : 0,
+          "timelineStart" : 0
+        }
+      ],
+      "id" : "video-track-v023",
+      "isEnabled" : true,
+      "isLocked" : false,
+      "kind" : "video",
+      "name" : "V1"
+    },
+    {
+      "clips" : [
+        {
+          "assetID" : "activity-v023",
+          "distanceUnit" : "km",
+          "duration" : 55,
+          "id" : "overlay-clip-v023",
+          "isEnabled" : true,
+          "sourceIn" : 2,
+          "timelineStart" : 5
+        }
+      ],
+      "id" : "overlay-track-v023",
+      "isEnabled" : true,
+      "isLocked" : false,
+      "kind" : "overlay",
+      "name" : "O1"
+    }
+  ]
+}

@@ -1229,20 +1229,27 @@ final class StudioModelTests: XCTestCase {
         XCTAssertTrue(model.userExportPresets.isEmpty)
     }
 
-    func testFreeTierOnlyAllows1080LandscapeAndPortraitExportResolutions() {
+    func testFreeTierAllowsAnyResolutionUpTo1080pWithoutUpscaling() {
         let model = StudioModel()
 
         XCTAssertTrue(model.isResolutionPresetAvailableForCurrentEntitlement(id: "fhd-1080"))
         XCTAssertTrue(model.isResolutionPresetAvailableForCurrentEntitlement(id: "vertical-1080"))
+        XCTAssertTrue(model.isResolutionPresetAvailableForCurrentEntitlement(id: "hd-720"))
+        XCTAssertTrue(model.isResolutionPresetAvailableForCurrentEntitlement(id: "vertical-720"))
+        XCTAssertTrue(model.isResolutionPresetAvailableForCurrentEntitlement(id: OutputResolutionPreset.customID))
         XCTAssertFalse(model.isResolutionPresetAvailableForCurrentEntitlement(id: "uhd-4k"))
-        XCTAssertFalse(model.isResolutionPresetAvailableForCurrentEntitlement(id: "hd-720"))
-        XCTAssertFalse(model.isResolutionPresetAvailableForCurrentEntitlement(id: OutputResolutionPreset.customID))
 
-        model.setOutputWidth(2_160)
-        model.setOutputHeight(3_840)
+        model.setOutputWidth(1_280)
+        model.setOutputHeight(720)
         model.constrainOutputResolutionForCurrentEntitlement()
-        XCTAssertEqual(model.outputWidth, 1_080)
-        XCTAssertEqual(model.outputHeight, 1_920)
+        XCTAssertEqual(model.outputWidth, 1_280)
+        XCTAssertEqual(model.outputHeight, 720)
+
+        model.setOutputWidth(4_000)
+        model.setOutputHeight(3_000)
+        model.constrainOutputResolutionForCurrentEntitlement()
+        XCTAssertEqual(model.outputWidth, 1_440)
+        XCTAssertEqual(model.outputHeight, 1_080)
     }
 
     func testCustomOutputDimensionsCanPreserveAspectRatio() {
@@ -2183,6 +2190,9 @@ final class StudioModelTests: XCTestCase {
         )
         let model = StudioModel()
         model.applyTimelineProject(project, loadAssets: false)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
 
         XCTAssertEqual(model.wallClockAlignmentMarkerTime ?? -1, 10, accuracy: 0.001)
         XCTAssertEqual(model.timelineAlignmentOffsetMilliseconds(for: "activity-clip"), 250)
@@ -2193,6 +2203,11 @@ final class StudioModelTests: XCTestCase {
         let activityStart = model.currentTimelineProject.tracks
             .first { $0.kind == .overlay }?.clips.first?.timelineStart
         XCTAssertEqual(activityStart ?? -1, 10.125, accuracy: 0.001)
+
+        undoManager.undo()
+        XCTAssertEqual(model.timelineAlignmentOffsetMilliseconds(for: "activity-clip"), 250)
+        undoManager.redo()
+        XCTAssertEqual(model.timelineAlignmentOffsetMilliseconds(for: "activity-clip"), 125)
 
         XCTAssertTrue(model.canReapplyWallClockAutoSync)
         model.reapplyWallClockAutoSync()

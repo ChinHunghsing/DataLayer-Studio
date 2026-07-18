@@ -818,7 +818,7 @@ final class StudioModel: ObservableObject {
 
     func isResolutionPresetAvailableForCurrentEntitlement(id: String) -> Bool {
         guard exportEntitlement == .free else { return true }
-        guard id != OutputResolutionPreset.customID else { return false }
+        guard id != OutputResolutionPreset.customID else { return true }
 
         if id == OutputResolutionPreset.sourceID {
             guard let sourceDimensions else { return false }
@@ -851,13 +851,9 @@ final class StudioModel: ObservableObject {
         guard exportEntitlement == .free,
               !OutputResolutionPreset.isFreeTierResolution(width: outputWidth, height: outputHeight) else { return }
 
-        if outputHeight > outputWidth {
-            setOutputWidth(1080)
-            setOutputHeight(1920)
-        } else {
-            setOutputWidth(1920)
-            setOutputHeight(1080)
-        }
+        let clamped = ExportEntitlement.free.clampedExportSize(width: outputWidth, height: outputHeight)
+        setOutputWidth(clamped.width)
+        setOutputHeight(clamped.height)
     }
 
     var sourceFrameRatePresetTitle: String? {
@@ -4705,7 +4701,7 @@ final class StudioModel: ObservableObject {
         let items = timelineClipboardItems(for: effectiveSelectedTimelineClipIDs)
         guard !items.isEmpty else { return }
         timelineClipboard = items
-        setStatus("status.timelineClipsCopied")
+        setStatusAndToast(.info, "status.timelineClipsCopied")
     }
 
     func cutSelectedTimelineClips() {

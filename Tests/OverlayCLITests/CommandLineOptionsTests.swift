@@ -456,6 +456,19 @@ final class CommandLineOptionsTests: XCTestCase {
         }
     }
 
+    func testFreeTierExportNoticeIncludesLimitsPurchaseLinkAndResize() {
+        XCTAssertEqual(
+            freeTierExportNoticeLines(width: 3_840, height: 2_160),
+            [
+                "Free build: exports include a \"Made with DataLayer Studio\" watermark and are limited to 1080p.",
+                "Buy DataLayer Studio on the Mac App Store for full-resolution, watermark-free exports:",
+                "https://apps.apple.com/cn/app/datalayer-studio/id6782545770",
+                "Output resized to 1920x1080."
+            ]
+        )
+        XCTAssertEqual(freeTierExportNoticeLines(width: 1_280, height: 720).count, 3)
+    }
+
     private func writePresetFixture<T: Encodable>(_ value: T) throws -> URL {
         let fileURL = temporaryPresetURL()
         let encoder = JSONEncoder()

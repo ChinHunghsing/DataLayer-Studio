@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct StudioCommandActions {
+    var isEditingText: Bool
     var isExporting: Bool
     var canPlayPreview: Bool
     var isPlayingPreview: Bool

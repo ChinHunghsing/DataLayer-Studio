@@ -177,6 +177,26 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(AppLocalizer.string("timecode.milliseconds", language: .japanese), "ミリ秒")
     }
 
+    func testChineseMainSyncFlowUsesAlignmentTermConsistently() {
+        let keys = [
+            "sidebar.sync.title",
+            "sidebar.sync.mode",
+            "sidebar.sync.noVideo.title",
+            "sidebar.sync.unavailable.title",
+            "workspace.sync",
+            "status.timelineAutoAligned"
+        ]
+
+        for language in [AppResolvedLanguage.simplifiedChinese, .traditionalChinese] {
+            for key in keys {
+                XCTAssertTrue(
+                    AppLocalizer.string(key, language: language).contains(language == .simplifiedChinese ? "对表" : "對表"),
+                    "\(key) is inconsistent in \(language.rawValue)"
+                )
+            }
+        }
+    }
+
     func testAppearanceSelectionMapsToColorScheme() {
         XCTAssertNil(AppAppearanceSelection.system.colorScheme)
         XCTAssertEqual(AppAppearanceSelection.light.colorScheme, .light)

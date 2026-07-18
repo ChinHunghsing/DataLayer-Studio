@@ -73,7 +73,8 @@ struct OutputResolutionPreset: Identifiable, Hashable {
     ]
 
     static func isFreeTierResolution(width: Int, height: Int) -> Bool {
-        (width == 1920 && height == 1080) || (width == 1080 && height == 1920)
+        let clamped = ExportEntitlement.free.clampedExportSize(width: width, height: height)
+        return width > 0 && height > 0 && clamped == (width, height)
     }
 }
 

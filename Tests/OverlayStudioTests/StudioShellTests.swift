@@ -5,6 +5,25 @@ import XCTest
 
 @MainActor
 final class StudioShellTests: XCTestCase {
+    func testEditCommandsRouteToTheActiveTextResponderWhileEditing() {
+        var textResponderCalls = 0
+        var studioCalls = 0
+
+        TextEditingCommandRouter.perform(
+            isEditingText: true,
+            textResponderAction: { textResponderCalls += 1 },
+            studioAction: { studioCalls += 1 }
+        )
+        TextEditingCommandRouter.perform(
+            isEditingText: false,
+            textResponderAction: { textResponderCalls += 1 },
+            studioAction: { studioCalls += 1 }
+        )
+
+        XCTAssertEqual(textResponderCalls, 1)
+        XCTAssertEqual(studioCalls, 1)
+    }
+
     func testComponentThumbnailLoaderReusesLoadedImage() throws {
         let first = try XCTUnwrap(ComponentThumbnailLoader.image(named: "component-speed"))
         let second = try XCTUnwrap(ComponentThumbnailLoader.image(named: "component-speed"))

@@ -40,6 +40,7 @@ struct BottomWorkspaceView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(model.timelineZoom <= StudioModel.timelineZoomRange.lowerBound + 1e-6)
+                    .accessibilityLabel(localization.string("menu.zoomOut"))
 
                     Slider(
                         value: Binding(
@@ -57,6 +58,7 @@ struct BottomWorkspaceView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(model.timelineZoom >= StudioModel.timelineZoomRange.upperBound - 1e-6)
+                    .accessibilityLabel(localization.string("menu.zoomIn"))
                 }
                 .help(localization.string("timeline.zoom.help"))
                 .accessibilityElement(children: .contain)

@@ -256,16 +256,38 @@ private struct EditCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .undoRedo) {
             Button(localization.string("menu.undo")) {
-                actions?.undo()
+                TextEditingCommandRouter.perform(
+                    isEditingText: actions?.isEditingText == true,
+                    textResponderAction: { NSApp.sendAction(Selector(("undo:")), to: nil, from: nil) },
+                    studioAction: { actions?.undo() }
+                )
             }
             .keyboardShortcut("z", modifiers: [.command])
-            .disabled(actions?.canUndo != true)
+            .disabled(actions?.isEditingText != true && actions?.canUndo != true)
 
             Button(localization.string("menu.redo")) {
-                actions?.redo()
+                TextEditingCommandRouter.perform(
+                    isEditingText: actions?.isEditingText == true,
+                    textResponderAction: { NSApp.sendAction(Selector(("redo:")), to: nil, from: nil) },
+                    studioAction: { actions?.redo() }
+                )
             }
             .keyboardShortcut("z", modifiers: [.command, .shift])
-            .disabled(actions?.canRedo != true)
+            .disabled(actions?.isEditingText != true && actions?.canRedo != true)
+        }
+    }
+}
+
+enum TextEditingCommandRouter {
+    static func perform(
+        isEditingText: Bool,
+        textResponderAction: () -> Void,
+        studioAction: () -> Void
+    ) {
+        if isEditingText {
+            textResponderAction()
+        } else {
+            studioAction()
         }
     }
 }

@@ -1,0 +1,95 @@
+{
+  "assets" : [
+    {
+      "displayName" : "v0.3.4.mov",
+      "duration" : 120,
+      "framesPerSecond" : 29.97,
+      "height" : 1080,
+      "id" : "video-v034",
+      "kind" : "video",
+      "url" : "file:\/\/\/tmp\/v0.3.4.mov",
+      "wallClockSource" : "recordingMetadata",
+      "wallClockStart" : 710000000,
+      "width" : 1920
+    },
+    {
+      "displayName" : "v0.3.4.fit",
+      "duration" : 150,
+      "id" : "activity-v034",
+      "kind" : "activity",
+      "url" : "file:\/\/\/tmp\/v0.3.4.fit",
+      "wallClockSource" : "activityMetadata",
+      "wallClockStart" : 710000008,
+      "weatherRecords" : [
+        {
+          "humidityPercent" : 61,
+          "summary" : "Cloudy",
+          "temperatureCelsius" : 24,
+          "timestamp" : 710000020
+        }
+      ]
+    }
+  ],
+  "distanceUnit" : "km",
+  "exportSettings" : {
+    "activityTrim" : {
+      "startSeconds" : 0
+    },
+    "bitRateKbps" : 12000,
+    "codec" : "hevc-alpha",
+    "exportMode" : "overlay",
+    "renderScope" : "singleClip",
+    "timelineEnd" : 110,
+    "timelineStart" : 2
+  },
+  "framesPerSecond" : 29.97,
+  "outputHeight" : 1080,
+  "outputWidth" : 1920,
+  "previewTime" : 42.5,
+  "schemaVersion" : 2,
+  "sourceMatchPoint" : {
+    "activityAssetID" : "activity-v034",
+    "activitySourceTime" : 20,
+    "videoAssetID" : "video-v034",
+    "videoSourceTime" : 12
+  },
+  "tracks" : [
+    {
+      "clips" : [
+        {
+          "assetID" : "video-v034",
+          "duration" : 120,
+          "id" : "video-clip-v034",
+          "isAlignmentPending" : false,
+          "isEnabled" : true,
+          "sourceIn" : 0,
+          "timelineStart" : 0
+        }
+      ],
+      "id" : "video-track-v034",
+      "isEnabled" : true,
+      "isLocked" : false,
+      "kind" : "video",
+      "name" : "V1"
+    },
+    {
+      "clips" : [
+        {
+          "assetID" : "activity-v034",
+          "distanceUnit" : "km",
+          "duration" : 100,
+          "id" : "overlay-clip-v034",
+          "isAlignmentPending" : true,
+          "isEnabled" : true,
+          "sourceIn" : 4,
+          "timelineStart" : 8
+        }
+      ],
+      "id" : "overlay-track-v034",
+      "isEnabled" : true,
+      "isLocked" : false,
+      "kind" : "overlay",
+      "name" : "O1"
+    }
+  ]
+}

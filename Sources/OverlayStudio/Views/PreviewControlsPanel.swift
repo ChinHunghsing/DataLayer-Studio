@@ -89,6 +89,7 @@ struct PreviewControlsPanel: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 
     private var zoomControls: some View {

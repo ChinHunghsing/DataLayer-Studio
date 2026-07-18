@@ -279,6 +279,7 @@ struct MediaPoolRow: View {
                 }
                 .buttonStyle(.borderless)
                 .help(localization.string("mediapool.relink"))
+                .accessibilityLabel(localization.string("mediapool.relink"))
             } else if let appendToTimeline {
                 Button(action: appendToTimeline) {
                     Image(systemName: "plus.rectangle.on.rectangle")
@@ -286,6 +287,7 @@ struct MediaPoolRow: View {
                 }
                 .buttonStyle(.borderless)
                 .help(localization.string("mediapool.addToTimeline"))
+                .accessibilityLabel(localization.string("mediapool.addToTimeline"))
             }
 
             if !isInUse {
@@ -295,6 +297,7 @@ struct MediaPoolRow: View {
                 }
                 .buttonStyle(.borderless)
                 .help(localization.string("mediapool.remove"))
+                .accessibilityLabel(localization.string("mediapool.remove"))
             }
         }
         .padding(.horizontal, 6)

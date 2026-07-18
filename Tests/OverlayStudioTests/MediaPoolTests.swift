@@ -1095,6 +1095,14 @@ final class MediaPoolTests: XCTestCase {
         track = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.id == trackID })
         XCTAssertFalse(track.isLocked)
 
+        undoManager.redo()
+        track = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.id == trackID })
+        XCTAssertTrue(track.isLocked)
+
+        undoManager.undo()
+        track = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.id == trackID })
+        XCTAssertFalse(track.isLocked)
+
         undoManager.undo()
         track = try XCTUnwrap(model.currentTimelineProject.tracks.first { $0.id == trackID })
         XCTAssertTrue(track.isEnabled)
@@ -1428,6 +1436,36 @@ final class MediaPoolTests: XCTestCase {
             secondURL.standardizedFileURL.resolvingSymlinksInPath(),
             firstURL.standardizedFileURL.resolvingSymlinksInPath()
         ])
+    }
+
+    func testFailedAtomicSavePreservesExistingProjectAndDirtyState() throws {
+        let suiteName = "timeline-project-failed-save-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("timeline-project-failed-save-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let projectURL = directory.appendingPathComponent("protected.dlsproj")
+        let model = StudioModel(
+            recentTimelineProjectStore: RecentTimelineProjectStore(defaults: defaults)
+        )
+
+        XCTAssertTrue(model.saveTimelineProject(to: projectURL))
+        let originalData = try Data(contentsOf: projectURL)
+        let adoptedURL = model.currentTimelineProjectURL
+        model.setOutputWidth(1_280)
+        XCTAssertTrue(model.hasUnsavedTimelineChanges)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+        XCTAssertFalse(model.saveTimelineProject(to: projectURL))
+
+        XCTAssertEqual(try Data(contentsOf: projectURL), originalData)
+        XCTAssertEqual(model.currentTimelineProjectURL, adoptedURL)
+        XCTAssertTrue(model.hasUnsavedTimelineChanges)
     }
 
     func testRecentTimelineProjectOpensAndDirtyProjectDefersReplacement() throws {
@@ -1974,6 +2012,9 @@ final class MediaPoolTests: XCTestCase {
 
     func testTrimmingPooledTimelineClipUpdatesClipGeometry() throws {
         let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
         let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
         model.upsertVideoAsset(url: videoURL, metadata: videoMetadata(width: 1920, height: 1080, duration: 120, fps: 30))
         model.videoURL = videoURL
@@ -2012,6 +2053,22 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(trimmed.timelineStart, 125, accuracy: 1e-9)
         XCTAssertEqual(trimmed.sourceIn, 5, accuracy: 1e-9)
         XCTAssertEqual(trimmed.duration, 35, accuracy: 1e-9)
+
+        undoManager.undo()
+        let restored = try XCTUnwrap(
+            model.currentTimelineProject.tracks.flatMap(\.clips).first { $0.id == clip.id }
+        )
+        XCTAssertEqual(restored.timelineStart, 120, accuracy: 1e-9)
+        XCTAssertEqual(restored.sourceIn, 0, accuracy: 1e-9)
+        XCTAssertEqual(restored.duration, 45, accuracy: 1e-9)
+
+        undoManager.redo()
+        let redone = try XCTUnwrap(
+            model.currentTimelineProject.tracks.flatMap(\.clips).first { $0.id == clip.id }
+        )
+        XCTAssertEqual(redone.timelineStart, 125, accuracy: 1e-9)
+        XCTAssertEqual(redone.sourceIn, 5, accuracy: 1e-9)
+        XCTAssertEqual(redone.duration, 35, accuracy: 1e-9)
     }
 
     func testSplittingClipsAtPlayheadCutsVideoAndOverlay() throws {
@@ -2184,6 +2241,8 @@ final class MediaPoolTests: XCTestCase {
 
         model.copySelectedTimelineClips()
         XCTAssertTrue(model.canPasteTimelineClips)
+        XCTAssertEqual(model.toasts.last?.message, model.status)
+        XCTAssertEqual(model.toasts.last?.kind, .info)
         model.previewTime = 12
         model.pasteTimelineClips()
 
@@ -2196,6 +2255,9 @@ final class MediaPoolTests: XCTestCase {
 
         undoManager.undo()
         XCTAssertEqual(model.currentTimelineProject, appliedProject)
+
+        undoManager.redo()
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips.map(\.timelineStart), [0, 10, 12, 16])
     }
 
     func testTimelineClipboardCutAndPasteInsertRipplesUnlockedTracks() throws {
@@ -2258,6 +2320,12 @@ final class MediaPoolTests: XCTestCase {
 
         undoManager.undo()
         XCTAssertEqual(model.currentTimelineProject, appliedProject)
+
+        undoManager.redo()
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips.map(\.id), ["later"])
+        undoManager.redo()
+        XCTAssertEqual(model.currentTimelineProject.tracks[0].clips.map(\.timelineStart), [5, 14])
+        XCTAssertEqual(model.currentTimelineProject.tracks[1].clips.map(\.timelineStart), [0, 9])
     }
 
     func testDraggingOneOfMultipleSelectedClipsMovesTheSelectionAsAGroup() {
@@ -2560,6 +2628,10 @@ final class MediaPoolTests: XCTestCase {
         undoManager.undo()
         XCTAssertEqual(videoClips().count, 2)
         XCTAssertEqual(model.selectedTimelineClipID, clip.id)
+
+        undoManager.redo()
+        XCTAssertEqual(videoClips().count, 1)
+        XCTAssertNil(model.selectedTimelineClipID)
     }
 
     func testDraggedMoveCoalescesIntoOneUndoStep() throws {
