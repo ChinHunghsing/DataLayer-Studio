@@ -8,6 +8,7 @@ struct OverlayStudioApp: App {
     @StateObject private var localization: LocalizationStore
     @StateObject private var model = StudioModel()
     @StateObject private var purchaseAuthorization = PurchaseAuthorizationStore()
+    @State private var availableUpdate: AppStoreUpdate?
     @AppStorage(AppAppearanceSelection.defaultsKey) private var appearanceRawValue = AppAppearanceSelection.system.rawValue
 
     init() {
@@ -23,6 +24,19 @@ struct OverlayStudioApp: App {
                 WelcomeWindowView(model: model)
             }
             .onAppear { model.attachPurchaseAuthorization(purchaseAuthorization) }
+            .task {
+                availableUpdate = await AppStoreUpdateChecker.availableUpdate()
+            }
+            .alert(item: $availableUpdate) { update in
+                Alert(
+                    title: Text(localization.string("update.available.title")),
+                    message: Text(localization.string("update.available.message", update.version)),
+                    primaryButton: .default(Text(localization.string("update.available.action"))) {
+                        NSWorkspace.shared.open(update.url)
+                    },
+                    secondaryButton: .cancel(Text(localization.string("update.available.later")))
+                )
+            }
             .environmentObject(localization)
             .environment(\.locale, localization.locale)
             .preferredColorScheme(preferredColorScheme)

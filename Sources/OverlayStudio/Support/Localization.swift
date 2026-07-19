@@ -286,6 +286,10 @@ enum AppLocalizer {
         "purchase.restricted.detail": "Details: %@",
         "purchase.retry": "Retry",
         "purchase.restore": "Restore Purchase",
+        "update.available.title": "Update Available",
+        "update.available.message": "DataLayer Studio %@ is available on the App Store.",
+        "update.available.action": "View on App Store",
+        "update.available.later": "Later",
 
         "menu.openVideo": "Open Video...",
         "menu.openFit": "Open Activity File...",
@@ -1036,6 +1040,10 @@ enum AppLocalizer {
         "purchase.restricted.detail": "详细信息：%@",
         "purchase.retry": "重试",
         "purchase.restore": "恢复购买",
+        "update.available.title": "发现新版本",
+        "update.available.message": "DataLayer Studio %@ 已在 App Store 上线。",
+        "update.available.action": "前往 App Store 更新",
+        "update.available.later": "稍后",
 
         "menu.openVideo": "打开视频...",
         "menu.openFit": "打开运动文件...",
@@ -1786,6 +1794,10 @@ enum AppLocalizer {
         "purchase.restricted.detail": "詳細資訊：%@",
         "purchase.retry": "重試",
         "purchase.restore": "恢復購買",
+        "update.available.title": "發現新版本",
+        "update.available.message": "DataLayer Studio %@ 已在 App Store 上線。",
+        "update.available.action": "前往 App Store 更新",
+        "update.available.later": "稍後",
 
         "menu.openVideo": "打開影片...",
         "menu.openFit": "打開運動檔案...",
@@ -2536,6 +2548,10 @@ enum AppLocalizer {
         "purchase.restricted.detail": "詳細: %@",
         "purchase.retry": "再試行",
         "purchase.restore": "購入を復元",
+        "update.available.title": "新しいバージョンがあります",
+        "update.available.message": "DataLayer Studio %@ が App Store で公開されています。",
+        "update.available.action": "App Store でアップデート",
+        "update.available.later": "あとで",
 
         "menu.openVideo": "動画を開く...",
         "menu.openFit": "アクティビティファイルを開く...",

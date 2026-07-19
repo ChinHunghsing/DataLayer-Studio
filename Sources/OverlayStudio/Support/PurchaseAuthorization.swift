@@ -72,7 +72,7 @@ struct StoreKitAppStorePurchaseVerifier: AppStorePurchaseVerifying {
 
 @MainActor
 final class PurchaseAuthorizationStore: ObservableObject {
-    static let fullVersionURL = URL(string: "https://apps.apple.com/cn/app/datalayer-studio/id6782545770")!
+    nonisolated static let fullVersionURL = URL(string: "https://apps.apple.com/cn/app/datalayer-studio/id6782545770")!
 
     @Published private(set) var state: PurchaseAuthorizationState
 
