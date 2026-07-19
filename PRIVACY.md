@@ -35,6 +35,11 @@ Apple or GitHub under their own privacy policies; DataLayer Studio does not send
 source videos, activity files, layout presets, or rendered previews with those
 links.
 
+On launch, the macOS app can contact Apple's App Store Lookup service to check
+whether a newer DataLayer Studio version is available. The request contains the
+public App Store app identifier and country code; it does not include source
+videos, activity files, layout presets, rendered previews, or exported files.
+
 ## Apple App Analytics
 
 For App Store distribution, DataLayer Studio relies on Apple's

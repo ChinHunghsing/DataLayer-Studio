@@ -118,13 +118,16 @@ network_matches="$(grep -RInE 'URLSession|URLRequest|NSURLConnection|NWConnectio
 # 官方 Mac App Store 链接是项目约定常量（免费版购买引导），只作展示/跳转，不属于网络传输 API。
 network_matches="$(grep -v 'apps\.apple\.com/cn/app/datalayer-studio/id6782545770' <<<"$network_matches" || true)"
 if [[ -n "$network_matches" ]]; then
-    allowed_network_matches="$(grep -E '^(Sources/OverlayStudio/Services/OpenWeatherService.swift|Sources/OverlayTouch/Stores/MobileSubscriptionStore.swift):' <<<"$network_matches" || true)"
-    unexpected_network_matches="$(grep -Ev '^(Sources/OverlayStudio/Services/OpenWeatherService.swift|Sources/OverlayTouch/Stores/MobileSubscriptionStore.swift):' <<<"$network_matches" || true)"
+    allowed_network_matches="$(grep -E '^(Sources/OverlayStudio/Services/(AppStoreUpdateChecker|OpenWeatherService)\.swift|Sources/OverlayTouch/Stores/MobileSubscriptionStore.swift):' <<<"$network_matches" || true)"
+    unexpected_network_matches="$(grep -Ev '^(Sources/OverlayStudio/Services/(AppStoreUpdateChecker|OpenWeatherService)\.swift|Sources/OverlayTouch/Stores/MobileSubscriptionStore.swift):' <<<"$network_matches" || true)"
     if [[ -n "$unexpected_network_matches" ]]; then
         fail "source code must not add network transfer APIs without updating privacy policy: $unexpected_network_matches"
     fi
     if grep -q '^Sources/OverlayStudio/Services/OpenWeatherService.swift:' <<<"$allowed_network_matches" && ! grep -q 'OpenWeather' PRIVACY.md; then
         fail "PRIVACY.md must document OpenWeather network transfer behavior"
+    fi
+    if grep -q '^Sources/OverlayStudio/Services/AppStoreUpdateChecker.swift:' <<<"$allowed_network_matches" && ! grep -q 'App Store Lookup' PRIVACY.md; then
+        fail "PRIVACY.md must document App Store update-check network behavior"
     fi
     if grep -q '^Sources/OverlayTouch/Stores/MobileSubscriptionStore.swift:' <<<"$allowed_network_matches" && ! grep -q 'iOS subscription screen' PRIVACY.md; then
         fail "PRIVACY.md must document iOS subscription legal and privacy links"
