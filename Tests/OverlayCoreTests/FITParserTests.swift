@@ -411,6 +411,77 @@ final class FITParserTests: XCTestCase {
         XCTAssertLessThanOrEqual(series.sample(at: 186.01).speedMetersPerSecond ?? 999, 12)
     }
 
+    func testLapAnchorAtStandstillMergesIntoRecordWithoutSpeedSpike() throws {
+        // 实测缺陷（2026-07-19 间歇课）：运动员站在起跑线（速度 0、距离冻结）时
+        // 热身分段结束，分段累计比记录距离多 0.61m。锚点若作为新样本插入会与
+        // 既有记录样本挤出亚秒段，0.61m ÷ 0.05s ≈ 12 m/s 被距离补速写进速度通道，
+        // 站立瞬间闪出 1:22/km。锚点必须并入同时刻的记录样本。
+        var content = Data()
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendLapSummaryDefinition(localMessageType: 1, to: &content)
+        appendSessionSummaryDefinition(localMessageType: 2, to: &content)
+        // 0-20s 匀速奔跑到 100m，20-30s 站立（速度 0、距离冻结）
+        for second in 0...30 {
+            let running = second <= 20
+            appendRecord(
+                TestRecord(
+                    timestamp: 1_000_000 + UInt32(second),
+                    latitude: 35.0 + Double(min(second, 20)) * 0.0001,
+                    longitude: 139.0 + Double(min(second, 20)) * 0.0001,
+                    distanceMeters: Double(min(second, 20)) * 5.0,
+                    speed: running ? 5.0 : 0.0,
+                    heartRate: 150,
+                    cadence: running ? 90 : 0
+                ),
+                localMessageType: 0,
+                to: &content
+            )
+        }
+        // 热身分段在站立中途结束，计时是分数秒（25.05s），锚点时刻因此落在
+        // 整秒记录样本旁 0.05s 处；分段累计 100.61m 比记录多 0.61m
+        appendLapSummary(
+            timestamp: 1_000_025,
+            startTime: 1_000_000,
+            totalElapsedMilliseconds: 25_050,
+            totalTimerMilliseconds: 25_050,
+            totalDistanceMeters: 100.61,
+            totalCalories: 20,
+            localMessageType: 1,
+            to: &content
+        )
+        appendSessionSummary(
+            timestamp: 1_000_030,
+            startTime: 1_000_000,
+            totalElapsedMilliseconds: 30_000,
+            totalTimerMilliseconds: 30_000,
+            totalDistanceMeters: 100.61,
+            totalCalories: 20,
+            localMessageType: 2,
+            to: &content
+        )
+        let series = try FITParser().parse(data: makeFITFile(content: content))
+
+        // 锚点效果保留：分段累计距离在锚点时刻生效
+        XCTAssertEqual(series.sample(at: 26).distanceMeters ?? -1, 100.61, accuracy: 0.01)
+        // 不允许亚秒挤压样本对，也不允许任何站立时刻出现奔跑级速度
+        var previousElapsed: TimeInterval?
+        for sample in series.samples where sample.elapsed > 21 {
+            if let previousElapsed {
+                XCTAssertGreaterThanOrEqual(
+                    sample.elapsed - previousElapsed,
+                    0.5,
+                    "t=\(sample.elapsed) 与前一样本间隔过短，锚点未并入记录样本"
+                )
+            }
+            previousElapsed = sample.elapsed
+            XCTAssertLessThan(
+                sample.speedMetersPerSecond ?? 0,
+                2.5,
+                "站立段 t=\(sample.elapsed) 不应出现奔跑级速度"
+            )
+        }
+    }
+
     func testSkipsLapAnchorBeyondSessionTotalDistance() throws {
         // 分段累计和（410m）超过会话总距离（405m）时，该锚点不能凭空抬高距离
         var content = Data()

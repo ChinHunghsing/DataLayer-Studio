@@ -497,6 +497,98 @@ final class TelemetrySeriesTests: XCTestCase {
         return samples
     }
 
+    func testSubSecondDistanceStepDoesNotBackfillSpeedSpike() {
+        // 亚秒合成段（锚点/末帧插入的产物）不得用于距离导出补速：
+        // 0.6m 挤进 0.05s 就是 12 m/s，站立瞬间闪出冲刺配速
+        var samples: [TelemetrySample] = []
+        for second in 0...19 {
+            samples.append(TelemetrySample(
+                elapsed: TimeInterval(second),
+                latitude: 35, longitude: 139, heartRate: 150, cadence: 180,
+                distanceMeters: Double(second) * 5.0, speedMetersPerSecond: 5.0
+            ))
+        }
+        for second in 20...30 {
+            samples.append(TelemetrySample(
+                elapsed: TimeInterval(second),
+                latitude: 35, longitude: 139, heartRate: 110, cadence: 0,
+                distanceMeters: 95.0, speedMetersPerSecond: 0.0
+            ))
+        }
+        // 站立中途插入一个亚秒距离台阶（模拟锚点挤压）
+        samples.append(TelemetrySample(
+            elapsed: 25.05,
+            latitude: 35, longitude: 139, heartRate: 110, cadence: 0,
+            distanceMeters: 95.61, speedMetersPerSecond: 0.0
+        ))
+        samples.sort { $0.elapsed < $1.elapsed }
+
+        let series = TelemetrySeries(samples: samples)
+        for second in stride(from: 23.0, through: 28.0, by: 0.25) {
+            XCTAssertLessThan(
+                series.sample(at: second).speedMetersPerSecond ?? 0,
+                2.5,
+                "站立段 t=\(second) 不应从亚秒台阶导出奔跑级速度"
+            )
+        }
+    }
+
+    func testWholeSecondSegmentsStillBackfillHighSpeedsMidActivity() {
+        // 滑雪/骑行合法高速（>12 m/s）在速度通道停滞时仍需距离导出补速：
+        // 段时长门槛只排除亚秒合成段，不得误伤整秒真实段
+        var samples: [TelemetrySample] = []
+        var distance = 0.0
+        for second in 0...40 {
+            let moving = second >= 5
+            distance += moving ? 16.0 : 0
+            samples.append(TelemetrySample(
+                elapsed: TimeInterval(second),
+                latitude: 35, longitude: 139, heartRate: 120, cadence: 0,
+                distanceMeters: distance,
+                // 速度传感器在 t>=20 后停滞为 0，距离照常前进（16 m/s 滑降）
+                speedMetersPerSecond: moving && second < 20 ? 16.0 : 0.0
+            ))
+        }
+        let series = TelemetrySeries(samples: samples)
+        XCTAssertGreaterThan(
+            series.sample(at: 30).speedMetersPerSecond ?? 0,
+            12.0,
+            "整秒段的合法高速补速不得被段时长门槛或合理上限误伤"
+        )
+    }
+
+    func testMotionResumptionAnchorDoesNotKeepLaunchSegmentSpeed() {
+        // 实测缺陷（2026-07-19 间歇课）：发射首秒设备速度还是 0，+6m 的补账段速
+        // 被距离补速回写到站立的锚点样本上；斜坡从锚点下一样本才开始，
+        // 6 m/s 存活成起跑前一秒的尖峰。锚点样本必须回到斜坡起点速度。
+        let launch: [(speed: Double, distanceDelta: Double, cadence: Int)] = [
+            (0.0, 6, 76), (1.2, 6, 100), (2.5, 5.5, 101), (2.95, 5.5, 101), (3.44, 5.5, 102),
+            (4.38, 5.5, 103), (5.325, 5.5, 104), (5.333, 5.5, 103), (5.342, 5.5, 103),
+            (5.344, 5.5, 102), (5.35, 5.5, 102), (5.34, 5.0, 101), (5.336, 5.0, 101),
+            (5.32, 5.0, 101), (5.31, 5.0, 101)
+        ]
+        let samples = Self.intervalRestSamples(
+            rest: { _ in (0.0, 0.0, 0) },
+            launch: launch
+        )
+        let corrections = TelemetrySeries.motionResumptionCorrections(in: samples)
+        XCTAssertEqual(corrections.count, 1)
+
+        let series = TelemetrySeries(samples: samples)
+        // 锚点（发射前最后一个静息样本）不得保留补账段速
+        let anchorSpeed = series.sample(at: 44).speedMetersPerSecond ?? -1
+        XCTAssertLessThanOrEqual(anchorSpeed, 0.4, "锚点样本保留了发射段的补账速度")
+        // 斜坡照常生效：发射后 3 秒内到达组配速
+        XCTAssertGreaterThan(series.sample(at: 47).speedMetersPerSecond ?? -1, 4.5)
+        // 锚点之后单调爬升
+        var previous = anchorSpeed
+        for second in 45...50 {
+            let speed = series.sample(at: TimeInterval(second)).speedMetersPerSecond ?? -1
+            XCTAssertGreaterThanOrEqual(speed, previous - 0.001, "t=\(second) 不应回落")
+            previous = speed
+        }
+    }
+
     func testMotionResumptionRampReplacesLaggedIntervalStart() {
         // 建模自 400m 间歇：组间走路后发射，距离猛补而速度滞后爬升
         let launch: [(speed: Double, distanceDelta: Double, cadence: Int)] = [

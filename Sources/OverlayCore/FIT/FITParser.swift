@@ -150,6 +150,10 @@ public final class FITParser {
     private let validateCRC: Bool
     private let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
     private let lapAnchorDistanceToleranceMeters = 25.0
+    /// 锚点并入既有样本的时间容差。只合并近乎同刻（毫秒级错位）的碰撞：
+    /// 更大的错位保持插入，让锚点继续在自己的时刻精确修正记录滞后，
+    /// 其亚秒段速由距离补速的段时长下限兜底
+    private let lapAnchorMergeToleranceSeconds: TimeInterval = 0.25
     private let minimumFinalSampleSpeedWindowSeconds: TimeInterval = 1
 
     public init(validateCRC: Bool = true) {
@@ -327,7 +331,22 @@ public final class FITParser {
             timerEvents: timerEvents
         )
         if !lapAnchorSamples.isEmpty {
-            series = TelemetrySeries(samples: series.samples + lapAnchorSamples, pausedRanges: pausedRanges)
+            // 锚点落在既有记录样本近旁时并入该样本，只覆盖距离；作为新样本
+            // 插入会挤出亚秒段，毫米级距离差经距离补速会放大成冲刺段速
+            // （实测 0.61m ÷ 0.05s ≈ 12 m/s，站在组间起跑线时闪出 1:22/km）
+            var samples = series.samples
+            var inserted: [TelemetrySample] = []
+            for anchor in lapAnchorSamples {
+                let nearest = samples.enumerated().min {
+                    abs($0.element.elapsed - anchor.elapsed) < abs($1.element.elapsed - anchor.elapsed)
+                }
+                if let nearest, abs(nearest.element.elapsed - anchor.elapsed) < lapAnchorMergeToleranceSeconds {
+                    samples[nearest.offset].distanceMeters = anchor.distanceMeters
+                } else {
+                    inserted.append(anchor)
+                }
+            }
+            series = TelemetrySeries(samples: samples + inserted, pausedRanges: pausedRanges)
         }
         if let correctedFinalSample = authoritativeFinalSample(
             sessions: sessions,

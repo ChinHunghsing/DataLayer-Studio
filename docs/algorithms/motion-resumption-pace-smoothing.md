@@ -95,3 +95,35 @@
 - 应用：`TelemetrySeries.appliedMotionResumptions(samples:corrections:)`
 - 管线位置：起跑平滑之后、边缘平台平滑之前，检测输入为归一化（未经速度补缺）的样本序列
 - 测试：`TelemetrySeriesTests` 中 `testMotionResumptionRampReplacesLaggedIntervalStart`、`testMotionResumptionIgnoresWalkAndStopBouts`、`testMotionResumptionSkipsGradualRecovery`、`testMotionResumptionIsIdempotentAcrossReinitialization`
+
+## 7. 2026-07-19 补充：站立起跑线上的两类管线注入尖峰
+
+一次真实间歇课（热身后站在起跑线数秒再发射第一个 1000 米组）暴露出两个
+**由解析管线自身注入**的配速尖峰，设备原始数据在该时段完全干净（速度 0、
+距离冻结）：
+
+| 尖峰 | 显示 | 成因 |
+|---|---|---|
+| 12.2 m/s（1:22/km） | 站立中一闪 | 热身分段累计比记录距离多 0.61m，分段计时为分数秒，锚点作为新样本插入时与整秒记录样本仅错开 0.05s——0.61m ÷ 0.05s 的亚秒段速经距离补速写进速度通道。距离补速的合理性上限只在起跑窗口内生效，中段未拦截 |
+| 6.0 m/s（2:47/km） | 发射前一秒 | 发射首秒设备速度还是 0（形态③），+6m 补账段速被距离补速回写到段起点的站立样本；该样本恰是恢复修正的锚点，斜坡从锚点下一样本起坡，回写值存活 |
+
+三层修复（与检测条件正交，不影响既有触发/不触发行为）：
+
+1. **锚点并入近旁记录样本**（`FITParser`，`lapAnchorMergeToleranceSeconds = 0.25 s`）：
+   锚点与既有样本近乎同刻时只覆盖该样本的距离，不再插入新样本挤出亚秒段；
+   更大错位保持插入，锚点继续在自己的时刻精确修正记录滞后（既有合成测试
+   守护此语义）。
+2. **距离补速段时长下限**（`TelemetrySeries`，`minimumSpeedDerivationSegmentSeconds = 0.5 s`）：
+   亚秒合成段不作补速依据。刻意不用"全局速度上限"实现——骑行/滑雪速度
+   传感器停滞时 >12 m/s 的整秒合法补速必须保留，另有专项测试锁定。
+3. **锚点样本速度回到斜坡起点值**（`appliedMotionResumptions`）：
+   锚点自身速度写为 `baseSpeed`，发射段的补账段速不再残留。
+
+真实文件验证：起跑窗口两个尖峰消除，0.61m 欠账平摊为整秒 0.61 m/s，斜坡
+2 秒到位组配速；全程 652 点对照仅目标窗口与各分段锚点落点变化，所有分段
+边界速度值零变化；其余 19 个组起步（滚动起步，无站立签名）逐值不变。
+
+- 测试：`FITParserTests.testLapAnchorAtStandstillMergesIntoRecordWithoutSpeedSpike`；
+  `TelemetrySeriesTests` 中 `testSubSecondDistanceStepDoesNotBackfillSpeedSpike`、
+  `testWholeSecondSegmentsStillBackfillHighSpeedsMidActivity`、
+  `testMotionResumptionAnchorDoesNotKeepLaunchSegmentSpeed`

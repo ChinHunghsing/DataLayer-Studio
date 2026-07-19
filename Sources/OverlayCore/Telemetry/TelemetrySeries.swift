@@ -30,6 +30,9 @@ public struct TelemetrySeries: Equatable {
     /// excluded); every public time-based API works on the wall axis and converts internally.
     public let pausedRanges: [TelemetryPausedRange]
     private static let resampleInterval: TimeInterval = 1
+    /// 距离导出补速的段时长下限：只排除锚点/末帧插入产生的亚秒合成段，
+    /// 设备真实记录间隔不短于 0.25s 的场合不受影响
+    private static let minimumSpeedDerivationSegmentSeconds: TimeInterval = 0.5
     private static let minimumMovingSpeedMetersPerSecond = 0.3
     private static let startupRampMinimumSpeedMetersPerSecond = 0.35
     private static let startupRampSpeedRatio = 0.25
@@ -521,6 +524,10 @@ public struct TelemetrySeries: Equatable {
             let deltaTime = next.elapsed - current.elapsed
             let deltaDistance = nextDistance - currentDistance
             guard deltaTime > 0, deltaDistance > 0 else { continue }
+            // 亚秒合成段（锚点/末帧插入的产物）会把毫米级距离差放大成冲刺
+            // 段速，不作补速依据；整秒真实段（含骑行/滑雪 >12 m/s 的合法
+            // 高速）不受影响
+            guard deltaTime >= minimumSpeedDerivationSegmentSeconds else { continue }
 
             let segmentSpeed = deltaDistance / deltaTime
             guard segmentSpeed >= minimumMovingSpeedMetersPerSecond else { continue }
@@ -1101,6 +1108,11 @@ public struct TelemetrySeries: Equatable {
                   anchorIndex < stabilizationIndex else {
                 continue
             }
+
+            // 发射首秒设备速度可能还是 0，其距离补账段速会被距离补速回写到
+            // 锚点样本上；斜坡从锚点起坡，锚点自身必须回到起点速度，否则
+            // 起跑前一秒会闪出补账段速
+            output[anchorIndex].speedMetersPerSecond = correction.baseSpeed
 
             func rampSpeed(at elapsed: TimeInterval) -> Double {
                 let time = elapsed - correction.anchorElapsed
