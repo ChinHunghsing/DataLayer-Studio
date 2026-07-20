@@ -11,9 +11,10 @@ enum AppStoreUpdateChecker {
     private static let lookupURL = URL(string: "https://itunes.apple.com/lookup?id=6782545770&country=cn")!
 
     static func availableUpdate(
-        currentVersion: String? = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        currentVersion: String? = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+        isAppStoreBuild: Bool = PurchaseVerificationRequirement.current().requiresVerification
     ) async -> AppStoreUpdate? {
-        guard let currentVersion, !currentVersion.isEmpty else { return nil }
+        guard isAppStoreBuild, let currentVersion, !currentVersion.isEmpty else { return nil }
 
         do {
             let (data, response) = try await URLSession.shared.data(from: lookupURL)

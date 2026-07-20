@@ -4,6 +4,7 @@ struct StudioToastOverlay: View {
     var toasts: [StudioToast]
     var dismiss: (UUID) -> Void
     @EnvironmentObject private var localization: LocalizationStore
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
     var body: some View {
         VStack(alignment: .trailing, spacing: ShellStyle.spacing2) {
@@ -36,7 +37,7 @@ struct StudioToastOverlay: View {
                 .accessibilityElement(children: .combine)
             }
         }
-        .animation(.easeOut(duration: 0.18), value: toasts)
+        .animation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.18), value: toasts)
     }
 
     private func systemImage(for kind: StudioToast.Kind) -> String {

@@ -3,6 +3,7 @@ import OverlayCore
 
 struct InspectorView: View {
     @ObservedObject var model: StudioModel
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @SceneStorage("inspectorSectionScope") private var selectedScopeRawValue = InspectorSectionScope.content.rawValue
     @SceneStorage("inspectorExpandedSections") private var expandedSectionsRawValue = InspectorSection.defaultExpandedSectionsRawValue
     private static let topAnchorID = "inspector-top"
@@ -78,7 +79,7 @@ struct InspectorView: View {
                     .padding(.bottom, 14)
                 }
                 .onChange(of: inspectorScrollIdentity) { _ in
-                    withAnimation(.easeOut(duration: 0.16)) {
+                    withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.16)) {
                         proxy.scrollTo(Self.topAnchorID, anchor: .top)
                     }
                 }

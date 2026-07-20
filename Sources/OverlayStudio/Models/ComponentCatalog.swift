@@ -52,12 +52,12 @@ enum ComponentDragPayload {
     }
 }
 
+@MainActor
 enum ComponentThumbnailLoader {
-    private static let cache = NSCache<NSString, NSImage>()
+    private static var cache: [String: NSImage] = [:]
 
     static func image(named name: String) -> NSImage? {
-        let cacheKey = name as NSString
-        if let cached = cache.object(forKey: cacheKey) {
+        if let cached = cache[name] {
             return cached
         }
 
@@ -75,7 +75,7 @@ enum ComponentThumbnailLoader {
         }
 
         if let image {
-            cache.setObject(image, forKey: cacheKey)
+            cache[name] = image
         }
         return image
     }

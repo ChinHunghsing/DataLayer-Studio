@@ -29,6 +29,7 @@ struct TimelineSnapResult: Equatable {
 struct ProjectTimelineView: View {
     @ObservedObject var model: StudioModel
     @EnvironmentObject private var localization: LocalizationStore
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @AppStorage(TimelineSnappingPreference.defaultsKey) private var isSnappingEnabled = true
 
     private let headerWidth: CGFloat = 188
@@ -324,7 +325,7 @@ struct ProjectTimelineView: View {
     private func focusPlayhead(using scrollProxy: ScrollViewProxy) {
         // Wait for the zoom or seek to lay out the marker at its new timeline position.
         DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: 0.12)) {
+            withAnimation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.12)) {
                 scrollProxy.scrollTo(Self.playheadMarkerID, anchor: .center)
             }
         }

@@ -58,6 +58,7 @@ struct HorizontalPaneResizeHandle: View {
     var edge: Edge
     @Binding var width: Double
     var range: ClosedRange<Double>
+    var accessibilityLabel: String
     @State private var dragStartWidth: Double?
 
     var body: some View {
@@ -87,6 +88,22 @@ struct HorizontalPaneResizeHandle: View {
                 }
                 .onEnded { _ in dragStartWidth = nil }
         )
-        .accessibilityHidden(true)
+        .accessibilityElement()
+        .accessibilityLabel(Text(accessibilityLabel))
+        .accessibilityValue(Text("\(Int(width.rounded()))"))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                width = Self.adjustedWidth(width, by: 16, range: range)
+            case .decrement:
+                width = Self.adjustedWidth(width, by: -16, range: range)
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    static func adjustedWidth(_ width: Double, by delta: Double, range: ClosedRange<Double>) -> Double {
+        min(range.upperBound, max(range.lowerBound, width + delta))
     }
 }

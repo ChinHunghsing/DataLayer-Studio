@@ -38,3 +38,22 @@ jobs:
 
       - name: Run tests
         run: swift test
+
+  ios-build:
+    name: iOS compile
+    runs-on: macos-26
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Build iOS app
+        run: |
+          xcodebuild \
+            -project App/DataLayerStudioMobile.xcodeproj \
+            -scheme DataLayerStudioMobile \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath .build/ci-ios \
+            CODE_SIGNING_ALLOWED=NO \
+            build

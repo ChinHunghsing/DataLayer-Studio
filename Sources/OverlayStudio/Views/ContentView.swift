@@ -169,7 +169,8 @@ struct ContentView: View {
                         HorizontalPaneResizeHandle(
                             edge: .trailing,
                             width: $libraryPanelWidth,
-                            range: 260...420
+                            range: 260...420,
+                            accessibilityLabel: "\(localization.string("library.title")) \(localization.string("sidebar.width"))"
                         )
                     }
 
@@ -185,7 +186,8 @@ struct ContentView: View {
                         HorizontalPaneResizeHandle(
                             edge: .leading,
                             width: $inspectorPanelWidth,
-                            range: 320...480
+                            range: 320...480,
+                            accessibilityLabel: "\(localization.string("inspector.panel")) \(localization.string("sidebar.width"))"
                         )
 
                         InspectorView(model: model)

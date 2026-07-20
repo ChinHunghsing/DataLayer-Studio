@@ -143,6 +143,12 @@ final class StudioShellTests: XCTestCase {
         XCTAssertLessThanOrEqual(widths.library + widths.inspector + 14 + 420, 1_100.001)
     }
 
+    func testWorkspaceResizeAdjustmentClampsToAllowedRange() {
+        XCTAssertEqual(HorizontalPaneResizeHandle.adjustedWidth(300, by: 16, range: 260...420), 316)
+        XCTAssertEqual(HorizontalPaneResizeHandle.adjustedWidth(415, by: 16, range: 260...420), 420)
+        XCTAssertEqual(HorizontalPaneResizeHandle.adjustedWidth(265, by: -16, range: 260...420), 260)
+    }
+
     func testTimelineHeightMigratesOnlyThePreviousDefault() {
         XCTAssertEqual(StudioWorkspaceDefaults.migratedTimelineHeight(240), 300)
         XCTAssertEqual(StudioWorkspaceDefaults.migratedTimelineHeight(360), 360)
