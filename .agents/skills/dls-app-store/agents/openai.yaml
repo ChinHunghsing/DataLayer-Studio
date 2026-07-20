@@ -1,0 +1,4 @@
+interface:
+  display_name: "DataLayer Studio App Store"
+  short_description: "执行 TestFlight、截图、签名打包与提审流程"
+  default_prompt: "Use $dls-app-store to prepare or operate DataLayer Studio App Store releases."

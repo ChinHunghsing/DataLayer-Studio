@@ -1,0 +1,4 @@
+interface:
+  display_name: "DataLayer Studio iOS"
+  short_description: "维护 iPad/iPhone 界面、壳工程、订阅与跨平台回归"
+  default_prompt: "Use $dls-ios to develop and verify DataLayer Studio on iPadOS or iOS."

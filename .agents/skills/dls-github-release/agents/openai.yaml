@@ -1,0 +1,4 @@
+interface:
+  display_name: "DataLayer Studio GitHub 发布"
+  short_description: "执行 GitHub Release、签名公证与下载资产验收"
+  default_prompt: "Use $dls-github-release to publish and verify a DataLayer Studio GitHub release."

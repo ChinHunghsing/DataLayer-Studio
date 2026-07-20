@@ -1,0 +1,4 @@
+interface:
+  display_name: "DataLayer Studio 导出"
+  short_description: "维护 DataLayer Studio 视频写出、透明 Alpha、导出权益与性能"
+  default_prompt: "Use $dls-export to modify and verify DataLayer Studio export behavior."
