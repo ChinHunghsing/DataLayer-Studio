@@ -61,6 +61,35 @@ private struct TimelinePreviewSnapshot {
     var overlayLayers: [TimelinePreviewOverlayLayer]
 }
 
+struct TimelineAssetLoadRequest: Equatable {
+    var projectGeneration: Int
+    var requestGeneration: Int
+}
+
+struct TimelineAssetLoadTracker {
+    private var projectGeneration = 0
+    private var requestGenerations: [String: Int] = [:]
+
+    mutating func begin(id: String) -> TimelineAssetLoadRequest {
+        let requestGeneration = (requestGenerations[id] ?? 0) + 1
+        requestGenerations[id] = requestGeneration
+        return TimelineAssetLoadRequest(
+            projectGeneration: projectGeneration,
+            requestGeneration: requestGeneration
+        )
+    }
+
+    func isCurrent(_ request: TimelineAssetLoadRequest, id: String) -> Bool {
+        request.projectGeneration == projectGeneration
+            && request.requestGeneration == requestGenerations[id]
+    }
+
+    mutating func invalidateProject() {
+        projectGeneration += 1
+        requestGenerations.removeAll()
+    }
+}
+
 private struct TimelineClipboardItem {
     var trackID: String
     var clip: TimelineClip
@@ -310,6 +339,7 @@ final class StudioModel: ObservableObject {
     private var videoLoadGeneration = 0
     private var fitLoadGeneration = 0
     private var mediaPoolImportGeneration = 0
+    private var timelineAssetLoadTracker = TimelineAssetLoadTracker()
     private var previewOverlayRenderSize: CGSize?
     private var lastOverlayRefresh = Date.distantPast
     private let maximumPreviewRenderDimension: CGFloat = 3_200
@@ -370,7 +400,10 @@ final class StudioModel: ObservableObject {
     private var lastCoalescedLayoutUndo: (actionKey: String, date: Date)?
     private static let layoutUndoCoalescingInterval: TimeInterval = 0.8
     private var lastCoalescedTimelineUndo: (actionKey: String, date: Date)?
-    private var pendingRelinkUndoSnapshots: [String: TimelineMediaUndoSnapshot] = [:]
+    private var pendingRelinkUndoSnapshots: [String: (
+        request: TimelineAssetLoadRequest,
+        snapshot: TimelineMediaUndoSnapshot
+    )] = [:]
     private var pendingSourceReplacementUndoSnapshot: TimelineMediaUndoSnapshot?
     private var pendingSourceReplacementKind: MediaAsset.Kind?
     private var exportTask: Task<Void, Never>?
@@ -1718,6 +1751,7 @@ final class StudioModel: ObservableObject {
         videoLoadGeneration += 1
         fitLoadGeneration += 1
         mediaPoolImportGeneration += 1
+        invalidateTimelineAssetLoads()
         pendingVideoTimelineImportIDs.removeAll()
         pendingActivityTimelineImportIDs.removeAll()
         pendingVideoPositionedTimelineImports.removeAll()
@@ -1745,8 +1779,6 @@ final class StudioModel: ObservableObject {
             : [:]
         activitySeriesByAssetID.removeAll()
         activitySportByAssetID.removeAll()
-        pendingRelinkUndoSnapshots.removeAll()
-
         let activeVideo = sanitizedProject.sourceMatchPoint.flatMap { matchPoint in
             videoAssets.first { $0.id == matchPoint.videoAssetID }
         } ?? videoAssets.first
@@ -1967,21 +1999,50 @@ final class StudioModel: ObservableObject {
     func relinkTimelineAsset(id: String, to url: URL) {
         guard !isExporting,
               let asset = currentTimelineProject.asset(id: id) else { return }
-        pendingRelinkUndoSnapshots[id] = timelineMediaUndoSnapshotNow
+        let request = beginTimelineAssetLoadRequest(id: id)
+        pendingRelinkUndoSnapshots[id] = (request, timelineMediaUndoSnapshotNow)
         switch asset.kind {
         case .video:
-            loadTimelineVideoAsset(asset, replacementURL: url, reportsRelinkStatus: true)
+            loadTimelineVideoAsset(
+                asset,
+                replacementURL: url,
+                reportsRelinkStatus: true,
+                request: request
+            )
         case .activity:
-            loadTimelineActivityAsset(asset, replacementURL: url, reportsRelinkStatus: true)
+            loadTimelineActivityAsset(
+                asset,
+                replacementURL: url,
+                reportsRelinkStatus: true,
+                request: request
+            )
         }
+    }
+
+    private func beginTimelineAssetLoadRequest(id: String) -> TimelineAssetLoadRequest {
+        timelineAssetLoadTracker.begin(id: id)
+    }
+
+    private func isCurrentTimelineAssetLoadRequest(
+        _ request: TimelineAssetLoadRequest,
+        id: String
+    ) -> Bool {
+        timelineAssetLoadTracker.isCurrent(request, id: id)
+    }
+
+    private func invalidateTimelineAssetLoads() {
+        timelineAssetLoadTracker.invalidateProject()
+        pendingRelinkUndoSnapshots.removeAll()
     }
 
     private func loadTimelineVideoAsset(
         _ asset: MediaAsset,
         replacementURL: URL? = nil,
-        reportsRelinkStatus: Bool = false
+        reportsRelinkStatus: Bool = false,
+        request suppliedRequest: TimelineAssetLoadRequest? = nil
     ) {
         let url = replacementURL ?? asset.url
+        let request = suppliedRequest ?? beginTimelineAssetLoadRequest(id: asset.id)
         Task.detached {
             do {
                 let loaded = try await VideoMetadata.loadAsync(from: url)
@@ -1990,7 +2051,8 @@ final class StudioModel: ObservableObject {
                         id: asset.id,
                         url: url,
                         metadata: loaded,
-                        reportsRelinkStatus: reportsRelinkStatus
+                        reportsRelinkStatus: reportsRelinkStatus,
+                        request: request
                     )
                 }
             } catch {
@@ -1999,7 +2061,8 @@ final class StudioModel: ObservableObject {
                         id: asset.id,
                         displayName: asset.displayName,
                         error: error,
-                        reportsRelinkStatus: reportsRelinkStatus
+                        reportsRelinkStatus: reportsRelinkStatus,
+                        request: request
                     )
                 }
             }
@@ -2009,9 +2072,11 @@ final class StudioModel: ObservableObject {
     private func loadTimelineActivityAsset(
         _ asset: MediaAsset,
         replacementURL: URL? = nil,
-        reportsRelinkStatus: Bool = false
+        reportsRelinkStatus: Bool = false,
+        request suppliedRequest: TimelineAssetLoadRequest? = nil
     ) {
         let url = replacementURL ?? asset.url
+        let request = suppliedRequest ?? beginTimelineAssetLoadRequest(id: asset.id)
         Task.detached {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
@@ -2022,7 +2087,8 @@ final class StudioModel: ObservableObject {
                         id: asset.id,
                         url: url,
                         activity: parsed,
-                        reportsRelinkStatus: reportsRelinkStatus
+                        reportsRelinkStatus: reportsRelinkStatus,
+                        request: request
                     )
                 }
             } catch {
@@ -2031,7 +2097,8 @@ final class StudioModel: ObservableObject {
                         id: asset.id,
                         displayName: asset.displayName,
                         error: error,
-                        reportsRelinkStatus: reportsRelinkStatus
+                        reportsRelinkStatus: reportsRelinkStatus,
+                        request: request
                     )
                 }
             }
@@ -2042,9 +2109,11 @@ final class StudioModel: ObservableObject {
         id: String,
         url: URL,
         metadata loaded: VideoMetadata,
-        reportsRelinkStatus: Bool
+        reportsRelinkStatus: Bool,
+        request: TimelineAssetLoadRequest
     ) {
-        guard let existing = currentTimelineProject.asset(id: id), existing.kind == .video else { return }
+        guard isCurrentTimelineAssetLoadRequest(request, id: id),
+              let existing = currentTimelineProject.asset(id: id), existing.kind == .video else { return }
         let wallClockStart = existing.wallClockSource == .manual ? existing.wallClockStart : loaded.creationDate
         let wallClockSource = existing.wallClockSource == .manual ? .manual : loaded.creationDateSource
         if reportsRelinkStatus {
@@ -2089,8 +2158,11 @@ final class StudioModel: ObservableObject {
             if usesCustomTimelinePreview { configureTimelinePlayer() } else { configurePlayer(url: url) }
         }
         if reportsRelinkStatus { setStatusAndToast(.success, "status.timelineMediaRelinked", url.lastPathComponent) }
-        if reportsRelinkStatus, let previous = pendingRelinkUndoSnapshots.removeValue(forKey: id) {
-            registerTimelineMediaUndo(previous: previous, actionKey: "undo.timeline.relinkAsset")
+        if reportsRelinkStatus,
+           let pending = pendingRelinkUndoSnapshots[id],
+           pending.request == request {
+            pendingRelinkUndoSnapshots.removeValue(forKey: id)
+            registerTimelineMediaUndo(previous: pending.snapshot, actionKey: "undo.timeline.relinkAsset")
         }
     }
 
@@ -2098,9 +2170,11 @@ final class StudioModel: ObservableObject {
         id: String,
         url: URL,
         activity loaded: ParsedActivity,
-        reportsRelinkStatus: Bool
+        reportsRelinkStatus: Bool,
+        request: TimelineAssetLoadRequest
     ) {
-        guard let existing = currentTimelineProject.asset(id: id), existing.kind == .activity else { return }
+        guard isCurrentTimelineAssetLoadRequest(request, id: id),
+              let existing = currentTimelineProject.asset(id: id), existing.kind == .activity else { return }
         let embeddedWeatherRecords = existing.weatherRecords ?? []
         let loadedSeries = OpenWeatherService.series(loaded.series, applying: embeddedWeatherRecords)
         activitySeriesByAssetID[id] = loadedSeries
@@ -2140,8 +2214,11 @@ final class StudioModel: ObservableObject {
             )
         }
         if reportsRelinkStatus { setStatusAndToast(.success, "status.timelineMediaRelinked", url.lastPathComponent) }
-        if reportsRelinkStatus, let previous = pendingRelinkUndoSnapshots.removeValue(forKey: id) {
-            registerTimelineMediaUndo(previous: previous, actionKey: "undo.timeline.relinkAsset")
+        if reportsRelinkStatus,
+           let pending = pendingRelinkUndoSnapshots[id],
+           pending.request == request {
+            pendingRelinkUndoSnapshots.removeValue(forKey: id)
+            registerTimelineMediaUndo(previous: pending.snapshot, actionKey: "undo.timeline.relinkAsset")
         }
     }
 
@@ -2179,10 +2256,15 @@ final class StudioModel: ObservableObject {
         id: String,
         displayName: String,
         error: Error,
-        reportsRelinkStatus: Bool
+        reportsRelinkStatus: Bool,
+        request: TimelineAssetLoadRequest
     ) {
+        guard isCurrentTimelineAssetLoadRequest(request, id: id),
+              currentTimelineProject.asset(id: id) != nil else { return }
         offlineTimelineAssetReasons[id] = Self.offlineReason(for: error, asset: timeline.asset(id: id))
-        pendingRelinkUndoSnapshots.removeValue(forKey: id)
+        if pendingRelinkUndoSnapshots[id]?.request == request {
+            pendingRelinkUndoSnapshots.removeValue(forKey: id)
+        }
         if reportsRelinkStatus {
             setStatusAndToast(.warning, "status.timelineMediaRelinkError", displayName, error.localizedDescription)
         }
@@ -3141,6 +3223,7 @@ final class StudioModel: ObservableObject {
         guard !isExporting,
               date.timeIntervalSinceReferenceDate.isFinite,
               let index = videoAssets.firstIndex(where: { $0.id == id }) else { return }
+        let previousUndoState = timelineMediaUndoSnapshotNow
 
         if timelineUsesSingleSourceMigration, activeVideoAssetID == id {
             singleSourceAlignmentIsPending = true
@@ -3167,6 +3250,10 @@ final class StudioModel: ObservableObject {
             }
             applyWallClockAutoSync(force: true)
         }
+        registerTimelineMediaUndo(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.setRecordingTime"
+        )
         setStatusAndToast(.success, "status.manualRecordingTimeSet", updated.displayName)
     }
 
@@ -5406,6 +5493,7 @@ final class StudioModel: ObservableObject {
             return
         }
         guard let snapshot = timelinePreviewSnapshot(at: previewTime) else {
+            cancelCurrentPreviewRender()
             backgroundImage = nil
             overlayImage = nil
             previewWarning = nil
@@ -5588,6 +5676,7 @@ final class StudioModel: ObservableObject {
     ) {
         guard let snapshot = timelinePreviewSnapshot(at: previewTime),
               !snapshot.overlayLayers.isEmpty else {
+            cancelCurrentPreviewRender()
             overlayImage = nil
             previewWarning = nil
             return
@@ -5921,6 +6010,14 @@ final class StudioModel: ObservableObject {
             return clip
         }
         return nil
+    }
+
+    var previewCanvasLayout: OverlayLayout {
+        guard usesCustomTimelinePreview else { return layout }
+        guard let clip = activeTimelineOverlayClipForLayoutEditing else {
+            return OverlayLayout(elements: [])
+        }
+        return (clip.layout ?? .default).sanitized
     }
 
     private func prepareActiveTimelineOverlayLayoutForEditing() {
@@ -6342,6 +6439,13 @@ final class StudioModel: ObservableObject {
         var activityTrim: ActivityTrim
         var bitRateKbps: Int
         var outputURL: URL?
+        var syncMode: SyncMode
+        var offsetSeconds: TimeInterval
+        var fitStartSeconds: TimeInterval
+        var syncVideoSeconds: TimeInterval
+        var syncFITSeconds: TimeInterval
+        var syncWasAutoAlignedByWallClock: Bool
+        var singleSourceAlignmentIsPending: Bool
     }
 
     private var timelineMediaUndoSnapshotNow: TimelineMediaUndoSnapshot {
@@ -6368,7 +6472,14 @@ final class StudioModel: ObservableObject {
             exportTrimEndSeconds: exportTrimEndSeconds,
             activityTrim: activityTrim,
             bitRateKbps: bitRateKbps,
-            outputURL: outputURL
+            outputURL: outputURL,
+            syncMode: syncMode,
+            offsetSeconds: offsetSeconds,
+            fitStartSeconds: fitStartSeconds,
+            syncVideoSeconds: syncVideoSeconds,
+            syncFITSeconds: syncFITSeconds,
+            syncWasAutoAlignedByWallClock: syncWasAutoAlignedByWallClock,
+            singleSourceAlignmentIsPending: singleSourceAlignmentIsPending
         )
     }
 
@@ -6414,6 +6525,7 @@ final class StudioModel: ObservableObject {
         weatherLoadTask?.cancel()
         videoLoadGeneration += 1
         fitLoadGeneration += 1
+        invalidateTimelineAssetLoads()
         pendingSourceReplacementUndoSnapshot = nil
         pendingSourceReplacementKind = nil
         let restoredMigrationState = previous.usesSingleSourceMigration
@@ -6438,12 +6550,18 @@ final class StudioModel: ObservableObject {
         activityTrim = previous.activityTrim
         bitRateKbps = previous.bitRateKbps
         outputURL = previous.outputURL
+        isRestoringTimelineSourceMatchPoint = true
+        syncMode = previous.syncMode
+        offsetSeconds = previous.offsetSeconds
+        fitStartSeconds = previous.fitStartSeconds
+        syncVideoSeconds = previous.syncVideoSeconds
+        syncFITSeconds = previous.syncFITSeconds
+        isRestoringTimelineSourceMatchPoint = false
+        syncWasAutoAlignedByWallClock = previous.syncWasAutoAlignedByWallClock
         selectedTimelineClipIDs = previous.selectedClipIDs.filter { timelineClip(id: $0) != nil }
         selectedTimelineClipID = previous.selectedClipID.flatMap { timelineClip(id: $0) == nil ? nil : $0 }
             ?? firstSelectedTimelineClipID
-        singleSourceAlignmentIsPending = previous.timeline.tracks
-            .flatMap(\.clips)
-            .contains(where: \.isAlignmentPending)
+        singleSourceAlignmentIsPending = previous.singleSourceAlignmentIsPending
         timelineUsesSingleSourceMigration = restoredMigrationState
         stopTimelineSecurityScopedAccess()
         startTimelineSecurityScopedAccess(for: timeline.assets)
@@ -7054,18 +7172,22 @@ final class StudioModel: ObservableObject {
         ))
     }
 
-    private func cancelPreviewRenderTasks() {
+    private func cancelCurrentPreviewRender() {
         previewRenderGeneration += 1
         previewRenderTask?.cancel()
+        previewRenderTask = nil
+        pendingOverlayRefreshAfterCurrentRender = false
+        pendingOverlayRefreshDisplaysIntermediateResult = false
+    }
+
+    private func cancelPreviewRenderTasks() {
+        cancelCurrentPreviewRender()
         pendingPreviewSizeRefreshTask?.cancel()
         scrubInteractionTask?.cancel()
-        previewRenderTask = nil
         pendingPreviewSizeRefreshTask = nil
         scrubInteractionTask = nil
         scrubInteractionExpiresAt = .distantPast
         isScrubbingPreview = false
-        pendingOverlayRefreshAfterCurrentRender = false
-        pendingOverlayRefreshDisplaysIntermediateResult = false
     }
 
     private func cancelLoadTasks() {

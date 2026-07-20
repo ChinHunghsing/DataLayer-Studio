@@ -818,7 +818,7 @@ struct PreviewCanvasState: Equatable {
         player = model.player
         backgroundImage = model.backgroundImage
         overlayImage = model.overlayImage
-        layout = model.layout
+        layout = model.previewCanvasLayout
         selectedElementID = model.selectedElementID
         selectedElementIDs = model.selectedElementIDs
         showGrid = model.showGrid

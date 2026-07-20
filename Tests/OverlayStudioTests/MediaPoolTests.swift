@@ -3514,6 +3514,191 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(videoStarts, [0])
     }
 
+    func testTimelineAssetLoadTrackerRejectsSupersededAndPreviousProjectRequests() {
+        var tracker = TimelineAssetLoadTracker()
+        let first = tracker.begin(id: "asset")
+        let otherAsset = tracker.begin(id: "other")
+        let latest = tracker.begin(id: "asset")
+
+        XCTAssertFalse(tracker.isCurrent(first, id: "asset"))
+        XCTAssertTrue(tracker.isCurrent(latest, id: "asset"))
+        XCTAssertTrue(tracker.isCurrent(otherAsset, id: "other"))
+
+        tracker.invalidateProject()
+
+        XCTAssertFalse(tracker.isCurrent(latest, id: "asset"))
+        XCTAssertFalse(tracker.isCurrent(otherAsset, id: "other"))
+        let nextProjectRequest = tracker.begin(id: "asset")
+        XCTAssertTrue(tracker.isCurrent(nextProjectRequest, id: "asset"))
+    }
+
+    func testTimelineBlankInvalidatesPendingOverlayRender() async {
+        let model = StudioModel()
+        let url = URL(fileURLWithPath: "/tmp/blank-preview.fit")
+        let telemetry = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, heartRate: 120, distanceMeters: 0),
+            TelemetrySample(elapsed: 1, heartRate: 125, distanceMeters: 10)
+        ])
+        let asset = MediaAsset(
+            id: url.path,
+            kind: .activity,
+            url: url,
+            displayName: url.lastPathComponent,
+            duration: 1
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [asset],
+                tracks: [TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "overlay-clip",
+                        assetID: asset.id,
+                        timelineStart: 0,
+                        duration: 1,
+                        layout: .default
+                    )
+                ])]
+            ),
+            loadAssets: false
+        )
+        model.upsertActivityAsset(url: url, series: telemetry)
+
+        model.previewTime = 0.5
+        model.refreshPreview()
+        model.previewTime = 2
+        model.refreshPreview()
+        try? await Task.sleep(nanoseconds: 250_000_000)
+
+        XCTAssertNil(model.overlayImage)
+        XCTAssertNil(model.backgroundImage)
+    }
+
+    func testPreviewCanvasUsesActiveTimelineOverlayClipLayout() {
+        let model = StudioModel()
+        let url = URL(fileURLWithPath: "/tmp/clip-layout.fit")
+        var element = OverlayElement.defaultElement(kind: .speed)
+        element.id = "clip-speed"
+        element.frame.x = 0.72
+        let clipLayout = OverlayLayout(elements: [element])
+        let asset = MediaAsset(
+            id: url.path,
+            kind: .activity,
+            url: url,
+            displayName: url.lastPathComponent,
+            duration: 1
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [asset],
+                tracks: [TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                    TimelineClip(
+                        id: "overlay-clip",
+                        assetID: asset.id,
+                        timelineStart: 0,
+                        duration: 1,
+                        layout: clipLayout
+                    )
+                ])]
+            ),
+            loadAssets: false
+        )
+
+        model.previewTime = 0.5
+        XCTAssertEqual(PreviewCanvasState(model: model).layout, clipLayout.sanitized)
+
+        model.previewTime = 2
+        XCTAssertTrue(PreviewCanvasState(model: model).layout.elements.isEmpty)
+    }
+
+    func testManualRecordingTimeAndAutoAlignmentUndoAsOneStep() {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let videoURL = URL(fileURLWithPath: "/tmp/manual-undo.mov")
+        let activityURL = URL(fileURLWithPath: "/tmp/manual-undo.fit")
+        let telemetry = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, date: base, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, date: base.addingTimeInterval(60), distanceMeters: 100)
+        ])
+        let videoAsset = MediaAsset(
+            id: videoURL.path,
+            kind: .video,
+            url: videoURL,
+            displayName: videoURL.lastPathComponent,
+            duration: 60,
+            width: 1_920,
+            height: 1_080,
+            framesPerSecond: 30,
+            wallClockStart: base.addingTimeInterval(10),
+            wallClockSource: .containerMetadata
+        )
+        let activityAsset = MediaAsset(
+            id: activityURL.path,
+            kind: .activity,
+            url: activityURL,
+            displayName: activityURL.lastPathComponent,
+            duration: 60,
+            wallClockStart: base,
+            wallClockSource: .activityMetadata
+        )
+        model.applyTimelineProject(
+            TimelineProject(
+                outputWidth: 1_920,
+                outputHeight: 1_080,
+                framesPerSecond: 30,
+                distanceUnit: .kilometers,
+                assets: [videoAsset, activityAsset],
+                tracks: [
+                    TimelineTrack(id: "video", kind: .video, name: "V1", clips: [
+                        TimelineClip(id: "video-clip", assetID: videoAsset.id, timelineStart: 0, duration: 60)
+                    ]),
+                    TimelineTrack(id: "overlay", kind: .overlay, name: "O1", clips: [
+                        TimelineClip(
+                            id: "overlay-clip",
+                            assetID: activityAsset.id,
+                            timelineStart: 0,
+                            duration: 60,
+                            layout: .default
+                        )
+                    ])
+                ],
+                sourceMatchPoint: TimelineSourceMatchPoint(
+                    videoAssetID: videoAsset.id,
+                    activityAssetID: activityAsset.id,
+                    videoSourceTime: 0,
+                    activitySourceTime: 0
+                )
+            ),
+            loadAssets: false
+        )
+        model.metadata = videoMetadata(width: 1_920, height: 1_080, duration: 60, fps: 30)
+        model.series = telemetry
+        let previousTimeline = model.timeline
+        let previousSync = model.timeSync
+
+        model.setManualRecordingDate(base.addingTimeInterval(20), forAssetID: videoAsset.id)
+
+        XCTAssertNotEqual(model.timeline, previousTimeline)
+        XCTAssertTrue(undoManager.canUndo)
+
+        undoManager.undo()
+
+        XCTAssertEqual(model.timeline, previousTimeline)
+        XCTAssertEqual(model.timeSync, previousSync)
+        XCTAssertEqual(model.videoAssets.first { $0.id == videoAsset.id }?.wallClockStart, videoAsset.wallClockStart)
+        XCTAssertEqual(model.videoAssets.first { $0.id == videoAsset.id }?.wallClockSource, videoAsset.wallClockSource)
+    }
+
     private func waitForOverlayPreview(
         _ model: StudioModel,
         file: StaticString = #filePath,
