@@ -314,7 +314,117 @@ final class CompositedVideoWriterTests: XCTestCase {
         )
     }
 
+    func testDownsamples60FPSVideoTo30FPSBySourceTimeAndKeepsAudio() async throws {
+        try await assertResamplesSourceVideo(sourceFPS: 60, outputFPS: 30)
+    }
+
+    func testUpsamples30FPSVideoTo60FPSBySourceTimeAndKeepsAudio() async throws {
+        try await assertResamplesSourceVideo(sourceFPS: 30, outputFPS: 60)
+    }
+
+    func testCancellationAfterLastRenderedFrameStopsFinalization() throws {
+        let sourceURL = temporaryMovieURL("composited-cancel-source")
+        let outputURL = temporaryMovieURL("composited-cancel-output")
+        defer {
+            Self.removeTemporaryFile(sourceURL)
+            Self.removeTemporaryFile(outputURL)
+        }
+        try makeTinySourceVideo(at: sourceURL, frameCount: 4, includeAudio: true)
+        let lock = NSLock()
+        var shouldCancel = false
+
+        let writer = CompositedVideoWriter(
+            outputURL: outputURL,
+            sourceVideoURL: sourceURL,
+            series: TelemetrySeries(samples: [TelemetrySample(elapsed: 0, distanceMeters: 0)]),
+            config: CompositedVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: 2,
+                duration: 2,
+                averageBitRate: 200_000,
+                codec: .h264,
+                overlayLayout: OverlayLayout(elements: []),
+                progressHandler: { completed, total in
+                    guard completed == total else { return }
+                    lock.lock()
+                    shouldCancel = true
+                    lock.unlock()
+                },
+                cancellationHandler: {
+                    lock.lock()
+                    defer { lock.unlock() }
+                    return shouldCancel
+                }
+            )
+        )
+
+        XCTAssertThrowsError(try writer.write()) { error in
+            guard case OverlayVideoError.cancelled = error else {
+                return XCTFail("Expected cancelled, got \(error)")
+            }
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: outputURL.path))
+    }
+
     // MARK: - Helpers
+
+    private func assertResamplesSourceVideo(
+        sourceFPS: Int32,
+        outputFPS: Double,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let sourceURL = temporaryMovieURL("composited-resample-\(sourceFPS)-source")
+        let outputURL = temporaryMovieURL("composited-resample-\(Int(outputFPS))-output")
+        defer {
+            Self.removeTemporaryFile(sourceURL)
+            Self.removeTemporaryFile(outputURL)
+        }
+        try makeTinySourceVideo(
+            at: sourceURL,
+            frameCount: Int(sourceFPS),
+            framesPerSecond: sourceFPS,
+            includeAudio: true
+        ) { index in
+            index < Int(sourceFPS) / 2 ? (0, 0, 0) : (255, 255, 255)
+        }
+
+        let writer = CompositedVideoWriter(
+            outputURL: outputURL,
+            sourceVideoURL: sourceURL,
+            series: TelemetrySeries(samples: [TelemetrySample(elapsed: 0, distanceMeters: 0)]),
+            config: CompositedVideoWriterConfig(
+                width: 64,
+                height: 64,
+                framesPerSecond: outputFPS,
+                duration: 1,
+                averageBitRate: 200_000,
+                codec: .h264,
+                overlayLayout: OverlayLayout(elements: [])
+            )
+        )
+
+        do {
+            try writer.write()
+        } catch let error as OverlayVideoError where error.isUnavailableCompositedTestEncoder {
+            throw XCTSkip("Composited video encoder is unavailable on this Mac: \(error.description)")
+        }
+
+        let video = try await videoFrameSummary(from: outputURL)
+        XCTAssertEqual(video.count, Int(outputFPS), file: file, line: line)
+        XCTAssertGreaterThan(video.lastMeanLuma, 180, file: file, line: line)
+
+        let asset = AVURLAsset(url: outputURL)
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        let audioTrack = try XCTUnwrap(
+            audioTracks.first,
+            file: file,
+            line: line
+        )
+        let audioDuration = try await audioTrack.load(.timeRange).duration
+        XCTAssertEqual(CMTimeGetSeconds(audioDuration), 1, accuracy: 0.15, file: file, line: line)
+    }
 
     private func makeConfig(
         width: Int = 64,
@@ -403,6 +513,43 @@ final class CompositedVideoWriterTests: XCTestCase {
             }
         }
         return (maxLuma, sumLuma / Double(width * height))
+    }
+
+    private func videoFrameSummary(from url: URL) async throws -> (count: Int, lastMeanLuma: Double) {
+        let asset = AVURLAsset(url: url)
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(
+            track: try XCTUnwrap(tracks.first),
+            outputSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        )
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+
+        var count = 0
+        var lastMeanLuma = 0.0
+        while let sampleBuffer = output.copyNextSampleBuffer(),
+              let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+            let width = CVPixelBufferGetWidth(pixelBuffer)
+            let height = CVPixelBufferGetHeight(pixelBuffer)
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+            let bytes = try XCTUnwrap(CVPixelBufferGetBaseAddress(pixelBuffer))
+                .assumingMemoryBound(to: UInt8.self)
+            var sum = 0.0
+            for y in 0..<height {
+                for x in 0..<width {
+                    let offset = y * bytesPerRow + x * 4
+                    sum += 0.114 * Double(bytes[offset])
+                        + 0.587 * Double(bytes[offset + 1])
+                        + 0.299 * Double(bytes[offset + 2])
+                }
+            }
+            count += 1
+            lastMeanLuma = sum / Double(width * height)
+        }
+        return (count, lastMeanLuma)
     }
 
     private static func removeTemporaryFile(_ url: URL) {

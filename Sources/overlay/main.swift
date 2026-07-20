@@ -19,6 +19,7 @@ struct CommandLineOptions {
     var layoutPresetReference: String?
     var validateFITCRC: Bool
     var inspectOnly: Bool
+    var forceOverwrite: Bool
 
     static func parse(arguments: [String]) throws -> CommandLineOptions {
         var values: [String: String] = [:]
@@ -30,7 +31,7 @@ struct CommandLineOptions {
             switch argument {
             case "-h", "--help":
                 throw CLIError.helpRequested
-            case "--skip-fit-crc", "--inspect":
+            case "--skip-fit-crc", "--inspect", "--force":
                 flags.insert(argument)
                 index += 1
             case "--timeline-project", "--video", "--fit", "--output", "--width", "--height", "--fps", "--offset", "--fit-start", "--sync-video", "--sync-fit", "--bitrate", "--bitrate-bps", "--export-mode", "--codec", "--distance-unit", "--activity-trim-start", "--activity-trim-end", "--layout-preset":
@@ -74,7 +75,8 @@ struct CommandLineOptions {
             activityTrim: try parseActivityTrim(values: values),
             layoutPresetReference: values["--layout-preset"]?.trimmingCharacters(in: .whitespacesAndNewlines),
             validateFITCRC: !flags.contains("--skip-fit-crc"),
-            inspectOnly: flags.contains("--inspect")
+            inspectOnly: flags.contains("--inspect"),
+            forceOverwrite: flags.contains("--force")
         )
     }
 
@@ -231,6 +233,8 @@ enum CLIError: Error, CustomStringConvertible {
     case layoutPresetFileInvalid(String)
     case timelineProjectFileUnreadable(String, String)
     case timelineProjectFileInvalid(String)
+    case outputAlreadyExists(String)
+    case outputMatchesInput(String)
     case conflictingArguments(String)
     case unknownArgument(String)
 
@@ -256,6 +260,10 @@ enum CLIError: Error, CustomStringConvertible {
             return "Could not read timeline project file \(path): \(reason).\n\n\(Self.help)"
         case let .timelineProjectFileInvalid(path):
             return "Timeline project file is invalid: \(path).\n\n\(Self.help)"
+        case let .outputAlreadyExists(path):
+            return "Output already exists: \(path). Pass --force to replace it.\n\n\(Self.help)"
+        case let .outputMatchesInput(path):
+            return "Output must not overwrite an input file: \(path).\n\n\(Self.help)"
         case let .conflictingArguments(message):
             return "\(message).\n\n\(Self.help)"
         case let .unknownArgument(argument):
@@ -298,6 +306,7 @@ enum CLIError: Error, CustomStringConvertible {
                          Not used with --timeline-project.
       --skip-fit-crc     Parse FIT even if CRC validation fails. Ignored for GPX.
       --inspect          Parse video and activity data, print metadata, do not render.
+      --force            Replace an existing output file. Input files are never overwritten.
       -h, --help         Show this help.
     """
 }
@@ -431,6 +440,11 @@ func run() async throws {
         return
     }
     try validateOutputDimensions(width: width, height: height)
+    try validateOutputSafety(
+        outputURL: options.outputURL,
+        inputURLs: [fitURL, options.videoURL].compactMap { $0 },
+        forceOverwrite: options.forceOverwrite
+    )
     printFreeTierExportNotice(width: width, height: height)
 
     let progressHandler: (Int, Int) -> Void = { completed, total in
@@ -548,6 +562,11 @@ func renderTimelineProject(options: CommandLineOptions, projectURL: URL) throws 
         return
     }
     try validateOutputDimensions(width: width, height: height)
+    try validateOutputSafety(
+        outputURL: options.outputURL,
+        inputURLs: [projectURL] + project.assets.map(\.url),
+        forceOverwrite: options.forceOverwrite
+    )
     printFreeTierExportNotice(width: width, height: height)
 
     let progressHandler: (Int, Int) -> Void = { completed, total in
@@ -600,6 +619,23 @@ func validateOutputDimensions(width: Int, height: Int) throws {
           height >= 2, height <= 16_384,
           width % 2 == 0, height % 2 == 0 else {
         throw CLIError.invalidOutputDimensions(width, height)
+    }
+}
+
+func validateOutputSafety(
+    outputURL: URL,
+    inputURLs: [URL],
+    forceOverwrite: Bool,
+    fileManager: FileManager = .default
+) throws {
+    let resolvedOutput = outputURL.standardizedFileURL.resolvingSymlinksInPath()
+    if inputURLs.contains(where: {
+        $0.standardizedFileURL.resolvingSymlinksInPath() == resolvedOutput
+    }) {
+        throw CLIError.outputMatchesInput(outputURL.path)
+    }
+    if fileManager.fileExists(atPath: outputURL.path), !forceOverwrite {
+        throw CLIError.outputAlreadyExists(outputURL.path)
     }
 }
 

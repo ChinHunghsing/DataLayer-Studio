@@ -32,6 +32,17 @@ final class CommandLineOptionsTests: XCTestCase {
         XCTAssertEqual(options.codec, .hevc)
     }
 
+    func testForceFlagExplicitlyAllowsOverwrite() throws {
+        let options = try CommandLineOptions.parse(arguments: [
+            "overlay",
+            "--fit", "activity.fit",
+            "--output", "overlay.mov",
+            "--force"
+        ])
+
+        XCTAssertTrue(options.forceOverwrite)
+    }
+
     func testCompositedVideoExportDefaultsToPlainHEVC() throws {
         let options = try CommandLineOptions.parse(arguments: [
             "overlay",
@@ -467,6 +478,45 @@ final class CommandLineOptionsTests: XCTestCase {
             ]
         )
         XCTAssertEqual(freeTierExportNoticeLines(width: 1_280, height: 720).count, 3)
+    }
+
+    func testExistingOutputRequiresForce() throws {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("datalayer-cli-existing-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        try Data([1]).write(to: outputURL)
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        XCTAssertThrowsError(try validateOutputSafety(
+            outputURL: outputURL,
+            inputURLs: [],
+            forceOverwrite: false
+        )) { error in
+            guard case CLIError.outputAlreadyExists(outputURL.path) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+        XCTAssertNoThrow(try validateOutputSafety(
+            outputURL: outputURL,
+            inputURLs: [],
+            forceOverwrite: true
+        ))
+    }
+
+    func testOutputCannotMatchInputEvenWithForce() {
+        let inputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("datalayer-cli-input-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+
+        XCTAssertThrowsError(try validateOutputSafety(
+            outputURL: inputURL,
+            inputURLs: [inputURL],
+            forceOverwrite: true
+        )) { error in
+            guard case CLIError.outputMatchesInput(inputURL.path) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
     }
 
     private func writePresetFixture<T: Encodable>(_ value: T) throws -> URL {

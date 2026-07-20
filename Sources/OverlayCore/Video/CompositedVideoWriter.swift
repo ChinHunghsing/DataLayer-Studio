@@ -160,11 +160,20 @@ public final class CompositedVideoWriter {
 
         do {
             try writeVideoOnly(to: videoOnlyURL)
+            try VideoExportSupport.throwIfCancelled(config.cancellationHandler)
             if let sourceAsset, hasAudioTrack(in: sourceAsset) {
                 try muxOriginalAudio(videoURL: videoOnlyURL, outputURL: finalURL)
-                try installCompletedOutput(from: finalURL)
+                try VideoExportSupport.installCompletedOutput(
+                    from: finalURL,
+                    to: outputURL,
+                    cancellationHandler: config.cancellationHandler
+                )
             } else {
-                try installCompletedOutput(from: videoOnlyURL)
+                try VideoExportSupport.installCompletedOutput(
+                    from: videoOnlyURL,
+                    to: outputURL,
+                    cancellationHandler: config.cancellationHandler
+                )
             }
         } catch {
             removePartialOutput(at: videoOnlyURL)
@@ -328,7 +337,6 @@ public final class CompositedVideoWriter {
         let frameCount = timing.frameCount
         var frameIndex = 0
         var writeError: Error?
-        var sourceExhausted = false
         var didFinishInput = false
         var currentSourceSample: CMSampleBuffer?
         var pendingSourceSample: CMSampleBuffer?
@@ -337,10 +345,8 @@ public final class CompositedVideoWriter {
         input.requestMediaDataWhenReady(on: renderQueue) {
             while input.isReadyForMoreMediaData,
                   frameIndex < frameCount,
-                  writeError == nil,
-                  !sourceExhausted {
+                  writeError == nil {
                 do {
-                    var didReadFrame = false
                     try autoreleasepool {
                         if cancellationHandler?() == true {
                             throw OverlayVideoError.cancelled
@@ -352,7 +358,7 @@ public final class CompositedVideoWriter {
                         let presentationTime = timing.presentationTime(for: frameIndex)
                         let sourceTime = CMTimeAdd(trimStartTime, presentationTime)
                         var sourceImage = background
-                        if let readerOutput, let sparseVideoRanges {
+                        if let readerOutput {
                             let tolerance = CMTimeMultiplyByFloat64(timing.frameDuration, multiplier: 0.5)
                             let latestAcceptedTime = CMTimeAdd(sourceTime, tolerance)
                             while true {
@@ -365,28 +371,26 @@ public final class CompositedVideoWriter {
                                 currentSourceSample = sample
                                 pendingSourceSample = nil
                             }
-                            while sparseRangeIndex < sparseVideoRanges.count,
-                                  sourceTime >= CMTimeRangeGetEnd(sparseVideoRanges[sparseRangeIndex]) {
-                                sparseRangeIndex += 1
+                            var shouldDrawSource = true
+                            if let sparseVideoRanges {
+                                while sparseRangeIndex < sparseVideoRanges.count,
+                                      sourceTime >= CMTimeRangeGetEnd(sparseVideoRanges[sparseRangeIndex]) {
+                                    sparseRangeIndex += 1
+                                }
+                                shouldDrawSource = sparseRangeIndex < sparseVideoRanges.count
+                                    && CMTimeRangeContainsTime(
+                                        sparseVideoRanges[sparseRangeIndex],
+                                        time: sourceTime
+                                    )
                             }
-                            if sparseRangeIndex < sparseVideoRanges.count,
-                               CMTimeRangeContainsTime(sparseVideoRanges[sparseRangeIndex], time: sourceTime),
+                            if shouldDrawSource,
                                let currentSourceSample,
                                let sourceBuffer = CMSampleBufferGetImageBuffer(currentSourceSample) {
                                 sourceImage = CIImage(cvPixelBuffer: sourceBuffer)
                                     .transformed(by: sourceTransform)
                                     .composited(over: background)
                             }
-                        } else if let readerOutput {
-                            guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else { return }
-                            guard let sourceBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                                throw OverlayVideoError.cannotCreatePixelBuffer
-                            }
-                            sourceImage = CIImage(cvPixelBuffer: sourceBuffer)
-                                .transformed(by: sourceTransform)
-                                .composited(over: background)
                         }
-                        didReadFrame = true
 
                         let outputBuffer = try TransparentVideoWriter.makePixelBuffer(from: pool)
                         let overlayBuffer = try TransparentVideoWriter.makePixelBuffer(from: overlayPool)
@@ -421,15 +425,12 @@ public final class CompositedVideoWriter {
                             progressHandler?(frameIndex, frameCount)
                         }
                     }
-                    if !didReadFrame {
-                        sourceExhausted = true
-                    }
                 } catch {
                     writeError = error
                 }
             }
 
-            if (frameIndex >= frameCount || writeError != nil || sourceExhausted), !didFinishInput {
+            if (frameIndex >= frameCount || writeError != nil), !didFinishInput {
                 didFinishInput = true
                 if writeError == nil {
                     writer.endSession(atSourceTime: timing.outputDuration)
@@ -449,14 +450,18 @@ public final class CompositedVideoWriter {
             writer.cancelWriting()
             throw OverlayVideoError.unreadableVideo(reader.error?.localizedDescription ?? "Source video reading failed.")
         }
+        if reader?.status == .reading {
+            reader?.cancelReading()
+        }
         guard frameIndex > 0 else {
             writer.cancelWriting()
             throw OverlayVideoError.unreadableVideo("No video frames could be read from \(sourceDescription).")
         }
 
-        let semaphore = DispatchSemaphore(value: 0)
-        writer.finishWriting { semaphore.signal() }
-        semaphore.wait()
+        try VideoExportSupport.finishWriting(
+            writer,
+            cancellationHandler: cancellationHandler
+        )
 
         guard writer.status == .completed else {
             throw OverlayVideoError.writerFailed(describe(error: writer.error, codec: config.codec))
@@ -579,6 +584,8 @@ public final class CompositedVideoWriter {
                 timeRange: timeRange,
                 presetName: AVAssetExportPresetPassthrough
             )
+        } catch OverlayVideoError.cancelled {
+            throw OverlayVideoError.cancelled
         } catch {
             config.diagnosticsHandler?(
                 "Audio passthrough mux failed (\(error.localizedDescription)); re-exporting with highest quality preset, video will be re-encoded."
@@ -607,9 +614,10 @@ public final class CompositedVideoWriter {
         exportSession.outputFileType = .mov
         exportSession.timeRange = timeRange
 
-        let semaphore = DispatchSemaphore(value: 0)
-        exportSession.exportAsynchronously { semaphore.signal() }
-        semaphore.wait()
+        try VideoExportSupport.waitForExport(
+            exportSession,
+            cancellationHandler: config.cancellationHandler
+        )
 
         guard exportSession.status == .completed else {
             throw OverlayVideoError.writerFailed(describe(error: exportSession.error, fallback: "Audio muxing failed."))
@@ -691,50 +699,12 @@ public final class CompositedVideoWriter {
         )
     }
 
-    private func installCompletedOutput(from temporaryOutputURL: URL) throws {
-        let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: outputURL.path) {
-            do {
-                try fileManager.removeItem(at: outputURL)
-            } catch {
-                if !isMissingFileError(error) {
-                    throw error
-                }
-            }
-        }
-
-        do {
-            try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
-        } catch {
-            try fileManager.copyItem(at: temporaryOutputURL, to: outputURL)
-            try? fileManager.removeItem(at: temporaryOutputURL)
-        }
-    }
-
     private func removePartialOutput(at url: URL) {
         try? FileManager.default.removeItem(at: url)
     }
 
     private func minTime(_ lhs: CMTime, _ rhs: CMTime) -> CMTime {
         CMTimeCompare(lhs, rhs) <= 0 ? lhs : rhs
-    }
-
-    private func isMissingFileError(_ error: Error) -> Bool {
-        let nsError = error as NSError
-        if nsError.domain == NSCocoaErrorDomain,
-           nsError.code == CocoaError.Code.fileNoSuchFile.rawValue {
-            return true
-        }
-        if nsError.domain == NSPOSIXErrorDomain,
-           nsError.code == Int(POSIXErrorCode.ENOENT.rawValue) {
-            return true
-        }
-        if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError,
-           underlyingError.domain == NSPOSIXErrorDomain,
-           underlyingError.code == Int(POSIXErrorCode.ENOENT.rawValue) {
-            return true
-        }
-        return false
     }
 
     private func describe(error: Error?, codec: OverlayVideoCodec) -> String {

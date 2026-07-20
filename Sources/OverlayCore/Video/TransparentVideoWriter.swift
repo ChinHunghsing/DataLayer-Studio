@@ -217,7 +217,11 @@ public final class TransparentVideoWriter {
 
         do {
             try write(to: temporaryOutputURL)
-            try installCompletedOutput(from: temporaryOutputURL)
+            try VideoExportSupport.installCompletedOutput(
+                from: temporaryOutputURL,
+                to: outputURL,
+                cancellationHandler: config.cancellationHandler
+            )
         } catch {
             removePartialOutput(at: temporaryOutputURL)
             throw error
@@ -388,11 +392,10 @@ public final class TransparentVideoWriter {
             throw renderError
         }
 
-        let semaphore = DispatchSemaphore(value: 0)
-        writer.finishWriting {
-            semaphore.signal()
-        }
-        semaphore.wait()
+        try VideoExportSupport.finishWriting(
+            writer,
+            cancellationHandler: cancellationHandler
+        )
 
         guard writer.status == .completed else {
             throw OverlayVideoError.writerFailed(describe(error: writer.error, codec: config.codec))
@@ -655,48 +658,8 @@ public final class TransparentVideoWriter {
         return errno == EPERM
     }
 
-    private func installCompletedOutput(from temporaryOutputURL: URL) throws {
-        let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: outputURL.path) {
-            do {
-                try fileManager.removeItem(at: outputURL)
-            } catch {
-                if !isMissingFileError(error) {
-                    throw error
-                }
-            }
-        }
-
-        do {
-            try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
-        } catch {
-            // The app-container temporary directory and the user-selected destination can live
-            // on different volumes. Copying preserves sandbox safety and supports external disks.
-            try fileManager.copyItem(at: temporaryOutputURL, to: outputURL)
-            try? fileManager.removeItem(at: temporaryOutputURL)
-        }
-    }
-
     private func removePartialOutput(at url: URL) {
         try? FileManager.default.removeItem(at: url)
-    }
-
-    private func isMissingFileError(_ error: Error) -> Bool {
-        let nsError = error as NSError
-        if nsError.domain == NSCocoaErrorDomain,
-           nsError.code == CocoaError.Code.fileNoSuchFile.rawValue {
-            return true
-        }
-        if nsError.domain == NSPOSIXErrorDomain,
-           nsError.code == Int(POSIXErrorCode.ENOENT.rawValue) {
-            return true
-        }
-        if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError,
-           underlyingError.domain == NSPOSIXErrorDomain,
-           underlyingError.code == Int(POSIXErrorCode.ENOENT.rawValue) {
-            return true
-        }
-        return false
     }
 
     private func describe(error: Error?, codec: OverlayVideoCodec) -> String {
@@ -712,5 +675,172 @@ public final class TransparentVideoWriter {
             return "\(nsError.domain) \(nsError.code): \(nsError.localizedDescription)\(hint)"
         }
         return "\(nsError.domain) \(nsError.code): \(nsError.localizedDescription) \(nsError.userInfo)\(hint)"
+    }
+}
+
+enum VideoExportSupport {
+    private static let copyChunkSize = 1_048_576
+    private static let cancellationPollInterval: DispatchTimeInterval = .milliseconds(50)
+
+    static func throwIfCancelled(_ cancellationHandler: (() -> Bool)?) throws {
+        if cancellationHandler?() == true {
+            throw OverlayVideoError.cancelled
+        }
+    }
+
+    static func finishWriting(
+        _ writer: AVAssetWriter,
+        cancellationHandler: (() -> Bool)?
+    ) throws {
+        do {
+            try throwIfCancelled(cancellationHandler)
+        } catch {
+            writer.cancelWriting()
+            throw error
+        }
+
+        let finished = DispatchSemaphore(value: 0)
+        writer.finishWriting { finished.signal() }
+        while finished.wait(timeout: .now() + cancellationPollInterval) == .timedOut {
+            if cancellationHandler?() == true {
+                writer.cancelWriting()
+                finished.wait()
+                throw OverlayVideoError.cancelled
+            }
+        }
+        try throwIfCancelled(cancellationHandler)
+    }
+
+    static func waitForExport(
+        _ exportSession: AVAssetExportSession,
+        cancellationHandler: (() -> Bool)?
+    ) throws {
+        try throwIfCancelled(cancellationHandler)
+        let finished = DispatchSemaphore(value: 0)
+        exportSession.exportAsynchronously { finished.signal() }
+        while finished.wait(timeout: .now() + cancellationPollInterval) == .timedOut {
+            if cancellationHandler?() == true {
+                exportSession.cancelExport()
+                finished.wait()
+                throw OverlayVideoError.cancelled
+            }
+        }
+        try throwIfCancelled(cancellationHandler)
+    }
+
+    static func installCompletedOutput(
+        from completedURL: URL,
+        to outputURL: URL,
+        cancellationHandler: (() -> Bool)?
+    ) throws {
+        let fileManager = FileManager.default
+        try throwIfCancelled(cancellationHandler)
+
+        if fileManager.fileExists(atPath: outputURL.path) {
+            let backupName = ".DLS-Backup-\(UUID().uuidString)-\(outputURL.lastPathComponent)"
+            let backupURL = outputURL.deletingLastPathComponent().appendingPathComponent(backupName)
+            do {
+                _ = try fileManager.replaceItemAt(
+                    outputURL,
+                    withItemAt: completedURL,
+                    backupItemName: backupName,
+                    options: [.withoutDeletingBackupItem]
+                )
+            } catch {
+                if fileManager.fileExists(atPath: backupURL.path) {
+                    do {
+                        if fileManager.fileExists(atPath: outputURL.path) {
+                            _ = try fileManager.replaceItemAt(
+                                outputURL,
+                                withItemAt: backupURL,
+                                backupItemName: nil
+                            )
+                        } else {
+                            try fileManager.moveItem(at: backupURL, to: outputURL)
+                        }
+                    } catch {
+                        throw OverlayVideoError.writerFailed(
+                            "Could not restore the previous output after replacement failed. Backup: \(backupURL.path). \(error.localizedDescription)"
+                        )
+                    }
+                }
+                throw error
+            }
+
+            do {
+                try throwIfCancelled(cancellationHandler)
+                try? fileManager.removeItem(at: backupURL)
+            } catch {
+                do {
+                    _ = try fileManager.replaceItemAt(
+                        outputURL,
+                        withItemAt: backupURL,
+                        backupItemName: nil
+                    )
+                } catch {
+                    throw OverlayVideoError.writerFailed(
+                        "Could not restore the previous output after cancellation. Backup: \(backupURL.path). \(error.localizedDescription)"
+                    )
+                }
+                throw error
+            }
+            return
+        }
+
+        do {
+            try fileManager.moveItem(at: completedURL, to: outputURL)
+            do {
+                try throwIfCancelled(cancellationHandler)
+            } catch {
+                try? fileManager.removeItem(at: outputURL)
+                throw error
+            }
+        } catch OverlayVideoError.cancelled {
+            throw OverlayVideoError.cancelled
+        } catch {
+            try? fileManager.removeItem(at: outputURL)
+            try copyFile(
+                from: completedURL,
+                to: outputURL,
+                cancellationHandler: cancellationHandler
+            )
+            try? fileManager.removeItem(at: completedURL)
+        }
+    }
+
+    private static func copyFile(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        cancellationHandler: (() -> Bool)?
+    ) throws {
+        let fileManager = FileManager.default
+        try? fileManager.removeItem(at: destinationURL)
+        guard fileManager.createFile(atPath: destinationURL.path, contents: nil) else {
+            throw OverlayVideoError.writerFailed(
+                "Could not create output file: \(destinationURL.path)"
+            )
+        }
+
+        do {
+            let source = try FileHandle(forReadingFrom: sourceURL)
+            let destination = try FileHandle(forWritingTo: destinationURL)
+            defer {
+                try? source.close()
+                try? destination.close()
+            }
+
+            while true {
+                try throwIfCancelled(cancellationHandler)
+                guard let chunk = try source.read(upToCount: copyChunkSize), !chunk.isEmpty else {
+                    break
+                }
+                try destination.write(contentsOf: chunk)
+            }
+            try destination.synchronize()
+            try throwIfCancelled(cancellationHandler)
+        } catch {
+            try? fileManager.removeItem(at: destinationURL)
+            throw error
+        }
     }
 }

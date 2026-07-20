@@ -260,6 +260,58 @@ final class TransparentVideoWriterTests: XCTestCase {
         XCTAssertTrue(fileManager.fileExists(atPath: currentURL.path))
     }
 
+    func testCompletedOutputInstallationRestoresExistingFileWhenCancelled() throws {
+        let fileManager = FileManager.default
+        let outputURL = fileManager.temporaryDirectory
+            .appendingPathComponent("datalayer-install-output-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let completedURL = fileManager.temporaryDirectory
+            .appendingPathComponent("datalayer-install-completed-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let original = Data("existing output".utf8)
+        let replacement = Data("completed replacement".utf8)
+        try original.write(to: outputURL)
+        try replacement.write(to: completedURL)
+        defer {
+            try? fileManager.removeItem(at: outputURL)
+            try? fileManager.removeItem(at: completedURL)
+        }
+
+        XCTAssertThrowsError(try VideoExportSupport.installCompletedOutput(
+            from: completedURL,
+            to: outputURL,
+            cancellationHandler: {
+                (try? Data(contentsOf: outputURL)) == replacement
+            }
+        )) { error in
+            guard case OverlayVideoError.cancelled = error else {
+                return XCTFail("Expected cancelled, got \(error)")
+            }
+        }
+
+        XCTAssertEqual(try Data(contentsOf: outputURL), original)
+    }
+
+    func testCompletedOutputReplacementFailureKeepsExistingFile() throws {
+        let fileManager = FileManager.default
+        let outputURL = fileManager.temporaryDirectory
+            .appendingPathComponent("datalayer-install-existing-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let missingCompletedURL = fileManager.temporaryDirectory
+            .appendingPathComponent("datalayer-install-missing-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let original = Data("existing output".utf8)
+        try original.write(to: outputURL)
+        defer { try? fileManager.removeItem(at: outputURL) }
+
+        XCTAssertThrowsError(try VideoExportSupport.installCompletedOutput(
+            from: missingCompletedURL,
+            to: outputURL,
+            cancellationHandler: nil
+        ))
+        XCTAssertEqual(try Data(contentsOf: outputURL), original)
+    }
+
     func testWriterRendersTinyHEVCAlphaOutputWhenEncoderIsAvailable() async throws {
         guard OverlayHardwareProfile.current.canUseHardwareEncoder(for: .hevcAlpha) else {
             throw XCTSkip("This Mac does not list a hardware HEVC-with-alpha encoder.")

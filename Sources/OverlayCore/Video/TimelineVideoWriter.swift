@@ -341,14 +341,19 @@ public final class TimelineVideoWriter {
                 throw renderError
             }
 
-            let finishSemaphore = DispatchSemaphore(value: 0)
-            writer.finishWriting { finishSemaphore.signal() }
-            finishSemaphore.wait()
+            try VideoExportSupport.finishWriting(
+                writer,
+                cancellationHandler: config.cancellationHandler
+            )
 
             guard writer.status == .completed else {
                 throw OverlayVideoError.writerFailed(describe(error: writer.error, codec: config.codec))
             }
-            try installCompletedOutput(from: temporaryOutputURL)
+            try VideoExportSupport.installCompletedOutput(
+                from: temporaryOutputURL,
+                to: outputURL,
+                cancellationHandler: config.cancellationHandler
+            )
         } catch {
             removePartialOutput(at: temporaryOutputURL)
             throw error
@@ -552,34 +557,6 @@ public final class TimelineVideoWriter {
         )
     }
 
-    private func installCompletedOutput(from temporaryOutputURL: URL) throws {
-        let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: outputURL.path) {
-            do {
-                try fileManager.removeItem(at: outputURL)
-            } catch {
-                if !isMissingFileError(error) {
-                    throw OverlayVideoError.writerFailed(
-                        "Could not replace existing output file: \(error.localizedDescription)"
-                    )
-                }
-            }
-        }
-
-        do {
-            do {
-                try fileManager.moveItem(at: temporaryOutputURL, to: outputURL)
-            } catch {
-                try fileManager.copyItem(at: temporaryOutputURL, to: outputURL)
-                try? fileManager.removeItem(at: temporaryOutputURL)
-            }
-        } catch {
-            throw OverlayVideoError.writerFailed(
-                "Could not move completed output into place: \(error.localizedDescription)"
-            )
-        }
-    }
-
     private func removePartialOutput(at url: URL) {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         try? FileManager.default.removeItem(at: url)
@@ -592,19 +569,6 @@ public final class TimelineVideoWriter {
         let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         memset(baseAddress, 0, bytesPerRow * height)
-    }
-
-    private func isMissingFileError(_ error: Error) -> Bool {
-        let nsError = error as NSError
-        if nsError.domain == NSCocoaErrorDomain,
-           nsError.code == CocoaError.fileNoSuchFile.rawValue {
-            return true
-        }
-        if nsError.domain == NSPOSIXErrorDomain,
-           nsError.code == ENOENT {
-            return true
-        }
-        return false
     }
 
     private func describe(error: Error?, codec: OverlayVideoCodec) -> String {
