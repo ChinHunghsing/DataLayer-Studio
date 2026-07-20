@@ -359,10 +359,15 @@ final class CompositedVideoWriterTests: XCTestCase {
             )
         )
 
-        XCTAssertThrowsError(try writer.write()) { error in
-            guard case OverlayVideoError.cancelled = error else {
-                return XCTFail("Expected cancelled, got \(error)")
-            }
+        do {
+            try writer.write()
+            XCTFail("Expected cancellation")
+        } catch let error as OverlayVideoError where error.isUnavailableCompositedTestEncoder {
+            throw XCTSkip("Composited video encoder is unavailable on this Mac: \(error.description)")
+        } catch OverlayVideoError.cancelled {
+            // Expected: cancellation arrived after rendering and interrupted finalization.
+        } catch {
+            XCTFail("Expected cancelled, got \(error)")
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: outputURL.path))
     }
