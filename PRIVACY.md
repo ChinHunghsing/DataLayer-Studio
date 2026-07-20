@@ -49,6 +49,15 @@ does not add an analytics SDK or send custom analytics events. Apple's analytics
 data is provided by Apple and is limited to users who have agreed to share
 analytics with app developers.
 
+## Website Analytics
+
+The DataLayer Studio website uses Google Analytics to collect aggregate website
+usage information, such as page views, device and browser details, and general
+geographic region. Google processes this data under its own privacy policy. This
+website analytics is separate from the app and CLI: DataLayer Studio does not
+send source videos, activity files, GPS tracks, telemetry, presets, previews, or
+exports to Google Analytics.
+
 ## Local Files and Preferences
 
 DataLayer Studio reads the video and FIT files you select, then writes the
