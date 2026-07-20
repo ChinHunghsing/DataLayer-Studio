@@ -95,9 +95,14 @@ swift run overlay \
 --codec prores-4444      支持 Alpha 的中间格式
 --layout-preset NAME     已保存的应用预设名称、ID 或导出的 JSON 文件
 --inspect                只解析元数据，不渲染
+--force                  替换已存在的输出文件
 ```
 
 运行 `swift run overlay --help` 查看完整参数列表。
+
+> **不兼容变更：** CLI 不再静默覆盖已存在的输出文件，未加 `--force` 时会
+> 直接报错退出；输出路径与任一输入文件相同时一律拒绝。依赖旧覆盖行为的
+> 脚本需要相应调整。
 
 <details>
 <summary><b>时间线同步原理</b></summary>

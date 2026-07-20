@@ -95,9 +95,15 @@ Useful options:
 --codec prores-4444      Alpha-capable intermediate
 --layout-preset NAME     Saved app preset name, ID, or exported JSON file
 --inspect                Parse metadata without rendering
+--force                  Replace an existing output file
 ```
 
 Run `swift run overlay --help` for the complete option list.
+
+> **Breaking change:** the CLI no longer overwrites an existing output file
+> silently. It now fails with a clear error unless you pass `--force`.
+> An output path that matches one of the input files is always rejected.
+> Update any scripts that relied on the previous overwrite behaviour.
 
 <details>
 <summary><b>How timeline sync works</b></summary>

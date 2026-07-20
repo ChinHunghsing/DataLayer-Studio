@@ -738,7 +738,10 @@ Common options:
 --layout-preset "Race Layout"
 --skip-fit-crc
 --inspect
+--force
 ```
+
+The CLI no longer overwrites an existing output file silently: without `--force` it stops with an error, and an output path matching one of the input files is always rejected. Update scripts that relied on the previous overwrite behaviour.
 
 The single-source CLI still accepts `--fit-start`, `--sync-video` / `--sync-fit`, and the legacy `--offset`; these are CLI compatibility options — the app itself has no separate sync page.
 

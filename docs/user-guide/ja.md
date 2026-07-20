@@ -738,7 +738,10 @@ swift run overlay \
 --layout-preset "Race Layout"
 --skip-fit-crc
 --inspect
+--force
 ```
+
+CLI は既存の出力ファイルを黙って上書きしなくなりました。`--force` を付けない場合はエラーで停止し、入力ファイルと同じ出力パスは常に拒否されます。従来の上書き動作に依存しているスクリプトは修正してください。
 
 単一ソースの CLI は `--fit-start`、`--sync-video` / `--sync-fit`、旧版の `--offset` も受け付けます。これらは CLI の互換オプションであり、アプリに独立した同期ページがあるわけではありません。
 

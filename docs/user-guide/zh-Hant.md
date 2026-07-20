@@ -738,7 +738,10 @@ swift run overlay \
 --layout-preset "Race Layout"
 --skip-fit-crc
 --inspect
+--force
 ```
+
+CLI 不再靜默覆蓋已存在的輸出檔案：未加 `--force` 會直接報錯結束，輸出路徑與任一輸入檔案相同時一律拒絕。依賴舊覆蓋行為的指令稿需要相應調整。
 
 單源 CLI 仍支援 `--fit-start`、`--sync-video` / `--sync-fit` 和舊版 `--offset`；這些是命令列相容能力，不代表 App 有獨立同步面板。
 
