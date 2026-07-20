@@ -26,6 +26,8 @@ public enum GPXError: Error, CustomStringConvertible, LocalizedError {
 
 public final class GPXParser {
     static let maximumFileSizeBytes = 64 * 1024 * 1024
+    /// 同一秒内的多个采样点用亚秒步进区分，避免被当作重复样本丢弃。
+    private static let duplicateTimestampEpsilon: TimeInterval = 0.001
 
     public init() {}
 
@@ -115,13 +117,20 @@ public final class GPXParser {
         }
 
         var previous: TimeInterval?
-        return points.enumerated().map { index, point in
+        return points.map { point in
+            // 缺时间戳的点按 1 秒递推；有时间戳的点保留原值。
+            // 同秒采样很常见（秒以下精度被截断、多段合并）。逐点 +1 会凭空
+            // 拉长轨迹总时长、令遥测与视频失步；而让它们相等又会被下游
+            // resampled 的去重整段丢弃，连路线几何一起损失。因此只用亚秒
+            // 步进拉开：时长偏差可忽略，样本和轨迹点都保住，且严格递增。
+            // 由此产生的亚秒间隔不参与距离推速，已由
+            // TelemetrySeries.minimumSpeedDerivationSegmentSeconds 兜住。
             let candidate = point.date.map {
                 $0.timeIntervalSince(firstDate) + TimeInterval(firstDatedIndex)
             } ?? ((previous ?? -1) + 1)
             let elapsed: TimeInterval
             if let previous, candidate <= previous {
-                elapsed = previous + 1
+                elapsed = previous + Self.duplicateTimestampEpsilon
             } else {
                 elapsed = max(0, candidate)
             }

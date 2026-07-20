@@ -102,6 +102,47 @@ final class GPXParserTests: XCTestCase {
         XCTAssertEqual(samples.map(\.elapsed), [0, 1, 2])
     }
 
+    /// 同秒采样在不少 GPX 导出里很常见（秒以下精度被截断、多段合并）。
+    /// 逐点 +1 会凭空拉长轨迹总时长、令遥测与视频失步；相等则会被下游
+    /// 去重整段丢弃。正确行为是亚秒步进：总时长几乎不变且样本全部保留。
+    func testDuplicateTimestampsAreSeparatedWithoutInflatingDuration() throws {
+        let gpx = """
+        <gpx><trk><trkseg>
+          <trkpt lat="35.0000" lon="139.0000"><time>2026-06-27T21:32:53Z</time></trkpt>
+          <trkpt lat="35.0001" lon="139.0001"><time>2026-06-27T21:32:53Z</time></trkpt>
+          <trkpt lat="35.0002" lon="139.0002"><time>2026-06-27T21:32:53Z</time></trkpt>
+          <trkpt lat="35.0003" lon="139.0003"><time>2026-06-27T21:32:54Z</time></trkpt>
+        </trkseg></trk></gpx>
+        """
+
+        let samples = try GPXParser().parse(data: Data(gpx.utf8)).samples
+
+        XCTAssertEqual(samples.count, 4, "同秒采样点不得被丢弃")
+        for (actual, expected) in zip(samples.map(\.elapsed), [0, 0.001, 0.002, 1]) {
+            XCTAssertEqual(actual, expected, accuracy: 0.000_001)
+        }
+        XCTAssertEqual(samples.last?.elapsed ?? 0, 1, accuracy: 0.01, "总时长不应被拉长")
+    }
+
+    /// 时间戳真正回退时仍需钳制，保证序列非递减，下游二分查找才成立。
+    func testBackwardsTimestampsAreClampedToPreviousElapsed() throws {
+        let gpx = """
+        <gpx><trk><trkseg>
+          <trkpt lat="35.0000" lon="139.0000"><time>2026-06-27T21:32:53Z</time></trkpt>
+          <trkpt lat="35.0001" lon="139.0001"><time>2026-06-27T21:32:58Z</time></trkpt>
+          <trkpt lat="35.0002" lon="139.0002"><time>2026-06-27T21:32:50Z</time></trkpt>
+          <trkpt lat="35.0003" lon="139.0003"><time>2026-06-27T21:33:00Z</time></trkpt>
+        </trkseg></trk></gpx>
+        """
+
+        let samples = try GPXParser().parse(data: Data(gpx.utf8)).samples
+
+        let elapsed = samples.map(\.elapsed)
+        XCTAssertEqual(elapsed, elapsed.sorted(), "elapsed 必须非递减，下游二分查找才成立")
+        // 回退的那一点被钳到前一点之后，总时长仍由最后一个时间戳决定。
+        XCTAssertEqual(samples.last?.elapsed ?? 0, 7, accuracy: 0.01)
+    }
+
     func testTrackSegmentsDoNotBridgeDistanceOrInterpolation() throws {
         let gpx = """
         <gpx><trk>
