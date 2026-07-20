@@ -127,6 +127,7 @@ public final class MobileSubscriptionStore: ObservableObject, SubscriptionEntitl
 
         var bestExpiry: Date?
         var usesIntroOffer = false
+        var hasExpiredCurrentEntitlement = false
         for await result in Transaction.currentEntitlements {
             guard case let .verified(transaction) = result,
                   transaction.revocationDate == nil,
@@ -134,6 +135,7 @@ public final class MobileSubscriptionStore: ObservableObject, SubscriptionEntitl
                 continue
             }
             if let expirationDate = transaction.expirationDate, expirationDate <= now() {
+                hasExpiredCurrentEntitlement = true
                 continue
             }
             if let expirationDate = transaction.expirationDate,
@@ -145,9 +147,15 @@ public final class MobileSubscriptionStore: ObservableObject, SubscriptionEntitl
             }
         }
 
-        if let bestExpiry {
-            cacheExpirationDate(bestExpiry)
-            state = .subscribed(expiry: bestExpiry, inTrial: usesIntroOffer)
+        if let verifiedState = Self.verifiedCurrentEntitlementState(
+            bestExpiry: bestExpiry,
+            hasExpiredCurrentEntitlement: hasExpiredCurrentEntitlement,
+            usesIntroOffer: usesIntroOffer
+        ) {
+            if case let .subscribed(expiry?, _) = verifiedState {
+                cacheExpirationDate(expiry)
+            }
+            state = verifiedState
         } else if productLoadFailed,
                   MobileSubscriptionEntitlementState.cachedEntitlementAllowsExport(
                     expirationDate: cachedExpirationDate,
@@ -227,13 +235,31 @@ public final class MobileSubscriptionStore: ObservableObject, SubscriptionEntitl
         defaults.set(date.timeIntervalSince1970, forKey: Self.cachedExpirationKey)
     }
 
+    nonisolated static func verifiedCurrentEntitlementState(
+        bestExpiry: Date?,
+        hasExpiredCurrentEntitlement: Bool,
+        usesIntroOffer: Bool
+    ) -> MobileSubscriptionEntitlementState? {
+        if let bestExpiry {
+            return .subscribed(expiry: bestExpiry, inTrial: usesIntroOffer)
+        }
+        // `currentEntitlements` only yields subscriptions that still confer service;
+        // an expired verified transaction here is therefore in billing grace period.
+        return hasExpiredCurrentEntitlement ? .gracePeriod : nil
+    }
+
     private func currentGracePeriodState() async -> MobileSubscriptionEntitlementState? {
         for product in products {
             guard let subscription = product.subscription,
                   let statuses = try? await subscription.status else {
                 continue
             }
-            if statuses.contains(where: { $0.state == .inGracePeriod }) {
+            for status in statuses where status.state == .inGracePeriod {
+                guard case let .verified(transaction) = status.transaction,
+                      transaction.revocationDate == nil,
+                      Self.productIDs.contains(transaction.productID) else {
+                    continue
+                }
                 return .gracePeriod
             }
         }

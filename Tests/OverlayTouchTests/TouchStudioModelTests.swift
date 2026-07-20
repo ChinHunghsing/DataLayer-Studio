@@ -13,12 +13,21 @@ final class TouchStudioModelTests: XCTestCase {
         }
     }
 
+    private final class FakeRuntimeGuard: TouchExportRuntimeGuarding {
+        private(set) var endCount = 0
+
+        func exportDidStart(onBackgroundExpiration: @escaping () -> Void) {}
+        func exportDidEnd() { endCount += 1 }
+    }
+
     private func makeModel(
-        subscriptionEntitlement: (any SubscriptionEntitlementProviding)? = nil
+        subscriptionEntitlement: (any SubscriptionEntitlementProviding)? = nil,
+        runtimeGuard: TouchExportRuntimeGuarding = TouchExportRuntimeNoopGuard()
     ) -> TouchStudioModel {
         let defaults = UserDefaults(suiteName: "touch-tests-\(UUID().uuidString)")!
         return TouchStudioModel(
             layoutPresetStore: LayoutPresetStore(defaults: defaults),
+            runtimeGuard: runtimeGuard,
             subscriptionEntitlement: subscriptionEntitlement
         )
     }
@@ -261,5 +270,80 @@ final class TouchStudioModelTests: XCTestCase {
         XCTAssertFalse(model.isExporting)
         XCTAssertEqual(model.statusMessage.key, "status.exportNeedsSubscription")
         XCTAssertEqual(model.subscriptionPaywallRequestID, 1)
+    }
+
+    func testFailedSourceReplacementsKeepWorkingVideoAndActivity() async throws {
+        let model = makeModel()
+        let videoURL = try await loadSampleVideo(into: model)
+        defer { try? FileManager.default.removeItem(at: videoURL) }
+        let originalVideoDuration = try XCTUnwrap(model.metadata).duration
+
+        let activityURL = try writeSampleGPX()
+        defer { try? FileManager.default.removeItem(at: activityURL) }
+        model.setActivityFile(activityURL, isSecurityScoped: false)
+        for _ in 0..<200 where model.series == nil {
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        let originalActivityDuration = try XCTUnwrap(model.series).duration
+
+        let invalidVideoURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("invalid-touch-video-\(UUID().uuidString).mov")
+        let invalidActivityURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("invalid-touch-activity-\(UUID().uuidString).gpx")
+        try Data([0x00, 0x01, 0x02]).write(to: invalidVideoURL)
+        try Data("not-gpx".utf8).write(to: invalidActivityURL)
+        defer {
+            try? FileManager.default.removeItem(at: invalidVideoURL)
+            try? FileManager.default.removeItem(at: invalidActivityURL)
+        }
+
+        model.setVideo(invalidVideoURL, isSecurityScoped: false)
+        for _ in 0..<200 where model.videoLoadFailure == nil {
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        XCTAssertNotNil(model.videoLoadFailure)
+        XCTAssertEqual(model.videoURL, videoURL)
+        XCTAssertEqual(model.metadata?.duration, originalVideoDuration)
+
+        model.setActivityFile(invalidActivityURL, isSecurityScoped: false)
+        for _ in 0..<200 where model.activityLoadFailure == nil {
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        XCTAssertNotNil(model.activityLoadFailure)
+        XCTAssertEqual(model.activityURL, activityURL)
+        XCTAssertEqual(model.series?.duration, originalActivityDuration)
+    }
+
+    func testTemporaryMovieCleanupPreservesEveryRetainedSceneFile() throws {
+        let first = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(TouchTemporaryMovieStore.importedFilePrefix)\(UUID().uuidString).mov")
+        let second = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(TouchTemporaryMovieStore.importedFilePrefix)\(UUID().uuidString).mov")
+        try Data([0x01]).write(to: first)
+        try Data([0x02]).write(to: second)
+        TouchTemporaryMovieStore.retain(first)
+        TouchTemporaryMovieStore.retain(second)
+        defer {
+            TouchTemporaryMovieStore.release(first)
+            TouchTemporaryMovieStore.release(second)
+        }
+
+        TouchTemporaryMovieStore.removeStaleFiles()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: first.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path))
+        TouchTemporaryMovieStore.release(first)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path))
+    }
+
+    func testModelDeinitAlwaysEndsRuntimeGuard() {
+        let guardSpy = FakeRuntimeGuard()
+        var model: TouchStudioModel? = makeModel(runtimeGuard: guardSpy)
+        XCTAssertNotNil(model)
+
+        model = nil
+
+        XCTAssertEqual(guardSpy.endCount, 1)
     }
 }

@@ -8,14 +8,18 @@ public struct TouchEditorRootView: View {
     @StateObject private var subscriptionStore: MobileSubscriptionStore
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 
     @State private var showsSourcesColumn = true
     @State private var showsInspectorColumn = true
     @State private var activeCompactSheet: CompactSheet?
     @State private var showsSettings = false
     @State private var showsPaywall = false
+    @State private var presentsPaywallAfterSheetDismiss = false
+    @State private var regularContentWidth = CGFloat.greatestFiniteMagnitude
 
     private let enforcesSubscription: Bool
+    private static let minimumTwoSidebarWidth: CGFloat = 1_040
 
     private enum CompactSheet: Int, Identifiable {
         case sources
@@ -48,7 +52,7 @@ public struct TouchEditorRootView: View {
                     toolbarContent(localizer: localizer)
                 }
         }
-        .sheet(item: $activeCompactSheet) { sheet in
+        .sheet(item: $activeCompactSheet, onDismiss: presentQueuedPaywall) { sheet in
             switch sheet {
             case .sources:
                 NavigationStack {
@@ -56,7 +60,7 @@ public struct TouchEditorRootView: View {
                         model: model,
                         subscriptionStore: activeSubscriptionStore,
                         localizer: localizer,
-                        showPaywall: { showsPaywall = true }
+                        showPaywall: requestPaywall
                     )
                         .navigationTitle(localizer.string("sources.title"))
                         .navigationBarTitleDisplayMode(.inline)
@@ -69,7 +73,7 @@ public struct TouchEditorRootView: View {
                 }
             }
         }
-        .sheet(isPresented: $showsSettings) {
+        .sheet(isPresented: $showsSettings, onDismiss: presentQueuedPaywall) {
             NavigationStack {
                 settingsView(localizer: localizer)
                     .navigationTitle(localizer.string("settings.title"))
@@ -90,7 +94,7 @@ public struct TouchEditorRootView: View {
         }
         .onChange(of: model.subscriptionPaywallRequestID) { _, _ in
             guard enforcesSubscription else { return }
-            showsPaywall = true
+            requestPaywall()
         }
         .task {
             if enforcesSubscription {
@@ -104,25 +108,31 @@ public struct TouchEditorRootView: View {
     @ViewBuilder
     private func content(localizer: TouchLocalizer) -> some View {
         if horizontalSizeClass == .regular {
-            HStack(spacing: 0) {
-                if showsSourcesColumn {
-                    TouchSourcesPanel(
-                        model: model,
-                        subscriptionStore: activeSubscriptionStore,
-                        localizer: localizer,
-                        showPaywall: { showsPaywall = true }
-                    )
-                        .frame(width: 340)
-                    Divider()
+            GeometryReader { proxy in
+                HStack(spacing: 0) {
+                    if showsSourcesColumn {
+                        TouchSourcesPanel(
+                            model: model,
+                            subscriptionStore: activeSubscriptionStore,
+                            localizer: localizer,
+                            showPaywall: requestPaywall
+                        )
+                            .frame(width: 340)
+                        Divider()
+                    }
+
+                    canvasColumn(localizer: localizer)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    if showsInspectorColumn {
+                        Divider()
+                        TouchInspectorPanel(model: model, localizer: localizer)
+                            .frame(width: 340)
+                    }
                 }
-
-                canvasColumn(localizer: localizer)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                if showsInspectorColumn {
-                    Divider()
-                    TouchInspectorPanel(model: model, localizer: localizer)
-                        .frame(width: 340)
+                .onAppear { updateRegularContentWidth(proxy.size.width) }
+                .onChange(of: proxy.size.width) { _, width in
+                    updateRegularContentWidth(width)
                 }
             }
         } else {
@@ -164,9 +174,7 @@ public struct TouchEditorRootView: View {
         ToolbarItemGroup(placement: .topBarLeading) {
             if horizontalSizeClass == .regular {
                 Button {
-                    withAnimation {
-                        showsSourcesColumn.toggle()
-                    }
+                    toggleSourcesSidebar()
                 } label: {
                     Image(systemName: "sidebar.leading")
                 }
@@ -209,9 +217,7 @@ public struct TouchEditorRootView: View {
 
             if horizontalSizeClass == .regular {
                 Button {
-                    withAnimation {
-                        showsInspectorColumn.toggle()
-                    }
+                    toggleInspectorSidebar()
                 } label: {
                     Image(systemName: "sidebar.trailing")
                 }
@@ -242,7 +248,7 @@ public struct TouchEditorRootView: View {
                     TouchSubscriptionStatusBlock(
                         subscriptionStore: activeSubscriptionStore,
                         localizer: localizer,
-                        showPaywall: { showsPaywall = true }
+                        showPaywall: requestPaywall
                     )
 
                     Button(localizer.string("paywall.restore")) {
@@ -266,6 +272,55 @@ public struct TouchEditorRootView: View {
 
     private var activeSubscriptionStore: MobileSubscriptionStore? {
         enforcesSubscription ? subscriptionStore : nil
+    }
+
+    private var usesSingleSidebarLayout: Bool {
+        horizontalSizeClass == .regular && regularContentWidth < Self.minimumTwoSidebarWidth
+    }
+
+    private func updateRegularContentWidth(_ width: CGFloat) {
+        regularContentWidth = width
+        if usesSingleSidebarLayout, showsSourcesColumn, showsInspectorColumn {
+            showsInspectorColumn = false
+        }
+    }
+
+    private func toggleSourcesSidebar() {
+        withAnimation(accessibilityReduceMotion ? nil : .default) {
+            if usesSingleSidebarLayout, !showsSourcesColumn {
+                showsInspectorColumn = false
+            }
+            showsSourcesColumn.toggle()
+        }
+    }
+
+    private func toggleInspectorSidebar() {
+        withAnimation(accessibilityReduceMotion ? nil : .default) {
+            if usesSingleSidebarLayout, !showsInspectorColumn {
+                showsSourcesColumn = false
+            }
+            showsInspectorColumn.toggle()
+        }
+    }
+
+    private func requestPaywall() {
+        if activeCompactSheet != nil {
+            presentsPaywallAfterSheetDismiss = true
+            activeCompactSheet = nil
+        } else if showsSettings {
+            presentsPaywallAfterSheetDismiss = true
+            showsSettings = false
+        } else {
+            showsPaywall = true
+        }
+    }
+
+    private func presentQueuedPaywall() {
+        guard presentsPaywallAfterSheetDismiss,
+              activeCompactSheet == nil,
+              !showsSettings else { return }
+        presentsPaywallAfterSheetDismiss = false
+        showsPaywall = true
     }
 
     private var sourceTitle: String {

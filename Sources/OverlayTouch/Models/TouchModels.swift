@@ -43,8 +43,52 @@ public enum TouchPresetSyncStatus: Equatable {
 public struct TouchSourceLoadFailure: Equatable {
     public var url: URL
     public var isSecurityScoped: Bool
+    public var isTemporaryImport = false
     public var messageKey: String
     public var detail: String
+}
+
+enum TouchTemporaryMovieStore {
+    static let importedFilePrefix = "photos-import-"
+
+    private static let lock = NSLock()
+    private static var retainedPaths: Set<String> = []
+
+    static func isManaged(_ url: URL) -> Bool {
+        url.deletingLastPathComponent().standardizedFileURL == FileManager.default.temporaryDirectory.standardizedFileURL
+            && url.lastPathComponent.hasPrefix(importedFilePrefix)
+    }
+
+    static func retain(_ url: URL) {
+        guard isManaged(url) else { return }
+        lock.lock()
+        retainedPaths.insert(url.standardizedFileURL.path)
+        lock.unlock()
+    }
+
+    static func release(_ url: URL) {
+        guard isManaged(url) else { return }
+        lock.lock()
+        retainedPaths.remove(url.standardizedFileURL.path)
+        lock.unlock()
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    static func removeStaleFiles() {
+        let fileManager = FileManager.default
+        lock.lock()
+        let pathsToKeep = retainedPaths
+        lock.unlock()
+        guard let entries = try? fileManager.contentsOfDirectory(
+            at: fileManager.temporaryDirectory,
+            includingPropertiesForKeys: nil
+        ) else { return }
+        for entry in entries
+        where entry.lastPathComponent.hasPrefix(importedFilePrefix)
+            && !pathsToKeep.contains(entry.standardizedFileURL.path) {
+            try? fileManager.removeItem(at: entry)
+        }
+    }
 }
 
 public struct TouchResolutionPreset: Identifiable, Hashable {

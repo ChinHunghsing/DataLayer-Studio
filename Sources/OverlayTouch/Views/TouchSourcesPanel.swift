@@ -101,17 +101,18 @@ struct TouchSourcesPanel: View {
                 LabeledContent(localizer.string("sources.duration")) {
                     Text(TouchStudioModel.formatSeconds(metadata.duration))
                 }
-            } else if let failure = model.videoLoadFailure {
+            } else {
+                Text(localizer.string("sources.videoEmptyHint"))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            if let failure = model.videoLoadFailure {
                 Label(failure.detail, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
                     .font(.callout)
                 Button(localizer.string("sources.retry")) {
                     model.retryVideoLoad()
                 }
-            } else {
-                Text(localizer.string("sources.videoEmptyHint"))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
             }
 
             if isImportingPhotosVideo {
@@ -152,7 +153,7 @@ struct TouchSourcesPanel: View {
                     return
                 }
                 model.setVideo(movie.url, isSecurityScoped: false)
-                TouchImportedMovie.removeStaleImportedFiles(keeping: movie.url)
+                TouchImportedMovie.removeStaleImportedFiles()
             } catch {
                 photosImportFailed = true
             }
@@ -175,17 +176,18 @@ struct TouchSourcesPanel: View {
                 LabeledContent(localizer.string("sources.duration")) {
                     Text(TouchStudioModel.formatSeconds(series.duration))
                 }
-            } else if let failure = model.activityLoadFailure {
+            } else {
+                Text(localizer.string("sources.activityEmptyHint"))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            if let failure = model.activityLoadFailure {
                 Label(failure.detail, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
                     .font(.callout)
                 Button(localizer.string("sources.retry")) {
                     model.retryActivityLoad()
                 }
-            } else {
-                Text(localizer.string("sources.activityEmptyHint"))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
             }
 
             Button {
@@ -328,7 +330,7 @@ struct TouchSourcesPanel: View {
 
 /// 照片图库视频经 FileRepresentation 拷贝到临时目录后导入。
 struct TouchImportedMovie: Transferable {
-    static let importedFilePrefix = "photos-import-"
+    static let importedFilePrefix = TouchTemporaryMovieStore.importedFilePrefix
 
     let url: URL
 
@@ -340,24 +342,20 @@ struct TouchImportedMovie: Transferable {
             let destination = FileManager.default.temporaryDirectory
                 .appendingPathComponent("\(importedFilePrefix)\(UUID().uuidString)")
                 .appendingPathExtension(fileExtension)
-            try FileManager.default.copyItem(at: received.file, to: destination)
+            TouchTemporaryMovieStore.retain(destination)
+            do {
+                try FileManager.default.copyItem(at: received.file, to: destination)
+            } catch {
+                TouchTemporaryMovieStore.release(destination)
+                throw error
+            }
             return TouchImportedMovie(url: destination)
         }
     }
 
     /// 导入的视频可达数 GB，替换素材或跨会话残留会持续占用存储，必须主动清理。
-    static func removeStaleImportedFiles(keeping keptURL: URL? = nil) {
-        let fileManager = FileManager.default
-        guard let entries = try? fileManager.contentsOfDirectory(
-            at: fileManager.temporaryDirectory,
-            includingPropertiesForKeys: nil
-        ) else { return }
-        for entry in entries where entry.lastPathComponent.hasPrefix(importedFilePrefix) {
-            if let keptURL, entry.standardizedFileURL == keptURL.standardizedFileURL {
-                continue
-            }
-            try? fileManager.removeItem(at: entry)
-        }
+    static func removeStaleImportedFiles() {
+        TouchTemporaryMovieStore.removeStaleFiles()
     }
 }
 #endif

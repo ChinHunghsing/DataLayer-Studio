@@ -107,6 +107,8 @@ public final class TouchStudioModel: ObservableObject {
     private var exportProgressSamples: [(date: Date, progress: Double)] = []
 
     private var scopedVideoAccess: ScopedResourceAccess?
+    private var activeTemporaryVideoURL: URL?
+    private var ownedTemporaryVideoURLs: Set<URL> = []
     private var undoStack: [LayoutSnapshot] = []
     private var redoStack: [LayoutSnapshot] = []
 
@@ -141,7 +143,11 @@ public final class TouchStudioModel: ObservableObject {
         previewRenderTask?.cancel()
         exportCancellationToken?.cancel()
         exportTask?.cancel()
+        runtimeGuard.exportDidEnd()
         scopedVideoAccess = nil
+        for url in ownedTemporaryVideoURLs {
+            TouchTemporaryMovieStore.release(url)
+        }
     }
 
     // MARK: - 素材导入
@@ -153,20 +159,30 @@ public final class TouchStudioModel: ObservableObject {
         videoLoadTask?.cancel()
         videoLoadGeneration += 1
         let loadGeneration = videoLoadGeneration
+        let candidateScopedAccess = isSecurityScoped ? ScopedResourceAccess(url: url) : nil
+        let isTemporaryImport = TouchTemporaryMovieStore.isManaged(url)
+        if isTemporaryImport {
+            TouchTemporaryMovieStore.retain(url)
+            ownedTemporaryVideoURLs.insert(url)
+        }
+        if let failedURL = videoLoadFailure?.url,
+           failedURL != activeTemporaryVideoURL,
+           failedURL != url,
+           ownedTemporaryVideoURLs.remove(failedURL) != nil {
+            TouchTemporaryMovieStore.release(failedURL)
+        }
 
-        scopedVideoAccess = isSecurityScoped ? ScopedResourceAccess(url: url) : nil
-        videoURL = nil
-        metadata = nil
-        sourceDuration = 0
         videoLoadFailure = nil
         setStatus("status.loadingVideo", url.lastPathComponent)
 
-        videoLoadTask = Task.detached {
+        videoLoadTask = Task.detached { [candidateScopedAccess] in
             do {
                 let loaded = try await VideoMetadata.loadAsync(from: url)
                 guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in
                     guard let self, self.videoLoadGeneration == loadGeneration else { return }
+                    let previousTemporaryVideoURL = self.activeTemporaryVideoURL
+                    self.scopedVideoAccess = candidateScopedAccess
                     self.videoURL = url
                     self.metadata = loaded
                     self.setOutputWidth(Int(loaded.size.width.rounded()))
@@ -182,6 +198,12 @@ public final class TouchStudioModel: ObservableObject {
                     self.setStatus("status.loadedVideo", url.lastPathComponent)
                     self.refreshOverlayOnly()
                     self.videoLoadTask = nil
+                    self.activeTemporaryVideoURL = isTemporaryImport ? url : nil
+                    if let previousTemporaryVideoURL,
+                       previousTemporaryVideoURL != self.activeTemporaryVideoURL {
+                        self.ownedTemporaryVideoURLs.remove(previousTemporaryVideoURL)
+                        TouchTemporaryMovieStore.release(previousTemporaryVideoURL)
+                    }
                 }
             } catch is CancellationError {
                 await MainActor.run { [weak self] in
@@ -195,6 +217,7 @@ public final class TouchStudioModel: ObservableObject {
                     self.videoLoadFailure = TouchSourceLoadFailure(
                         url: url,
                         isSecurityScoped: isSecurityScoped,
+                        isTemporaryImport: isTemporaryImport,
                         messageKey: "status.videoError",
                         detail: message
                     )
@@ -211,11 +234,6 @@ public final class TouchStudioModel: ObservableObject {
         activityLoadTask?.cancel()
         activityLoadGeneration += 1
         let loadGeneration = activityLoadGeneration
-        activityURL = nil
-        series = nil
-        activityTrim = .none
-        overlayImage = nil
-        previewWarning = nil
         activityLoadFailure = nil
         setStatus("status.loadingFit", url.lastPathComponent)
 
@@ -233,6 +251,9 @@ public final class TouchStudioModel: ObservableObject {
                     guard let self, self.activityLoadGeneration == loadGeneration else { return }
                     self.activityURL = url
                     self.series = parsedSeries
+                    self.activityTrim = .none
+                    self.overlayImage = nil
+                    self.previewWarning = nil
                     if self.videoURL == nil {
                         self.resetExportTrimRangeToFullDuration()
                     }

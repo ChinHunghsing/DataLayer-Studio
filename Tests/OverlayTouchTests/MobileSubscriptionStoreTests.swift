@@ -33,4 +33,22 @@ final class MobileSubscriptionStoreTests: XCTestCase {
                 .allowsExport(cachedExpirationDate: future, now: now)
         )
     }
+
+    func testExpiredVerifiedCurrentEntitlementMapsToGracePeriod() {
+        XCTAssertEqual(
+            MobileSubscriptionStore.verifiedCurrentEntitlementState(
+                bestExpiry: nil,
+                hasExpiredCurrentEntitlement: true,
+                usesIntroOffer: false
+            ),
+            .gracePeriod
+        )
+        XCTAssertNil(
+            MobileSubscriptionStore.verifiedCurrentEntitlementState(
+                bestExpiry: nil,
+                hasExpiredCurrentEntitlement: false,
+                usesIntroOffer: false
+            )
+        )
+    }
 }
