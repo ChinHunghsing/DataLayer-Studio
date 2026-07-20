@@ -260,7 +260,40 @@ final class TransparentVideoWriterTests: XCTestCase {
         XCTAssertTrue(fileManager.fileExists(atPath: currentURL.path))
     }
 
-    func testCompletedOutputInstallationRestoresExistingFileWhenCancelled() throws {
+    /// 同名导出必须原子替换，且不得在目标目录留下任何同级文件：沙盒下
+    /// NSSavePanel 只授权选中的文件本身，新建同级备份会越权报「没有权限」，
+    /// 而替换其实已经完成，用户会看到「文件正确却提示导出失败」。
+    func testCompletedOutputInstallationReplacesInPlaceWithoutSiblingFiles() throws {
+        let fileManager = FileManager.default
+        let destinationDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("datalayer-install-dir-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+        let outputURL = destinationDirectory.appendingPathComponent("output.mov")
+        let completedURL = fileManager.temporaryDirectory
+            .appendingPathComponent("datalayer-install-completed-\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        let replacement = Data("completed replacement".utf8)
+        try Data("existing output".utf8).write(to: outputURL)
+        try replacement.write(to: completedURL)
+        defer {
+            try? fileManager.removeItem(at: destinationDirectory)
+            try? fileManager.removeItem(at: completedURL)
+        }
+
+        try VideoExportSupport.installCompletedOutput(
+            from: completedURL,
+            to: outputURL,
+            cancellationHandler: nil
+        )
+
+        XCTAssertEqual(try Data(contentsOf: outputURL), replacement)
+        let remaining = try fileManager.contentsOfDirectory(
+            atPath: destinationDirectory.path
+        )
+        XCTAssertEqual(remaining, ["output.mov"], "目标目录不应残留备份等同级文件")
+    }
+
+    func testCompletedOutputInstallationThrowsWhenCancelledBeforeInstalling() throws {
         let fileManager = FileManager.default
         let outputURL = fileManager.temporaryDirectory
             .appendingPathComponent("datalayer-install-output-\(UUID().uuidString)")
@@ -269,9 +302,8 @@ final class TransparentVideoWriterTests: XCTestCase {
             .appendingPathComponent("datalayer-install-completed-\(UUID().uuidString)")
             .appendingPathExtension("mov")
         let original = Data("existing output".utf8)
-        let replacement = Data("completed replacement".utf8)
         try original.write(to: outputURL)
-        try replacement.write(to: completedURL)
+        try Data("completed replacement".utf8).write(to: completedURL)
         defer {
             try? fileManager.removeItem(at: outputURL)
             try? fileManager.removeItem(at: completedURL)
@@ -280,9 +312,7 @@ final class TransparentVideoWriterTests: XCTestCase {
         XCTAssertThrowsError(try VideoExportSupport.installCompletedOutput(
             from: completedURL,
             to: outputURL,
-            cancellationHandler: {
-                (try? Data(contentsOf: outputURL)) == replacement
-            }
+            cancellationHandler: { true }
         )) { error in
             guard case OverlayVideoError.cancelled = error else {
                 return XCTFail("Expected cancelled, got \(error)")

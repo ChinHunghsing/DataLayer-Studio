@@ -735,56 +735,40 @@ enum VideoExportSupport {
     ) throws {
         let fileManager = FileManager.default
         try throwIfCancelled(cancellationHandler)
+        guard fileManager.fileExists(atPath: completedURL.path) else {
+            throw OverlayVideoError.writerFailed(
+                "Completed output file is missing: \(completedURL.path)"
+            )
+        }
 
         if fileManager.fileExists(atPath: outputURL.path) {
-            let backupName = ".DLS-Backup-\(UUID().uuidString)-\(outputURL.lastPathComponent)"
-            let backupURL = outputURL.deletingLastPathComponent().appendingPathComponent(backupName)
+            // 沙盒下 NSSavePanel 只授权用户选中的文件本身，不授权它所在的目录。
+            // 传 backupItemName 会让 FileManager 在目标目录新建一个同级备份文件，
+            // 越权触发 NSFileWriteNoPermission；而替换此时已经完成，表现为
+            // "文件已正确替换但报导出失败"。backupItemName 为 nil 时原件暂存在
+            // FileManager 自己的临时目录，同样是原子替换，且不碰用户目录。
             do {
                 _ = try fileManager.replaceItemAt(
                     outputURL,
                     withItemAt: completedURL,
-                    backupItemName: backupName,
-                    options: [.withoutDeletingBackupItem]
+                    backupItemName: nil
                 )
+                return
             } catch {
-                if fileManager.fileExists(atPath: backupURL.path) {
-                    do {
-                        if fileManager.fileExists(atPath: outputURL.path) {
-                            _ = try fileManager.replaceItemAt(
-                                outputURL,
-                                withItemAt: backupURL,
-                                backupItemName: nil
-                            )
-                        } else {
-                            try fileManager.moveItem(at: backupURL, to: outputURL)
-                        }
-                    } catch {
-                        throw OverlayVideoError.writerFailed(
-                            "Could not restore the previous output after replacement failed. Backup: \(backupURL.path). \(error.localizedDescription)"
-                        )
-                    }
+                // 替换若已经生效（源文件被消费），即使随后抛错也不应判为失败。
+                if !fileManager.fileExists(atPath: completedURL.path) {
+                    return
                 }
-                throw error
             }
 
+            // 跨卷等 replaceItemAt 不支持的场景：退回显式删除 + 移动/复制。
             do {
-                try throwIfCancelled(cancellationHandler)
-                try? fileManager.removeItem(at: backupURL)
+                try fileManager.removeItem(at: outputURL)
             } catch {
-                do {
-                    _ = try fileManager.replaceItemAt(
-                        outputURL,
-                        withItemAt: backupURL,
-                        backupItemName: nil
-                    )
-                } catch {
-                    throw OverlayVideoError.writerFailed(
-                        "Could not restore the previous output after cancellation. Backup: \(backupURL.path). \(error.localizedDescription)"
-                    )
+                if !isMissingFileError(error) {
+                    throw error
                 }
-                throw error
             }
-            return
         }
 
         do {
@@ -806,6 +790,24 @@ enum VideoExportSupport {
             )
             try? fileManager.removeItem(at: completedURL)
         }
+    }
+
+    private static func isMissingFileError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        if nsError.domain == NSCocoaErrorDomain,
+           nsError.code == CocoaError.Code.fileNoSuchFile.rawValue {
+            return true
+        }
+        if nsError.domain == NSPOSIXErrorDomain,
+           nsError.code == Int(POSIXErrorCode.ENOENT.rawValue) {
+            return true
+        }
+        if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError,
+           underlyingError.domain == NSPOSIXErrorDomain,
+           underlyingError.code == Int(POSIXErrorCode.ENOENT.rawValue) {
+            return true
+        }
+        return false
     }
 
     private static func copyFile(
