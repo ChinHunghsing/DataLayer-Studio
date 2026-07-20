@@ -785,6 +785,16 @@ final class TelemetrySeriesTests: XCTestCase {
 }
 
 extension TelemetrySeriesTests {
+    func testHugeGapDoesNotExhaustResamplingBudget() {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0, speedMetersPerSecond: 1),
+            TelemetrySample(elapsed: 10_000_000, distanceMeters: 10, speedMetersPerSecond: 1)
+        ])
+
+        XCTAssertEqual(series.samples.count, 2)
+        XCTAssertEqual(series.samples.map(\.elapsed), [0, 10_000_000])
+    }
+
     private func pausedSeries() -> TelemetrySeries {
         // Timer axis: 0...20s, constant 3 m/s, distance 0→60. Wall axis: an 8-second pause at
         // wall 5s makes the recording span 28 seconds of real time.

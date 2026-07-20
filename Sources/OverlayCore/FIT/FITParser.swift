@@ -47,8 +47,12 @@ struct FITDeveloperFieldDescription {
             .filter { $0.isLetter || $0.isNumber }
     }
 
-    func scaledValue(_ value: Double) -> Double {
-        (value - (offset ?? 0)) / max(scale ?? 1, 0.000_001)
+    func scaledValue(_ value: Double) -> Double? {
+        let scale = scale ?? 1
+        let offset = offset ?? 0
+        guard value.isFinite, scale.isFinite, scale != 0, offset.isFinite else { return nil }
+        let scaled = value / scale - offset
+        return scaled.isFinite ? scaled : nil
     }
 }
 
@@ -147,6 +151,7 @@ private struct CompressedDistanceAccumulator {
 }
 
 public final class FITParser {
+    static let maximumFileSizeBytes = 64 * 1024 * 1024
     private let validateCRC: Bool
     private let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
     private let lapAnchorDistanceToleranceMeters = 25.0
@@ -161,7 +166,7 @@ public final class FITParser {
     }
 
     public func parse(url: URL) throws -> TelemetrySeries {
-        try parse(data: Data(contentsOf: url))
+        try parseActivity(url: url).series
     }
 
     public func parse(data: Data) throws -> TelemetrySeries {
@@ -169,10 +174,17 @@ public final class FITParser {
     }
 
     public func parseActivity(url: URL) throws -> ParsedActivity {
-        try parseActivity(data: Data(contentsOf: url))
+        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        if let fileSize = values.fileSize, fileSize > Self.maximumFileSizeBytes {
+            throw FITError.fileTooLarge(maximumBytes: Self.maximumFileSizeBytes, actualBytes: fileSize)
+        }
+        return try parseActivity(data: Data(contentsOf: url))
     }
 
     public func parseActivity(data: Data) throws -> ParsedActivity {
+        guard data.count <= Self.maximumFileSizeBytes else {
+            throw FITError.fileTooLarge(maximumBytes: Self.maximumFileSizeBytes, actualBytes: data.count)
+        }
         guard data.count >= 14 else { throw FITError.fileTooSmall }
 
         let headerSize = Int(data[0])
@@ -195,7 +207,7 @@ public final class FITParser {
             if headerSize >= 14 {
                 let expectedHeaderCRC = data.uint16(at: headerSize - 2, endian: .little)
                 let actualHeaderCRC = FITCRC.compute(data[0..<(headerSize - 2)])
-                guard expectedHeaderCRC == actualHeaderCRC else {
+                guard expectedHeaderCRC == 0 || expectedHeaderCRC == actualHeaderCRC else {
                     throw FITError.headerCRCMismatch(expected: expectedHeaderCRC, actual: actualHeaderCRC)
                 }
             }
@@ -306,10 +318,12 @@ public final class FITParser {
             timerStartTimestamps: timerStartTimestamps,
             sessionStartTimestamps: sessionStartTimestamps
         )
+        let sport = sessions.compactMap(\.sport).first.map { TelemetrySport(fitSportCode: $0) }
         let parsedSamples = samples(
             from: records,
             activityStartTimestamp: activityStartTimestamp,
             timerEvents: timerEvents,
+            sport: sport,
             caloriePoints: caloriePoints(
                 laps: laps,
                 sessions: sessions,
@@ -356,7 +370,6 @@ public final class FITParser {
         ) {
             series = TelemetrySeries(samples: series.samples + [correctedFinalSample], pausedRanges: pausedRanges)
         }
-        let sport = sessions.compactMap(\.sport).first.map { TelemetrySport(fitSportCode: $0) }
         return ParsedActivity(series: series, sport: sport)
     }
 
@@ -533,7 +546,7 @@ public final class FITParser {
             }
 
             if field.number == 253 {
-                timestamp = UInt32(value)
+                timestamp = exactInteger(value)
             }
 
             switch definition.globalMessageNumber {
@@ -548,9 +561,9 @@ public final class FITParser {
                         record.altitudeMeters = (value / 5) - 500
                     }
                 case 3:
-                    record.heartRate = Int(value)
+                    record.heartRate = exactInteger(value)
                 case 4:
-                    record.cadence = Int(value)
+                    record.cadence = exactInteger(value)
                 case 5:
                     record.distanceMeters = value / 100
                 case 6:
@@ -558,7 +571,7 @@ public final class FITParser {
                         record.speedMetersPerSecond = value / 1000
                     }
                 case 7:
-                    record.powerWatts = Int(value)
+                    record.powerWatts = exactInteger(value)
                 case 39:
                     record.verticalOscillationCentimeters = value / 100
                 case 40:
@@ -566,7 +579,7 @@ public final class FITParser {
                 case 41:
                     record.groundContactTimeMilliseconds = value / 10
                 case 13:
-                    record.temperatureCelsius = Int(value)
+                    record.temperatureCelsius = exactInteger(value)
                 case 53:
                     record.fractionalCadence = value / 128
                 case 73:
@@ -589,18 +602,18 @@ public final class FITParser {
             case 21:
                 switch field.number {
                 case 0:
-                    event.event = Int(value)
+                    event.event = exactInteger(value)
                 case 1:
-                    event.eventType = Int(value)
+                    event.eventType = exactInteger(value)
                 default:
                     continue
                 }
             case 18:
                 switch field.number {
                 case 2:
-                    session.startTime = UInt32(value)
+                    session.startTime = exactInteger(value)
                 case 5:
-                    session.sport = Int(value)
+                    session.sport = exactInteger(value)
                 case 7:
                     session.totalElapsedTimeSeconds = value / 1000
                 case 8:
@@ -608,14 +621,14 @@ public final class FITParser {
                 case 9:
                     session.totalDistanceMeters = value / 100
                 case 11:
-                    session.totalCalories = Int(value)
+                    session.totalCalories = exactInteger(value)
                 default:
                     continue
                 }
             case 19:
                 switch field.number {
                 case 2:
-                    lap.startTime = UInt32(value)
+                    lap.startTime = exactInteger(value)
                 case 7:
                     lap.totalElapsedTimeSeconds = value / 1000
                 case 8:
@@ -623,7 +636,7 @@ public final class FITParser {
                 case 9:
                     lap.totalDistanceMeters = value / 100
                 case 11:
-                    lap.totalCalories = Int(value)
+                    lap.totalCalories = exactInteger(value)
                 default:
                     continue
                 }
@@ -648,7 +661,8 @@ public final class FITParser {
                   ) else {
                 continue
             }
-            applyDeveloperRecordValue(description.scaledValue(value), description: description, to: &record)
+            guard let scaledValue = description.scaledValue(value) else { continue }
+            applyDeveloperRecordValue(scaledValue, description: description, to: &record)
         }
 
         record.timestamp = timestamp
@@ -673,11 +687,11 @@ public final class FITParser {
     ) {
         switch fieldNumber {
         case 0:
-            description.developerDataIndex = UInt8(value)
+            description.developerDataIndex = exactInteger(value)
         case 1:
-            description.fieldDefinitionNumber = UInt8(value)
+            description.fieldDefinitionNumber = exactInteger(value)
         case 2:
-            description.fitBaseTypeID = UInt8(value)
+            description.fitBaseTypeID = exactInteger(value)
         case 6:
             description.scale = value
         case 7:
@@ -687,6 +701,11 @@ public final class FITParser {
         }
     }
 
+    private func exactInteger<T: FixedWidthInteger>(_ value: Double) -> T? {
+        guard value.isFinite else { return nil }
+        return T(exactly: value)
+    }
+
     private func applyDeveloperRecordValue(
         _ value: Double,
         description: FITDeveloperFieldDescription,
@@ -694,9 +713,9 @@ public final class FITParser {
     ) {
         switch description.normalizedFieldName {
         case "airpower":
-            record.airPowerWatts = Int(value.rounded())
+            record.airPowerWatts = exactInteger(value.rounded())
         case "formpower":
-            record.formPowerWatts = Int(value.rounded())
+            record.formPowerWatts = exactInteger(value.rounded())
         case "legspringstiffness":
             record.legSpringStiffnessKilonewtonsPerMeter = value
         default:
@@ -708,6 +727,7 @@ public final class FITParser {
         from records: [RawFITRecord],
         activityStartTimestamp: UInt32?,
         timerEvents: [RawFITEvent],
+        sport: TelemetrySport?,
         caloriePoints: [CaloriePoint]
     ) -> [TelemetrySample] {
         let timestampedRecords = records.filter { $0.timestamp != nil }
@@ -737,7 +757,7 @@ public final class FITParser {
                 longitude: record.longitude,
                 altitudeMeters: record.altitudeMeters,
                 heartRate: record.heartRate,
-                cadence: cadenceStepsPerMinute(record),
+                cadence: cadenceValue(record, sport: sport),
                 distanceMeters: record.distanceMeters,
                 speedMetersPerSecond: record.speedMetersPerSecond,
                 powerWatts: record.powerWatts,
@@ -770,7 +790,7 @@ public final class FITParser {
                 longitude: firstRecord.longitude,
                 altitudeMeters: firstRecord.altitudeMeters,
                 heartRate: firstRecord.heartRate,
-                cadence: cadenceStepsPerMinute(firstRecord).map { _ in 0 },
+                cadence: cadenceValue(firstRecord, sport: sport).map { _ in 0 },
                 distanceMeters: syntheticStartDistance(firstRecord, elapsed: firstSample.elapsed),
                 speedMetersPerSecond: firstRecord.speedMetersPerSecond,
                 powerWatts: firstRecord.powerWatts,
@@ -1110,9 +1130,10 @@ public final class FITParser {
             .min()
     }
 
-    private func cadenceStepsPerMinute(_ record: RawFITRecord) -> Int? {
+    private func cadenceValue(_ record: RawFITRecord, sport: TelemetrySport?) -> Int? {
         guard let cadence = record.cadence else { return nil }
-        return Int(((Double(cadence) + (record.fractionalCadence ?? 0)) * 2).rounded())
+        let multiplier = sport == .cycling ? 1.0 : 2.0
+        return exactInteger(((Double(cadence) + (record.fractionalCadence ?? 0)) * multiplier).rounded())
     }
 
     private func syntheticStartDistance(_ record: RawFITRecord, elapsed: TimeInterval) -> Double? {

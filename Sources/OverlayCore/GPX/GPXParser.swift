@@ -2,6 +2,7 @@ import Foundation
 
 public enum GPXError: Error, CustomStringConvertible, LocalizedError {
     case unreadable(String)
+    case fileTooLarge(maximumBytes: Int, actualBytes: Int)
     case malformedXML(String)
     case noTrackPoints
 
@@ -9,6 +10,8 @@ public enum GPXError: Error, CustomStringConvertible, LocalizedError {
         switch self {
         case let .unreadable(message):
             return "GPX file could not be read: \(message)."
+        case let .fileTooLarge(maximumBytes, actualBytes):
+            return "GPX file is too large. Maximum is \(maximumBytes) bytes, found \(actualBytes)."
         case let .malformedXML(message):
             return "GPX XML is malformed: \(message)."
         case .noTrackPoints:
@@ -22,11 +25,13 @@ public enum GPXError: Error, CustomStringConvertible, LocalizedError {
 }
 
 public final class GPXParser {
+    static let maximumFileSizeBytes = 64 * 1024 * 1024
+
     public init() {}
 
     public func parse(url: URL) throws -> TelemetrySeries {
         do {
-            return try parse(data: Data(contentsOf: url))
+            return try parseActivity(url: url).series
         } catch let error as GPXError {
             throw error
         } catch {
@@ -36,6 +41,10 @@ public final class GPXParser {
 
     public func parseActivity(url: URL) throws -> ParsedActivity {
         do {
+            let values = try url.resourceValues(forKeys: [.fileSizeKey])
+            if let fileSize = values.fileSize, fileSize > Self.maximumFileSizeBytes {
+                throw GPXError.fileTooLarge(maximumBytes: Self.maximumFileSizeBytes, actualBytes: fileSize)
+            }
             return try parseActivity(data: Data(contentsOf: url))
         } catch let error as GPXError {
             throw error
@@ -49,6 +58,9 @@ public final class GPXParser {
     }
 
     public func parseActivity(data: Data) throws -> ParsedActivity {
+        guard data.count <= Self.maximumFileSizeBytes else {
+            throw GPXError.fileTooLarge(maximumBytes: Self.maximumFileSizeBytes, actualBytes: data.count)
+        }
         let delegate = GPXParserDelegate()
         let parser = XMLParser(data: data)
         parser.shouldProcessNamespaces = false
@@ -69,45 +81,66 @@ public final class GPXParser {
             throw GPXError.noTrackPoints
         }
 
-        let series = TelemetrySeries(samples: samples(from: delegate.points))
         let sport = delegate.trackTypeText.flatMap { TelemetrySport(gpxTypeText: $0) }
+        let series = TelemetrySeries(samples: samples(from: delegate.points, sport: sport))
         return ParsedActivity(series: series, sport: sport)
     }
 
-    private func samples(from points: [RawGPXTrackPoint]) -> [TelemetrySample] {
-        let firstDate = points.compactMap(\.date).first
+    private func samples(from points: [RawGPXTrackPoint], sport: TelemetrySport?) -> [TelemetrySample] {
+        let elapsedValues = monotonicElapsedValues(for: points)
         return points.enumerated().map { index, point in
-            let elapsed: TimeInterval
-            if let date = point.date, let firstDate {
-                elapsed = max(0, date.timeIntervalSince(firstDate))
-            } else {
-                elapsed = TimeInterval(index)
-            }
-
             return TelemetrySample(
-                elapsed: elapsed,
+                elapsed: elapsedValues[index],
                 date: point.date,
                 latitude: point.latitude,
                 longitude: point.longitude,
                 altitudeMeters: point.altitudeMeters,
                 heartRate: point.heartRate,
-                cadence: point.cadence.map(Self.cadenceStepsPerMinute),
+                cadence: point.cadence.flatMap { Self.cadenceValue($0, sport: sport) },
                 distanceMeters: point.distanceMeters,
                 speedMetersPerSecond: point.speedMetersPerSecond,
                 powerWatts: point.powerWatts,
                 totalCalories: point.totalCalories,
                 stepLengthMeters: point.stepLengthMeters,
-                temperatureCelsius: point.temperatureCelsius
+                temperatureCelsius: point.temperatureCelsius,
+                trackSegmentIndex: point.trackSegmentIndex
             )
         }
     }
 
-    private static func cadenceStepsPerMinute(_ rawCadence: Int) -> Int {
-        rawCadence < 130 ? rawCadence * 2 : rawCadence
+    private func monotonicElapsedValues(for points: [RawGPXTrackPoint]) -> [TimeInterval] {
+        guard let firstDatedIndex = points.firstIndex(where: { $0.date != nil }),
+              let firstDate = points[firstDatedIndex].date else {
+            return points.indices.map(TimeInterval.init)
+        }
+
+        var previous: TimeInterval?
+        return points.enumerated().map { index, point in
+            let candidate = point.date.map {
+                $0.timeIntervalSince(firstDate) + TimeInterval(firstDatedIndex)
+            } ?? ((previous ?? -1) + 1)
+            let elapsed: TimeInterval
+            if let previous, candidate <= previous {
+                elapsed = previous + 1
+            } else {
+                elapsed = max(0, candidate)
+            }
+            previous = elapsed
+            return elapsed
+        }
+    }
+
+    private static func cadenceValue(_ rawCadence: Int, sport: TelemetrySport?) -> Int? {
+        guard rawCadence >= 0 else { return nil }
+        if sport == .cycling {
+            return rawCadence
+        }
+        return rawCadence < 130 ? rawCadence * 2 : rawCadence
     }
 }
 
 private struct RawGPXTrackPoint {
+    var trackSegmentIndex: Int?
     var latitude: Double?
     var longitude: Double?
     var altitudeMeters: Double?
@@ -155,6 +188,8 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
     var error: GPXError?
 
     private var currentPoint: RawGPXTrackPoint?
+    private var currentTrackSegmentIndex: Int?
+    private var nextTrackSegmentIndex = 0
     private var currentElement: String?
     private var textBuffer = ""
     private var isCapturingTrackType = false
@@ -167,8 +202,13 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
         attributes attributeDict: [String: String] = [:]
     ) {
         let name = normalizedElementName(elementName)
+        if name == "trkseg" {
+            currentTrackSegmentIndex = nextTrackSegmentIndex
+            nextTrackSegmentIndex += 1
+        }
         if name == "trkpt" {
             currentPoint = RawGPXTrackPoint(
+                trackSegmentIndex: currentTrackSegmentIndex,
                 latitude: double(attributeDict["lat"]),
                 longitude: double(attributeDict["lon"])
             )
@@ -197,6 +237,9 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
         qualifiedName qName: String?
     ) {
         let name = normalizedElementName(elementName)
+        if name == "trkseg" {
+            currentTrackSegmentIndex = nil
+        }
         if isCapturingTrackType, name == "type" {
             let text = textBuffer.trimmingCharacters(in: .whitespacesAndNewlines)
             trackTypeText = text.isEmpty ? nil : text
@@ -275,6 +318,6 @@ private final class GPXParserDelegate: NSObject, XMLParserDelegate {
 
     private func integer(_ value: String?) -> Int? {
         guard let parsed = double(value) else { return nil }
-        return Int(parsed.rounded())
+        return Int(exactly: parsed.rounded())
     }
 }

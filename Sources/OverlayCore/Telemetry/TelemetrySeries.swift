@@ -30,6 +30,8 @@ public struct TelemetrySeries: Equatable {
     /// excluded); every public time-based API works on the wall axis and converts internally.
     public let pausedRanges: [TelemetryPausedRange]
     private static let resampleInterval: TimeInterval = 1
+    /// Preserve every source sample, but never amplify sparse/untrusted input beyond this total.
+    private static let maximumResampledSampleCount = 100_000
     /// 距离导出补速的段时长下限：只排除锚点/末帧插入产生的亚秒合成段，
     /// 设备真实记录间隔不短于 0.25s 的场合不受影响
     private static let minimumSpeedDerivationSegmentSeconds: TimeInterval = 0.5
@@ -203,6 +205,9 @@ public struct TelemetrySeries: Equatable {
 
         let a = samples[low]
         let b = samples[high]
+        if Self.isTrackSegmentBreak(from: a, to: b) {
+            return Self.heldSample(a, at: elapsed)
+        }
         let span = max(b.elapsed - a.elapsed, 0.000_001)
         let fraction = min(1, max(0, (elapsed - a.elapsed) / span))
         return interpolate(a, b, fraction: fraction, elapsed: elapsed)
@@ -351,8 +356,22 @@ public struct TelemetrySeries: Equatable {
             temperatureCelsius: nearest(a.temperatureCelsius, b.temperatureCelsius, fraction: fraction),
             weatherTemperatureCelsius: nearest(a.weatherTemperatureCelsius, b.weatherTemperatureCelsius, fraction: fraction),
             weatherHumidityPercent: nearest(a.weatherHumidityPercent, b.weatherHumidityPercent, fraction: fraction),
-            weatherSummary: nearest(a.weatherSummary, b.weatherSummary, fraction: fraction)
+            weatherSummary: nearest(a.weatherSummary, b.weatherSummary, fraction: fraction),
+            trackSegmentIndex: fraction < 1 ? a.trackSegmentIndex : b.trackSegmentIndex
         )
+    }
+
+    private static func isTrackSegmentBreak(from a: TelemetrySample, to b: TelemetrySample) -> Bool {
+        a.trackSegmentIndex != b.trackSegmentIndex
+    }
+
+    private static func heldSample(_ sample: TelemetrySample, at elapsed: TimeInterval) -> TelemetrySample {
+        var held = sample
+        held.elapsed = elapsed
+        if let date = sample.date {
+            held.date = date.addingTimeInterval(elapsed - sample.elapsed)
+        }
+        return held
     }
 
     private static func interpolate(_ a: Double?, _ b: Double?, fraction: Double) -> Double? {
@@ -413,6 +432,7 @@ public struct TelemetrySeries: Equatable {
                 accumulatedDistance = max(accumulatedDistance, max(0, distance - firstDistance))
             } else if
                 let previousInput,
+                !isTrackSegmentBreak(from: previousInput, to: input),
                 let prevLat = previousInput.latitude,
                 let prevLon = previousInput.longitude,
                 let lat = input.latitude,
@@ -493,6 +513,11 @@ public struct TelemetrySeries: Equatable {
         guard samples[..<targetIndex].allSatisfy({ ($0.distanceMeters ?? 0) <= distanceEpsilon }) else {
             return samples
         }
+        guard !(1...targetIndex).contains(where: {
+            isTrackSegmentBreak(from: samples[$0 - 1], to: samples[$0])
+        }) else {
+            return samples
+        }
 
         var output = samples
         for index in 0..<targetIndex {
@@ -516,6 +541,7 @@ public struct TelemetrySeries: Equatable {
         for index in 0..<(samples.count - 1) {
             let current = output[index]
             let next = output[index + 1]
+            guard !isTrackSegmentBreak(from: current, to: next) else { continue }
             guard let currentDistance = current.distanceMeters,
                   let nextDistance = next.distanceMeters else {
                 continue
@@ -557,9 +583,14 @@ public struct TelemetrySeries: Equatable {
         }
 
         var referenceAltitude: Double?
+        var previous: TelemetrySample?
         var totalAscent = 0.0
         return samples.map { input in
             var sample = input
+            if let previous, isTrackSegmentBreak(from: previous, to: input) {
+                referenceAltitude = nil
+            }
+            previous = input
             guard let altitude = input.altitudeMeters, altitude.isFinite else {
                 sample.totalAscentMeters = totalAscent
                 return sample
@@ -612,6 +643,10 @@ public struct TelemetrySeries: Equatable {
             let previous = samples[index - 1]
             let current = samples[index]
             let next = samples[index + 1]
+            guard !isTrackSegmentBreak(from: previous, to: current),
+                  !isTrackSegmentBreak(from: current, to: next) else {
+                continue
+            }
             if let protectedStartElapsed, current.elapsed >= protectedStartElapsed {
                 break
             }
@@ -676,6 +711,11 @@ public struct TelemetrySeries: Equatable {
               target.elapsed > first.elapsed else {
             return samples
         }
+        guard !(1...targetIndex).contains(where: {
+            isTrackSegmentBreak(from: samples[$0 - 1], to: samples[$0])
+        }) else {
+            return samples
+        }
         guard samples[..<targetIndex].allSatisfy({ ($0.cadence ?? 0) <= 0 }) else {
             return samples
         }
@@ -689,6 +729,14 @@ public struct TelemetrySeries: Equatable {
                 targetCadence: targetCadence,
                 catchUp: catchUp
             )
+        }
+
+        let gap = target.elapsed - first.elapsed
+        let requiredInsertions = ceil(gap / interval) - 1
+        let availableInsertions = max(0, maximumResampledSampleCount - output.count)
+        guard requiredInsertions.isFinite,
+              requiredInsertions <= Double(availableInsertions) else {
+            return output
         }
 
         var elapsed = first.elapsed + interval
@@ -751,6 +799,9 @@ public struct TelemetrySeries: Equatable {
 
         let a = samples[low]
         let b = samples[high]
+        if isTrackSegmentBreak(from: a, to: b) {
+            return heldSample(a, at: elapsed)
+        }
         let span = max(b.elapsed - a.elapsed, 0.000_001)
         let fraction = min(1, max(0, (elapsed - a.elapsed) / span))
         return interpolate(a, b, fraction: fraction, elapsed: elapsed)
@@ -1592,6 +1643,7 @@ public struct TelemetrySeries: Equatable {
 
         var output: [TelemetrySample] = []
         output.reserveCapacity(samples.count)
+        var availableInsertions = max(0, maximumResampledSampleCount - samples.count)
 
         for index in 0..<(samples.count - 1) {
             let current = samples[index]
@@ -1601,7 +1653,18 @@ public struct TelemetrySeries: Equatable {
             }
 
             let gap = next.elapsed - current.elapsed
-            guard gap > interval else { continue }
+            guard gap.isFinite,
+                  gap > interval,
+                  !isTrackSegmentBreak(from: current, to: next) else {
+                continue
+            }
+
+            let requiredInsertions = ceil(gap / interval) - 1
+            guard requiredInsertions.isFinite,
+                  requiredInsertions <= Double(availableInsertions) else {
+                continue
+            }
+            availableInsertions -= Int(requiredInsertions)
 
             var elapsed = current.elapsed + interval
             while elapsed < next.elapsed {

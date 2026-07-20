@@ -2,6 +2,7 @@ import Foundation
 
 public enum FITError: Error, CustomStringConvertible {
     case fileTooSmall
+    case fileTooLarge(maximumBytes: Int, actualBytes: Int)
     case unsupportedHeaderSize(Int)
     case invalidSignature
     case truncatedFile(expected: Int, actual: Int)
@@ -15,6 +16,8 @@ public enum FITError: Error, CustomStringConvertible {
         switch self {
         case .fileTooSmall:
             return "FIT file is too small to contain a valid header."
+        case let .fileTooLarge(maximumBytes, actualBytes):
+            return "FIT file is too large. Maximum is \(maximumBytes) bytes, found \(actualBytes)."
         case let .unsupportedHeaderSize(size):
             return "Unsupported FIT header size \(size)."
         case .invalidSignature:
@@ -34,4 +37,3 @@ public enum FITError: Error, CustomStringConvertible {
         }
     }
 }
-

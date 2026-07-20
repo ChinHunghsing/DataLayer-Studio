@@ -28,6 +28,8 @@ public struct TelemetrySample: Equatable {
     public var weatherTemperatureCelsius: Int?
     public var weatherHumidityPercent: Int?
     public var weatherSummary: String?
+    /// Optional source track segment. `nil` keeps legacy FIT/programmatic samples continuous.
+    public var trackSegmentIndex: Int?
 
     public init(
         elapsed: TimeInterval,
@@ -56,7 +58,8 @@ public struct TelemetrySample: Equatable {
         temperatureCelsius: Int? = nil,
         weatherTemperatureCelsius: Int? = nil,
         weatherHumidityPercent: Int? = nil,
-        weatherSummary: String? = nil
+        weatherSummary: String? = nil,
+        trackSegmentIndex: Int? = nil
     ) {
         self.elapsed = elapsed
         self.date = date
@@ -85,5 +88,6 @@ public struct TelemetrySample: Equatable {
         self.weatherTemperatureCelsius = weatherTemperatureCelsius
         self.weatherHumidityPercent = weatherHumidityPercent
         self.weatherSummary = weatherSummary
+        self.trackSegmentIndex = trackSegmentIndex
     }
 }

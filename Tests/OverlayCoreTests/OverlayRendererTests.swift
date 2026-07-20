@@ -419,6 +419,33 @@ final class OverlayRendererTests: XCTestCase {
         ]))
     }
 
+    func testRoutePathStartsNewSubpathAtTrackSegmentBoundary() throws {
+        let bounds = GeoBounds(minLatitude: 0, maxLatitude: 10, minLongitude: 0, maxLongitude: 10)
+        let samples = [
+            TelemetrySample(elapsed: 0, latitude: 1, longitude: 1, trackSegmentIndex: 0),
+            TelemetrySample(elapsed: 1, latitude: 2, longitude: 2, trackSegmentIndex: 0),
+            TelemetrySample(elapsed: 2, latitude: 8, longitude: 8, trackSegmentIndex: 1),
+            TelemetrySample(elapsed: 3, latitude: 9, longitude: 9, trackSegmentIndex: 1)
+        ]
+        let points = samples.compactMap { RoutePoint(sample: $0, bounds: bounds) }
+        let path = try XCTUnwrap(OverlayRenderer.routePath(points, in: CGRect(x: 0, y: 0, width: 100, height: 100)))
+        var moveCount = 0
+        var lineCount = 0
+        path.applyWithBlock { element in
+            switch element.pointee.type {
+            case .moveToPoint:
+                moveCount += 1
+            case .addLineToPoint:
+                lineCount += 1
+            default:
+                break
+            }
+        }
+
+        XCTAssertEqual(moveCount, 2)
+        XCTAssertEqual(lineCount, 2)
+    }
+
     private func makeSamples(count: Int) -> [TelemetrySample] {
         (0..<count).map { index in
             TelemetrySample(

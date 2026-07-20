@@ -1002,6 +1002,9 @@ public final class OverlayRenderer {
         guard adjustedBeforeIndex != afterIndex else { return nil }
         let before = routePoints[adjustedBeforeIndex].point(in: rect)
         let after = routePoints[afterIndex].point(in: rect)
+        guard routePoints[adjustedBeforeIndex].trackSegmentIndex == routePoints[afterIndex].trackSegmentIndex else {
+            return nil
+        }
         return Self.routeDirectionAngle(before: before, after: after)
     }
 
@@ -1710,12 +1713,18 @@ public final class OverlayRenderer {
         return cache
     }
 
-    private static func routePath<Points: Collection>(_ points: Points, in rect: CGRect) -> CGPath? where Points.Element == RoutePoint {
+    static func routePath<Points: Collection>(_ points: Points, in rect: CGRect) -> CGPath? where Points.Element == RoutePoint {
         guard let first = points.first else { return nil }
         let path = CGMutablePath()
         path.move(to: first.point(in: rect))
+        var previousSegmentIndex = first.trackSegmentIndex
         for point in points.dropFirst() {
-            path.addLine(to: point.point(in: rect))
+            if point.trackSegmentIndex != previousSegmentIndex {
+                path.move(to: point.point(in: rect))
+            } else {
+                path.addLine(to: point.point(in: rect))
+            }
+            previousSegmentIndex = point.trackSegmentIndex
         }
         return path
     }
@@ -1760,10 +1769,11 @@ public final class OverlayRenderer {
     }
 }
 
-private struct RoutePoint {
+struct RoutePoint {
     let elapsed: TimeInterval
     let normalizedX: CGFloat
     let normalizedY: CGFloat
+    let trackSegmentIndex: Int?
 
     init?(sample: TelemetrySample, bounds: GeoBounds) {
         guard let latitude = sample.latitude, let longitude = sample.longitude else { return nil }
@@ -1772,6 +1782,7 @@ private struct RoutePoint {
         self.elapsed = sample.elapsed
         self.normalizedX = CGFloat((longitude - bounds.minLongitude) / lonSpan)
         self.normalizedY = CGFloat((latitude - bounds.minLatitude) / latSpan)
+        self.trackSegmentIndex = sample.trackSegmentIndex
     }
 
     func point(in rect: CGRect) -> CGPoint {

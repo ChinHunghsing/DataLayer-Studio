@@ -651,6 +651,81 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(TelemetrySport(fitSportCode: 99), .generic)
     }
 
+    func testCyclingCadenceRemainsRPM() throws {
+        var content = Data()
+        appendSessionSportDefinition(localMessageType: 2, to: &content)
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendSessionSport(timestamp: 1_000_030, startTime: 1_000_000, sport: 2, localMessageType: 2, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_000, latitude: 35, longitude: 139, distanceMeters: 0, speed: 8, heartRate: 130, cadence: 90),
+            localMessageType: 0,
+            to: &content
+        )
+
+        let parsed = try FITParser().parseActivity(data: makeFITFile(content: content))
+
+        XCTAssertEqual(parsed.sport, .cycling)
+        XCTAssertEqual(parsed.series.samples[0].cadence, 90)
+    }
+
+    func testAllowsZeroOptionalHeaderCRC() throws {
+        var content = Data()
+        appendStandardRecordDefinition(localMessageType: 0, to: &content)
+        appendRecord(
+            TestRecord(timestamp: 1_000_000, latitude: 35, longitude: 139, distanceMeters: 0, speed: 3, heartRate: 150, cadence: 80),
+            localMessageType: 0,
+            to: &content
+        )
+
+        let series = try FITParser().parse(data: makeFITFileWithZeroHeaderCRC(content: content))
+
+        XCTAssertEqual(series.samples[0].heartRate, 150)
+    }
+
+    func testRejectsOversizedInputBeforeParsing() {
+        let data = Data(count: FITParser.maximumFileSizeBytes + 1)
+
+        XCTAssertThrowsError(try FITParser().parse(data: data)) { error in
+            guard case FITError.fileTooLarge = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    func testRejectsOutOfRangeFloatingIntegersWithoutTrapping() {
+        var content = Data()
+        appendFloatingIntegerRecordDefinition(localMessageType: 0, to: &content)
+        appendFloatingIntegerRecord(
+            timestamp: .greatestFiniteMagnitude,
+            heartRate: .greatestFiniteMagnitude,
+            localMessageType: 0,
+            to: &content
+        )
+
+        XCTAssertThrowsError(try FITParser().parse(data: makeFITFile(content: content))) { error in
+            guard case FITError.noRecordMessages = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    func testFieldDecoderRejectsNonFiniteAndCorrectInvalidSentinels() {
+        var infinity = Data()
+        appendFloat64(.infinity, to: &infinity)
+
+        XCTAssertNil(FITFieldDecoder.number(bytes: Array(infinity), baseType: 0x89, endian: .little))
+        XCTAssertNil(FITFieldDecoder.number(bytes: Array(repeating: 0xFF, count: 8), baseType: 0x8F, endian: .little))
+        XCTAssertEqual(FITFieldDecoder.number(bytes: Array(repeating: 0, count: 8), baseType: 0x8F, endian: .little), 0)
+        XCTAssertNil(FITFieldDecoder.number(bytes: Array(repeating: 0, count: 8), baseType: 0x90, endian: .little))
+        XCTAssertNil(FITFieldDecoder.number(bytes: [0xFF], baseType: 0x0D, endian: .little))
+    }
+
+    func testDeveloperFieldUsesFITScaleThenOffsetFormula() {
+        let description = FITDeveloperFieldDescription(scale: 2, offset: 10)
+
+        XCTAssertEqual(description.scaledValue(100) ?? -1, 40, accuracy: 0.000_001)
+    }
+
     func testRejectsCRCByDefault() throws {
         var fit = makeFITFile(records: [
             TestRecord(timestamp: 1_000_000, latitude: 35.0, longitude: 139.0, distanceMeters: 0, speed: 3.0, heartRate: 150, cadence: 80)
@@ -698,6 +773,40 @@ private func makeFITFile(content: Data) -> Data {
     file.append(content)
     appendUInt16(FITCRC.compute(file), to: &file)
     return file
+}
+
+private func makeFITFileWithZeroHeaderCRC(content: Data) -> Data {
+    var file = Data()
+    file.append(14)
+    file.append(0x10)
+    appendUInt16(0, to: &file)
+    appendUInt32(UInt32(content.count), to: &file)
+    file.append(contentsOf: [UInt8(ascii: "."), UInt8(ascii: "F"), UInt8(ascii: "I"), UInt8(ascii: "T")])
+    appendUInt16(0, to: &file)
+    file.append(content)
+    appendUInt16(FITCRC.compute(file), to: &file)
+    return file
+}
+
+private func appendFloatingIntegerRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(20, to: &content)
+    content.append(2)
+    content.append(contentsOf: [253, 8, 0x89])
+    content.append(contentsOf: [3, 8, 0x89])
+}
+
+private func appendFloatingIntegerRecord(
+    timestamp: Double,
+    heartRate: Double,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    appendFloat64(timestamp, to: &content)
+    appendFloat64(heartRate, to: &content)
 }
 
 private func appendStandardRecordDefinition(localMessageType: UInt8, to content: inout Data) {
@@ -1144,6 +1253,12 @@ private func appendInt32(_ value: Int32, to data: inout Data) {
 
 private func appendFloat32(_ value: Float, to data: inout Data) {
     appendUInt32(value.bitPattern, to: &data)
+}
+
+private func appendFloat64(_ value: Double, to data: inout Data) {
+    let bits = value.bitPattern
+    appendUInt32(UInt32(bits & 0xFFFF_FFFF), to: &data)
+    appendUInt32(UInt32(bits >> 32), to: &data)
 }
 
 private func appendPaddedString(_ value: String, byteCount: Int, to data: inout Data) {

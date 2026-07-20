@@ -17,22 +17,24 @@ enum FITFieldDecoder {
             return nil
         }
 
+        let value: Double
         switch baseNumber {
         case 1:
-            return Double(Int8(bitPattern: UInt8(raw & 0xFF)))
+            value = Double(Int8(bitPattern: UInt8(raw & 0xFF)))
         case 3:
-            return Double(Int16(bitPattern: UInt16(raw & 0xFFFF)))
+            value = Double(Int16(bitPattern: UInt16(raw & 0xFFFF)))
         case 5:
-            return Double(Int32(bitPattern: UInt32(raw & 0xFFFF_FFFF)))
+            value = Double(Int32(bitPattern: UInt32(raw & 0xFFFF_FFFF)))
         case 8:
-            return Double(Float(bitPattern: UInt32(raw & 0xFFFF_FFFF)))
+            value = Double(Float(bitPattern: UInt32(raw & 0xFFFF_FFFF)))
         case 9:
-            return Double(bitPattern: raw)
+            value = Double(bitPattern: raw)
         case 14:
-            return Double(Int64(bitPattern: raw))
+            value = Double(Int64(bitPattern: raw))
         default:
-            return Double(raw)
+            value = Double(raw)
         }
+        return value.isFinite ? value : nil
     }
 
     private static func byteWidth(forBaseNumber baseNumber: UInt8) -> Int {
@@ -79,8 +81,10 @@ enum FITFieldDecoder {
             return raw == 0x7FFF_FFFF
         case 6:
             return raw == 0xFFFF_FFFF
-        case 10, 11, 12, 15, 16:
+        case 10, 11, 12, 16:
             return raw == 0
+        case 15:
+            return raw == UInt64.max
         case 14:
             return raw == 0x7FFF_FFFF_FFFF_FFFF
         case 8:
@@ -88,7 +92,7 @@ enum FITFieldDecoder {
         case 9:
             return raw == 0xFFFF_FFFF_FFFF_FFFF
         case 13:
-            return false
+            return raw == 0xFF
         default:
             return raw == (width >= 8 ? UInt64.max : ((UInt64(1) << UInt64(width * 8)) - 1))
         }

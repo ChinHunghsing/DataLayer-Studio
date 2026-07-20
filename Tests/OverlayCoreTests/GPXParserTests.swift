@@ -64,6 +64,79 @@ final class GPXParserTests: XCTestCase {
             }
         }
     }
+
+    func testRejectsOversizedInputBeforeParsing() {
+        let data = Data(count: GPXParser.maximumFileSizeBytes + 1)
+
+        XCTAssertThrowsError(try GPXParser().parse(data: data)) { error in
+            guard case GPXError.fileTooLarge = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    func testIgnoresOutOfRangeIntegerExtensionsWithoutTrapping() throws {
+        let gpx = """
+        <gpx><trk><trkseg><trkpt lat="35" lon="139">
+          <extensions><hr>1e300</hr><cadence>-1e300</cadence></extensions>
+        </trkpt></trkseg></trk></gpx>
+        """
+
+        let sample = try GPXParser().parse(data: Data(gpx.utf8)).samples[0]
+
+        XCTAssertNil(sample.heartRate)
+        XCTAssertNil(sample.cadence)
+    }
+
+    func testMissingTimestampsProduceStrictlyIncreasingElapsedValues() throws {
+        let gpx = """
+        <gpx><trk><trkseg>
+          <trkpt lat="35.0000" lon="139.0000" />
+          <trkpt lat="35.0001" lon="139.0001"><time>2026-06-27T21:32:53Z</time></trkpt>
+          <trkpt lat="35.0002" lon="139.0002" />
+        </trkseg></trk></gpx>
+        """
+
+        let samples = try GPXParser().parse(data: Data(gpx.utf8)).samples
+
+        XCTAssertEqual(samples.map(\.elapsed), [0, 1, 2])
+    }
+
+    func testTrackSegmentsDoNotBridgeDistanceOrInterpolation() throws {
+        let gpx = """
+        <gpx><trk>
+          <trkseg>
+            <trkpt lat="35.0000" lon="139.0000"><time>2026-06-27T21:32:53Z</time></trkpt>
+            <trkpt lat="35.0001" lon="139.0000"><time>2026-06-27T21:32:54Z</time></trkpt>
+          </trkseg>
+          <trkseg>
+            <trkpt lat="45.0000" lon="149.0000"><time>2026-06-27T21:33:03Z</time></trkpt>
+            <trkpt lat="45.0001" lon="149.0000"><time>2026-06-27T21:33:04Z</time></trkpt>
+          </trkseg>
+        </trk></gpx>
+        """
+
+        let series = try GPXParser().parse(data: Data(gpx.utf8))
+
+        XCTAssertEqual(series.samples.map(\.elapsed), [0, 1, 10, 11])
+        XCTAssertEqual(series.samples.map(\.trackSegmentIndex), [0, 0, 1, 1])
+        XCTAssertLessThan(series.samples.last?.distanceMeters ?? .infinity, 30)
+        XCTAssertEqual(series.sample(at: 5).latitude ?? 0, 35.0001, accuracy: 0.000_001)
+        XCTAssertEqual(series.sample(at: 5).longitude ?? 0, 139, accuracy: 0.000_001)
+    }
+
+    func testCyclingCadenceRemainsRPM() throws {
+        let gpx = """
+        <gpx><trk><type>Biking</type><trkseg>
+          <trkpt lat="35" lon="139"><extensions><cadence>90</cadence></extensions></trkpt>
+        </trkseg></trk></gpx>
+        """
+
+        let parsed = try GPXParser().parseActivity(data: Data(gpx.utf8))
+
+        XCTAssertEqual(parsed.sport, .cycling)
+        XCTAssertEqual(parsed.series.samples[0].cadence, 90)
+    }
 }
 
 private let sampleGPX = """
