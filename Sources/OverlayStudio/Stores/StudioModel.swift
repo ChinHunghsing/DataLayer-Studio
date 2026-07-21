@@ -3477,9 +3477,10 @@ final class StudioModel: ObservableObject {
         pendingSourceReplacementUndoSnapshot = nil
     }
 
-    /// Remove a pooled video. The active video cannot be removed.
+    /// Remove a pooled video. The active video can only be removed when it is the last pooled
+    /// video; referenced assets still require confirmation.
     func removeVideoAsset(id: String) {
-        guard id != activeVideoAssetID else { return }
+        guard canRemovePooledAsset(id: id, activeID: activeVideoAssetID, assets: videoAssets) else { return }
         guard !timelineContainsAsset(id: id) else {
             requestTimelineConfirmation(.removeVideoAsset(id: id))
             return
@@ -3488,8 +3489,24 @@ final class StudioModel: ObservableObject {
     }
 
     private func performRemoveVideoAsset(id: String) {
-        guard id != activeVideoAssetID else { return }
+        guard canRemovePooledAsset(id: id, activeID: activeVideoAssetID, assets: videoAssets) else { return }
         let previousUndoState = timelineMediaUndoSnapshotNow
+        let removesActiveSource = id == activeVideoAssetID
+        if removesActiveSource {
+            stopPlayback()
+            cancelPreviewRenderTasks()
+            videoLoadTask?.cancel()
+            videoLoadTask = nil
+            videoLoadGeneration += 1
+            videoFrameService.clearCache()
+            videoURL = nil
+            metadata = nil
+            sourceDuration = Self.sanitizedSourceDuration(max(timeline.duration, series?.duration ?? 0))
+            backgroundImage = nil
+            previewWarning = nil
+            videoLoadFailure = nil
+            singleSourceAlignmentIsPending = false
+        }
         videoWaveformLoadTasks[id]?.cancel()
         videoWaveformLoadTasks[id] = nil
         videoWaveformPeaksByAssetID[id] = nil
@@ -3497,11 +3514,16 @@ final class StudioModel: ObservableObject {
         if selectedMediaAssetID == id { selectedMediaAssetID = nil }
         removeTimelineAsset(id: id)
         registerTimelineMediaUndo(previous: previousUndoState, actionKey: "undo.timeline.removeAsset")
+        if removesActiveSource {
+            previewTime = clampedPreviewTime(previewTime)
+            refreshOverlayOrPreview()
+        }
     }
 
-    /// Remove a pooled activity. The active activity cannot be removed.
+    /// Remove a pooled activity. The active activity can only be removed when it is the last
+    /// pooled activity; referenced assets still require confirmation.
     func removeActivityAsset(id: String) {
-        guard id != activeActivityAssetID else { return }
+        guard canRemovePooledAsset(id: id, activeID: activeActivityAssetID, assets: activityAssets) else { return }
         guard !timelineContainsAsset(id: id) else {
             requestTimelineConfirmation(.removeActivityAsset(id: id))
             return
@@ -3510,14 +3532,39 @@ final class StudioModel: ObservableObject {
     }
 
     private func performRemoveActivityAsset(id: String) {
-        guard id != activeActivityAssetID else { return }
+        guard canRemovePooledAsset(id: id, activeID: activeActivityAssetID, assets: activityAssets) else { return }
         let previousUndoState = timelineMediaUndoSnapshotNow
+        let removesActiveSource = id == activeActivityAssetID
+        if removesActiveSource {
+            cancelPreviewRenderTasks()
+            fitLoadTask?.cancel()
+            fitLoadTask = nil
+            weatherLoadTask?.cancel()
+            weatherLoadTask = nil
+            fitLoadGeneration += 1
+            fitURL = nil
+            series = nil
+            activityTrim = .none
+            sourceDuration = Self.sanitizedSourceDuration(max(timeline.duration, metadata?.duration ?? 0))
+            overlayImage = nil
+            previewWarning = nil
+            fitLoadFailure = nil
+            singleSourceAlignmentIsPending = false
+        }
         activityAssets.removeAll { $0.id == id }
         if selectedMediaAssetID == id { selectedMediaAssetID = nil }
         activitySeriesByAssetID.removeValue(forKey: id)
         activitySportByAssetID.removeValue(forKey: id)
         removeTimelineAsset(id: id)
         registerTimelineMediaUndo(previous: previousUndoState, actionKey: "undo.timeline.removeAsset")
+        if removesActiveSource {
+            previewTime = clampedPreviewTime(previewTime)
+            refreshOverlayOrPreview()
+        }
+    }
+
+    private func canRemovePooledAsset(id: String, activeID: String?, assets: [MediaAsset]) -> Bool {
+        id != activeID || (assets.count == 1 && assets[0].id == id)
     }
 
     private func timelineContainsAsset(id: String) -> Bool {

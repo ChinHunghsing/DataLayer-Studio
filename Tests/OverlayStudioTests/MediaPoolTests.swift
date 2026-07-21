@@ -133,7 +133,7 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.activeVideoAssetID, "/tmp/a.mov")
     }
 
-    func testCannotRemoveActiveVideoButCanRemoveOthers() {
+    func testCannotRemoveActiveVideoWhenOtherVideosRemain() {
         let model = StudioModel()
         let active = URL(fileURLWithPath: "/tmp/a.mov")
         let other = URL(fileURLWithPath: "/tmp/b.mov")
@@ -146,6 +146,53 @@ final class MediaPoolTests: XCTestCase {
 
         model.removeVideoAsset(id: "/tmp/b.mov") // non-active -> removed
         XCTAssertEqual(model.videoAssets.map(\.id), ["/tmp/a.mov"])
+    }
+
+    func testCanRemoveLastActiveVideoAndActivityAfterTheirTimelineClipsAreDeleted() throws {
+        let videoModel = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/last.mov")
+        let loadedMetadata = videoMetadata(width: 1920, height: 1080, duration: 100, fps: 30)
+        videoModel.upsertVideoAsset(url: videoURL, metadata: loadedMetadata)
+        videoModel.metadata = loadedMetadata
+        videoModel.sourceDuration = loadedMetadata.duration
+        videoModel.videoURL = videoURL
+
+        let videoClip = try XCTUnwrap(
+            videoModel.currentTimelineProject.tracks
+                .first { $0.kind == .video }?
+                .clips.first
+        )
+        videoModel.deleteTimelineClip(id: videoClip.id, ripple: false)
+        videoModel.removeVideoAsset(id: videoURL.path)
+
+        XCTAssertTrue(videoModel.videoAssets.isEmpty)
+        XCTAssertNil(videoModel.videoURL)
+        XCTAssertNil(videoModel.metadata)
+        XCTAssertFalse(videoModel.currentTimelineProject.assets.contains { $0.id == videoURL.path })
+
+        let activityModel = StudioModel()
+        let activityURL = URL(fileURLWithPath: "/tmp/last.fit")
+        let loadedSeries = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 60, distanceMeters: 200)
+        ])
+        activityModel.upsertActivityAsset(url: activityURL, series: loadedSeries)
+        activityModel.series = loadedSeries
+        activityModel.sourceDuration = loadedSeries.duration
+        activityModel.fitURL = activityURL
+
+        let activityClip = try XCTUnwrap(
+            activityModel.currentTimelineProject.tracks
+                .first { $0.kind == .overlay }?
+                .clips.first
+        )
+        activityModel.deleteTimelineClip(id: activityClip.id, ripple: false)
+        activityModel.removeActivityAsset(id: activityURL.path)
+
+        XCTAssertTrue(activityModel.activityAssets.isEmpty)
+        XCTAssertNil(activityModel.fitURL)
+        XCTAssertNil(activityModel.series)
+        XCTAssertFalse(activityModel.currentTimelineProject.assets.contains { $0.id == activityURL.path })
     }
 
     func testCurrentTimelineProjectReflectsActiveSources() {
