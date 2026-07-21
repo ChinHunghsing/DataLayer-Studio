@@ -940,6 +940,9 @@ struct ProjectTimelineView: View {
                 }
                 model.copySelectedTimelineClips()
             }
+            .onAppear {
+                selectTimelineClipForContextMenuIfNeeded(clip.id)
+            }
 
             Button(localization.string("menu.cutTimelineClips")) {
                 if !model.isTimelineClipSelected(id: clip.id) {
@@ -1034,6 +1037,15 @@ struct ProjectTimelineView: View {
         (NSApp.keyWindow ?? NSApp.mainWindow)?.makeFirstResponder(nil)
         #endif
         isTimelineFocused = true
+    }
+
+    private func selectTimelineClipForContextMenuIfNeeded(_ clipID: String) {
+        DispatchQueue.main.async {
+            focusTimelineKeyboardCommands()
+            if !model.isTimelineClipSelected(id: clipID) {
+                model.selectTimelineClip(id: clipID)
+            }
+        }
     }
 
     private func updateMarqueeSelection(

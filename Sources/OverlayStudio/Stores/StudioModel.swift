@@ -4938,6 +4938,14 @@ final class StudioModel: ObservableObject {
         selectedMediaAssetID = nil
     }
 
+    var canSelectAllTimelineClips: Bool {
+        timeline.tracks.contains { !$0.clips.isEmpty }
+    }
+
+    func selectAllTimelineClips() {
+        setTimelineClipSelection(Set(timeline.tracks.flatMap(\.clips).map(\.id)))
+    }
+
     func setTimelineClipSelection(_ ids: Set<String>) {
         let validIDs = ids.filter { timelineClip(id: $0) != nil }
         if validIDs != selectedTimelineClipIDs {

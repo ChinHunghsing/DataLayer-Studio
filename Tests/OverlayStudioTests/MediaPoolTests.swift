@@ -2681,6 +2681,33 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertNil(model.selectedTimelineClipID)
     }
 
+    func testSelectAllTimelineClipsSelectsClipsAcrossTracks() {
+        let model = StudioModel()
+        let videoURL = URL(fileURLWithPath: "/tmp/select-all.mov")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1_920, height: 1_080, duration: 20, fps: 30)
+        )
+        model.videoURL = videoURL
+        let fitURL = URL(fileURLWithPath: "/tmp/select-all.fit")
+        model.upsertActivityAsset(url: fitURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 20, distanceMeters: 100)
+        ]))
+        model.fitURL = fitURL
+        model.previewTime = 10
+        model.splitTimelineClipsAtPlayhead()
+
+        let allClipIDs = Set(model.currentTimelineProject.tracks.flatMap(\.clips).map(\.id))
+        XCTAssertEqual(allClipIDs.count, 4)
+
+        XCTAssertTrue(model.canSelectAllTimelineClips)
+        model.selectAllTimelineClips()
+
+        XCTAssertEqual(model.selectedTimelineClipIDs, allClipIDs)
+        XCTAssertNotNil(model.selectedTimelineClipID)
+    }
+
     func testDraggedMoveCoalescesIntoOneUndoStep() throws {
         let model = StudioModel()
         let undoManager = UndoManager()

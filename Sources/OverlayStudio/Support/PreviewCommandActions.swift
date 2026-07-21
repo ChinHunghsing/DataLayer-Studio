@@ -15,6 +15,7 @@ struct StudioCommandActions {
     var canToggleTimelineClips: Bool
     var canNudgeTimelineClips: Bool
     var canDeleteTimelineClip: Bool
+    var canSelectAllTimelineClips: Bool
     var canCopyTimelineClips: Bool
     var canCutTimelineClips: Bool
     var canPasteTimelineClips: Bool
@@ -48,6 +49,7 @@ struct StudioCommandActions {
     var nudgeTimelineClips: (Int) -> Void
     var deleteTimelineClip: () -> Void
     var rippleDeleteTimelineClip: () -> Void
+    var selectAllTimelineClips: () -> Void
     var copyTimelineClips: () -> Void
     var cutTimelineClips: () -> Void
     var pasteTimelineClips: () -> Void

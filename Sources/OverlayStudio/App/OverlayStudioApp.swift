@@ -289,6 +289,25 @@ private struct EditCommands: Commands {
             .keyboardShortcut("z", modifiers: [.command, .shift])
             .disabled(actions?.isEditingText != true && actions?.canRedo != true)
         }
+
+        CommandGroup(replacing: .textEditing) {
+            Button(localization.string("menu.selectAll")) {
+                let handledByTextResponder = NSApp.sendAction(
+                    #selector(NSText.selectAll(_:)),
+                    to: nil,
+                    from: nil
+                )
+                if !handledByTextResponder {
+                    actions?.selectAllTimelineClips()
+                }
+            }
+            .keyboardShortcut("a", modifiers: [.command])
+            .disabled(
+                actions != nil
+                    && actions?.isEditingText != true
+                    && actions?.canSelectAllTimelineClips != true
+            )
+        }
     }
 }
 
