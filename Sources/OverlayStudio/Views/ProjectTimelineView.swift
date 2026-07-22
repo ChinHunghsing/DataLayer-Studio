@@ -712,6 +712,14 @@ struct ProjectTimelineView: View {
 
     private func trackLane(_ track: TimelineTrack, project: TimelineProject, duration: TimeInterval, laneWidth: CGFloat) -> some View {
         ZStack(alignment: .topLeading) {
+            ForEach(track.gaps) { gap in
+                timelineGapView(
+                    gap,
+                    isLocked: track.isLocked,
+                    duration: duration,
+                    laneWidth: laneWidth
+                )
+            }
             ForEach(track.clips) { clip in
                 clipView(
                     clip,
@@ -743,6 +751,52 @@ struct ProjectTimelineView: View {
         .opacity(track.isEnabled ? 1 : 0.42)
         .zIndex(track.clips.contains { dragClipIDs.contains($0.id) } ? 1 : 0)
         .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private func timelineGapView(
+        _ gap: TimelineGap,
+        isLocked: Bool,
+        duration: TimeInterval,
+        laneWidth: CGFloat
+    ) -> some View {
+        let x = CGFloat(gap.timelineStart / duration) * laneWidth
+        let width = CGFloat(gap.duration / duration) * laneWidth
+        let isSelected = model.isTimelineGapSelected(gap)
+
+        return RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
+            .overlay {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? Color.accentColor : Color.clear,
+                        lineWidth: 2
+                    )
+            }
+            .frame(width: width, height: trackHeight - 12)
+            .contentShape(Rectangle())
+            .offset(x: x, y: 6)
+            .onTapGesture {
+                focusTimelineKeyboardCommands()
+                model.selectTimelineGap(gap)
+            }
+            .contextMenu {
+                Button(localization.string("menu.rippleDeleteTimelineGap")) {
+                    if !model.isTimelineGapSelected(gap) {
+                        model.selectTimelineGap(gap)
+                    }
+                    model.deleteSelectedTimelineGap()
+                }
+                .disabled(isLocked)
+                .onAppear {
+                    selectTimelineGapForContextMenuIfNeeded(gap)
+                }
+
+                Divider()
+                timelinePasteContextMenu
+            }
+            .accessibilityLabel(localization.string("timeline.gap"))
+            .accessibilityValue(isSelected ? localization.string("timeline.gap.selected") : "")
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -1034,9 +1088,14 @@ struct ProjectTimelineView: View {
 
     private func focusTimelineKeyboardCommands() {
         #if canImport(AppKit)
-        (NSApp.keyWindow ?? NSApp.mainWindow)?.makeFirstResponder(nil)
+        let window = NSApp.keyWindow ?? NSApp.mainWindow
+        window?.endEditing(for: nil)
+        window?.makeFirstResponder(nil)
         #endif
-        isTimelineFocused = true
+        isTimelineFocused = false
+        DispatchQueue.main.async {
+            isTimelineFocused = true
+        }
     }
 
     private func selectTimelineClipForContextMenuIfNeeded(_ clipID: String) {
@@ -1044,6 +1103,15 @@ struct ProjectTimelineView: View {
             focusTimelineKeyboardCommands()
             if !model.isTimelineClipSelected(id: clipID) {
                 model.selectTimelineClip(id: clipID)
+            }
+        }
+    }
+
+    private func selectTimelineGapForContextMenuIfNeeded(_ gap: TimelineGap) {
+        DispatchQueue.main.async {
+            focusTimelineKeyboardCommands()
+            if !model.isTimelineGapSelected(gap) {
+                model.selectTimelineGap(gap)
             }
         }
     }

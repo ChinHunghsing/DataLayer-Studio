@@ -276,11 +276,13 @@ final class StudioModel: ObservableObject {
         }
     }
     @Published private(set) var selectedMediaAssetID: String?
+    @Published private(set) var selectedTimelineGap: TimelineGap?
     @Published private(set) var selectedTimelineClipIDs: Set<String> = []
     @Published private var timelineClipboard: [TimelineClipboardItem] = []
     @Published var selectedTimelineClipID: String? {
         didSet {
             if let selectedTimelineClipID {
+                selectedTimelineGap = nil
                 if !selectedTimelineClipIDs.contains(selectedTimelineClipID) {
                     selectedTimelineClipIDs = [selectedTimelineClipID]
                 }
@@ -738,6 +740,17 @@ final class StudioModel: ObservableObject {
         return timeline.tracks.contains { track in
             !track.isLocked && track.clips.contains { $0.id == selectedTimelineClipID }
         }
+    }
+
+    var selectedTimelineGapIsEditable: Bool {
+        guard let selectedTimelineGap, !isExporting else { return false }
+        return timeline.tracks.contains { track in
+            !track.isLocked && track.gaps.contains { $0.id == selectedTimelineGap.id }
+        }
+    }
+
+    var canDeleteTimelineSelection: Bool {
+        selectedTimelineGapIsEditable || selectedTimelineClipIsEditable
     }
 
     var canToggleSelectedTimelineClipsEnabled: Bool {
@@ -4330,8 +4343,16 @@ final class StudioModel: ObservableObject {
             .first { $0.id == id }
     }
 
+    private func validTimelineGap(_ gap: TimelineGap) -> TimelineGap? {
+        timeline.tracks
+            .first(where: { $0.id == gap.trackID })?
+            .gaps
+            .first(where: { $0.id == gap.id })
+    }
+
     private func repairSelectedTimelineClipIfNeeded() {
         selectedTimelineClipIDs = selectedTimelineClipIDs.filter { timelineClip(id: $0) != nil }
+        selectedTimelineGap = selectedTimelineGap.flatMap(validTimelineGap)
         guard let selectedTimelineClipID else { return }
         if timelineClip(id: selectedTimelineClipID) == nil {
             self.selectedTimelineClipID = firstSelectedTimelineClipID
@@ -4814,6 +4835,36 @@ final class StudioModel: ObservableObject {
         setStatus(ripple ? "status.timelineClipRippleDeleted" : "status.timelineClipDeleted")
     }
 
+    /// Plain Delete closes a selected gap, matching timeline editors where an empty range is
+    /// itself selectable. Clip deletion keeps its existing non-ripple behavior.
+    func deleteTimelineSelection() {
+        if selectedTimelineGapIsEditable {
+            deleteSelectedTimelineGap()
+        } else {
+            deleteSelectedTimelineClip(ripple: false)
+        }
+    }
+
+    func deleteSelectedTimelineGap() {
+        guard let gap = selectedTimelineGap, selectedTimelineGapIsEditable else { return }
+        let previousUndoState = timelineUndoSnapshotNow
+        var updated = timeline
+        updated.removeTimeRange(from: gap.timelineStart, to: gap.timelineEnd)
+        guard updated != timeline else { return }
+
+        beginTimelineClipEditingIfNeeded()
+        timeline = updated
+        clearTimelineClipSelection()
+        registerTimelineUndoIfChanged(
+            previous: previousUndoState,
+            actionKey: "undo.timeline.rippleDeleteGap",
+            coalescing: false
+        )
+        previewTime = clampedPreviewTime(previewTime)
+        refreshOverlayOrPreview()
+        setStatus("status.timelineGapRippleDeleted")
+    }
+
     var canCopySelectedTimelineClips: Bool {
         !effectiveSelectedTimelineClipIDs.isEmpty
     }
@@ -4936,6 +4987,7 @@ final class StudioModel: ObservableObject {
         }
         selectedElementID = nil
         selectedMediaAssetID = nil
+        selectedTimelineGap = nil
     }
 
     var canSelectAllTimelineClips: Bool {
@@ -4958,6 +5010,25 @@ final class StudioModel: ObservableObject {
         if selectedMediaAssetID != nil {
             selectedMediaAssetID = nil
         }
+        selectedTimelineGap = nil
+    }
+
+    func selectTimelineGap(_ gap: TimelineGap) {
+        guard let currentGap = timeline.tracks
+            .first(where: { $0.id == gap.trackID })?
+            .gaps
+            .first(where: { $0.id == gap.id }) else {
+            clearTimelineClipSelection()
+            return
+        }
+        clearTimelineClipSelection()
+        selectedTimelineGap = currentGap
+        selectedElementID = nil
+        selectedMediaAssetID = nil
+    }
+
+    func isTimelineGapSelected(_ gap: TimelineGap) -> Bool {
+        selectedTimelineGap?.id == gap.id
     }
 
     func isTimelineClipSelected(id: String) -> Bool {
@@ -4991,6 +5062,7 @@ final class StudioModel: ObservableObject {
     func clearTimelineClipSelection() {
         selectedTimelineClipIDs = []
         selectedTimelineClipID = nil
+        selectedTimelineGap = nil
     }
 
     func selectElement(id: String) {
@@ -6479,6 +6551,7 @@ final class StudioModel: ObservableObject {
         var activitySportByAssetID: [String: TelemetrySport]
         var waveformPeaksByAssetID: [String: [Float]]
         var usesSingleSourceMigration: Bool
+        var selectedGap: TimelineGap?
         var selectedClipID: String?
         var selectedClipIDs: Set<String>
         var videoURL: URL?
@@ -6513,6 +6586,7 @@ final class StudioModel: ObservableObject {
             activitySportByAssetID: activitySportByAssetID,
             waveformPeaksByAssetID: videoWaveformPeaksByAssetID,
             usesSingleSourceMigration: timelineUsesSingleSourceMigration,
+            selectedGap: selectedTimelineGap,
             selectedClipID: selectedTimelineClipID,
             selectedClipIDs: selectedTimelineClipIDs,
             videoURL: videoURL,
@@ -6616,6 +6690,7 @@ final class StudioModel: ObservableObject {
         selectedTimelineClipIDs = previous.selectedClipIDs.filter { timelineClip(id: $0) != nil }
         selectedTimelineClipID = previous.selectedClipID.flatMap { timelineClip(id: $0) == nil ? nil : $0 }
             ?? firstSelectedTimelineClipID
+        selectedTimelineGap = previous.selectedGap.flatMap(validTimelineGap)
         singleSourceAlignmentIsPending = previous.singleSourceAlignmentIsPending
         timelineUsesSingleSourceMigration = restoredMigrationState
         stopTimelineSecurityScopedAccess()
@@ -6641,6 +6716,7 @@ final class StudioModel: ObservableObject {
     private struct TimelineUndoSnapshot {
         var timeline: TimelineProject
         var usesSingleSourceMigration: Bool
+        var selectedGap: TimelineGap?
         var selectedClipID: String?
         var selectedClipIDs: Set<String>
         var timelinePositionState: TimelinePositionUndoState?
@@ -6659,6 +6735,7 @@ final class StudioModel: ObservableObject {
         TimelineUndoSnapshot(
             timeline: timeline,
             usesSingleSourceMigration: timelineUsesSingleSourceMigration,
+            selectedGap: selectedTimelineGap,
             selectedClipID: selectedTimelineClipID,
             selectedClipIDs: selectedTimelineClipIDs,
             timelinePositionState: nil
@@ -6737,6 +6814,7 @@ final class StudioModel: ObservableObject {
         } else {
             repairSelectedTimelineClipIfNeeded()
         }
+        selectedTimelineGap = previous.selectedGap.flatMap(validTimelineGap)
         if !usesCustomTimelinePreview, let videoURL {
             // Undo back into single-source mode: return the player to the raw video item.
             configurePlayer(url: videoURL)

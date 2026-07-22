@@ -476,7 +476,7 @@ private struct TimelineCommands: Commands {
                 actions?.rippleDeleteTimelineClip()
             }
             .keyboardShortcut(.delete, modifiers: [.shift])
-            .disabled(actions?.canDeleteTimelineClip != true)
+            .disabled(actions?.canRippleDeleteTimelineClip != true)
         }
     }
 }

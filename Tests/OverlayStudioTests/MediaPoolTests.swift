@@ -2574,6 +2574,79 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertEqual(model.currentTimelineProject.duration, 120, accuracy: 1e-9)
     }
 
+    func testPlainDeleteRippleClosesSelectedTimelineGapAndSupportsUndo() throws {
+        let model = StudioModel()
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        model.undoManager = undoManager
+
+        let videoURL = URL(fileURLWithPath: "/tmp/gap-video.mov")
+        model.upsertVideoAsset(
+            url: videoURL,
+            metadata: videoMetadata(width: 1_920, height: 1_080, duration: 120, fps: 30)
+        )
+        model.videoURL = videoURL
+
+        let firstActivityURL = URL(fileURLWithPath: "/tmp/gap-first.fit")
+        model.upsertActivityAsset(url: firstActivityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 20, distanceMeters: 100)
+        ]))
+        model.fitURL = firstActivityURL
+
+        let secondActivityURL = URL(fileURLWithPath: "/tmp/gap-second.fit")
+        model.upsertActivityAsset(url: secondActivityURL, series: TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, distanceMeters: 0),
+            TelemetrySample(elapsed: 10, distanceMeters: 50)
+        ]))
+        model.addActivityAssetToTimeline(
+            id: secondActivityURL.path,
+            targetTrackID: nil,
+            timelineStart: 40
+        )
+
+        let overlayTrack = try XCTUnwrap(
+            model.currentTimelineProject.tracks.first { $0.kind == .overlay }
+        )
+        let gap = try XCTUnwrap(overlayTrack.gaps.first)
+        XCTAssertEqual(gap.timelineStart, 20, accuracy: 1e-9)
+        XCTAssertEqual(gap.timelineEnd, 40, accuracy: 1e-9)
+
+        model.selectTimelineGap(gap)
+        XCTAssertTrue(model.selectedTimelineGapIsEditable)
+        XCTAssertNil(model.selectedTimelineClipID)
+
+        model.deleteTimelineSelection()
+
+        XCTAssertNil(model.selectedTimelineGap)
+        XCTAssertTrue(
+            model.currentTimelineProject.tracks
+                .first { $0.id == overlayTrack.id }?
+                .gaps
+                .isEmpty == true
+        )
+        let movedClip = try XCTUnwrap(
+            model.currentTimelineProject.tracks
+                .flatMap(\.clips)
+                .first { $0.assetID == secondActivityURL.path }
+        )
+        XCTAssertEqual(movedClip.timelineStart, 20, accuracy: 1e-9)
+
+        undoManager.undo()
+        XCTAssertEqual(model.selectedTimelineGap, gap)
+        XCTAssertEqual(
+            model.currentTimelineProject.tracks
+                .flatMap(\.clips)
+                .first { $0.assetID == secondActivityURL.path }?
+                .timelineStart ?? -1,
+            40,
+            accuracy: 1e-9
+        )
+
+        undoManager.redo()
+        XCTAssertNil(model.selectedTimelineGap)
+    }
+
     func testJumpingBetweenTimelineEditPoints() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/a.mov")
