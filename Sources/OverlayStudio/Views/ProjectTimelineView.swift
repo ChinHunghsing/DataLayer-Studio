@@ -135,7 +135,10 @@ struct ProjectTimelineView: View {
         .timelineFocusEffectHidden()
         .background {
             #if canImport(AppKit)
-            TimelineKeyboardFocusBridge(requestGeneration: timelineFocusRequestGeneration)
+            TimelineKeyboardFocusBridge(
+                requestGeneration: timelineFocusRequestGeneration,
+                onSelectAll: model.selectAllTimelineClips
+            )
                 .frame(width: 0, height: 0)
             #endif
         }
@@ -1453,16 +1456,20 @@ struct ProjectTimelineView: View {
 /// AppKit from assigning focus to the first text field when the inspector hierarchy is rebuilt.
 private struct TimelineKeyboardFocusBridge: NSViewRepresentable {
     let requestGeneration: Int
+    let onSelectAll: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(appliedGeneration: requestGeneration)
     }
 
     func makeNSView(context: Context) -> TimelineKeyboardFocusView {
-        TimelineKeyboardFocusView(frame: .zero)
+        let view = TimelineKeyboardFocusView(frame: .zero)
+        view.onSelectAll = onSelectAll
+        return view
     }
 
     func updateNSView(_ nsView: TimelineKeyboardFocusView, context: Context) {
+        nsView.onSelectAll = onSelectAll
         guard context.coordinator.appliedGeneration != requestGeneration else { return }
         context.coordinator.appliedGeneration = requestGeneration
 
@@ -1482,8 +1489,28 @@ private struct TimelineKeyboardFocusBridge: NSViewRepresentable {
     }
 }
 
-private final class TimelineKeyboardFocusView: NSView {
+final class TimelineKeyboardFocusView: NSView {
+    var onSelectAll: () -> Void = {}
+
     override var acceptsFirstResponder: Bool { true }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if handleSelectAll(event) { return true }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if handleSelectAll(event) { return }
+        super.keyDown(with: event)
+    }
+
+    private func handleSelectAll(_ event: NSEvent) -> Bool {
+        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        guard modifiers == .command,
+              event.charactersIgnoringModifiers?.lowercased() == "a" else { return false }
+        onSelectAll()
+        return true
+    }
 }
 #endif
 

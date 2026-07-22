@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import XCTest
 @testable import OverlayCore
@@ -22,6 +23,32 @@ final class StudioShellTests: XCTestCase {
 
         XCTAssertEqual(textResponderCalls, 1)
         XCTAssertEqual(studioCalls, 1)
+    }
+
+    func testTimelineFocusResponderHandlesCommandAWithoutTheMenuFocusChain() throws {
+        let responder = TimelineKeyboardFocusView(frame: .zero)
+        var selectAllCalls = 0
+        responder.onSelectAll = { selectAllCalls += 1 }
+        let event = try XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: .command,
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: "a",
+                charactersIgnoringModifiers: "a",
+                isARepeat: false,
+                keyCode: 0
+            )
+        )
+
+        XCTAssertTrue(responder.performKeyEquivalent(with: event))
+        XCTAssertEqual(selectAllCalls, 1)
+
+        responder.keyDown(with: event)
+        XCTAssertEqual(selectAllCalls, 2)
     }
 
     func testComponentThumbnailLoaderReusesLoadedImage() throws {
