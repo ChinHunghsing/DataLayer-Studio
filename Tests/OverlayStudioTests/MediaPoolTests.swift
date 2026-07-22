@@ -2647,6 +2647,20 @@ final class MediaPoolTests: XCTestCase {
         XCTAssertNil(model.selectedTimelineGap)
     }
 
+    func testSelectingTimelineEmptySpaceDoesNotFallBackToFirstGaugeInInspector() throws {
+        let model = StudioModel()
+        let initialElement = try XCTUnwrap(model.layout.elements.first)
+        model.selectElement(id: initialElement.id)
+
+        XCTAssertEqual(model.selectedInspectorElement?.id, initialElement.id)
+
+        model.selectTimelineEmptySpace()
+
+        XCTAssertNil(model.selectedElementID)
+        XCTAssertNil(model.selectedInspectorElement)
+        XCTAssertEqual(model.selectedElement?.id, initialElement.id)
+    }
+
     func testJumpingBetweenTimelineEditPoints() throws {
         let model = StudioModel()
         let videoURL = URL(fileURLWithPath: "/tmp/a.mov")

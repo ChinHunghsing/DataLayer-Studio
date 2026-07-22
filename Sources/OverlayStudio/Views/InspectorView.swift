@@ -10,7 +10,7 @@ struct InspectorView: View {
 
     var body: some View {
         let selectedClip = model.selectedTimelineClip
-        let selectedElement = model.selectedElement
+        let selectedElement = model.selectedInspectorElement
         let selectedMedia = model.selectedMediaAsset
 
         VStack(spacing: 0) {

@@ -61,6 +61,7 @@ struct ProjectTimelineView: View {
     @State private var hoveredTrackID: String?
     @State private var marqueeSelectionRect: CGRect?
     @State private var marqueeBaseClipIDs: Set<String> = []
+    @State private var timelineFocusRequestGeneration = 0
     @FocusState private var isTimelineFocused: Bool
 
     private static let playheadMarkerID = "timeline.playhead.marker"
@@ -132,6 +133,12 @@ struct ProjectTimelineView: View {
         .focusable()
         .focused($isTimelineFocused)
         .timelineFocusEffectHidden()
+        .background {
+            #if canImport(AppKit)
+            TimelineKeyboardFocusBridge(requestGeneration: timelineFocusRequestGeneration)
+                .frame(width: 0, height: 0)
+            #endif
+        }
         .onMoveCommand { direction in
             if let frameStep = Self.frameStep(for: direction) {
                 model.stepPreviewFrame(by: frameStep)
@@ -247,7 +254,7 @@ struct ProjectTimelineView: View {
 
                             focusTimelineKeyboardCommands()
                             if !Self.isCommandKeyPressed {
-                                model.clearTimelineClipSelection()
+                                model.selectTimelineEmptySpace()
                             }
                             scrubPlayheadWithSnap(
                                 toLaneLocationX: value.location.x,
@@ -1090,12 +1097,9 @@ struct ProjectTimelineView: View {
         #if canImport(AppKit)
         let window = NSApp.keyWindow ?? NSApp.mainWindow
         window?.endEditing(for: nil)
-        window?.makeFirstResponder(nil)
+        timelineFocusRequestGeneration &+= 1
         #endif
-        isTimelineFocused = false
-        DispatchQueue.main.async {
-            isTimelineFocused = true
-        }
+        isTimelineFocused = true
     }
 
     private func selectTimelineClipForContextMenuIfNeeded(_ clipID: String) {
@@ -1443,6 +1447,45 @@ struct ProjectTimelineView: View {
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
+
+#if canImport(AppKit)
+/// A stable responder owned by the timeline. Unlike `makeFirstResponder(nil)`, this prevents
+/// AppKit from assigning focus to the first text field when the inspector hierarchy is rebuilt.
+private struct TimelineKeyboardFocusBridge: NSViewRepresentable {
+    let requestGeneration: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(appliedGeneration: requestGeneration)
+    }
+
+    func makeNSView(context: Context) -> TimelineKeyboardFocusView {
+        TimelineKeyboardFocusView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: TimelineKeyboardFocusView, context: Context) {
+        guard context.coordinator.appliedGeneration != requestGeneration else { return }
+        context.coordinator.appliedGeneration = requestGeneration
+
+        DispatchQueue.main.async { [weak nsView] in
+            guard let nsView, let window = nsView.window else { return }
+            window.endEditing(for: nil)
+            window.makeFirstResponder(nsView)
+        }
+    }
+
+    final class Coordinator {
+        var appliedGeneration: Int
+
+        init(appliedGeneration: Int) {
+            self.appliedGeneration = appliedGeneration
+        }
+    }
+}
+
+private final class TimelineKeyboardFocusView: NSView {
+    override var acceptsFirstResponder: Bool { true }
+}
+#endif
 
 /// Marks the wall-clock spans of an activity clip during which the timer was paused. The data
 /// layer holds its last pre-pause values there, so the bands use a distinct muted color.

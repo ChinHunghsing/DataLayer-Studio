@@ -701,6 +701,15 @@ final class StudioModel: ObservableObject {
         return layout.elements.first { $0.id == selectedElementID } ?? layout.elements.first
     }
 
+    /// The inspector only follows an explicit canvas selection. Other editing paths may still
+    /// use `selectedElement`'s first-element fallback when no element has been selected.
+    var selectedInspectorElement: OverlayElement? {
+        guard selectedTimelineClipID == nil,
+              selectedMediaAssetID == nil,
+              let selectedElementID else { return nil }
+        return layout.elements.first { $0.id == selectedElementID }
+    }
+
     var selectedTimelineClip: TimelineClip? {
         guard let selectedTimelineClipID else { return nil }
         return timelineClip(id: selectedTimelineClipID)
@@ -5063,6 +5072,12 @@ final class StudioModel: ObservableObject {
         selectedTimelineClipIDs = []
         selectedTimelineClipID = nil
         selectedTimelineGap = nil
+    }
+
+    func selectTimelineEmptySpace() {
+        clearTimelineClipSelection()
+        selectedElementID = nil
+        selectedMediaAssetID = nil
     }
 
     func selectElement(id: String) {
