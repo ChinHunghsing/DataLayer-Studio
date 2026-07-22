@@ -292,14 +292,13 @@ private struct EditCommands: Commands {
 
         CommandGroup(replacing: .textEditing) {
             Button(localization.string("menu.selectAll")) {
-                let handledByTextResponder = NSApp.sendAction(
-                    #selector(NSText.selectAll(_:)),
-                    to: nil,
-                    from: nil
+                TextEditingCommandRouter.perform(
+                    isEditingText: actions?.isEditingText == true,
+                    textResponderAction: {
+                        NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+                    },
+                    studioAction: { actions?.selectAllTimelineClips() }
                 )
-                if !handledByTextResponder {
-                    actions?.selectAllTimelineClips()
-                }
             }
             .keyboardShortcut("a", modifiers: [.command])
             .disabled(
