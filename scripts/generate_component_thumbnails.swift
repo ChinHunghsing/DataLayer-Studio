@@ -25,6 +25,7 @@ let components: [(String, String, NSColor)] = [
     ("weather", "cloud.sun.fill", .systemBlue),
     ("distance", "ruler", .systemGreen),
     ("route", "point.topleft.down.curvedto.point.bottomright.up", .systemBlue),
+    ("altitudeProfile", "mountain.2.fill", .systemBlue),
     ("topProgress", "chart.bar.xaxis", .systemGreen),
     ("timeDate", "clock", .white)
 ]
@@ -90,4 +91,3 @@ for (name, symbolName, accent) in components {
     }
     try png.write(to: outputDirectory.appendingPathComponent("component-\(name).png"))
 }
-

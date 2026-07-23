@@ -58,6 +58,15 @@ final class StudioShellTests: XCTestCase {
         XCTAssertTrue(first === second)
     }
 
+    func testEveryCatalogComponentHasAThumbnail() {
+        for item in ComponentCatalogItem.all {
+            XCTAssertNotNil(
+                ComponentThumbnailLoader.image(named: item.thumbnailResourceName),
+                "Missing thumbnail for \(item.component.rawValue)"
+            )
+        }
+    }
+
     func testExternalFileClassifierDistinguishesSupportedTypes() {
         XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/project.dlsproj")), .timelineProject)
         XCTAssertEqual(StudioExternalFileKind.classify(URL(fileURLWithPath: "/tmp/preset.dlspreset")), .layoutPreset)
