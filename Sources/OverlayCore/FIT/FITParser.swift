@@ -81,6 +81,10 @@ struct RawFITRecord {
     var temperatureCelsius: Int?
 }
 
+struct RawFITFileID {
+    var manufacturer: Int?
+}
+
 struct RawFITEvent {
     var timestamp: UInt32?
     var event: Int?
@@ -116,6 +120,7 @@ struct RawFITLap {
 
 struct ParsedFITMessage {
     var timestamp: UInt32?
+    var fileID: RawFITFileID?
     var record: RawFITRecord?
     var event: RawFITEvent?
     var session: RawFITSession?
@@ -152,6 +157,8 @@ private struct CompressedDistanceAccumulator {
 
 public final class FITParser {
     static let maximumFileSizeBytes = 64 * 1024 * 1024
+    /// FIT Profile manufacturer id used by COROS Wearables.
+    static let corosManufacturerID = 294
     private let validateCRC: Bool
     private let maximumPlausibleStartupSpeedMetersPerSecond = 12.0
     private let lapAnchorDistanceToleranceMeters = 25.0
@@ -221,6 +228,7 @@ public final class FITParser {
 
         var reader = ByteReader(data: data, offset: dataStart, endOffset: dataEnd)
         var definitions: [UInt8: FITLocalMessageDefinition] = [:]
+        var manufacturers = Set<Int>()
         var records: [RawFITRecord] = []
         var laps: [RawFITLap] = []
         var sessions: [RawFITSession] = []
@@ -251,6 +259,9 @@ public final class FITParser {
                 )
                 if let timestamp = parsed.timestamp {
                     lastTimestamp = timestamp
+                }
+                if let manufacturer = parsed.fileID?.manufacturer {
+                    manufacturers.insert(manufacturer)
                 }
                 if let description = parsed.developerFieldDescription,
                    let key = description.key {
@@ -289,6 +300,9 @@ public final class FITParser {
                     )
                     if let timestamp = parsed.timestamp {
                         lastTimestamp = timestamp
+                    }
+                    if let manufacturer = parsed.fileID?.manufacturer {
+                        manufacturers.insert(manufacturer)
                     }
                     if let description = parsed.developerFieldDescription,
                        let key = description.key {
@@ -369,6 +383,9 @@ public final class FITParser {
             timerEvents: timerEvents
         ) {
             series = TelemetrySeries(samples: series.samples + [correctedFinalSample], pausedRanges: pausedRanges)
+        }
+        if manufacturers.contains(Self.corosManufacturerID) {
+            series = series.applyingQuantizedAltitudeDisplaySmoothing()
         }
         return ParsedActivity(series: series, sport: sport)
     }
@@ -499,6 +516,7 @@ public final class FITParser {
         developerFieldDescriptions: [FITDeveloperFieldKey: FITDeveloperFieldDescription]
     ) throws -> ParsedFITMessage {
         var timestamp = compressedTimestamp
+        var fileID = RawFITFileID()
         var record = RawFITRecord(timestamp: compressedTimestamp)
         var event = RawFITEvent(timestamp: compressedTimestamp)
         var session = RawFITSession(timestamp: compressedTimestamp)
@@ -550,6 +568,10 @@ public final class FITParser {
             }
 
             switch definition.globalMessageNumber {
+            case 0:
+                if field.number == 1 {
+                    fileID.manufacturer = exactInteger(value)
+                }
             case 20:
                 switch field.number {
                 case 0:
@@ -672,6 +694,7 @@ public final class FITParser {
 
         return ParsedFITMessage(
             timestamp: timestamp,
+            fileID: definition.globalMessageNumber == 0 ? fileID : nil,
             record: definition.globalMessageNumber == 20 ? record : nil,
             event: definition.globalMessageNumber == 21 ? event : nil,
             session: definition.globalMessageNumber == 18 ? session : nil,

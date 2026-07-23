@@ -54,6 +54,11 @@ public struct TelemetrySeries: Equatable {
     private static let resumptionQuietSegmentSpeedMetersPerSecond = 2.5
     private static let distanceEpsilon = 0.001
     private static let minimumAscentDeltaMeters = 1.0
+    private static let quantizedAltitudeSmoothingHalfWindowSeconds: TimeInterval = 4
+    private static let quantizedAltitudeSmoothingMaximumAdjustmentMeters = 0.5
+    private static let quantizedAltitudeSmoothingMaximumSampleGapSeconds: TimeInterval = 2
+    private static let quantizedAltitudeSmoothingMaximumNeighborsPerSide = 64
+    private static let quantizedAltitudeMinimumWholeMeterRatio = 0.9
 
     public init(samples: [TelemetrySample], pausedRanges: [TelemetryPausedRange] = []) {
         self.pausedRanges = TelemetrySeries.sanitizedPausedRanges(pausedRanges)
@@ -275,6 +280,125 @@ public struct TelemetrySeries: Equatable {
         return TelemetrySeries(samples: trimmedSamples, pausedRanges: trimmedRanges)
     }
 
+    /// Smooths only the altitude used by time-based display. The original quantized values stay
+    /// attached to each sample so cumulative ascent remains stable across trimming or rebuilding.
+    func applyingQuantizedAltitudeDisplaySmoothing() -> TelemetrySeries {
+        guard samples.count >= 3 else { return self }
+
+        let sourceAltitudes = samples.map { $0.sourceAltitudeMeters ?? $0.altitudeMeters }
+        let finiteAltitudes = sourceAltitudes.compactMap { altitude -> Double? in
+            guard let altitude, altitude.isFinite else { return nil }
+            return altitude
+        }
+        guard finiteAltitudes.count >= 3 else { return self }
+        let wholeMeterCount = finiteAltitudes.reduce(into: 0) { count, altitude in
+            if abs(altitude - altitude.rounded()) < 0.000_001 {
+                count += 1
+            }
+        }
+        guard Double(wholeMeterCount) / Double(finiteAltitudes.count)
+                >= Self.quantizedAltitudeMinimumWholeMeterRatio else {
+            return self
+        }
+
+        let pauseBoundaries = pausedRanges.map { activeElapsed(forWallElapsed: $0.start) }
+        var segments: [Range<Int>] = []
+        var segmentStart: Int?
+        var pauseBoundaryIndex = 0
+
+        for index in samples.indices {
+            guard sourceAltitudes[index]?.isFinite == true else {
+                if let start = segmentStart, start < index {
+                    segments.append(start..<index)
+                }
+                segmentStart = nil
+                continue
+            }
+
+            guard let start = segmentStart, index > samples.startIndex else {
+                segmentStart = index
+                continue
+            }
+
+            let previous = samples[index - 1]
+            let current = samples[index]
+            while pauseBoundaryIndex < pauseBoundaries.count,
+                  pauseBoundaries[pauseBoundaryIndex] < previous.elapsed {
+                pauseBoundaryIndex += 1
+            }
+            let crossesPause = pauseBoundaryIndex < pauseBoundaries.count
+                && pauseBoundaries[pauseBoundaryIndex] >= previous.elapsed
+                && pauseBoundaries[pauseBoundaryIndex] < current.elapsed
+            if crossesPause {
+                pauseBoundaryIndex += 1
+            }
+            let shouldSplit = Self.isTrackSegmentBreak(from: previous, to: current)
+                || current.elapsed - previous.elapsed > Self.quantizedAltitudeSmoothingMaximumSampleGapSeconds
+                || crossesPause
+            if shouldSplit {
+                segments.append(start..<index)
+                segmentStart = index
+            }
+        }
+        if let start = segmentStart, start < samples.endIndex {
+            segments.append(start..<samples.endIndex)
+        }
+
+        var output = self
+        for index in samples.indices where sourceAltitudes[index]?.isFinite == true {
+            output.samples[index].sourceAltitudeMeters = sourceAltitudes[index]
+        }
+
+        let halfWindow = Self.quantizedAltitudeSmoothingHalfWindowSeconds
+        for segment in segments where segment.count >= 3 {
+            for index in segment where index > segment.lowerBound && index < segment.upperBound - 1 {
+                guard let rawAltitude = sourceAltitudes[index] else { continue }
+                let centerElapsed = samples[index].elapsed
+                var weightedAltitude = rawAltitude * (halfWindow + 1)
+                var totalWeight = halfWindow + 1
+
+                var neighborCount = 0
+                var cursor = index - 1
+                while cursor >= segment.lowerBound,
+                      neighborCount < Self.quantizedAltitudeSmoothingMaximumNeighborsPerSide {
+                    let distance = centerElapsed - samples[cursor].elapsed
+                    guard distance <= halfWindow else { break }
+                    if let altitude = sourceAltitudes[cursor] {
+                        let weight = halfWindow + 1 - distance
+                        weightedAltitude += altitude * weight
+                        totalWeight += weight
+                    }
+                    neighborCount += 1
+                    if cursor == segment.lowerBound { break }
+                    cursor -= 1
+                }
+
+                neighborCount = 0
+                cursor = index + 1
+                while cursor < segment.upperBound,
+                      neighborCount < Self.quantizedAltitudeSmoothingMaximumNeighborsPerSide {
+                    let distance = samples[cursor].elapsed - centerElapsed
+                    guard distance <= halfWindow else { break }
+                    if let altitude = sourceAltitudes[cursor] {
+                        let weight = halfWindow + 1 - distance
+                        weightedAltitude += altitude * weight
+                        totalWeight += weight
+                    }
+                    neighborCount += 1
+                    cursor += 1
+                }
+
+                let smoothed = weightedAltitude / totalWeight
+                let adjustment = Self.quantizedAltitudeSmoothingMaximumAdjustmentMeters
+                output.samples[index].altitudeMeters = min(
+                    rawAltitude + adjustment,
+                    max(rawAltitude - adjustment, smoothed)
+                )
+            }
+        }
+        return output
+    }
+
     private func interpolate(
         _ a: TelemetrySample,
         _ b: TelemetrySample,
@@ -329,7 +453,7 @@ public struct TelemetrySeries: Equatable {
         fraction: Double,
         elapsed: TimeInterval
     ) -> TelemetrySample {
-        TelemetrySample(
+        var sample = TelemetrySample(
             elapsed: elapsed,
             date: interpolatedDate(a.date, b.date, fraction: fraction),
             latitude: interpolate(a.latitude, b.latitude, fraction: fraction),
@@ -359,6 +483,14 @@ public struct TelemetrySeries: Equatable {
             weatherSummary: nearest(a.weatherSummary, b.weatherSummary, fraction: fraction),
             trackSegmentIndex: fraction < 1 ? a.trackSegmentIndex : b.trackSegmentIndex
         )
+        if a.sourceAltitudeMeters != nil || b.sourceAltitudeMeters != nil {
+            sample.sourceAltitudeMeters = interpolate(
+                a.sourceAltitudeMeters ?? a.altitudeMeters,
+                b.sourceAltitudeMeters ?? b.altitudeMeters,
+                fraction: fraction
+            )
+        }
+        return sample
     }
 
     private static func isTrackSegmentBreak(from a: TelemetrySample, to b: TelemetrySample) -> Bool {
@@ -591,7 +723,8 @@ public struct TelemetrySeries: Equatable {
                 referenceAltitude = nil
             }
             previous = input
-            guard let altitude = input.altitudeMeters, altitude.isFinite else {
+            guard let altitude = input.sourceAltitudeMeters ?? input.altitudeMeters,
+                  altitude.isFinite else {
                 sample.totalAscentMeters = totalAscent
                 return sample
             }

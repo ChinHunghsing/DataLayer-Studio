@@ -40,6 +40,53 @@ final class FITParserTests: XCTestCase {
         XCTAssertEqual(sample.cadence, 180)
     }
 
+    func testSmoothsOnlyDisplayAltitudeForCorosFiles() throws {
+        let fit = makeAltitudeFITFile(
+            manufacturer: FITParser.corosManufacturerID,
+            altitudes: [804, 804, 804, 804, 805, 805, 805, 805, 805]
+        )
+
+        let series = try FITParser().parse(data: fit)
+
+        XCTAssertEqual(series.samples.first?.altitudeMeters ?? -1, 804, accuracy: 0.001)
+        XCTAssertGreaterThan(series.sample(at: 3).altitudeMeters ?? -1, 804)
+        XCTAssertLessThan(series.sample(at: 3).altitudeMeters ?? .greatestFiniteMagnitude, 804.5)
+        XCTAssertGreaterThan(series.sample(at: 4).altitudeMeters ?? -1, 804.5)
+        XCTAssertLessThan(series.sample(at: 4).altitudeMeters ?? .greatestFiniteMagnitude, 805)
+        XCTAssertEqual(series.samples.last?.altitudeMeters ?? -1, 805, accuracy: 0.001)
+        XCTAssertEqual(series.samples.last?.totalAscentMeters ?? -1, 1, accuracy: 0.001)
+
+        let rebuilt = TelemetrySeries(samples: series.samples)
+        XCTAssertEqual(rebuilt.sample(at: 3).altitudeMeters ?? -1, series.sample(at: 3).altitudeMeters ?? -2, accuracy: 0.001)
+        XCTAssertEqual(rebuilt.samples.last?.totalAscentMeters ?? -1, 1, accuracy: 0.001)
+    }
+
+    func testDoesNotSmoothDisplayAltitudeForOtherManufacturers() throws {
+        let fit = makeAltitudeFITFile(
+            manufacturer: 1,
+            altitudes: [804, 804, 804, 804, 805, 805, 805, 805, 805]
+        )
+
+        let series = try FITParser().parse(data: fit)
+
+        XCTAssertEqual(series.sample(at: 3).altitudeMeters ?? -1, 804, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 4).altitudeMeters ?? -1, 805, accuracy: 0.001)
+        XCTAssertEqual(series.samples.last?.totalAscentMeters ?? -1, 1, accuracy: 0.001)
+    }
+
+    func testDoesNotSmoothHigherPrecisionCorosAltitude() throws {
+        let fit = makeAltitudeFITFile(
+            manufacturer: FITParser.corosManufacturerID,
+            altitudes: [804.0, 804.2, 804.4, 804.6, 804.8, 805.0]
+        )
+
+        let series = try FITParser().parse(data: fit)
+
+        XCTAssertEqual(series.sample(at: 1).altitudeMeters ?? -1, 804.2, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 2).altitudeMeters ?? -1, 804.4, accuracy: 0.001)
+        XCTAssertEqual(series.sample(at: 4).altitudeMeters ?? -1, 804.8, accuracy: 0.001)
+    }
+
     func testUsesTimerStartEventBeforeFirstRecordToAvoidStartupDelay() throws {
         var content = Data()
         appendEventDefinition(localMessageType: 1, to: &content)
@@ -763,6 +810,22 @@ private func makeFITFile(records: [TestRecord]) -> Data {
     return makeFITFile(content: content)
 }
 
+private func makeAltitudeFITFile(manufacturer: Int, altitudes: [Double]) -> Data {
+    var content = Data()
+    appendFileIDDefinition(localMessageType: 1, to: &content)
+    appendFileID(manufacturer: manufacturer, localMessageType: 1, to: &content)
+    appendAltitudeRecordDefinition(localMessageType: 0, to: &content)
+    for (index, altitude) in altitudes.enumerated() {
+        appendAltitudeRecord(
+            timestamp: 1_000_000 + UInt32(index),
+            altitudeMeters: altitude,
+            localMessageType: 0,
+            to: &content
+        )
+    }
+    return makeFITFile(content: content)
+}
+
 private func makeFITFile(content: Data) -> Data {
     var file = Data()
     file.append(12)
@@ -822,6 +885,41 @@ private func appendStandardRecordDefinition(localMessageType: UInt8, to content:
     content.append(contentsOf: [6, 2, 0x84])
     content.append(contentsOf: [3, 1, 0x02])
     content.append(contentsOf: [4, 1, 0x02])
+}
+
+private func appendFileIDDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(0, to: &content)
+    content.append(1)
+    content.append(contentsOf: [1, 2, 0x84])
+}
+
+private func appendAltitudeRecordDefinition(localMessageType: UInt8, to content: inout Data) {
+    content.append(0x40 | localMessageType)
+    content.append(0x00)
+    content.append(0x00)
+    appendUInt16(20, to: &content)
+    content.append(2)
+    content.append(contentsOf: [253, 4, 0x86])
+    content.append(contentsOf: [2, 2, 0x84])
+}
+
+private func appendFileID(manufacturer: Int, localMessageType: UInt8, to content: inout Data) {
+    content.append(localMessageType)
+    appendUInt16(UInt16(manufacturer), to: &content)
+}
+
+private func appendAltitudeRecord(
+    timestamp: UInt32,
+    altitudeMeters: Double,
+    localMessageType: UInt8,
+    to content: inout Data
+) {
+    content.append(localMessageType)
+    appendUInt32(timestamp, to: &content)
+    appendUInt16(UInt16(((altitudeMeters + 500) * 5).rounded()), to: &content)
 }
 
 private func appendDeveloperRecordDefinition(localMessageType: UInt8, to content: inout Data) {

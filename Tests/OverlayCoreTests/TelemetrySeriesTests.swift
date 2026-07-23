@@ -63,6 +63,24 @@ final class TelemetrySeriesTests: XCTestCase {
         XCTAssertEqual(series.sample(at: 4).totalAscentMeters ?? -1, 5.4, accuracy: 0.001)
     }
 
+    func testQuantizedAltitudeDisplaySmoothingDoesNotCrossPauseBoundary() {
+        let series = TelemetrySeries(
+            samples: (0...8).map { elapsed in
+                TelemetrySample(
+                    elapsed: TimeInterval(elapsed),
+                    altitudeMeters: elapsed <= 4 ? 800 : 810
+                )
+            },
+            pausedRanges: [TelemetryPausedRange(start: 4, duration: 10)]
+        )
+
+        let smoothed = series.applyingQuantizedAltitudeDisplaySmoothing()
+
+        XCTAssertEqual(smoothed.samples[4].altitudeMeters ?? -1, 800, accuracy: 0.001)
+        XCTAssertEqual(smoothed.samples[5].altitudeMeters ?? -1, 810, accuracy: 0.001)
+        XCTAssertEqual(smoothed.samples.last?.totalAscentMeters ?? -1, 10, accuracy: 0.001)
+    }
+
     func testLeavesTotalAscentEmptyWhenAltitudeIsMissing() {
         let series = TelemetrySeries(samples: [
             TelemetrySample(elapsed: 0, distanceMeters: 0),

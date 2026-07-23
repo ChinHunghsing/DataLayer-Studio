@@ -6,6 +6,9 @@ public struct TelemetrySample: Equatable {
     public var latitude: Double?
     public var longitude: Double?
     public var altitudeMeters: Double?
+    /// Original quantized altitude retained when `altitudeMeters` is presentation-smoothed.
+    /// Internal processing uses it to keep cumulative ascent independent from display smoothing.
+    var sourceAltitudeMeters: Double?
     public var totalAscentMeters: Double?
     public var heartRate: Int?
     public var cadence: Int?
@@ -66,6 +69,7 @@ public struct TelemetrySample: Equatable {
         self.latitude = latitude
         self.longitude = longitude
         self.altitudeMeters = altitudeMeters
+        self.sourceAltitudeMeters = nil
         self.totalAscentMeters = totalAscentMeters
         self.heartRate = heartRate
         self.cadence = cadence
