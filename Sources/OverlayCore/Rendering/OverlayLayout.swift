@@ -23,6 +23,7 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
     case weather
     case distance
     case route
+    case altitudeProfile
     case topProgress
     case timeDate
 
@@ -72,6 +73,8 @@ public enum OverlayComponentID: String, CaseIterable, Codable, Identifiable {
             return "Distance value"
         case .route:
             return "GPS route"
+        case .altitudeProfile:
+            return "Altitude profile"
         case .topProgress:
             return "Distance"
         case .timeDate:
@@ -287,6 +290,25 @@ public struct OverlayElementCustomization: Codable, Equatable {
     public var manualWeatherTemperatureCelsius: Int?
     public var manualWeatherHumidityPercent: Int?
     public var showsWeatherHumidity: Bool?
+    public var altitudeWidthScale: Double?
+    public var altitudeHeightScale: Double?
+    public var altitudeAxisLabelScale: Double?
+    public var altitudeRemainingColor: OverlayColor?
+    public var altitudeFillColor: OverlayColor?
+    public var altitudeGridColor: OverlayColor?
+    public var altitudeCursorColor: OverlayColor?
+    public var altitudeCursorSize: Double?
+    public var altitudeFillOpacity: Double?
+    public var altitudeGridOpacity: Double?
+    public var altitudeVerticalPadding: Double?
+    public var altitudeMinimumRangeMeters: Double?
+    public var altitudeGridRows: Int?
+    public var altitudeGridColumns: Int?
+    public var altitudeShowsFill: Bool?
+    public var altitudeShowsGrid: Bool?
+    public var altitudeShowsCursor: Bool?
+    public var altitudeShowsMinMax: Bool?
+    public var altitudeShowsDistanceLabels: Bool?
     public var labelScale: Double
     public var valueScale: Double
     public var unitScale: Double
@@ -334,6 +356,25 @@ public struct OverlayElementCustomization: Codable, Equatable {
         manualWeatherTemperatureCelsius: Int? = nil,
         manualWeatherHumidityPercent: Int? = nil,
         showsWeatherHumidity: Bool? = nil,
+        altitudeWidthScale: Double? = nil,
+        altitudeHeightScale: Double? = nil,
+        altitudeAxisLabelScale: Double? = nil,
+        altitudeRemainingColor: OverlayColor? = nil,
+        altitudeFillColor: OverlayColor? = nil,
+        altitudeGridColor: OverlayColor? = nil,
+        altitudeCursorColor: OverlayColor? = nil,
+        altitudeCursorSize: Double? = nil,
+        altitudeFillOpacity: Double? = nil,
+        altitudeGridOpacity: Double? = nil,
+        altitudeVerticalPadding: Double? = nil,
+        altitudeMinimumRangeMeters: Double? = nil,
+        altitudeGridRows: Int? = nil,
+        altitudeGridColumns: Int? = nil,
+        altitudeShowsFill: Bool? = nil,
+        altitudeShowsGrid: Bool? = nil,
+        altitudeShowsCursor: Bool? = nil,
+        altitudeShowsMinMax: Bool? = nil,
+        altitudeShowsDistanceLabels: Bool? = nil,
         labelScale: Double = 1,
         valueScale: Double = 1,
         unitScale: Double = 1,
@@ -380,6 +421,25 @@ public struct OverlayElementCustomization: Codable, Equatable {
         self.manualWeatherTemperatureCelsius = manualWeatherTemperatureCelsius
         self.manualWeatherHumidityPercent = manualWeatherHumidityPercent
         self.showsWeatherHumidity = showsWeatherHumidity
+        self.altitudeWidthScale = altitudeWidthScale
+        self.altitudeHeightScale = altitudeHeightScale
+        self.altitudeAxisLabelScale = altitudeAxisLabelScale
+        self.altitudeRemainingColor = altitudeRemainingColor
+        self.altitudeFillColor = altitudeFillColor
+        self.altitudeGridColor = altitudeGridColor
+        self.altitudeCursorColor = altitudeCursorColor
+        self.altitudeCursorSize = altitudeCursorSize
+        self.altitudeFillOpacity = altitudeFillOpacity
+        self.altitudeGridOpacity = altitudeGridOpacity
+        self.altitudeVerticalPadding = altitudeVerticalPadding
+        self.altitudeMinimumRangeMeters = altitudeMinimumRangeMeters
+        self.altitudeGridRows = altitudeGridRows
+        self.altitudeGridColumns = altitudeGridColumns
+        self.altitudeShowsFill = altitudeShowsFill
+        self.altitudeShowsGrid = altitudeShowsGrid
+        self.altitudeShowsCursor = altitudeShowsCursor
+        self.altitudeShowsMinMax = altitudeShowsMinMax
+        self.altitudeShowsDistanceLabels = altitudeShowsDistanceLabels
         self.labelScale = labelScale
         self.valueScale = valueScale
         self.unitScale = unitScale
@@ -435,6 +495,20 @@ public struct OverlayElementCustomization: Codable, Equatable {
         copy.weatherIconSpacingScale = OverlayLayoutSanitizer.sanitize(weatherIconSpacingScale, range: 0...3)
         copy.manualWeatherTemperatureCelsius = manualWeatherTemperatureCelsius.map { min(100, max(-100, $0)) }
         copy.manualWeatherHumidityPercent = manualWeatherHumidityPercent.map { min(100, max(0, $0)) }
+        copy.altitudeWidthScale = OverlayLayoutSanitizer.sanitize(altitudeWidthScale, range: 0.25...4)
+        copy.altitudeHeightScale = OverlayLayoutSanitizer.sanitize(altitudeHeightScale, range: 0.25...4)
+        copy.altitudeAxisLabelScale = OverlayLayoutSanitizer.sanitize(altitudeAxisLabelScale, range: 0.5...4)
+        copy.altitudeRemainingColor = OverlayLayoutSanitizer.sanitizeColor(altitudeRemainingColor)
+        copy.altitudeFillColor = OverlayLayoutSanitizer.sanitizeColor(altitudeFillColor)
+        copy.altitudeGridColor = OverlayLayoutSanitizer.sanitizeColor(altitudeGridColor)
+        copy.altitudeCursorColor = OverlayLayoutSanitizer.sanitizeColor(altitudeCursorColor)
+        copy.altitudeCursorSize = OverlayLayoutSanitizer.sanitize(altitudeCursorSize, range: 2...64)
+        copy.altitudeFillOpacity = OverlayLayoutSanitizer.sanitize(altitudeFillOpacity, range: 0...1)
+        copy.altitudeGridOpacity = OverlayLayoutSanitizer.sanitize(altitudeGridOpacity, range: 0...1)
+        copy.altitudeVerticalPadding = OverlayLayoutSanitizer.sanitize(altitudeVerticalPadding, range: 0...1)
+        copy.altitudeMinimumRangeMeters = OverlayLayoutSanitizer.sanitize(altitudeMinimumRangeMeters, range: 0.1...10_000)
+        copy.altitudeGridRows = altitudeGridRows.map { min(12, max(0, $0)) }
+        copy.altitudeGridColumns = altitudeGridColumns.map { min(16, max(0, $0)) }
         copy.labelScale = OverlayLayoutSanitizer.clamp(labelScale, fallback: 1, range: 0.05...20)
         copy.valueScale = OverlayLayoutSanitizer.clamp(valueScale, fallback: 1, range: 0.05...20)
         copy.unitScale = OverlayLayoutSanitizer.clamp(unitScale, fallback: 1, range: 0.05...20)
@@ -452,6 +526,34 @@ public struct OverlayElementCustomization: Codable, Equatable {
     public var weatherHumidityIsVisible: Bool {
         showsWeatherHumidity ?? true
     }
+
+    public var resolvedAltitudeWidthScale: Double { altitudeWidthScale ?? 1 }
+    public var resolvedAltitudeHeightScale: Double { altitudeHeightScale ?? 1 }
+    public var resolvedAltitudeAxisLabelScale: Double { altitudeAxisLabelScale ?? 1 }
+    public var resolvedAltitudeRemainingColor: OverlayColor {
+        altitudeRemainingColor ?? OverlayColor(red: 1, green: 1, blue: 1, alpha: 0.34)
+    }
+    public var resolvedAltitudeFillColor: OverlayColor {
+        altitudeFillColor ?? OverlayColor(red: 0.16, green: 0.82, blue: 0.98)
+    }
+    public var resolvedAltitudeGridColor: OverlayColor {
+        altitudeGridColor ?? OverlayColor(red: 1, green: 1, blue: 1, alpha: 0.22)
+    }
+    public var resolvedAltitudeCursorColor: OverlayColor {
+        altitudeCursorColor ?? OverlayColor(red: 1, green: 1, blue: 1)
+    }
+    public var resolvedAltitudeCursorSize: Double { altitudeCursorSize ?? 14 }
+    public var resolvedAltitudeFillOpacity: Double { altitudeFillOpacity ?? 0.18 }
+    public var resolvedAltitudeGridOpacity: Double { altitudeGridOpacity ?? 0.35 }
+    public var resolvedAltitudeVerticalPadding: Double { altitudeVerticalPadding ?? 0.12 }
+    public var resolvedAltitudeMinimumRangeMeters: Double { altitudeMinimumRangeMeters ?? 50 }
+    public var resolvedAltitudeGridRows: Int { altitudeGridRows ?? 3 }
+    public var resolvedAltitudeGridColumns: Int { altitudeGridColumns ?? 4 }
+    public var altitudeFillIsVisible: Bool { altitudeShowsFill ?? true }
+    public var altitudeGridIsVisible: Bool { altitudeShowsGrid ?? true }
+    public var altitudeCursorIsVisible: Bool { altitudeShowsCursor ?? true }
+    public var altitudeMinMaxIsVisible: Bool { altitudeShowsMinMax ?? true }
+    public var altitudeDistanceLabelsAreVisible: Bool { altitudeShowsDistanceLabels ?? true }
 
     public func resolvedWeatherTemperatureCelsius(
         apiValue: Int?,
@@ -905,6 +1007,13 @@ public extension OverlayElement {
             )
         case .route:
             return OverlayComponentFrame(x: 0.776, y: 0.682)
+        case .altitudeProfile:
+            return OverlayComponentFrame(
+                x: 0.358,
+                y: 0.663,
+                scale: 0.65,
+                style: OverlayComponentStyle(accentColor: .electricBlue)
+            )
         case .topProgress:
             return OverlayComponentFrame(
                 x: 0.070,
@@ -941,6 +1050,8 @@ public extension OverlayElement {
             return OverlayElementCustomization(showsLabel: false, showsPanel: false, showGaugeTicks: false, valueScale: 1.08, unitScale: 1.04)
         case .route:
             return OverlayElementCustomization(lineWidth: 5.5)
+        case .altitudeProfile:
+            return OverlayElementCustomization(lineWidth: 4)
         case .weather:
             return OverlayElementCustomization(showsIcon: true, labelScale: 0.92, valueScale: 1.04, unitScale: 0.94, iconScale: 1.12)
         case .pace, .heartRate, .cadence, .calories, .ascent, .strideLength, .power,

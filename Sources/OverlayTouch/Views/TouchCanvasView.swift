@@ -142,8 +142,14 @@ struct TouchCanvasView: View {
         let base = TouchComponentBaseSize.size(for: element.kind)
         let rendererScale = max(0.28, min(CGFloat(model.outputWidth) / 1920, CGFloat(model.outputHeight) / 1080))
         let scale = rendererScale * CGFloat(element.frame.scale)
-        let width = base.width * scale * CGFloat(max(0.1, element.customization.lengthScale))
-        let height = base.height * scale
+        let widthScale = element.kind == .altitudeProfile
+            ? CGFloat(element.customization.resolvedAltitudeWidthScale)
+            : CGFloat(max(0.1, element.customization.lengthScale))
+        let heightScale = element.kind == .altitudeProfile
+            ? CGFloat(element.customization.resolvedAltitudeHeightScale)
+            : 1
+        let width = base.width * scale * widthScale
+        let height = base.height * scale * heightScale
         let unitWidth = width / CGFloat(max(1, model.outputWidth))
         let unitHeight = height / CGFloat(max(1, model.outputHeight))
         return CGRect(

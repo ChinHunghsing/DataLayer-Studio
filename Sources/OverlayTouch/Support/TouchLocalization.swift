@@ -188,6 +188,13 @@ public struct TouchLocalizer {
         "inspector.scale": "Scale",
         "inspector.textScale": "Text scale",
         "inspector.panelOpacity": "Panel opacity",
+        "inspector.width": "Width",
+        "inspector.height": "Height",
+        "inspector.showFill": "Show fill",
+        "inspector.showGrid": "Show grid",
+        "inspector.showCursor": "Show cursor",
+        "inspector.showMinMax": "Show min/max",
+        "inspector.showDistanceLabels": "Show distance labels",
         "inspector.accent": "Accent color",
         "inspector.accent.global": "Global",
         "inspector.showsPanel": "Show panel",
@@ -233,6 +240,7 @@ public struct TouchLocalizer {
         "component.weather": "Weather",
         "component.distance": "Distance value",
         "component.route": "GPS route",
+        "component.altitudeProfile": "Altitude profile",
         "component.topProgress": "Distance progress",
         "component.timeDate": "Time & date"
     ]
@@ -363,6 +371,13 @@ public struct TouchLocalizer {
         "inspector.scale": "缩放",
         "inspector.textScale": "文字缩放",
         "inspector.panelOpacity": "面板不透明度",
+        "inspector.width": "宽度",
+        "inspector.height": "高度",
+        "inspector.showFill": "显示填充",
+        "inspector.showGrid": "显示网格",
+        "inspector.showCursor": "显示当前位置",
+        "inspector.showMinMax": "显示最高/最低",
+        "inspector.showDistanceLabels": "显示距离标签",
         "inspector.accent": "强调色",
         "inspector.accent.global": "跟随全局",
         "inspector.showsPanel": "显示面板",
@@ -408,6 +423,7 @@ public struct TouchLocalizer {
         "component.weather": "天气",
         "component.distance": "距离数值",
         "component.route": "GPS 路线",
+        "component.altitudeProfile": "海拔剖面",
         "component.topProgress": "距离进度条",
         "component.timeDate": "时间与日期"
     ]
@@ -538,6 +554,13 @@ public struct TouchLocalizer {
         "inspector.scale": "縮放",
         "inspector.textScale": "文字縮放",
         "inspector.panelOpacity": "面板不透明度",
+        "inspector.width": "寬度",
+        "inspector.height": "高度",
+        "inspector.showFill": "顯示填色",
+        "inspector.showGrid": "顯示網格",
+        "inspector.showCursor": "顯示目前位置",
+        "inspector.showMinMax": "顯示最高／最低",
+        "inspector.showDistanceLabels": "顯示距離標籤",
         "inspector.accent": "強調色",
         "inspector.accent.global": "跟隨全域",
         "inspector.showsPanel": "顯示面板",
@@ -583,6 +606,7 @@ public struct TouchLocalizer {
         "component.weather": "天氣",
         "component.distance": "距離數值",
         "component.route": "GPS 路線",
+        "component.altitudeProfile": "海拔剖面",
         "component.topProgress": "距離進度條",
         "component.timeDate": "時間與日期"
     ]
@@ -713,6 +737,13 @@ public struct TouchLocalizer {
         "inspector.scale": "拡大率",
         "inspector.textScale": "文字サイズ",
         "inspector.panelOpacity": "パネル不透明度",
+        "inspector.width": "幅",
+        "inspector.height": "高さ",
+        "inspector.showFill": "塗りを表示",
+        "inspector.showGrid": "グリッドを表示",
+        "inspector.showCursor": "現在位置を表示",
+        "inspector.showMinMax": "最高／最低を表示",
+        "inspector.showDistanceLabels": "距離ラベルを表示",
         "inspector.accent": "アクセントカラー",
         "inspector.accent.global": "グローバルに従う",
         "inspector.showsPanel": "パネルを表示",
@@ -758,6 +789,7 @@ public struct TouchLocalizer {
         "component.weather": "天気",
         "component.distance": "距離",
         "component.route": "GPS ルート",
+        "component.altitudeProfile": "高度プロファイル",
         "component.topProgress": "距離プログレス",
         "component.timeDate": "時刻と日付"
     ]
@@ -812,6 +844,8 @@ public extension OverlayComponentID {
             return "ruler"
         case .route:
             return "point.topleft.down.curvedto.point.bottomright.up"
+        case .altitudeProfile:
+            return "mountain.2"
         case .topProgress:
             return "chart.bar.xaxis"
         case .timeDate:

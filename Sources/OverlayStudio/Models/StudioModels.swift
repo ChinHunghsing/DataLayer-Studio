@@ -198,6 +198,8 @@ struct ComponentBaseSize {
             return CGSize(width: 160, height: 74)
         case .route:
             return CGSize(width: 382, height: 238)
+        case .altitudeProfile:
+            return CGSize(width: 840, height: 520)
         case .topProgress:
             return CGSize(width: 1650, height: 58)
         case .timeDate:

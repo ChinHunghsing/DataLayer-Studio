@@ -167,6 +167,22 @@ struct TouchInspectorPanel: View {
                 get: { $0.frame.style.panelOpacity ?? model.layout.style.panelOpacity },
                 set: { $0.frame.style.panelOpacity = $1 }
             )
+            if element.kind == .altitudeProfile {
+                sliderRow(
+                    labelKey: "inspector.width",
+                    elementID: element.id,
+                    range: 0.25...4,
+                    get: { $0.customization.resolvedAltitudeWidthScale },
+                    set: { $0.customization.altitudeWidthScale = $1 }
+                )
+                sliderRow(
+                    labelKey: "inspector.height",
+                    elementID: element.id,
+                    range: 0.25...4,
+                    get: { $0.customization.resolvedAltitudeHeightScale },
+                    set: { $0.customization.altitudeHeightScale = $1 }
+                )
+            }
 
             Picker(localizer.string("inspector.accent"), selection: elementBinding(element.id, get: {
                 $0.frame.style.accentColor?.rawValue ?? "global"
@@ -198,6 +214,34 @@ struct TouchInspectorPanel: View {
             }, set: {
                 $0.customization.showsUnit = $1
             }))
+
+            if element.kind == .altitudeProfile {
+                Toggle(localizer.string("inspector.showFill"), isOn: elementBinding(element.id, get: {
+                    $0.customization.altitudeFillIsVisible
+                }, set: {
+                    $0.customization.altitudeShowsFill = $1
+                }))
+                Toggle(localizer.string("inspector.showGrid"), isOn: elementBinding(element.id, get: {
+                    $0.customization.altitudeGridIsVisible
+                }, set: {
+                    $0.customization.altitudeShowsGrid = $1
+                }))
+                Toggle(localizer.string("inspector.showCursor"), isOn: elementBinding(element.id, get: {
+                    $0.customization.altitudeCursorIsVisible
+                }, set: {
+                    $0.customization.altitudeShowsCursor = $1
+                }))
+                Toggle(localizer.string("inspector.showMinMax"), isOn: elementBinding(element.id, get: {
+                    $0.customization.altitudeMinMaxIsVisible
+                }, set: {
+                    $0.customization.altitudeShowsMinMax = $1
+                }))
+                Toggle(localizer.string("inspector.showDistanceLabels"), isOn: elementBinding(element.id, get: {
+                    $0.customization.altitudeDistanceLabelsAreVisible
+                }, set: {
+                    $0.customization.altitudeShowsDistanceLabels = $1
+                }))
+            }
 
             if supportsPrecision(element.kind) {
                 Stepper(value: elementBinding(element.id, get: {
@@ -283,7 +327,7 @@ struct TouchInspectorPanel: View {
              .stepSpeedLoss, .legSpringStiffness:
             return true
         case .pace, .heartRate, .cadence, .calories, .power, .formPower, .airPower,
-             .weather, .route, .timeDate:
+             .weather, .route, .altitudeProfile, .timeDate:
             return false
         }
     }

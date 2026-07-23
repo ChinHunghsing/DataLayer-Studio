@@ -17,6 +17,7 @@ public final class OverlayRenderer {
     private let visibleElements: [OverlayElement]
     private let routePoints: [RoutePoint]
     private let routePathCache: [String: CGPath]
+    private let altitudeProfileGeometry: AltitudeProfileGeometry
     private let totalDistanceMeters: Double
     private let colorSpace = CGColorSpaceCreateDeviceRGB()
     private let fontCacheLock = NSLock()
@@ -71,6 +72,17 @@ public final class OverlayRenderer {
             previousElements: previous?.visibleElements ?? [],
             previousCache: previous?.routePathCache ?? [:]
         )
+        if !visibleElements.contains(where: { $0.kind == .altitudeProfile }) {
+            self.altitudeProfileGeometry = .empty
+        } else if let previous,
+                  previous.visibleElements.contains(where: { $0.kind == .altitudeProfile }) {
+            self.altitudeProfileGeometry = previous.altitudeProfileGeometry
+        } else {
+            self.altitudeProfileGeometry = AltitudeProfileGeometry.build(
+                samples: displaySeries.samples,
+                totalDistanceMeters: max(0, totalDistanceMeters)
+            )
+        }
     }
 
     /// 仅布局变化时复用同一 series/config 的预计算状态（路线点、未变元素的路径缓存）。
@@ -144,6 +156,8 @@ public final class OverlayRenderer {
                 }
             case .route:
                 drawRoute(context: context, sample: sample, canvas: canvas, element: element)
+            case .altitudeProfile:
+                drawAltitudeProfile(context: context, sample: sample, canvas: canvas, element: element)
             case .timeDate:
                 drawTimeDate(context: context, sample: sample, absoluteDate: absoluteDate, canvas: canvas, element: element)
             }
@@ -682,6 +696,257 @@ public final class OverlayRenderer {
         }
     }
 
+    private func drawAltitudeProfile(
+        context: CGContext,
+        sample: TelemetrySample,
+        canvas: CGRect,
+        element: OverlayElement
+    ) {
+        let geometry = altitudeProfileGeometry
+        guard geometry.vertices.count >= 2,
+              geometry.totalDistanceMeters > 0,
+              let sampleDistance = sample.distanceMeters,
+              sampleDistance.isFinite else {
+            return
+        }
+
+        let customization = element.customization
+        let widthScale = CGFloat(customization.resolvedAltitudeWidthScale)
+        let heightScale = CGFloat(customization.resolvedAltitudeHeightScale)
+        let sizeScale = min(widthScale, heightScale)
+        let componentScale = componentScale(element, canvas: canvas)
+        let contentScale = componentScale * sizeScale
+        let textScale = contentScale * componentTextScale(element)
+        let panel = componentRect(element, baseSize: baseSize(for: element.kind), canvas: canvas)
+        let padding = max(8 * sizeScale, 24 * contentScale)
+        let headerHeight = max(28 * sizeScale, 58 * contentScale)
+        let leftAxis = customization.altitudeMinMaxIsVisible
+            ? max(30 * sizeScale, 58 * contentScale)
+            : 0
+        let bottomAxis = customization.altitudeDistanceLabelsAreVisible
+            ? max(18 * sizeScale, 32 * contentScale)
+            : 0
+        let chart = CGRect(
+            x: panel.minX + padding + leftAxis,
+            y: panel.minY + padding + bottomAxis,
+            width: panel.width - padding * 2 - leftAxis,
+            height: panel.height - padding * 2 - headerHeight - bottomAxis
+        )
+        guard chart.width >= 2, chart.height >= 2 else { return }
+
+        drawPanelBackground(context, panel, element: element, radius: 20 * contentScale)
+
+        let actualSpan = max(0, geometry.maximumAltitudeMeters - geometry.minimumAltitudeMeters)
+        let baseSpan = max(actualSpan, customization.resolvedAltitudeMinimumRangeMeters)
+        let visualSpan = max(
+            0.000_001,
+            baseSpan * (1 + customization.resolvedAltitudeVerticalPadding * 2)
+        )
+        let altitudeCenter = (geometry.minimumAltitudeMeters + geometry.maximumAltitudeMeters) / 2
+        let visualMinimum = altitudeCenter - visualSpan / 2
+        let currentDistance = min(geometry.totalDistanceMeters, max(0, sampleDistance))
+
+        func point(distance: Double, altitude: Double) -> CGPoint {
+            let xFraction = min(1, max(0, distance / geometry.totalDistanceMeters))
+            let yFraction = min(1, max(0, (altitude - visualMinimum) / visualSpan))
+            return CGPoint(
+                x: chart.minX + chart.width * CGFloat(xFraction),
+                y: chart.minY + chart.height * CGFloat(yFraction)
+            )
+        }
+
+        if customization.altitudeGridIsVisible {
+            let gridColor = customization.resolvedAltitudeGridColor
+            context.setStrokeColor(
+                gridColor.withAlpha(gridColor.alpha * customization.resolvedAltitudeGridOpacity).cgColor
+            )
+            context.setLineWidth(max(1, contentScale))
+            let rows = customization.resolvedAltitudeGridRows
+            if rows > 0 {
+                for row in 0...rows {
+                    let y = chart.minY + chart.height * CGFloat(row) / CGFloat(rows)
+                    context.move(to: CGPoint(x: chart.minX, y: y))
+                    context.addLine(to: CGPoint(x: chart.maxX, y: y))
+                }
+            }
+            let columns = customization.resolvedAltitudeGridColumns
+            if columns > 0 {
+                for column in 0...columns {
+                    let x = chart.minX + chart.width * CGFloat(column) / CGFloat(columns)
+                    context.move(to: CGPoint(x: x, y: chart.minY))
+                    context.addLine(to: CGPoint(x: x, y: chart.maxY))
+                }
+            }
+            context.strokePath()
+        }
+
+        let remainingPath = CGMutablePath()
+        for (index, vertex) in geometry.vertices.enumerated() {
+            let position = point(distance: vertex.distanceMeters, altitude: vertex.altitudeMeters)
+            if index == 0 {
+                remainingPath.move(to: position)
+            } else {
+                remainingPath.addLine(to: position)
+            }
+        }
+        context.addPath(remainingPath)
+        context.setStrokeColor(customization.resolvedAltitudeRemainingColor.cgColor)
+        context.setLineWidth(lineWidth(element, scale: contentScale))
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.strokePath()
+
+        var completedPoints: [CGPoint] = []
+        completedPoints.reserveCapacity(geometry.vertices.count)
+        for index in 0..<(geometry.vertices.count - 1) {
+            let a = geometry.vertices[index]
+            let b = geometry.vertices[index + 1]
+            guard a.distanceMeters <= currentDistance else { break }
+            if completedPoints.isEmpty {
+                completedPoints.append(point(distance: a.distanceMeters, altitude: a.altitudeMeters))
+            }
+            let span = b.distanceMeters - a.distanceMeters
+            let fraction = span > 0
+                ? min(1, max(0, (currentDistance - a.distanceMeters) / span))
+                : 1
+            let endDistance = a.distanceMeters + span * fraction
+            let endAltitude = a.altitudeMeters + (b.altitudeMeters - a.altitudeMeters) * fraction
+            completedPoints.append(point(distance: endDistance, altitude: endAltitude))
+            if fraction < 1 { break }
+        }
+
+        if completedPoints.count >= 2 {
+            if customization.altitudeFillIsVisible {
+                let fillPath = CGMutablePath()
+                fillPath.move(to: CGPoint(x: completedPoints[0].x, y: chart.minY))
+                fillPath.addLine(to: completedPoints[0])
+                for completedPoint in completedPoints.dropFirst() {
+                    fillPath.addLine(to: completedPoint)
+                }
+                fillPath.addLine(to: CGPoint(x: completedPoints[completedPoints.count - 1].x, y: chart.minY))
+                fillPath.closeSubpath()
+                let fillColor = customization.resolvedAltitudeFillColor
+                context.addPath(fillPath)
+                context.setFillColor(
+                    fillColor.withAlpha(fillColor.alpha * customization.resolvedAltitudeFillOpacity).cgColor
+                )
+                context.fillPath()
+            }
+
+            let completedPath = CGMutablePath()
+            completedPath.addLines(between: completedPoints)
+            context.addPath(completedPath)
+            context.setStrokeColor(valueColor(element))
+            context.setLineWidth(lineWidth(element, scale: contentScale))
+            context.setLineCap(.round)
+            context.setLineJoin(.round)
+            context.strokePath()
+        }
+
+        let currentAltitude = sample.altitudeMeters.flatMap { $0.isFinite ? $0 : nil }
+            ?? geometry.altitude(atDistanceMeters: currentDistance)
+        if customization.altitudeCursorIsVisible, let currentAltitude {
+            let cursorDiameter = max(2, CGFloat(customization.resolvedAltitudeCursorSize) * contentScale)
+            let cursorPoint = point(distance: currentDistance, altitude: currentAltitude)
+            context.setFillColor(customization.resolvedAltitudeCursorColor.cgColor)
+            context.fillEllipse(in: CGRect(
+                x: cursorPoint.x - cursorDiameter / 2,
+                y: cursorPoint.y - cursorDiameter / 2,
+                width: cursorDiameter,
+                height: cursorDiameter
+            ))
+        }
+
+        let headerBaseline = panel.maxY - padding - 18 * textScale
+        if customization.showsLabel {
+            drawText(
+                customization.label(default: "ALTITUDE"),
+                context: context,
+                baseline: CGPoint(x: panel.minX + padding, y: headerBaseline),
+                size: labelSize(16, scale: textScale, element: element),
+                color: labelColor(element),
+                fontName: labelFontName(element)
+            )
+        }
+
+        let value = currentAltitude.map { String(format: "%.1f", $0) } ?? "--"
+        let unit = customization.showsUnit ? customization.unit(default: "M") : ""
+        let valueFontSize = valueSize(24, scale: textScale, element: element)
+        let unitFontSize = unitSize(12, scale: textScale, element: element)
+        let valueWidth = textWidth(value, size: valueFontSize, fontName: valueFontName(element))
+        let unitWidth = unit.isEmpty ? 0 : textWidth(unit, size: unitFontSize, fontName: unitFontName(element))
+        let unitGap = unit.isEmpty ? 0 : max(4 * sizeScale, 8 * contentScale)
+        let valueX = panel.maxX - padding - valueWidth - unitGap - unitWidth
+        drawText(
+            value,
+            context: context,
+            baseline: CGPoint(x: valueX, y: headerBaseline),
+            size: valueFontSize,
+            color: valueColor(element),
+            fontName: valueFontName(element)
+        )
+        if !unit.isEmpty {
+            drawText(
+                unit,
+                context: context,
+                baseline: CGPoint(x: valueX + valueWidth + unitGap, y: headerBaseline),
+                size: unitFontSize,
+                color: unitColor(element),
+                fontName: unitFontName(element)
+            )
+        }
+
+        let axisScale = contentScale * CGFloat(customization.resolvedAltitudeAxisLabelScale)
+        let axisFontSize = max(1, 11 * axisScale)
+        if customization.altitudeMinMaxIsVisible {
+            let maximum = String(format: "%.0f", geometry.maximumAltitudeMeters)
+            let minimum = String(format: "%.0f", geometry.minimumAltitudeMeters)
+            let labelGap = max(5 * sizeScale, padding / 4)
+            drawRightAlignedText(
+                maximum,
+                context: context,
+                rightX: chart.minX - labelGap,
+                baselineY: chart.maxY - axisFontSize,
+                size: axisFontSize,
+                color: unitColor(element),
+                fontName: unitFontName(element)
+            )
+            drawRightAlignedText(
+                minimum,
+                context: context,
+                rightX: chart.minX - labelGap,
+                baselineY: chart.minY,
+                size: axisFontSize,
+                color: unitColor(element),
+                fontName: unitFontName(element)
+            )
+        }
+
+        if customization.altitudeDistanceLabelsAreVisible {
+            let start = "0 KM"
+            let endKilometers = geometry.totalDistanceMeters / 1_000
+            let end = String(format: endKilometers >= 100 ? "%.0f KM" : "%.1f KM", endKilometers)
+            let baseline = chart.minY - max(4 * sizeScale, padding / 4) - axisFontSize
+            drawText(
+                start,
+                context: context,
+                baseline: CGPoint(x: chart.minX, y: baseline),
+                size: axisFontSize,
+                color: unitColor(element),
+                fontName: unitFontName(element)
+            )
+            drawRightAlignedText(
+                end,
+                context: context,
+                rightX: chart.maxX,
+                baselineY: baseline,
+                size: axisFontSize,
+                color: unitColor(element),
+                fontName: unitFontName(element)
+            )
+        }
+    }
+
     private func drawTimeDate(
         context: CGContext,
         sample: TelemetrySample,
@@ -1155,8 +1420,14 @@ public final class OverlayRenderer {
     private func componentRect(_ element: OverlayElement, baseSize: CGSize, canvas: CGRect) -> CGRect {
         let frame = element.frame
         let scale = componentScale(element, canvas: canvas)
-        let width = baseSize.width * scale * componentLengthScale(element)
-        let height = baseSize.height * scale
+        let widthScale = element.kind == .altitudeProfile
+            ? CGFloat(element.customization.resolvedAltitudeWidthScale)
+            : componentLengthScale(element)
+        let heightScale = element.kind == .altitudeProfile
+            ? CGFloat(element.customization.resolvedAltitudeHeightScale)
+            : 1
+        let width = baseSize.width * scale * widthScale
+        let height = baseSize.height * scale * heightScale
         let topLeftX = canvas.minX + canvas.width * CGFloat(frame.x)
         let topLeftY = canvas.minY + canvas.height * CGFloat(frame.y)
         return CGRect(
@@ -1180,6 +1451,8 @@ public final class OverlayRenderer {
             return CGSize(width: 160, height: 74)
         case .route:
             return Self.routeBaseSize
+        case .altitudeProfile:
+            return CGSize(width: 840, height: 520)
         case .topProgress:
             return CGSize(width: 1650, height: 58)
         case .timeDate:
@@ -1374,6 +1647,8 @@ public final class OverlayRenderer {
             return "DIST"
         case .route:
             return "GPS"
+        case .altitudeProfile:
+            return "ALT"
         case .topProgress:
             return "DIST"
         case .timeDate:
@@ -1736,7 +2011,7 @@ public final class OverlayRenderer {
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
             return true
-        case .speed, .route, .topProgress, .timeDate:
+        case .speed, .route, .altitudeProfile, .topProgress, .timeDate:
             return false
         }
     }

@@ -47,6 +47,8 @@ extension OverlayComponentID {
             return "ruler"
         case .route:
             return "point.topleft.down.curvedto.point.bottomright.up"
+        case .altitudeProfile:
+            return "mountain.2"
         case .topProgress:
             return "chart.bar.xaxis"
         case .timeDate:
@@ -62,7 +64,7 @@ extension OverlayComponentID {
              .stepSpeedLoss, .legSpringStiffness:
             return true
         case .pace, .heartRate, .cadence, .calories, .power, .formPower, .airPower,
-             .weather, .route, .timeDate:
+             .weather, .route, .altitudeProfile, .timeDate:
             return false
         }
     }
@@ -89,7 +91,7 @@ extension OverlayComponentID {
         case .topProgress:
             return 1
         case .pace, .heartRate, .cadence, .calories, .power, .formPower, .airPower,
-             .weather, .route, .timeDate:
+             .weather, .route, .altitudeProfile, .timeDate:
             return 0
         }
     }
@@ -102,7 +104,7 @@ extension OverlayComponentID {
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness,
-             .weather, .distance, .timeDate:
+             .weather, .distance, .altitudeProfile, .timeDate:
             return false
         }
     }
@@ -115,7 +117,7 @@ extension OverlayComponentID {
              .verticalOscillation, .groundContactTime, .groundContactTimePercent,
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness,
-             .weather, .distance, .route, .timeDate:
+             .weather, .distance, .route, .altitudeProfile, .timeDate:
             return false
         }
     }

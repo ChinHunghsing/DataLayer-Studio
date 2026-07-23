@@ -65,6 +65,12 @@ struct CanvasElementGeometry {
             fractionRects = [.value: CGRect(x: 0, y: 0, width: 1, height: 1)]
         case .route:
             fractionRects = [:]
+        case .altitudeProfile:
+            fractionRects = [
+                .label: CGRect(x: 0, y: 0, width: 0.5, height: 0.2),
+                .value: CGRect(x: 0.5, y: 0, width: 0.35, height: 0.2),
+                .unit: CGRect(x: 0.85, y: 0, width: 0.15, height: 0.2)
+            ]
         }
 
         var rects: [OverlayElementPart: CGRect] = [:]
@@ -191,8 +197,14 @@ struct CanvasElementGeometry {
 
     private func componentOutputSize(element: OverlayElement, base: CGSize, alignedMetricWidth: CGFloat?) -> CGSize {
         let scale = rendererLayoutScale() * CGFloat(element.frame.scale)
-        let baseWidth = base.width * scale * CGFloat(max(0.1, element.customization.lengthScale))
-        let baseHeight = base.height * scale
+        let widthScale = element.kind == .altitudeProfile
+            ? CGFloat(element.customization.resolvedAltitudeWidthScale)
+            : CGFloat(max(0.1, element.customization.lengthScale))
+        let heightScale = element.kind == .altitudeProfile
+            ? CGFloat(element.customization.resolvedAltitudeHeightScale)
+            : 1
+        let baseWidth = base.width * scale * widthScale
+        let baseHeight = base.height * scale * heightScale
 
         switch element.kind {
         case .pace, .distance, .heartRate, .cadence, .calories, .ascent, .strideLength, .power,
@@ -210,7 +222,7 @@ struct CanvasElementGeometry {
             return progressOutputSize(element: element, baseWidth: baseWidth, baseHeight: baseHeight, scale: scale)
         case .timeDate:
             return timeDateOutputSize(element: element, baseWidth: baseWidth, baseHeight: baseHeight, scale: scale)
-        case .speed, .route:
+        case .speed, .route, .altitudeProfile:
             return CGSize(width: baseWidth, height: baseHeight)
         }
     }
@@ -356,7 +368,7 @@ struct CanvasElementGeometry {
              .groundContactTimeBalance, .verticalRatio, .respirationRate,
              .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness, .weather:
             return true
-        case .speed, .route, .topProgress, .timeDate:
+        case .speed, .route, .altitudeProfile, .topProgress, .timeDate:
             return false
         }
     }

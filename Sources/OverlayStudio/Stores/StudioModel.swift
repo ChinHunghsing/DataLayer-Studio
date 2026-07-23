@@ -536,6 +536,8 @@ final class StudioModel: ObservableObject {
             return hasDouble(\.distanceMeters)
         case .route:
             return samples.contains(where: hasRoutePoint)
+        case .altitudeProfile:
+            return hasDouble(\.distanceMeters) && hasDouble(\.altitudeMeters)
         case .timeDate:
             return true
         }
@@ -6112,11 +6114,20 @@ final class StudioModel: ObservableObject {
 
     func addElementCentered(kind: OverlayComponentID) {
         let baseSize = ComponentBaseSize.size(for: kind)
+        let defaultElement = OverlayElement.defaultElement(kind: kind)
+        let widthScale = kind == .altitudeProfile
+            ? defaultElement.customization.resolvedAltitudeWidthScale
+            : max(0.1, defaultElement.customization.lengthScale)
+        let heightScale = kind == .altitudeProfile
+            ? defaultElement.customization.resolvedAltitudeHeightScale
+            : 1
         addElement(
             kind: kind,
             atNormalizedPosition: CGPoint(
-                x: 0.5 - baseSize.width / CGFloat(max(1, outputWidth)) / 2,
-                y: 0.5 - baseSize.height / CGFloat(max(1, outputHeight)) / 2
+                x: 0.5 - baseSize.width * CGFloat(defaultElement.frame.scale * widthScale)
+                    / CGFloat(max(1, outputWidth)) / 2,
+                y: 0.5 - baseSize.height * CGFloat(defaultElement.frame.scale * heightScale)
+                    / CGFloat(max(1, outputHeight)) / 2
             )
         )
     }

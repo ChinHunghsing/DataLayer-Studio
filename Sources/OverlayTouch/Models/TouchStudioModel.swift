@@ -620,6 +620,8 @@ public final class TouchStudioModel: ObservableObject {
             return hasDouble(\.distanceMeters)
         case .route:
             return samples.contains(where: hasRoutePoint)
+        case .altitudeProfile:
+            return hasDouble(\.distanceMeters) && hasDouble(\.altitudeMeters)
         case .timeDate:
             return true
         }

@@ -63,7 +63,7 @@ enum OverlayElementPart: String, CaseIterable, Identifiable {
         if element.customization.showsUnit {
             parts.append(.unit)
         }
-        if element.customization.showsIcon {
+        if element.kind != .altitudeProfile, element.customization.showsIcon {
             parts.append(.icon)
         }
         return parts

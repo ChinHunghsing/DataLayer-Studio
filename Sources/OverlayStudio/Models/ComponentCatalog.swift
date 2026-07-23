@@ -31,7 +31,7 @@ struct ComponentCatalogItem: Identifiable {
              .groundContactTimePercent, .groundContactTimeBalance, .verticalRatio,
              .respirationRate, .stepSpeedLoss, .formPower, .airPower, .legSpringStiffness:
             return .runningDynamics
-        case .route, .topProgress:
+        case .route, .altitudeProfile, .topProgress:
             return .routeAndProgress
         case .weather, .timeDate:
             return .information

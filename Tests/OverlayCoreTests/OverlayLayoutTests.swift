@@ -214,6 +214,15 @@ final class OverlayLayoutTests: XCTestCase {
             element.customization.manualWeatherHumidityPercent = 64
             element.customization.showsWeatherHumidity = false
         }
+        layout.elements.append(OverlayElement.defaultElement(kind: .altitudeProfile, id: "altitude-profile"))
+        layout.updateElement(id: "altitude-profile") { element in
+            element.customization.altitudeWidthScale = 1.4
+            element.customization.altitudeHeightScale = 0.8
+            element.customization.altitudeAxisLabelScale = 1.2
+            element.customization.altitudeFillColor = OverlayColor(red: 0.2, green: 0.8, blue: 1)
+            element.customization.altitudeGridRows = 5
+            element.customization.altitudeShowsCursor = false
+        }
 
         let data = try JSONEncoder().encode(layout)
         let decoded = try JSONDecoder().decode(OverlayLayout.self, from: data)
@@ -244,6 +253,16 @@ final class OverlayLayoutTests: XCTestCase {
                         progressKnobScale: -2,
                         progressValueMarginScale: 99,
                         progressTickCount: 999,
+                        altitudeWidthScale: 99,
+                        altitudeHeightScale: -1,
+                        altitudeAxisLabelScale: 99,
+                        altitudeCursorSize: 999,
+                        altitudeFillOpacity: 9,
+                        altitudeGridOpacity: -2,
+                        altitudeVerticalPadding: 4,
+                        altitudeMinimumRangeMeters: 99_999,
+                        altitudeGridRows: 99,
+                        altitudeGridColumns: -2,
                         labelScale: .nan
                     )
                 ),
@@ -282,6 +301,16 @@ final class OverlayLayoutTests: XCTestCase {
         XCTAssertEqual(speed.customization.progressKnobScale ?? -1, 0.25, accuracy: 0.0001)
         XCTAssertEqual(speed.customization.progressValueMarginScale ?? -1, 4, accuracy: 0.0001)
         XCTAssertEqual(speed.customization.progressTickCount, 160)
+        XCTAssertEqual(speed.customization.altitudeWidthScale ?? -1, 4, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.altitudeHeightScale ?? -1, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.altitudeAxisLabelScale ?? -1, 4, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.altitudeCursorSize ?? -1, 64, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.altitudeFillOpacity ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.altitudeGridOpacity ?? -1, 0, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.altitudeVerticalPadding ?? -1, 1, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.altitudeMinimumRangeMeters ?? -1, 10_000, accuracy: 0.0001)
+        XCTAssertEqual(speed.customization.altitudeGridRows, 12)
+        XCTAssertEqual(speed.customization.altitudeGridColumns, 0)
         XCTAssertEqual(speed.customization.labelScale, 1, accuracy: 0.0001)
         XCTAssertEqual(sanitized.style.panelOpacity, 0.64, accuracy: 0.0001)
         XCTAssertEqual(sanitized.style.metricScale, 1, accuracy: 0.0001)

@@ -169,6 +169,56 @@ final class OverlayRendererTests: XCTestCase {
         XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
     }
 
+    func testAltitudeProfileRendersAndHoldsDuringPause() throws {
+        let series = TelemetrySeries(
+            samples: [
+                TelemetrySample(elapsed: 0, altitudeMeters: 100, distanceMeters: 0),
+                TelemetrySample(elapsed: 2, altitudeMeters: 102, distanceMeters: 200),
+                TelemetrySample(elapsed: 3, altitudeMeters: 103, distanceMeters: 300)
+            ],
+            pausedRanges: [TelemetryPausedRange(start: 2, duration: 10)]
+        )
+        let size = CGSize(width: 1_280, height: 720)
+        let renderer = OverlayRenderer(
+            series: series,
+            config: OverlayRenderConfig(
+                size: size,
+                layout: OverlayLayout(elements: [.defaultElement(kind: .altitudeProfile)])
+            )
+        )
+        let firstPauseFrame = try makePixelBuffer(width: 1_280, height: 720)
+        let laterPauseFrame = try makePixelBuffer(width: 1_280, height: 720)
+
+        try renderer.render(videoTime: 4, into: firstPauseFrame)
+        try renderer.render(videoTime: 10, into: laterPauseFrame)
+
+        XCTAssertGreaterThan(try drawnPixelCount(pixelBuffer: firstPauseFrame), 0)
+        XCTAssertEqual(
+            try pixelBytes(pixelBuffer: firstPauseFrame),
+            try pixelBytes(pixelBuffer: laterPauseFrame)
+        )
+    }
+
+    func testAltitudeProfileIsTransparentWhenDistanceDataIsUnavailable() throws {
+        let series = TelemetrySeries(samples: [
+            TelemetrySample(elapsed: 0, altitudeMeters: 99),
+            TelemetrySample(elapsed: 1, altitudeMeters: 100),
+            TelemetrySample(elapsed: 2, altitudeMeters: 101)
+        ])
+        let renderer = OverlayRenderer(
+            series: series,
+            config: OverlayRenderConfig(
+                size: CGSize(width: 1_280, height: 720),
+                layout: OverlayLayout(elements: [.defaultElement(kind: .altitudeProfile)])
+            )
+        )
+        let pixelBuffer = try makePixelBuffer(width: 1_280, height: 720)
+
+        try renderer.render(videoTime: 0, into: pixelBuffer)
+
+        XCTAssertEqual(try drawnPixelCount(pixelBuffer: pixelBuffer), 0)
+    }
+
     func testRendererDrawsAdditionalMetricGauges() throws {
         let series = TelemetrySeries(samples: [
             TelemetrySample(

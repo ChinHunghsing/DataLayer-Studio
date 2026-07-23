@@ -85,6 +85,29 @@ struct InspectorSettingsPanel: View {
                 label: "\(Int(((currentElement(id)?.frame.scale ?? 1) * 100).rounded()))%"
             )
 
+            if kind == .altitudeProfile {
+                LabeledSlider(
+                    title: localization.string("inspector.width"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.resolvedAltitudeWidthScale },
+                        set: { $0.customization.altitudeWidthScale = $1 }
+                    ),
+                    range: 0.25...4,
+                    label: "\(Int(((currentElement(id)?.customization.resolvedAltitudeWidthScale ?? 1) * 100).rounded()))%"
+                )
+                LabeledSlider(
+                    title: localization.string("inspector.height"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.resolvedAltitudeHeightScale },
+                        set: { $0.customization.altitudeHeightScale = $1 }
+                    ),
+                    range: 0.25...4,
+                    label: "\(Int(((currentElement(id)?.customization.resolvedAltitudeHeightScale ?? 1) * 100).rounded()))%"
+                )
+            }
+
             if kind.supportsLengthScale {
                 LabeledSlider(
                     title: localization.string("inspector.length"),
@@ -214,30 +237,32 @@ struct InspectorSettingsPanel: View {
                 )
             }
 
-            InspectorToggleRow(title: localization.string("inspector.icon"), isOn: boolBinding(
-                id: id,
-                get: { $0.customization.showsIcon },
-                set: { $0.customization.showsIcon = $1 }
-            ))
+            if kind != .altitudeProfile {
+                InspectorToggleRow(title: localization.string("inspector.icon"), isOn: boolBinding(
+                    id: id,
+                    get: { $0.customization.showsIcon },
+                    set: { $0.customization.showsIcon = $1 }
+                ))
 
-            if currentElement(id)?.customization.showsIcon == true {
-                if kind == .weather {
-                    InspectorWeatherIconRow(
-                        title: localization.string("inspector.weatherIcon"),
-                        selection: weatherIconBinding(id: id)
-                    )
-                } else {
-                    InspectorTextRow(
-                        title: localization.string("inspector.iconText"),
-                        text: stringBinding(
-                            id: id,
-                            get: { $0.customization.iconOverride ?? "" },
-                            set: { element, value in
-                                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                                element.customization.iconOverride = trimmed.isEmpty ? nil : trimmed
-                            }
+                if currentElement(id)?.customization.showsIcon == true {
+                    if kind == .weather {
+                        InspectorWeatherIconRow(
+                            title: localization.string("inspector.weatherIcon"),
+                            selection: weatherIconBinding(id: id)
                         )
-                    )
+                    } else {
+                        InspectorTextRow(
+                            title: localization.string("inspector.iconText"),
+                            text: stringBinding(
+                                id: id,
+                                get: { $0.customization.iconOverride ?? "" },
+                                set: { element, value in
+                                    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    element.customization.iconOverride = trimmed.isEmpty ? nil : trimmed
+                                }
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -371,6 +396,172 @@ struct InspectorSettingsPanel: View {
                         label: "\(currentElement(id)?.customization.progressTickCount ?? 48)"
                     )
                 }
+            }
+
+            if kind == .altitudeProfile {
+                InspectorRule()
+                InspectorSubheading(localization.string("inspector.altitudeChartSection"))
+
+                LabeledSlider(
+                    title: localization.string("inspector.lineWidth"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.lineWidth },
+                        set: { $0.customization.lineWidth = $1 }
+                    ),
+                    range: 1...32,
+                    label: "\(Int((currentElement(id)?.customization.lineWidth ?? 4).rounded())) px",
+                    showsTextField: true,
+                    unitLabel: "px"
+                )
+                LabeledSlider(
+                    title: localization.string("inspector.cursorSize"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.resolvedAltitudeCursorSize },
+                        set: { $0.customization.altitudeCursorSize = $1 }
+                    ),
+                    range: 2...64,
+                    label: "\(Int((currentElement(id)?.customization.resolvedAltitudeCursorSize ?? 14).rounded())) px",
+                    showsTextField: true,
+                    unitLabel: "px"
+                )
+                LabeledSlider(
+                    title: localization.string("inspector.axisLabelSize"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.resolvedAltitudeAxisLabelScale },
+                        set: { $0.customization.altitudeAxisLabelScale = $1 }
+                    ),
+                    range: 0.5...4,
+                    label: "\(Int(((currentElement(id)?.customization.resolvedAltitudeAxisLabelScale ?? 1) * 100).rounded()))%"
+                )
+
+                InspectorColorRow(
+                    title: localization.string("inspector.remainingLine"),
+                    selection: colorBinding(
+                        id: id,
+                        fallback: element.customization.resolvedAltitudeRemainingColor,
+                        get: { $0.customization.altitudeRemainingColor },
+                        set: { $0.customization.altitudeRemainingColor = $1 }
+                    )
+                )
+                InspectorColorRow(
+                    title: localization.string("inspector.completedFill"),
+                    selection: colorBinding(
+                        id: id,
+                        fallback: element.customization.resolvedAltitudeFillColor,
+                        get: { $0.customization.altitudeFillColor },
+                        set: { $0.customization.altitudeFillColor = $1 }
+                    )
+                )
+                InspectorColorRow(
+                    title: localization.string("inspector.gridColor"),
+                    selection: colorBinding(
+                        id: id,
+                        fallback: element.customization.resolvedAltitudeGridColor,
+                        get: { $0.customization.altitudeGridColor },
+                        set: { $0.customization.altitudeGridColor = $1 }
+                    )
+                )
+                InspectorColorRow(
+                    title: localization.string("inspector.cursorColor"),
+                    selection: colorBinding(
+                        id: id,
+                        fallback: element.customization.resolvedAltitudeCursorColor,
+                        get: { $0.customization.altitudeCursorColor },
+                        set: { $0.customization.altitudeCursorColor = $1 }
+                    )
+                )
+
+                LabeledSlider(
+                    title: localization.string("inspector.fillOpacity"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.resolvedAltitudeFillOpacity },
+                        set: { $0.customization.altitudeFillOpacity = $1 }
+                    ),
+                    range: 0...1,
+                    label: (currentElement(id)?.customization.resolvedAltitudeFillOpacity ?? 0.18).percentString
+                )
+                LabeledSlider(
+                    title: localization.string("inspector.gridOpacity"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.resolvedAltitudeGridOpacity },
+                        set: { $0.customization.altitudeGridOpacity = $1 }
+                    ),
+                    range: 0...1,
+                    label: (currentElement(id)?.customization.resolvedAltitudeGridOpacity ?? 0.35).percentString
+                )
+                LabeledSlider(
+                    title: localization.string("inspector.verticalPadding"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.resolvedAltitudeVerticalPadding },
+                        set: { $0.customization.altitudeVerticalPadding = $1 }
+                    ),
+                    range: 0...1,
+                    label: (currentElement(id)?.customization.resolvedAltitudeVerticalPadding ?? 0.12).percentString
+                )
+                LabeledSlider(
+                    title: localization.string("inspector.minimumRange"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { $0.customization.resolvedAltitudeMinimumRangeMeters },
+                        set: { $0.customization.altitudeMinimumRangeMeters = $1 }
+                    ),
+                    range: 0.1...1_000,
+                    label: "\(Int((currentElement(id)?.customization.resolvedAltitudeMinimumRangeMeters ?? 50).rounded())) m",
+                    showsTextField: true,
+                    unitLabel: "m"
+                )
+                LabeledSlider(
+                    title: localization.string("inspector.gridRows"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { Double($0.customization.resolvedAltitudeGridRows) },
+                        set: { $0.customization.altitudeGridRows = Int($1.rounded()) }
+                    ),
+                    range: 0...12,
+                    label: "\(currentElement(id)?.customization.resolvedAltitudeGridRows ?? 3)"
+                )
+                LabeledSlider(
+                    title: localization.string("inspector.gridColumns"),
+                    value: doubleBinding(
+                        id: id,
+                        get: { Double($0.customization.resolvedAltitudeGridColumns) },
+                        set: { $0.customization.altitudeGridColumns = Int($1.rounded()) }
+                    ),
+                    range: 0...16,
+                    label: "\(currentElement(id)?.customization.resolvedAltitudeGridColumns ?? 4)"
+                )
+
+                InspectorToggleRow(title: localization.string("inspector.showFill"), isOn: boolBinding(
+                    id: id,
+                    get: { $0.customization.altitudeFillIsVisible },
+                    set: { $0.customization.altitudeShowsFill = $1 }
+                ))
+                InspectorToggleRow(title: localization.string("inspector.showGrid"), isOn: boolBinding(
+                    id: id,
+                    get: { $0.customization.altitudeGridIsVisible },
+                    set: { $0.customization.altitudeShowsGrid = $1 }
+                ))
+                InspectorToggleRow(title: localization.string("inspector.showCursor"), isOn: boolBinding(
+                    id: id,
+                    get: { $0.customization.altitudeCursorIsVisible },
+                    set: { $0.customization.altitudeShowsCursor = $1 }
+                ))
+                InspectorToggleRow(title: localization.string("inspector.showMinMax"), isOn: boolBinding(
+                    id: id,
+                    get: { $0.customization.altitudeMinMaxIsVisible },
+                    set: { $0.customization.altitudeShowsMinMax = $1 }
+                ))
+                InspectorToggleRow(title: localization.string("inspector.showDistanceLabels"), isOn: boolBinding(
+                    id: id,
+                    get: { $0.customization.altitudeDistanceLabelsAreVisible },
+                    set: { $0.customization.altitudeShowsDistanceLabels = $1 }
+                ))
             }
 
             if kind == .weather,
@@ -821,6 +1012,12 @@ struct InspectorSettingsPanel: View {
         case (.route, .unit):
             return 10
         case (.route, .icon):
+            return 12
+        case (.altitudeProfile, .label):
+            return 16
+        case (.altitudeProfile, .value):
+            return 24
+        case (.altitudeProfile, .unit), (.altitudeProfile, .icon):
             return 12
         case (.topProgress, .label):
             return 15
